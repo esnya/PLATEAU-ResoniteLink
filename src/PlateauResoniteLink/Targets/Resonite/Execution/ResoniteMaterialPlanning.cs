@@ -24,8 +24,8 @@ internal interface IResoniteMaterialPlanning
         ResoniteMaterialBinding material,
         int materialIndex,
         string packageName,
-        IReadOnlyDictionary<ResoniteTexturePayload, ResoniteTextureImport> preparedTextureDataByPayload,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
+        IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
+        IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
         bool preserveDedicatedMaterialSlot,
         CancellationToken cancellationToken);
 }
@@ -79,24 +79,24 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         ResoniteMaterialBinding material,
         int materialIndex,
         string packageName,
-        IReadOnlyDictionary<ResoniteTexturePayload, ResoniteTextureImport> preparedTextureDataByPayload,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
+        IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
+        IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
         bool preserveDedicatedMaterialSlot,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(importClient);
         ArgumentNullException.ThrowIfNull(material);
-        ArgumentNullException.ThrowIfNull(preparedTextureDataByPayload);
-        ArgumentNullException.ThrowIfNull(preparedTerrainTextureDataByOverlay);
+        ArgumentNullException.ThrowIfNull(preparedTextureUrisByPayload);
+        ArgumentNullException.ThrowIfNull(preparedTerrainTextureUrisByOverlay);
 
         Task<Uri?> albedoTextureTask = material.TexturePayload is not null
-            && preparedTextureDataByPayload.TryGetValue(material.TexturePayload, out ResoniteTextureImport? directTextureImport)
-            ? ImportOptionalTextureAsync(importClient, directTextureImport, cancellationToken)
+            && preparedTextureUrisByPayload.TryGetValue(material.TexturePayload, out Uri? directTextureUri)
+            ? Task.FromResult<Uri?>(directTextureUri)
             : material.TerrainOverlay is not null
-            && preparedTerrainTextureDataByOverlay.TryGetValue(
+            && preparedTerrainTextureUrisByOverlay.TryGetValue(
                 material.TerrainOverlay,
-                out GeneratedTerrainTexture? terrainOverlayTexture)
-            ? ImportOptionalTextureAsync(importClient, terrainOverlayTexture.TextureImport, cancellationToken)
+                out Uri? terrainOverlayTextureUri)
+            ? Task.FromResult<Uri?>(terrainOverlayTextureUri)
             : !string.IsNullOrWhiteSpace(material.Family)
             ? ImportBundledAlbedoTextureAsync(importClient, material, cancellationToken)
             : Task.FromResult<Uri?>(null);
@@ -124,35 +124,30 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
     }
 
     public static async Task<PlannedTextureAsset?> PlanMainTextureOverrideAsync(
-        IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<ResoniteTexturePayload, ResoniteTextureImport> preparedTextureDataByPayload,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
-        CancellationToken cancellationToken)
+        IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
+        IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay)
     {
-        ArgumentNullException.ThrowIfNull(importClient);
         ArgumentNullException.ThrowIfNull(material);
-        ArgumentNullException.ThrowIfNull(preparedTextureDataByPayload);
-        ArgumentNullException.ThrowIfNull(preparedTerrainTextureDataByOverlay);
+        ArgumentNullException.ThrowIfNull(preparedTextureUrisByPayload);
+        ArgumentNullException.ThrowIfNull(preparedTerrainTextureUrisByOverlay);
 
-        ResoniteTextureImport? textureImport = material.TexturePayload is not null
-            && preparedTextureDataByPayload.TryGetValue(material.TexturePayload, out ResoniteTextureImport? directTextureImport)
-                ? directTextureImport
+        Uri? textureUri = material.TexturePayload is not null
+            && preparedTextureUrisByPayload.TryGetValue(material.TexturePayload, out Uri? directTextureUri)
+                ? directTextureUri
             : material.TerrainOverlay is not null
-            && preparedTerrainTextureDataByOverlay.TryGetValue(material.TerrainOverlay, out GeneratedTerrainTexture? terrainOverlayTextureImport)
-                ? terrainOverlayTextureImport.TextureImport
+            && preparedTerrainTextureUrisByOverlay.TryGetValue(material.TerrainOverlay, out Uri? terrainOverlayTextureUri)
+                ? terrainOverlayTextureUri
             : null;
-        if (textureImport is null)
+        if (textureUri is null)
         {
             return null;
         }
 
-        Uri? textureUri = await ImportOptionalTextureAsync(importClient, textureImport, cancellationToken);
-        return textureUri is null
-            ? null
-            : new PlannedTextureAsset(
-                new TextureIdentity("main"),
-                textureUri);
+        await Task.CompletedTask;
+        return new PlannedTextureAsset(
+            new TextureIdentity("main"),
+            textureUri);
     }
 
     public static async Task<CreatedMaterialAsset> EmitCommonMaterialAsync(

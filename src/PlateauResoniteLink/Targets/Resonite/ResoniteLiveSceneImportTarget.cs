@@ -1201,13 +1201,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         slotHierarchyStopwatch.Stop();
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         IResoniteLinkClient routedClient = GetRoutedClient();
-        Dictionary<ResoniteTexturePayload, ResoniteTextureImport> preparedTextureDataByPayload = CreatePreparedTextureDataByPayload(preparedCityObject);
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay = CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
+        PreparedTextureUriData preparedTextureUris = await ImportPreparedTextureUrisAsync(
+            routedClient,
+            preparedCityObject,
+            buildStepCancellation.Token);
         await EnsureSharedCommonMaterialsPreparedAsync(
             state,
             routedClient,
             cityObject,
-            preparedTerrainTextureDataByOverlay,
+            preparedTextureUris.GeneratedTerrainTexturesByOverlay,
             buildStepCancellation.Token);
         Stopwatch materialStopwatch = Stopwatch.StartNew();
         Stopwatch geometryStopwatch = new();
@@ -1215,14 +1217,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             state,
             routedClient,
             cityObject,
-            preparedTextureDataByPayload,
-            preparedTerrainTextureDataByOverlay,
+            preparedTextureUris.TextureUrisByPayload,
+            preparedTextureUris.TerrainTextureUrisByOverlay,
+            preparedTextureUris.GeneratedTerrainTexturesByOverlay,
             buildStepCancellation.Token);
         Task<PlannedGeometryAsset> geometryPlanningTask = PlanGeometryAssetAsync(
             routedClient,
             cityObject,
             preparedCityObject,
-            preparedTerrainTextureDataByOverlay,
+            preparedTextureUris.GeneratedTerrainTexturesByOverlay,
             buildStepCancellation.Token);
         PlannedSceneMaterialPlan plannedMaterials;
         PlannedGeometryAsset plannedGeometryAsset;
@@ -1284,25 +1287,34 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         }
     }
 
-    private static Dictionary<ResoniteTexturePayload, ResoniteTextureImport> CreatePreparedTextureDataByPayload(
-        PreparedCityObject preparedCityObject)
+    private static async Task<PreparedTextureUriData> ImportPreparedTextureUrisAsync(
+        IResoniteLinkClient importClient,
+        PreparedCityObject preparedCityObject,
+        CancellationToken cancellationToken)
     {
-        return preparedCityObject.Textures
-            .Where(static texture => texture.TexturePayload is not null)
-            .ToDictionary(
-                static texture => texture.TexturePayload!,
-                static texture => texture.TextureImport,
-                TexturePayloadReferenceComparer.Instance);
-    }
+        Dictionary<ResoniteTexturePayload, Uri> textureUrisByPayload = new(TexturePayloadReferenceComparer.Instance);
+        Dictionary<TerrainTextureOverlay, Uri> terrainTextureUrisByOverlay = [];
+        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> generatedTerrainTexturesByOverlay = [];
 
-    private static Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> CreatePreparedTerrainTextureDataByOverlay(
-        PreparedCityObject preparedCityObject)
-    {
-        return preparedCityObject.Textures
-            .Where(static texture => texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
-            .ToDictionary(
-                static texture => texture.TerrainOverlay!,
-                static texture => texture.GeneratedTerrainTexture!);
+        foreach (PreparedTextureReference texture in preparedCityObject.Textures)
+        {
+            Uri textureUri = await importClient.ImportTextureAsync(texture.TextureImport, cancellationToken);
+            if (texture.TexturePayload is not null)
+            {
+                textureUrisByPayload.TryAdd(texture.TexturePayload, textureUri);
+            }
+
+            if (texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
+            {
+                terrainTextureUrisByOverlay.TryAdd(texture.TerrainOverlay, textureUri);
+                generatedTerrainTexturesByOverlay.TryAdd(texture.TerrainOverlay, texture.GeneratedTerrainTexture);
+            }
+        }
+
+        return new PreparedTextureUriData(
+            textureUrisByPayload,
+            terrainTextureUrisByOverlay,
+            generatedTerrainTexturesByOverlay);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -1413,7 +1425,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private static ResoniteMaterialBinding ResolveTerrainTextureMaterialForEmission(
         ResoniteConstructionCityObject cityObject,
         ResoniteMaterialBinding material,
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
+        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
     {
         _ = preparedTerrainTextureDataByOverlay;
         return (cityObject.Geometry is ResoniteTerrainGridGeometry
@@ -1586,8 +1598,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         LiveSendRunState state,
         IResoniteLinkClient importClient,
         ResoniteConstructionCityObject cityObject,
-        Dictionary<ResoniteTexturePayload, ResoniteTextureImport> preparedTextureDataByPayload,
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
+        IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
+        IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
+        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         CancellationToken cancellationToken)
     {
         Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[] materialPlanTasks
@@ -1605,7 +1618,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     state,
                     importClient,
                     material,
-                    preparedTextureDataByPayload,
+                    preparedTextureUrisByPayload,
+                    preparedTerrainTextureUrisByOverlay,
                     preparedTerrainTextureDataByOverlay,
                     cancellationToken,
                     out Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>? sharedCommonPlanTask))
@@ -1620,8 +1634,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 material,
                 materialIndex,
                 cityObject.PackageName,
-                preparedTextureDataByPayload,
-                preparedTerrainTextureDataByOverlay,
+                preparedTextureUrisByPayload,
+                preparedTerrainTextureUrisByOverlay,
                 preserveDedicatedMaterialSlot: IsDemPackage(cityObject.PackageName),
                 cancellationToken);
         }
@@ -1635,7 +1649,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             LiveSendRunState runState,
             IResoniteLinkClient client,
             ResoniteMaterialBinding sourceMaterial,
-            IReadOnlyDictionary<ResoniteTexturePayload, ResoniteTextureImport> preparedTexturesByPayload,
+            IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
+            IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
             IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTexturesByOverlay,
             CancellationToken ct,
             out Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>? sharedPlanTask)
@@ -1657,8 +1672,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 normalizedSharedMaterial,
                 familySlotName,
                 materialKey,
-                preparedTexturesByPayload,
-                preparedTexturesByOverlay,
+                preparedTextureUrisByPayload,
+                preparedTerrainTextureUrisByOverlay,
                 ct);
             return true;
         }
@@ -1670,8 +1685,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             ResoniteMaterialBinding normalizedSharedMaterial,
             string familySlotName,
             string materialKey,
-            IReadOnlyDictionary<ResoniteTexturePayload, ResoniteTextureImport> preparedTexturesByPayload,
-            IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTexturesByOverlay,
+            IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
+            IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
             CancellationToken ct)
         {
             if (runState.Materials.CommonMaterialFamilyWarmupTasks.TryGetValue(familySlotName, out Task? familyWarmupTask))
@@ -1688,11 +1703,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 new MaterialIdentity(materialKey),
                 existingMaterialAsset.MaterialComponent);
             PlannedTextureAsset? mainTextureOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
-                client,
                 sourceMaterial,
-                preparedTexturesByPayload,
-                preparedTexturesByOverlay,
-                ct);
+                preparedTextureUrisByPayload,
+                preparedTerrainTextureUrisByOverlay);
             PlannedRendererMaterialBinding rendererBinding = mainTextureOverride is null
                 ? new PlannedDirectRendererMaterialBinding(sharedMaterialAsset.Identity)
                 : new PlannedMainTextureOverrideRendererMaterialBinding(
@@ -1707,8 +1720,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             ResoniteMaterialBinding sourceMaterial,
             int materialIndex,
             string packageName,
-            IReadOnlyDictionary<ResoniteTexturePayload, ResoniteTextureImport> preparedTexturesByPayload,
-            IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTexturesByOverlay,
+            IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
+            IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
             bool preserveDedicatedMaterialSlot,
             CancellationToken ct)
         {
@@ -1717,8 +1730,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 sourceMaterial,
                 materialIndex,
                 packageName,
-                preparedTexturesByPayload,
-                preparedTexturesByOverlay,
+                preparedTextureUrisByPayload,
+                preparedTerrainTextureUrisByOverlay,
                 preserveDedicatedMaterialSlot,
                 ct);
             return (plannedMaterial, new PlannedDirectRendererMaterialBinding(plannedMaterial.Identity));
@@ -1729,7 +1742,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         LiveSendRunState state,
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
+        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         CancellationToken cancellationToken)
     {
         foreach (ResoniteMaterialBinding material in cityObject.Materials)
@@ -2196,6 +2209,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ResoniteTextureImport TextureImport,
         TerrainTextureOverlay? TerrainOverlay = null,
         GeneratedTerrainTexture? GeneratedTerrainTexture = null);
+
+    private sealed record PreparedTextureUriData(
+        Dictionary<ResoniteTexturePayload, Uri> TextureUrisByPayload,
+        Dictionary<TerrainTextureOverlay, Uri> TerrainTextureUrisByOverlay,
+        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> GeneratedTerrainTexturesByOverlay);
 
     private sealed class TexturePayloadReferenceComparer : IEqualityComparer<ResoniteTexturePayload>
     {
