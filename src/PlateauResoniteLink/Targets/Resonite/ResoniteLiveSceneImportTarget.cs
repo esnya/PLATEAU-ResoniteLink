@@ -1203,15 +1203,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         IResoniteLinkClient routedClient = GetRoutedClient();
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay =
             CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
-        Task<PreparedTextureUriData> preparedTextureUriTask = ImportPreparedTextureUrisAsync(
-            routedClient,
-            preparedCityObject,
-            preparedTerrainTextureDataByOverlay,
-            buildStepCancellation.Token);
         Task sharedCommonMaterialPreparationTask = EnsureSharedCommonMaterialsPreparedAsync(
             state,
             routedClient,
             cityObject,
+            preparedTerrainTextureDataByOverlay,
+            buildStepCancellation.Token);
+        Task<PreparedTextureUriData> preparedTextureUriTask = ImportPreparedTextureUrisAsync(
+            routedClient,
+            preparedCityObject,
             preparedTerrainTextureDataByOverlay,
             buildStepCancellation.Token);
         Stopwatch geometryStopwatch = Stopwatch.StartNew();
