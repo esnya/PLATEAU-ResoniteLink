@@ -329,4 +329,58 @@ public sealed class ResoniteMaterialComponentPolicyTests
         Assert.True(averageR - averageB <= 8.0, $"Expected city-furniture albedo to stay near light neutral plaster, but sampled RGB was {averageR:F1}/{averageG:F1}/{averageB:F1}.");
         Assert.True(averageG - averageB <= 8.0, $"Expected city-furniture albedo to stay near light neutral plaster, but sampled RGB was {averageR:F1}/{averageG:F1}/{averageB:F1}.");
     }
+
+    [Fact]
+    public void BundledDefaultPackedMetallicMapsStayNonMetallic()
+    {
+        foreach (string logicalPath in EnumerateBundledDefaultMaterialVariants())
+        {
+            string directory = Path.GetDirectoryName(logicalPath)?.Replace('\\', '/')
+                ?? throw new InvalidOperationException($"Could not determine bundled texture directory for '{logicalPath}'.");
+            string stem = Path.GetFileNameWithoutExtension(logicalPath);
+            string metallicLogicalPath = $"{directory}/{stem[..^"_Color".Length]}_Metallic.png";
+
+            Assert.True(
+                new BundledDefaultMaterialAssetStore().TryGetAbsolutePath(metallicLogicalPath, out string absolutePath),
+                $"Missing packed metallic map: {metallicLogicalPath}");
+
+            using Image<Rgba32> image = Image.Load<Rgba32>(absolutePath);
+            for (int y = 0; y < image.Height; y += 32)
+            {
+                for (int x = 0; x < image.Width; x += 32)
+                {
+                    Rgba32 pixel = image[x, y];
+                    Assert.True(
+                        pixel.R == 0,
+                        $"Expected no metalness in {metallicLogicalPath}, but sampled R={pixel.R} at {x},{y}.");
+                    Assert.True(
+                        pixel.A + pixel.B == byte.MaxValue,
+                        $"Expected alpha smoothness to be inverse roughness in {metallicLogicalPath}, but sampled B={pixel.B}, A={pixel.A} at {x},{y}.");
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateBundledDefaultMaterialVariants()
+    {
+        HashSet<string> variants = new(StringComparer.Ordinal);
+        foreach (string family in new[]
+        {
+            BundledDefaultMaterialFamilies.Facade,
+            BundledDefaultMaterialFamilies.Roof,
+            BundledDefaultMaterialFamilies.Road,
+            BundledDefaultMaterialFamilies.Vegetation,
+            BundledDefaultMaterialFamilies.CityFurniture,
+            BundledDefaultMaterialFamilies.Other,
+        })
+        {
+            foreach (string variant in BundledDefaultMaterialFamilies.GetVariants(family))
+            {
+                if (variants.Add(variant))
+                {
+                    yield return variant;
+                }
+            }
+        }
+    }
 }

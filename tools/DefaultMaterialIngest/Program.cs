@@ -50,7 +50,6 @@ static IngestedMaps IngestAmbientCg(
     string? emissionPath = CopyFirst(archive, destinationDirectory, $"{stem}_Emission", $"{stem}_Emission", [".jpg", ".png"]);
     string? roughnessPath = CopyFirst(archive, destinationDirectory, $"{stem}_Roughness", null, [".jpg", ".png"]);
     string? aoPath = CopyFirst(archive, destinationDirectory, $"{stem}_AmbientOcclusion", null, [".jpg", ".png"]);
-    string? metalnessPath = CopyFirst(archive, destinationDirectory, $"{stem}_Metalness", null, [".jpg", ".png"]);
 
     if (colorPath is null)
     {
@@ -64,8 +63,7 @@ static IngestedMaps IngestAmbientCg(
         normalPath,
         emissionPath,
         roughnessPath,
-        aoPath,
-        metalnessPath);
+        aoPath);
 }
 
 static IngestedMaps IngestTextureCan(
@@ -81,7 +79,6 @@ static IngestedMaps IngestTextureCan(
     string? emissionPath = CopyFirst(archive, destinationDirectory, $"{archiveStem}_emission_2k", $"{outputStem}_2K_Emission", [".jpg", ".png"]);
     string? roughnessPath = CopyFirst(archive, destinationDirectory, $"{archiveStem}_roughness_2k", null, [".jpg", ".png"]);
     string? aoPath = CopyFirst(archive, destinationDirectory, $"{archiveStem}_ao_2k", null, [".jpg", ".png"]);
-    string? metalnessPath = CopyFirst(archive, destinationDirectory, $"{archiveStem}_metallic_2k", null, [".jpg", ".png"]);
 
     if (colorPath is null)
     {
@@ -95,8 +92,7 @@ static IngestedMaps IngestTextureCan(
         normalPath,
         emissionPath,
         roughnessPath,
-        aoPath,
-        metalnessPath);
+        aoPath);
 }
 
 static string? CopyFirst(
@@ -133,7 +129,6 @@ static void CreatePackedMetallicMap(
     using Image<Rgba32> reference = Image.Load<Rgba32>(maps.ColorPath);
     using Image<Rgba32>? roughness = LoadIfPresent(maps.RoughnessPath);
     using Image<Rgba32>? ao = LoadIfPresent(maps.AmbientOcclusionPath);
-    using Image<Rgba32>? metalness = LoadIfPresent(maps.MetalnessPath);
     using Image<Rgba32> packed = new(reference.Width, reference.Height);
 
     packed.ProcessPixelRows(accessor =>
@@ -144,10 +139,10 @@ static void CreatePackedMetallicMap(
             for (int x = 0; x < row.Length; x++)
             {
                 row[x] = new Rgba32(
-                    SampleRedOrDefault(metalness, x, y, 0),
+                    0,
                     SampleRedOrDefault(ao, x, y, 255),
                     SampleRedOrDefault(roughness, x, y, 255),
-                    255);
+                    (byte)(255 - SampleRedOrDefault(roughness, x, y, 255)));
             }
         }
     });
@@ -184,5 +179,4 @@ internal sealed record IngestedMaps(
     string? NormalPath,
     string? EmissionPath,
     string? RoughnessPath,
-    string? AmbientOcclusionPath,
-    string? MetalnessPath);
+    string? AmbientOcclusionPath);

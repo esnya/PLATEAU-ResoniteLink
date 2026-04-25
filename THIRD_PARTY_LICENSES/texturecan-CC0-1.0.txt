@@ -17,7 +17,7 @@ Ingest procedure:
 - Download the 2K Maps archive from the source asset page.
 - Run `dotnet run --project tools/DefaultMaterialIngest/DefaultMaterialIngest.csproj -- texturecan <asset-id> <zip-path> <destination-directory>`.
 - The ingest tool keeps color, OpenGL normal, height, and emission maps when present.
-- The ingest tool generates `<asset-id>_2K_Metallic.png` as a packed material map. Red is upstream metallic or neutral 0, green is upstream ambient occlusion or neutral 255, blue is upstream roughness or neutral 255, and alpha is 255.
+- The ingest tool generates `<asset-id>_2K_Metallic.png` as a packed material map. Red is neutral 0 for the bundled non-metal defaults, green is upstream ambient occlusion or neutral 255, blue preserves upstream roughness or neutral 255 for diagnostics, and alpha is Unity-style smoothness (`255 - roughness`) for linear data sampling.
 
 Bundled TextureCan material sources:
 - src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0021_2K_* -> TextureCan Others 0021 -> https://www.texturecan.com/details/315/
