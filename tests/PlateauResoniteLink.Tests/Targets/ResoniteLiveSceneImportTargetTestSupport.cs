@@ -542,10 +542,6 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 
     public int ConnectCallCount { get; private set; }
 
-    public Func<ImportMeshRawData, CancellationToken, Task>? BeforeImportMeshAsync { get; set; }
-
-    public Func<ResoniteTextureImport, CancellationToken, Task>? BeforeImportTextureAsync { get; set; }
-
     public void Dispose()
     {
     }
@@ -693,29 +689,19 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         }
     }
 
-    public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+    public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (BeforeImportMeshAsync is not null)
-        {
-            await BeforeImportMeshAsync(request, cancellationToken);
-        }
-
         lock (gate)
         {
             ImportedMeshes.Add(request);
-            return new Uri($"resdb:///mesh/{ImportedMeshes.Count - 1}", UriKind.Absolute);
+            return Task.FromResult(new Uri($"resdb:///mesh/{ImportedMeshes.Count - 1}", UriKind.Absolute));
         }
     }
 
-    public async Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+    public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (BeforeImportTextureAsync is not null)
-        {
-            await BeforeImportTextureAsync(textureImport, cancellationToken);
-        }
-
         lock (gate)
         {
             switch (textureImport)
@@ -729,7 +715,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
                 default:
                     throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'.");
             }
-            return new Uri($"resdb:///texture/{ImportedRawTextures.Count + ImportedRawHdrTextures.Count - 1}", UriKind.Absolute);
+            return Task.FromResult(new Uri($"resdb:///texture/{ImportedRawTextures.Count + ImportedRawHdrTextures.Count - 1}", UriKind.Absolute));
         }
     }
 

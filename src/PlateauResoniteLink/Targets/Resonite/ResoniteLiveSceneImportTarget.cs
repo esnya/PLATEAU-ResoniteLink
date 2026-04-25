@@ -1227,8 +1227,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         PlannedGeometryAsset plannedGeometryAsset;
         try
         {
-            PreparedTextureUriData preparedTextureUris = await preparedTextureUriTask;
-            await sharedCommonMaterialPreparationTask;
+            PreparedTextureUriData preparedTextureUris = await AwaitMaterialPlanningPrerequisitesAsync(
+                preparedTextureUriTask,
+                sharedCommonMaterialPreparationTask,
+                geometryPlanningTask);
             materialStopwatch.Start();
             materialPlanningTask = PlanSceneMaterialPlanAsync(
                 state,
@@ -1294,6 +1296,54 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 $"[live] First city object built after {GetSceneElapsedSeconds(state):F3}s: "
                 + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
         }
+    }
+
+    private static async Task<PreparedTextureUriData> AwaitMaterialPlanningPrerequisitesAsync(
+        Task<PreparedTextureUriData> preparedTextureUriTask,
+        Task sharedCommonMaterialPreparationTask,
+        Task<PlannedGeometryAsset> geometryPlanningTask)
+    {
+        PreparedTextureUriData? preparedTextureUris = null;
+        bool sharedCommonMaterialPrepared = false;
+        while (preparedTextureUris is null || !sharedCommonMaterialPrepared)
+        {
+            if (preparedTextureUriTask.IsCompleted)
+            {
+                preparedTextureUris = await preparedTextureUriTask;
+            }
+
+            if (sharedCommonMaterialPreparationTask.IsCompleted)
+            {
+                await sharedCommonMaterialPreparationTask;
+                sharedCommonMaterialPrepared = true;
+            }
+
+            if (preparedTextureUris is not null && sharedCommonMaterialPrepared)
+            {
+                break;
+            }
+
+            List<Task> waitTasks = [];
+            if (!preparedTextureUriTask.IsCompleted)
+            {
+                waitTasks.Add(preparedTextureUriTask);
+            }
+
+            if (!sharedCommonMaterialPreparationTask.IsCompleted)
+            {
+                waitTasks.Add(sharedCommonMaterialPreparationTask);
+            }
+
+            if (!geometryPlanningTask.IsCompleted)
+            {
+                waitTasks.Add(geometryPlanningTask);
+            }
+
+            Task completedTask = await Task.WhenAny(waitTasks);
+            await completedTask;
+        }
+
+        return preparedTextureUris;
     }
 
     private static async Task<PreparedTextureUriData> ImportPreparedTextureUrisAsync(
