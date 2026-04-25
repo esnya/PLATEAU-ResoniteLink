@@ -146,7 +146,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using SceneBuilderRecordingClient client = new();
         TaskCompletionSource preparedTextureImportsStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource releasePreparedTextureImports = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource geometryImportStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int startedPreparedTextureImports = 0;
+        client.BeforeImportMeshAsync = (meshImport, _) =>
+        {
+            geometryImportStarted.TrySetResult();
+            return Task.CompletedTask;
+        };
         client.BeforeImportTextureAsync = async (textureImport, cancellationToken) =>
         {
             if (textureImport is not ResoniteRawTextureImport { Width: 2, Height: 2 })
@@ -212,10 +218,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
             preparedTextureImportsStarted.Task,
             buildTask,
             Task.Delay(TimeSpan.FromSeconds(3)));
+        Task geometryStartedTask = await Task.WhenAny(
+            geometryImportStarted.Task,
+            buildTask,
+            Task.Delay(TimeSpan.FromSeconds(3)));
         releasePreparedTextureImports.SetResult();
         await buildTask;
 
         Assert.Same(preparedTextureImportsStarted.Task, firstCompletedTask);
+        Assert.Same(geometryImportStarted.Task, geometryStartedTask);
         Assert.Equal(2, startedPreparedTextureImports);
     }
 

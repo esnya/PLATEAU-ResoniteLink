@@ -542,6 +542,8 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 
     public int ConnectCallCount { get; private set; }
 
+    public Func<ImportMeshRawData, CancellationToken, Task>? BeforeImportMeshAsync { get; set; }
+
     public Func<ResoniteTextureImport, CancellationToken, Task>? BeforeImportTextureAsync { get; set; }
 
     public void Dispose()
@@ -691,13 +693,18 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         }
     }
 
-    public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+    public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (BeforeImportMeshAsync is not null)
+        {
+            await BeforeImportMeshAsync(request, cancellationToken);
+        }
+
         lock (gate)
         {
             ImportedMeshes.Add(request);
-            return Task.FromResult(new Uri($"resdb:///mesh/{ImportedMeshes.Count - 1}", UriKind.Absolute));
+            return new Uri($"resdb:///mesh/{ImportedMeshes.Count - 1}", UriKind.Absolute);
         }
     }
 
