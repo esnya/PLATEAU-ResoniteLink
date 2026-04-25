@@ -334,6 +334,61 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_StartsRuntimeSharedMaterialPreparationBeforePreparedTextureImport()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        await using ResoniteLiveSceneImportTarget builder = new(
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                ResoniteImportMemoryProfile.Large,
+                EnableMeshBake: false,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
+            new ResoniteLiveSceneImportDependencies(
+                session,
+                ResoniteLinkSendDiagnostics.Disabled,
+                new TerrainTextureAssetGenerator(),
+                new MissingCommonMaterialBootstrapInterpreter(),
+                new ResoniteDatasetLicenseWriter(),
+                new ResoniteGeometryAssetAssembler(),
+                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+                new ResoniteBatchEmissionPlanner(),
+                new PlannedBatchEmissionInterpreter(),
+                new ResoniteSlotCreator(),
+                new ResoniteBufferedCityObjectBakerFactory()));
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(
+            request,
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
+            request,
+            request,
+            metadata,
+            request.LocalSourcePath!,
+            workDirectory.Path,
+            commonMaterials: []);
+
+        _ = await builder.ExecuteAsync(
+            plan,
+            CreateImportedObjectUnits(CreateMixedSharedMaterialAndPayloadCityObject("runtime-shared-texture")));
+
+        int firstSharedMaterialReadIndex = routedClient.OperationNames.FindIndex(static operation =>
+            operation.StartsWith("GetSlot:", StringComparison.Ordinal)
+            && operation.Contains("Common Materials", StringComparison.Ordinal));
+        int firstTextureImportIndex = routedClient.OperationNames.FindIndex(static operation =>
+            string.Equals(operation, "ImportTexture", StringComparison.Ordinal));
+        Assert.True(firstSharedMaterialReadIndex >= 0, "Expected runtime shared material preparation to read the shared Common Materials slot.");
+        Assert.True(firstTextureImportIndex >= 0, "Expected the textured material to import its prepared texture payload.");
+        Assert.InRange(firstSharedMaterialReadIndex, 0, firstTextureImportIndex - 1);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_BootstrapsTerrainOverlaySharedCommonMaterialBeforeRuntimeEmission()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -1025,6 +1080,65 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
+    }
+
+    private static ResoniteConstructionCityObject CreateMixedSharedMaterialAndPayloadCityObject(string objectIdentity)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: $"slot-{objectIdentity}",
+            DisplayName: $"CityObject {objectIdentity}",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTwoMaterialMesh(),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "first-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.VertexColor,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "second-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(
+                        255,
+                        0,
+                        0,
+                        "textures/runtime-shared-texture.png"),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            CollisionEnabled: true,
+            SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
+    }
+
+    private static ResoniteImportedMesh CreateTwoMaterialMesh()
+    {
+        return new ResoniteImportedMesh(
+            Vertices:
+            [
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(3.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+            ],
+            Submeshes:
+            [
+                new ResoniteMeshSubmesh(0, "first-material", [0, 1, 2]),
+                new ResoniteMeshSubmesh(1, "second-material", [3, 4, 5]),
+            ]);
     }
 
     private sealed class MissingCommonMaterialBootstrapInterpreter : IResoniteSceneBootstrapInterpreter

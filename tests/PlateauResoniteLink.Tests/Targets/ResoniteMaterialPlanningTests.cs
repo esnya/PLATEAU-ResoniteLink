@@ -142,9 +142,8 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
-    public async Task PlanMainTextureOverrideAsync_UsesRoleIdentityWithoutTextureImportIdentity()
+    public async Task PlanMainTextureOverrideAsync_UsesPreparedUriWithRoleIdentity()
     {
-        using SceneBuilderRecordingClient client = new();
         ResoniteMaterialBinding firstMaterial = new(
             MaterialKey: "material-a",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -158,43 +157,31 @@ public sealed class ResoniteMaterialPlanningTests
         {
             MaterialKey = "material-b",
         };
+        Dictionary<ResoniteTexturePayload, Uri> firstPreparedUris = new(TexturePayloadReferenceComparer.Instance)
+        {
+            [firstMaterial.TexturePayload!] = new Uri("resdb:///texture/first", UriKind.Absolute),
+        };
+        Dictionary<ResoniteTexturePayload, Uri> secondPreparedUris = new(TexturePayloadReferenceComparer.Instance)
+        {
+            [secondMaterial.TexturePayload!] = new Uri("resdb:///texture/second", UriKind.Absolute),
+        };
 
         PlannedTextureAsset? firstOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
-            client,
             firstMaterial,
-            new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
-            {
-                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
-            },
-            new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
-            CancellationToken.None);
+            firstPreparedUris,
+            new Dictionary<TerrainTextureOverlay, Uri>());
         PlannedTextureAsset? repeatedFirstOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
-            client,
             firstMaterial,
-            new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
-            {
-                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
-            },
-            new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
-            CancellationToken.None);
+            firstPreparedUris,
+            new Dictionary<TerrainTextureOverlay, Uri>());
         PlannedTextureAsset? secondOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
-            client,
             secondMaterial,
-            new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
-            {
-                [secondMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
-            },
-            new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
-            CancellationToken.None);
+            secondPreparedUris,
+            new Dictionary<TerrainTextureOverlay, Uri>());
         PlannedTextureAsset? thirdOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
-            client,
             firstMaterial,
-            new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
-            {
-                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
-            },
-            new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
-            CancellationToken.None);
+            firstPreparedUris,
+            new Dictionary<TerrainTextureOverlay, Uri>());
 
         Assert.NotNull(firstOverride);
         Assert.NotNull(repeatedFirstOverride);
@@ -204,6 +191,17 @@ public sealed class ResoniteMaterialPlanningTests
         Assert.Equal(firstOverride.Identity, repeatedFirstOverride!.Identity);
         Assert.Equal(firstOverride.Identity, secondOverride!.Identity);
         Assert.Equal(firstOverride.Identity, thirdOverride!.Identity);
-        Assert.NotEqual(firstOverride.AssetUri, repeatedFirstOverride.AssetUri);
+        Assert.Equal(new Uri("resdb:///texture/first", UriKind.Absolute), firstOverride.AssetUri);
+        Assert.Equal(firstOverride.AssetUri, repeatedFirstOverride.AssetUri);
+        Assert.Equal(new Uri("resdb:///texture/second", UriKind.Absolute), secondOverride.AssetUri);
+    }
+
+    private sealed class TexturePayloadReferenceComparer : IEqualityComparer<ResoniteTexturePayload>
+    {
+        internal static readonly TexturePayloadReferenceComparer Instance = new();
+
+        public bool Equals(ResoniteTexturePayload? x, ResoniteTexturePayload? y) => ReferenceEquals(x, y);
+
+        public int GetHashCode(ResoniteTexturePayload obj) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
     }
 }

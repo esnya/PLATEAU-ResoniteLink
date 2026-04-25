@@ -540,6 +540,8 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 
     public Dictionary<string, string> SlotPaths { get; } = new(StringComparer.Ordinal);
 
+    public List<string> OperationNames { get; } = [];
+
     public int ConnectCallCount { get; private set; }
 
     public void Dispose()
@@ -675,6 +677,14 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
     public Task<Slot?> GetSlotAsync(TransportSlotLocator slot, int depth, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        lock (gate)
+        {
+            string observedSlot = SlotPaths.TryGetValue(slot.Value, out string? path)
+                ? path
+                : slot.Value;
+            OperationNames.Add($"GetSlot:{observedSlot}");
+        }
+
         if (slot.IsRoot)
         {
             return Task.FromResult<Slot?>(CreateSyntheticRoot(depth));
@@ -704,6 +714,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         cancellationToken.ThrowIfCancellationRequested();
         lock (gate)
         {
+            OperationNames.Add("ImportTexture");
             switch (textureImport)
             {
                 case ResoniteRawTextureImport rawImport:
