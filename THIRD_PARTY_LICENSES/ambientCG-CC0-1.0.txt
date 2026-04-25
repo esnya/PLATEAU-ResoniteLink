@@ -12,7 +12,7 @@ Ingest procedure:
 - Download the 2K JPG archive from https://ambientcg.com/get?file=<asset-id>_2K-JPG.zip.
 - Run `dotnet run --project tools/DefaultMaterialIngest/DefaultMaterialIngest.csproj -- ambientcg <asset-id> <zip-path> <destination-directory>`.
 - The ingest tool keeps Color, NormalGL, Displacement-as-Height, and Emission maps when present.
-- The ingest tool generates `<asset-id>_2K-JPG_Metallic.png` as a packed material map. Red is neutral 0 for the bundled non-metal defaults, green is upstream ambient occlusion or neutral 255, blue preserves upstream roughness or neutral 255 for diagnostics, and alpha is Unity-style smoothness (`255 - roughness`) for linear data sampling.
+- The ingest tool generates `<asset-id>_2K-JPG_Metallic.png` as a packed material map. Red is upstream metalness when present or neutral 0, green is upstream ambient occlusion or neutral 255, blue preserves upstream roughness or neutral 255 for diagnostics, and alpha is Unity-style smoothness (`255 - roughness`) for linear data sampling.
 
 Runtime material families currently use only a curated subset of these files. Other collected files are bundled for later height-aware or package-aware material selection work.
 

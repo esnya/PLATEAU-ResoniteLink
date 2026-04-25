@@ -350,15 +350,26 @@ public sealed class ResoniteMaterialComponentPolicyTests
                 for (int x = 0; x < image.Width; x += 32)
                 {
                     Rgba32 pixel = image[x, y];
-                    Assert.True(
-                        pixel.R == 0,
-                        $"Expected no metalness in {metallicLogicalPath}, but sampled R={pixel.R} at {x},{y}.");
+                    if (!CanUseUpstreamMetalness(metallicLogicalPath))
+                    {
+                        Assert.True(
+                            pixel.R == 0,
+                            $"Expected no metalness in {metallicLogicalPath}, but sampled R={pixel.R} at {x},{y}.");
+                    }
+
                     Assert.True(
                         pixel.A + pixel.B == byte.MaxValue,
                         $"Expected alpha smoothness to be inverse roughness in {metallicLogicalPath}, but sampled B={pixel.B}, A={pixel.A} at {x},{y}.");
                 }
             }
         }
+    }
+
+    private static bool CanUseUpstreamMetalness(string metallicLogicalPath)
+    {
+        return metallicLogicalPath.Contains("/ambientcg/facade/Facade018A_", StringComparison.Ordinal)
+            || metallicLogicalPath.Contains("/ambientcg/facade/Facade019A_", StringComparison.Ordinal)
+            || metallicLogicalPath.Contains("/ambientcg/facade/Facade020A_", StringComparison.Ordinal);
     }
 
     private static IEnumerable<string> EnumerateBundledDefaultMaterialVariants()
