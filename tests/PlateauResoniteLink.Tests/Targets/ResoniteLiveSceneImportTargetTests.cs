@@ -140,6 +140,86 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
+    public async Task BuildAsyncImportsPreparedTexturesConcurrentlyBeforeMaterialEmission()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        TaskCompletionSource preparedTextureImportsStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releasePreparedTextureImports = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int startedPreparedTextureImports = 0;
+        client.BeforeImportTextureAsync = async (textureImport, cancellationToken) =>
+        {
+            if (textureImport is not ResoniteRawTextureImport { Width: 2, Height: 2 })
+            {
+                return;
+            }
+
+            if (Interlocked.Increment(ref startedPreparedTextureImports) == 2)
+            {
+                preparedTextureImportsStarted.TrySetResult();
+            }
+
+            await releasePreparedTextureImports.Task.WaitAsync(cancellationToken);
+        };
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles:
+            [
+                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
+            ]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "two-texture-object",
+            DisplayName: "Two Texture Object",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTwoSubmeshMesh(),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "first-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/first.png"),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "second-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/second.png"),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceFileRelativePath: $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml");
+
+        Task buildTask = ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [cityObject],
+            client,
+            enableMeshBake: false);
+
+        Task firstCompletedTask = await Task.WhenAny(
+            preparedTextureImportsStarted.Task,
+            buildTask,
+            Task.Delay(TimeSpan.FromSeconds(3)));
+        releasePreparedTextureImports.SetResult();
+        await buildTask;
+
+        Assert.Same(preparedTextureImportsStarted.Task, firstCompletedTask);
+        Assert.Equal(2, startedPreparedTextureImports);
+    }
+
+    [Fact]
     public async Task BuildAsyncReusesExistingTerrainOverlayGenericCommonMaterialComponent()
     {
         using TemporaryDirectory datasetDirectory = new();

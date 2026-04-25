@@ -1295,19 +1295,42 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Dictionary<ResoniteTexturePayload, Uri> textureUrisByPayload = new(TexturePayloadReferenceComparer.Instance);
         Dictionary<TerrainTextureOverlay, Uri> terrainTextureUrisByOverlay = [];
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> generatedTerrainTexturesByOverlay = [];
+        HashSet<ResoniteTexturePayload> queuedPayloads = new(TexturePayloadReferenceComparer.Instance);
+        HashSet<TerrainTextureOverlay> queuedTerrainOverlays = [];
+        List<(PreparedTextureReference Texture, Task<Uri> ImportTask)> textureImportTasks = [];
 
         foreach (PreparedTextureReference texture in preparedCityObject.Textures)
         {
-            Uri textureUri = await importClient.ImportTextureAsync(texture.TextureImport, cancellationToken);
+            if (texture.TexturePayload is not null && !queuedPayloads.Add(texture.TexturePayload))
+            {
+                continue;
+            }
+
+            if (texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null }
+                && !queuedTerrainOverlays.Add(texture.TerrainOverlay))
+            {
+                continue;
+            }
+
+            textureImportTasks.Add((
+                texture,
+                importClient.ImportTextureAsync(texture.TextureImport, cancellationToken)));
+        }
+
+        await Task.WhenAll(textureImportTasks.Select(static textureImport => textureImport.ImportTask));
+
+        foreach ((PreparedTextureReference texture, Task<Uri> importTask) in textureImportTasks)
+        {
+            Uri textureUri = await importTask;
             if (texture.TexturePayload is not null)
             {
-                textureUrisByPayload.TryAdd(texture.TexturePayload, textureUri);
+                textureUrisByPayload.Add(texture.TexturePayload, textureUri);
             }
 
             if (texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
             {
-                terrainTextureUrisByOverlay.TryAdd(texture.TerrainOverlay, textureUri);
-                generatedTerrainTexturesByOverlay.TryAdd(texture.TerrainOverlay, texture.GeneratedTerrainTexture);
+                terrainTextureUrisByOverlay.Add(texture.TerrainOverlay, textureUri);
+                generatedTerrainTexturesByOverlay.Add(texture.TerrainOverlay, texture.GeneratedTerrainTexture);
             }
         }
 
