@@ -1,23 +1,37 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
-using NetTopologySuite.Geometries;
-
+using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class DemTerrainOverlaySurfaceClipper
 {
-    private static readonly GeometryFactory GeometryFactory = new();
+    private const double ClipEpsilon = 1e-12;
+    private const long ClipProgressReportInterval = 10_000;
+
+    private static long clipProgressCounter;
+
     private readonly record struct ResolvedSurfaceVertex(
         GeodeticPoint Point,
         Float2? UV);
 
+    private enum ClipBoundary
+    {
+        West,
+        East,
+        South,
+        North,
+    }
+
     public static IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> ClipGeneratedSurfaceToOverlays(
         BootstrapParsedSurface surface,
-        IReadOnlyList<TerrainTextureOverlay> overlays)
+        IReadOnlyList<TerrainTextureOverlay> overlays,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(overlays);
@@ -25,10 +39,13 @@ internal static class DemTerrainOverlaySurfaceClipper
         List<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> results = [];
         foreach (TerrainTextureOverlay overlay in overlays)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (BootstrapParsedSurface clippedSurface in ClipSurfaceCore(
                          surface,
                          [overlay.GeographicBounds],
-                         suffixFactory: (_, localPolygonIndex) => $"{CreateOverlayToken(overlay.GeographicBounds)}_{localPolygonIndex:D2}"))
+                         suffixFactory: (_, localPolygonIndex) => $"{CreateOverlayToken(overlay.GeographicBounds)}_{localPolygonIndex:D2}",
+                         progressReporter,
+                         cancellationToken))
             {
                 results.Add((
                     clippedSurface,
@@ -41,14 +58,18 @@ internal static class DemTerrainOverlaySurfaceClipper
 
     public static IReadOnlyList<BootstrapParsedSurface> ClipGeneratedSurfaceToBounds(
         BootstrapParsedSurface surface,
-        IReadOnlyList<GeographicRectangle> bounds)
+        IReadOnlyList<GeographicRectangle> bounds,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
     {
-        return ClipSurfaceToBounds(surface, bounds);
+        return ClipSurfaceToBounds(surface, bounds, progressReporter, cancellationToken);
     }
 
     public static IReadOnlyList<BootstrapParsedSurface> ClipSurfaceToBounds(
         BootstrapParsedSurface surface,
-        IReadOnlyList<GeographicRectangle> bounds)
+        IReadOnlyList<GeographicRectangle> bounds,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(bounds);
@@ -56,26 +77,51 @@ internal static class DemTerrainOverlaySurfaceClipper
         return ClipSurfaceCore(
             surface,
             bounds,
-            suffixFactory: (boundIndex, polygonIndex) => $"{CreateOverlayToken(bounds[boundIndex])}_{boundIndex:D2}_{polygonIndex:D2}");
+            suffixFactory: (boundIndex, polygonIndex) => $"{CreateOverlayToken(bounds[boundIndex])}_{boundIndex:D2}_{polygonIndex:D2}",
+            progressReporter,
+            cancellationToken);
     }
 
     private static List<BootstrapParsedSurface> ClipSurfaceCore(
         BootstrapParsedSurface surface,
         IReadOnlyList<GeographicRectangle> bounds,
-        Func<int, int, string> suffixFactory)
+        Func<int, int, string> suffixFactory,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         List<BootstrapParsedSurface> results = [];
+        if (surface.ExteriorRing.Vertices.Length < 3)
+        {
+            return results;
+        }
+
+        GeographicRectangle surfaceBounds = GetSurfaceBounds(surface);
         for (int boundIndex = 0; boundIndex < bounds.Count; boundIndex++)
         {
-            int polygonIndex = 0;
-            foreach (Polygon polygon in ClipToOverlay(surface, bounds[boundIndex]))
+            cancellationToken.ThrowIfCancellationRequested();
+            GeographicRectangle bound = bounds[boundIndex];
+            if (!Intersects(surfaceBounds, bound))
             {
-                ResolvedSurfaceVertex[] resolvedVertices = polygon.Coordinates
-                    .Take(Math.Max(polygon.Coordinates.Length - 1, 0))
-                    .Select(coordinate => ResolveSurfaceVertex(surface, coordinate))
-                    .ToArray();
+                continue;
+            }
+
+            if (ShouldReportClipProgress(boundIndex, bounds.Count))
+            {
+                progressReporter?.Invoke(
+                    PlateauLog.Debug(
+                        "import",
+                        $"Clipping DEM surface '{surface.PolygonId}' to geographic bound "
+                        + $"{boundIndex + 1}/{bounds.Count} "
+                        + $"(vertices={surface.ExteriorRing.Vertices.Length})."));
+            }
+
+            int polygonIndex = 0;
+            foreach (IReadOnlyList<ResolvedSurfaceVertex> polygon in ClipToOverlay(surface, bound, cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
                 (GeodeticPoint[] vertices, IReadOnlyList<Float2>? uvs) =
-                    NormalizeResolvedVertices(surface, resolvedVertices);
+                    NormalizeResolvedVertices(surface, polygon);
                 if (vertices.Length < 3)
                 {
                     continue;
@@ -98,180 +144,153 @@ internal static class DemTerrainOverlaySurfaceClipper
         return results;
     }
 
-    private static IEnumerable<Polygon> ClipToOverlay(
+    private static GeographicRectangle GetSurfaceBounds(BootstrapParsedSurface surface)
+    {
+        return new GeographicRectangle(
+            MinLatitude: surface.ExteriorRing.Vertices.Min(static point => point.Latitude),
+            MaxLatitude: surface.ExteriorRing.Vertices.Max(static point => point.Latitude),
+            MinLongitude: surface.ExteriorRing.Vertices.Min(static point => point.Longitude),
+            MaxLongitude: surface.ExteriorRing.Vertices.Max(static point => point.Longitude));
+    }
+
+    private static bool Intersects(GeographicRectangle left, GeographicRectangle right)
+    {
+        return left.MaxLatitude >= right.MinLatitude
+            && left.MinLatitude <= right.MaxLatitude
+            && left.MaxLongitude >= right.MinLongitude
+            && left.MinLongitude <= right.MaxLongitude;
+    }
+
+    private static bool ShouldReportClipProgress(int boundIndex, int boundCount)
+    {
+        _ = boundIndex;
+        _ = boundCount;
+        return Interlocked.Increment(ref clipProgressCounter) % ClipProgressReportInterval == 0;
+    }
+
+    private static IEnumerable<IReadOnlyList<ResolvedSurfaceVertex>> ClipToOverlay(
         BootstrapParsedSurface surface,
-        GeographicRectangle rectangle)
+        GeographicRectangle rectangle,
+        CancellationToken cancellationToken)
     {
         if (surface.InteriorRings.Length != 0 || surface.ExteriorRing.Vertices.Length < 3)
         {
             yield break;
         }
 
-        Polygon input = GeometryFactory.CreatePolygon(ToClosedCoordinates(surface.ExteriorRing.Vertices));
-        Polygon clip = GeometryFactory.CreatePolygon(
-        [
-            new Coordinate(rectangle.MinLongitude, rectangle.MinLatitude),
-            new Coordinate(rectangle.MaxLongitude, rectangle.MinLatitude),
-            new Coordinate(rectangle.MaxLongitude, rectangle.MaxLatitude),
-            new Coordinate(rectangle.MinLongitude, rectangle.MaxLatitude),
-            new Coordinate(rectangle.MinLongitude, rectangle.MinLatitude),
-        ]);
+        cancellationToken.ThrowIfCancellationRequested();
+        List<ResolvedSurfaceVertex> vertices = surface.ExteriorRing.Vertices
+            .Select((point, index) => new ResolvedSurfaceVertex(
+                point,
+                surface.ExteriorRing.UVs is not null && index < surface.ExteriorRing.UVs.Count
+                    ? surface.ExteriorRing.UVs[index]
+                    : null))
+            .ToList();
 
-        Geometry intersection = input.Intersection(clip);
-        foreach (Geometry geometry in EnumeratePolygons(intersection))
+        foreach (ClipBoundary boundary in Enum.GetValues<ClipBoundary>())
         {
-            if (geometry is Polygon polygon && !polygon.IsEmpty)
+            cancellationToken.ThrowIfCancellationRequested();
+            vertices = ClipAgainstBoundary(vertices, rectangle, boundary);
+            if (vertices.Count < 3)
             {
-                yield return polygon;
+                yield break;
             }
         }
+
+        yield return vertices;
     }
 
-    private static IEnumerable<Geometry> EnumeratePolygons(Geometry geometry)
+    private static List<ResolvedSurfaceVertex> ClipAgainstBoundary(
+        IReadOnlyList<ResolvedSurfaceVertex> vertices,
+        GeographicRectangle rectangle,
+        ClipBoundary boundary)
     {
-        if (geometry.IsEmpty)
-        {
-            yield break;
-        }
+        List<ResolvedSurfaceVertex> output = [];
+        ResolvedSurfaceVertex previous = vertices[^1];
+        bool previousInside = IsInside(previous, rectangle, boundary);
 
-        if (geometry is Polygon)
+        foreach (ResolvedSurfaceVertex current in vertices)
         {
-            yield return geometry;
-            yield break;
-        }
-
-        if (geometry is MultiPolygon or GeometryCollection)
-        {
-            for (int index = 0; index < geometry.NumGeometries; index++)
+            bool currentInside = IsInside(current, rectangle, boundary);
+            if (currentInside)
             {
-                foreach (Geometry child in EnumeratePolygons(geometry.GetGeometryN(index)))
+                if (!previousInside)
                 {
-                    yield return child;
+                    output.Add(IntersectBoundary(previous, current, rectangle, boundary));
                 }
+
+                output.Add(current);
             }
+            else if (previousInside)
+            {
+                output.Add(IntersectBoundary(previous, current, rectangle, boundary));
+            }
+
+            previous = current;
+            previousInside = currentInside;
         }
+
+        return output;
     }
 
-    private static Coordinate[] ToClosedCoordinates(GeodeticPoint[] vertices)
+    private static bool IsInside(
+        ResolvedSurfaceVertex vertex,
+        GeographicRectangle rectangle,
+        ClipBoundary boundary)
     {
-        Coordinate[] coordinates = new Coordinate[vertices.Length + 1];
-        for (int index = 0; index < vertices.Length; index++)
+        return boundary switch
         {
-            coordinates[index] = new Coordinate(vertices[index].Longitude, vertices[index].Latitude);
-        }
-
-        coordinates[^1] = new Coordinate(vertices[0].Longitude, vertices[0].Latitude);
-        return coordinates;
+            ClipBoundary.West => vertex.Point.Longitude >= rectangle.MinLongitude - ClipEpsilon,
+            ClipBoundary.East => vertex.Point.Longitude <= rectangle.MaxLongitude + ClipEpsilon,
+            ClipBoundary.South => vertex.Point.Latitude >= rectangle.MinLatitude - ClipEpsilon,
+            ClipBoundary.North => vertex.Point.Latitude <= rectangle.MaxLatitude + ClipEpsilon,
+            _ => throw new ArgumentOutOfRangeException(nameof(boundary), boundary, null),
+        };
     }
 
-    private static ResolvedSurfaceVertex ResolveSurfaceVertex(
-        BootstrapParsedSurface surface,
-        Coordinate coordinate)
+    private static ResolvedSurfaceVertex IntersectBoundary(
+        ResolvedSurfaceVertex start,
+        ResolvedSurfaceVertex end,
+        GeographicRectangle rectangle,
+        ClipBoundary boundary)
     {
-        GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
-        IReadOnlyList<Float2>? uvs = surface.ExteriorRing.UVs;
-        for (int index = 0; index < vertices.Length; index++)
+        double denominator = boundary is ClipBoundary.West or ClipBoundary.East
+            ? end.Point.Longitude - start.Point.Longitude
+            : end.Point.Latitude - start.Point.Latitude;
+        if (Math.Abs(denominator) <= ClipEpsilon)
         {
-            if (Approximately(vertices[index].Longitude, coordinate.X)
-                && Approximately(vertices[index].Latitude, coordinate.Y))
-            {
-                return new ResolvedSurfaceVertex(vertices[index], uvs is not null && index < uvs.Count ? uvs[index] : null);
-            }
+            return start;
         }
 
-        if (TryResolveEdgePoint(vertices, uvs, coordinate, out ResolvedSurfaceVertex edgePoint))
+        double value = boundary switch
         {
-            return edgePoint;
-        }
+            ClipBoundary.West => rectangle.MinLongitude,
+            ClipBoundary.East => rectangle.MaxLongitude,
+            ClipBoundary.South => rectangle.MinLatitude,
+            ClipBoundary.North => rectangle.MaxLatitude,
+            _ => throw new ArgumentOutOfRangeException(nameof(boundary), boundary, null),
+        };
+        double sourceValue = boundary is ClipBoundary.West or ClipBoundary.East
+            ? start.Point.Longitude
+            : start.Point.Latitude;
+        double ratio = Math.Clamp((value - sourceValue) / denominator, 0.0, 1.0);
 
-        return ResolvePlanarPoint(vertices, uvs, coordinate);
-    }
-
-    private static bool TryResolveEdgePoint(
-        GeodeticPoint[] vertices,
-        IReadOnlyList<Float2>? uvs,
-        Coordinate coordinate,
-        out ResolvedSurfaceVertex point)
-    {
-        for (int index = 0; index < vertices.Length; index++)
+        Float2? uv = null;
+        if (start.UV is not null && end.UV is not null)
         {
-            GeodeticPoint start = vertices[index];
-            GeodeticPoint end = vertices[(index + 1) % vertices.Length];
-            double deltaLongitude = end.Longitude - start.Longitude;
-            double deltaLatitude = end.Latitude - start.Latitude;
-            double edgeLengthSquared = (deltaLongitude * deltaLongitude) + (deltaLatitude * deltaLatitude);
-            if (edgeLengthSquared <= 1e-18)
-            {
-                continue;
-            }
-
-            double ratio = ((coordinate.X - start.Longitude) * deltaLongitude + (coordinate.Y - start.Latitude) * deltaLatitude) / edgeLengthSquared;
-            if (ratio < -1e-8 || ratio > 1.0 + 1e-8)
-            {
-                continue;
-            }
-
-            double projectedLongitude = start.Longitude + (deltaLongitude * ratio);
-            double projectedLatitude = start.Latitude + (deltaLatitude * ratio);
-            if (!Approximately(projectedLongitude, coordinate.X) || !Approximately(projectedLatitude, coordinate.Y))
-            {
-                continue;
-            }
-
-            ratio = Math.Clamp(ratio, 0.0, 1.0);
-            Float2? uv = null;
-            if (uvs is not null
-                && index < uvs.Count
-                && ((index + 1) % vertices.Length) < uvs.Count)
-            {
-                Float2 startUv = uvs[index];
-                Float2 endUv = uvs[(index + 1) % vertices.Length];
-                uv = new Float2(
-                    startUv.X + ((endUv.X - startUv.X) * ratio),
-                    startUv.Y + ((endUv.Y - startUv.Y) * ratio));
-            }
-
-            point = new ResolvedSurfaceVertex(
-                new GeodeticPoint(
-                    coordinate.Y,
-                    coordinate.X,
-                    start.Altitude + ((end.Altitude - start.Altitude) * ratio)),
-                uv);
-            return true;
-        }
-
-        point = default;
-        return false;
-    }
-
-    private static ResolvedSurfaceVertex ResolvePlanarPoint(
-        GeodeticPoint[] vertices,
-        IReadOnlyList<Float2>? uvs,
-        Coordinate coordinate)
-    {
-        GeodeticPoint origin = vertices[0];
-        for (int index = 1; index + 1 < vertices.Length; index++)
-        {
-            Float2? originUv = uvs is not null && 0 < uvs.Count ? uvs[0] : null;
-            Float2? vertexUv = uvs is not null && index < uvs.Count ? uvs[index] : null;
-            Float2? nextUv = uvs is not null && index + 1 < uvs.Count ? uvs[index + 1] : null;
-            if (TryResolveTrianglePoint(
-                    origin,
-                    vertices[index],
-                    vertices[index + 1],
-                    originUv,
-                    vertexUv,
-                    nextUv,
-                    coordinate,
-                    out ResolvedSurfaceVertex point))
-            {
-                return point;
-            }
+            Float2 startUv = start.UV;
+            Float2 endUv = end.UV;
+            uv = new Float2(
+                startUv.X + ((endUv.X - startUv.X) * ratio),
+                startUv.Y + ((endUv.Y - startUv.Y) * ratio));
         }
 
         return new ResolvedSurfaceVertex(
-            new GeodeticPoint(coordinate.Y, coordinate.X, origin.Altitude),
-            uvs is not null && uvs.Count > 0 ? uvs[0] : null);
+            new GeodeticPoint(
+                start.Point.Latitude + ((end.Point.Latitude - start.Point.Latitude) * ratio),
+                start.Point.Longitude + ((end.Point.Longitude - start.Point.Longitude) * ratio),
+                start.Point.Altitude + ((end.Point.Altitude - start.Point.Altitude) * ratio)),
+            uv);
     }
 
     private static (
@@ -362,61 +381,6 @@ internal static class DemTerrainOverlaySurfaceClipper
         }
 
         return signedArea * 0.5;
-    }
-
-    private static bool TryResolveTrianglePoint(
-        GeodeticPoint a,
-        GeodeticPoint b,
-        GeodeticPoint c,
-        Float2? uvA,
-        Float2? uvB,
-        Float2? uvC,
-        Coordinate coordinate,
-        out ResolvedSurfaceVertex point)
-    {
-        double denominator =
-            ((b.Latitude - c.Latitude) * (a.Longitude - c.Longitude))
-            + ((c.Longitude - b.Longitude) * (a.Latitude - c.Latitude));
-        if (Math.Abs(denominator) <= 1e-18)
-        {
-            point = default;
-            return false;
-        }
-
-        double weightA =
-            (((b.Latitude - c.Latitude) * (coordinate.X - c.Longitude))
-             + ((c.Longitude - b.Longitude) * (coordinate.Y - c.Latitude)))
-            / denominator;
-        double weightB =
-            (((c.Latitude - a.Latitude) * (coordinate.X - c.Longitude))
-             + ((a.Longitude - c.Longitude) * (coordinate.Y - c.Latitude)))
-            / denominator;
-        double weightC = 1.0 - weightA - weightB;
-
-        if (weightA < -1e-8 || weightB < -1e-8 || weightC < -1e-8)
-        {
-            point = default;
-            return false;
-        }
-
-        double altitude = (a.Altitude * weightA) + (b.Altitude * weightB) + (c.Altitude * weightC);
-        Float2? uv = null;
-        if (uvA is not null && uvB is not null && uvC is not null)
-        {
-            uv = new Float2(
-                (uvA.X * weightA) + (uvB.X * weightB) + (uvC.X * weightC),
-                (uvA.Y * weightA) + (uvB.Y * weightB) + (uvC.Y * weightC));
-        }
-
-        point = new ResolvedSurfaceVertex(
-            new GeodeticPoint(coordinate.Y, coordinate.X, altitude),
-            uv);
-        return true;
-    }
-
-    private static bool Approximately(double left, double right)
-    {
-        return Math.Abs(left - right) <= 1e-9;
     }
 
     private static string CreateOverlayToken(GeographicRectangle rectangle)

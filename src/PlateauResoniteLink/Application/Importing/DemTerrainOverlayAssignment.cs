@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
+using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -100,8 +102,11 @@ internal static class DemTerrainOverlayAssignment
     public static IEnumerable<(BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
         BootstrapParsedCityObject parsedCityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas = null)
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas = null,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!string.Equals(parsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
         {
             yield return (parsedCityObject, null);
@@ -124,10 +129,17 @@ internal static class DemTerrainOverlayAssignment
             .Where(static surface => surface.UsesGeneratedDemTexture)
             .ToArray();
 
+        progressReporter?.Invoke(
+            PlateauLog.Debug(
+                "import",
+                $"Splitting DEM city object '{parsedCityObject.SlotKey}' "
+                + $"(generated_surfaces={generatedSurfaces.Length}, non_generated_surfaces={parsedCityObject.Surfaces.Length - generatedSurfaces.Length}, "
+                + $"overlays={demTerrainTextureOverlays.Count}, requested_mesh_areas={requestedMeshBounds.Length})."));
+
         BootstrapParsedSurface[] nonGeneratedSurfaces = parsedCityObject.Surfaces
             .Where(static surface => !surface.UsesGeneratedDemTexture)
             .SelectMany(surface => parsedCityObject.SharedAcrossMeshCodes
-                ? ClipSurfaceToRequestedMeshAreas(surface, requestedMeshBounds)
+                ? ClipSurfaceToRequestedMeshAreas(surface, requestedMeshBounds, progressReporter, cancellationToken)
                 : [surface])
             .ToArray();
 
@@ -146,7 +158,7 @@ internal static class DemTerrainOverlayAssignment
         {
             BootstrapParsedSurface[] texturelessGeneratedSurfaces = generatedSurfaces
                 .SelectMany(generatedSurface => parsedCityObject.SharedAcrossMeshCodes
-                    ? ClipGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds)
+                    ? ClipGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds, progressReporter, cancellationToken)
                     : [generatedSurface])
                 .ToArray();
             BootstrapParsedSurface[] texturelessSurfaces = [.. texturelessGeneratedSurfaces, .. nonGeneratedSurfaces];
@@ -162,9 +174,10 @@ internal static class DemTerrainOverlayAssignment
         List<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> splitGeneratedSurfaces = [];
         foreach (BootstrapParsedSurface generatedSurface in generatedSurfaces)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             BootstrapParsedSurface[] requestedMeshClippedSurfaces =
                 parsedCityObject.SharedAcrossMeshCodes
-                    ? ClipGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds)
+                    ? ClipGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds, progressReporter, cancellationToken)
                     : [generatedSurface];
             if (requestedMeshClippedSurfaces.Length == 0)
             {
@@ -173,6 +186,7 @@ internal static class DemTerrainOverlayAssignment
 
             foreach (BootstrapParsedSurface requestedMeshClippedSurface in requestedMeshClippedSurfaces)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 GeographicRectangle surfaceBounds = GetSurfaceGeographicBounds(requestedMeshClippedSurface);
                 TerrainTextureOverlay? containingOverlay = demTerrainTextureOverlays.FirstOrDefault(overlay =>
                     surfaceBounds.MinLatitude >= overlay.GeographicBounds.MinLatitude
@@ -201,7 +215,9 @@ internal static class DemTerrainOverlayAssignment
                 IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
                     DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
                         requestedMeshClippedSurface,
-                        candidateOverlays);
+                        candidateOverlays,
+                        progressReporter,
+                        cancellationToken);
                 if (clippedSurfaces.Count == 0)
                 {
                     throw new InvalidOperationException(
@@ -221,7 +237,14 @@ internal static class DemTerrainOverlayAssignment
             }
         }
 
-        IGrouping<TerrainTextureOverlay, (BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)>[] groups = splitGeneratedSurfaces
+        IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> groupedGeneratedSurfaces =
+            TryPruneBoundarySliverGroups(
+                splitGeneratedSurfaces,
+                out IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> prunedGeneratedSurfaces)
+                ? prunedGeneratedSurfaces
+                : splitGeneratedSurfaces;
+
+        IGrouping<TerrainTextureOverlay, (BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)>[] groups = groupedGeneratedSurfaces
             .GroupBy(static surface => surface.Overlay)
             .OrderBy(static group => group.Key.PackageName, StringComparer.Ordinal)
             .ThenBy(static group => group.Key.GeographicBounds.MinLatitude)
@@ -230,7 +253,7 @@ internal static class DemTerrainOverlayAssignment
 
         if (groups.Length == 1
             && nonGeneratedSurfaces.Length == 0
-            && splitGeneratedSurfaces.Count > 0)
+            && groupedGeneratedSurfaces.Count > 0)
         {
             yield return (
                 parsedCityObject with
@@ -247,6 +270,7 @@ internal static class DemTerrainOverlayAssignment
         for (int index = 0; index < groups.Length; index++)
         {
             IGrouping<TerrainTextureOverlay, (BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> group = groups[index];
+            cancellationToken.ThrowIfCancellationRequested();
             yield return (
                 parsedCityObject with
                 {
@@ -271,7 +295,9 @@ internal static class DemTerrainOverlayAssignment
 
     private static BootstrapParsedSurface[] ClipGeneratedSurfaceToRequestedMeshAreas(
         BootstrapParsedSurface generatedSurface,
-        GeographicRectangle[] requestedMeshBounds)
+        GeographicRectangle[] requestedMeshBounds,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken)
     {
         if (requestedMeshBounds.Length == 0)
         {
@@ -280,12 +306,16 @@ internal static class DemTerrainOverlayAssignment
 
         return DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToBounds(
             generatedSurface,
-            requestedMeshBounds).ToArray();
+            requestedMeshBounds,
+            progressReporter,
+            cancellationToken).ToArray();
     }
 
     private static BootstrapParsedSurface[] ClipSurfaceToRequestedMeshAreas(
         BootstrapParsedSurface surface,
-        GeographicRectangle[] requestedMeshBounds)
+        GeographicRectangle[] requestedMeshBounds,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken)
     {
         if (requestedMeshBounds.Length == 0)
         {
@@ -294,7 +324,9 @@ internal static class DemTerrainOverlayAssignment
 
         return DemTerrainOverlaySurfaceClipper.ClipSurfaceToBounds(
             surface,
-            requestedMeshBounds).ToArray();
+            requestedMeshBounds,
+            progressReporter,
+            cancellationToken).ToArray();
     }
 
     private static BootstrapParsedSurface[] ClipBootstrapGeneratedSurfaceToRequestedMeshAreas(
@@ -453,6 +485,78 @@ internal static class DemTerrainOverlayAssignment
         return true;
     }
 
+    private static bool TryPruneBoundarySliverGroups(
+        List<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> surfaces,
+        out IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> prunedSurfaces)
+    {
+        prunedSurfaces = [];
+        if (surfaces.Count <= 1)
+        {
+            return false;
+        }
+
+        GroupMetrics[] groups = surfaces
+            .GroupBy(static surface => surface.Overlay)
+            .Select(static group => new GroupMetrics(
+                group.Key,
+                group.ToArray(),
+                group.Sum(static entry => ComputeSurfaceMetrics(entry.Surface).AreaSquareMeters)))
+            .ToArray();
+        if (groups.Length <= 1)
+        {
+            return false;
+        }
+
+        double totalArea = groups.Sum(static group => group.AreaSquareMeters);
+        if (totalArea <= 1e-9)
+        {
+            return false;
+        }
+
+        int dominantIndex = 0;
+        for (int index = 1; index < groups.Length; index++)
+        {
+            if (groups[index].AreaSquareMeters > groups[dominantIndex].AreaSquareMeters)
+            {
+                dominantIndex = index;
+            }
+        }
+
+        List<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> keptSurfaces = [];
+        bool prunedBoundarySliver = false;
+        for (int index = 0; index < groups.Length; index++)
+        {
+            GroupMetrics group = groups[index];
+            if (index != dominantIndex)
+            {
+                double areaRatio = group.AreaSquareMeters / totalArea;
+                bool isBoundarySliver =
+                    areaRatio <= BoundarySliverMaxAreaRatio
+                    || group.AreaSquareMeters <= BoundarySliverMaxAreaSquareMeters;
+                if (isBoundarySliver)
+                {
+                    prunedBoundarySliver = true;
+                    continue;
+                }
+            }
+
+            keptSurfaces.AddRange(group.Surfaces);
+        }
+
+        if (!prunedBoundarySliver || keptSurfaces.Count == surfaces.Count || keptSurfaces.Count == 0)
+        {
+            return false;
+        }
+
+        prunedSurfaces = keptSurfaces
+            .OrderBy(static entry => entry.Overlay.PackageName, StringComparer.Ordinal)
+            .ThenBy(static entry => entry.Overlay.GeographicBounds.MinLatitude)
+            .ThenBy(static entry => entry.Overlay.GeographicBounds.MinLongitude)
+            .ThenBy(static entry => entry.Surface.PolygonId, StringComparer.Ordinal)
+            .ToArray();
+        return true;
+    }
+
     private static GeodeticPoint GetCityObjectOrigin(
         BootstrapParsedCityObject cityObject)
     {
@@ -594,4 +698,9 @@ internal static class DemTerrainOverlayAssignment
     private readonly record struct ProjectedPoint(double X, double Y);
 
     private readonly record struct SurfaceMetrics(double AreaSquareMeters, double EstimatedThicknessMeters);
+
+    private readonly record struct GroupMetrics(
+        TerrainTextureOverlay Overlay,
+        IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> Surfaces,
+        double AreaSquareMeters);
 }

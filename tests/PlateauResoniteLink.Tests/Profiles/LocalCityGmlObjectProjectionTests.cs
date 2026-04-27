@@ -850,7 +850,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             sceneBuilder.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Materials.Any(static material => material.TerrainOverlay is not null)
-                && cityObject.DisplayName == "Chunk Relief");
+                && cityObject.DisplayName == "DEM 53394525");
         Assert.Equal("dem", demCityObject.PackageName);
 
         MaterialBinding material = Assert.Single(demCityObject.Materials);
@@ -1125,8 +1125,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
-                && cityObject.DisplayName == "53394525");
-        Assert.Equal("53394525", demCityObject.DisplayName);
+                && cityObject.DisplayName == "DEM 53394525");
+        Assert.Equal("DEM 53394525", demCityObject.DisplayName);
     }
 
     [Fact]
@@ -1951,6 +1951,8 @@ public sealed class LocalCityGmlObjectProjectionTests
                 null,
                 request,
                 new DefaultMaterialResolver(),
+                null,
+                CancellationToken.None,
             ])!;
     }
 

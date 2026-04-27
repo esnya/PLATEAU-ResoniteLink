@@ -65,6 +65,44 @@ public sealed class DemTerrainOverlayAssignmentTests
     }
 
     [Fact]
+    public void SplitParsedCityObjectPrunesBoundarySliverOverlayGroupAcrossSurfaces()
+    {
+        const double boundaryLongitude = 139.0100;
+        BootstrapParsedSurface dominantSurface = CreateGeneratedSurface(
+            "dem-dominant",
+            [
+                new GeodeticPoint(35.0000, 139.0000, 0.0),
+                new GeodeticPoint(35.0100, 139.0000, 1.0),
+                new GeodeticPoint(35.0100, boundaryLongitude, 2.0),
+            ]);
+        BootstrapParsedSurface sliverSurface = CreateGeneratedSurface(
+            "dem-sliver-group",
+            [
+                new GeodeticPoint(35.0000, boundaryLongitude, 0.0),
+                new GeodeticPoint(35.0100, boundaryLongitude, 1.0),
+                new GeodeticPoint(35.0100, boundaryLongitude + 0.0000005, 2.0),
+            ]);
+        BootstrapParsedCityObject cityObject = CreateCityObject(dominantSurface) with
+        {
+            Surfaces = [dominantSurface, sliverSurface],
+        };
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, boundaryLongitude),
+            CreateOverlay(boundaryLongitude, 139.0200),
+        ];
+
+        (BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
+
+        (BootstrapParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
+        Assert.NotNull(overlay);
+        Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
+        Assert.Equal(boundaryLongitude, overlay.GeographicBounds.MaxLongitude, 6);
+        Assert.Equal("dem-dominant", Assert.Single(splitCityObject.Surfaces).PolygonId);
+    }
+
+    [Fact]
     public void SplitParsedCityObjectRejectsGeneratedSurfaceWhenSurfaceMissesOverlayBounds()
     {
         BootstrapParsedSurface surface = CreateGeneratedSurface(

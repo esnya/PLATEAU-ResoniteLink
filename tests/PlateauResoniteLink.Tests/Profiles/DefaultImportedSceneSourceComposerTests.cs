@@ -79,7 +79,9 @@ public sealed class DefaultImportedSceneSourceComposerTests
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
             IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
             PlateauImportRequest request,
-            Func<BootstrapParsedCityObject, bool>? predicate = null)
+            Func<BootstrapParsedCityObject, bool>? predicate = null,
+            Action<string>? progressReporter = null,
+            CancellationToken cancellationToken = default)
         {
             _ = sourceFile;
             _ = referenceSystem;
@@ -89,6 +91,8 @@ public sealed class DefaultImportedSceneSourceComposerTests
             _ = requestedMeshAreas;
             _ = request;
             _ = predicate;
+            _ = progressReporter;
+            _ = cancellationToken;
             throw new InvalidOperationException("Compose should not project geometry.");
         }
     }

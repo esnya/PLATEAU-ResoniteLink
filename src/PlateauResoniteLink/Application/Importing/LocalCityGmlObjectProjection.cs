@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
@@ -13,6 +14,7 @@ using GeographicLib;
 
 using LibTessDotNet;
 
+using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
 
 using Geocentric = GeographicLib.Geocentric;
@@ -2915,7 +2917,9 @@ internal static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
-        Func<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject, bool>? predicate = null)
+        Func<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject, bool>? predicate = null,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sourceFile);
         ArgumentNullException.ThrowIfNull(referenceSystem);
@@ -2928,8 +2932,14 @@ internal static partial class LocalCityGmlObjectProjection
             legacyReferenceSystem,
             sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem.ToLegacy() ?? legacyReferenceSystem);
 
-        foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject parsedCityObject in sourceFile.CityObjects)
+        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject[] projectedInputCityObjects =
+            global::PlateauResoniteLink.Application.Importing.DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
+                sourceFile.SourceFile,
+                sourceFile.CityObjects);
+
+        foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject parsedCityObject in projectedInputCityObjects)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (predicate is not null && !predicate(parsedCityObject))
             {
                 continue;
@@ -2943,7 +2953,9 @@ internal static partial class LocalCityGmlObjectProjection
                          requestedMeshAreas,
                          terrainHeightSampler: null,
                          request,
-                         materialResolver))
+                         materialResolver,
+                         progressReporter,
+                         cancellationToken))
             {
                 yield return cityObject;
             }
@@ -2958,7 +2970,9 @@ internal static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver)
+        IDefaultMaterialResolver materialResolver,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parsedCityObject);
         ArgumentNullException.ThrowIfNull(globalOriginPoint);
@@ -2974,15 +2988,20 @@ internal static partial class LocalCityGmlObjectProjection
                  in DemTerrainOverlayAssignment.SplitParsedCityObject(
                      terrainAlignedBootstrapCityObject,
                      demTerrainTextureOverlays,
-                     requestedMeshAreas))
+                     requestedMeshAreas,
+                     progressReporter,
+                     cancellationToken))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             ImportedCityObject cityObject = ProjectTerrainMeshModeCityObject(
                 splitCityObject.CityObject,
                 globalOriginPoint,
                 globalCartesian,
                 splitCityObject.Overlay,
                 request,
-                materialResolver);
+                materialResolver,
+                progressReporter,
+                cancellationToken);
 
             if (HasRenderableGeometry(cityObject))
             {
@@ -3029,11 +3048,13 @@ internal static partial class LocalCityGmlObjectProjection
 
         foreach (ImportedCityObject cityObject in alignedCityObjects)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             yield return cityObject;
         }
 
         foreach (ImportedCityObject markingObject in generatedRoadMarkings)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             yield return markingObject;
         }
     }
@@ -3097,7 +3118,9 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver)
+        IDefaultMaterialResolver materialResolver,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken)
     {
         bool isDem = string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
         if (!isDem || request.TerrainMeshMode == TerrainMeshMode.Static)
@@ -3112,6 +3135,8 @@ internal static partial class LocalCityGmlObjectProjection
             demTerrainTextureOverlay,
             request,
             materialResolver,
+            progressReporter,
+            cancellationToken,
             out ImportedCityObject? heightMapCityObject);
         if (!hasGrid)
         {
@@ -3724,8 +3749,11 @@ internal static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken,
         out ImportedCityObject? heightMapCityObject)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         heightMapCityObject = null;
 
         if (cityObject.Surfaces.SelectMany(static surface => surface.Vertices).Take(3).Count() < 3)
@@ -3798,11 +3826,17 @@ internal static partial class LocalCityGmlObjectProjection
             (int)Math.Ceiling(extentZ / request.TerrainGridMetersPerVertex) + 1,
             2,
             request.TerrainGridMaxResolution);
+        progressReporter?.Invoke(
+            PlateauLog.Debug(
+                "import",
+                $"Sampling DEM terrain grid '{cityObject.SlotKey}' "
+                + $"(width={width}, height={height}, triangles={triangles.Length})."));
         double[] localHeights = new double[width * height];
         bool[] sampledInsideTriangles = new bool[width * height];
 
         for (int zIndex = 0; zIndex < height; zIndex++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             double v = height == 1 ? 0.0 : (double)zIndex / (height - 1);
             double sampleZ = minZ + (extentZ * v);
             for (int xIndex = 0; xIndex < width; xIndex++)
@@ -3822,6 +3856,7 @@ internal static partial class LocalCityGmlObjectProjection
             }
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         ExtendBoundaryConnectedMissingHeightSamples(localHeights, sampledInsideTriangles, width, height);
         double minHeight = localHeights.Min();
         double maxHeight = localHeights.Max();
