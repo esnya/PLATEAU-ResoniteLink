@@ -439,7 +439,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 null,
                 [0],
                 AssetScope: ResoniteMaterialAssetScope.Common,
-                TerrainOverlay: overlay));
+                TerrainOverlay: overlay,
+                TerrainMeshCode: "53394525"));
 
         SceneImportExecutionResult executionResult = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
@@ -1013,7 +1014,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     ResoniteMaterialProjection.Uv,
                     null,
                     [0],
-                    TerrainOverlay: overlay),
+                    TerrainOverlay: overlay,
+                    TerrainMeshCode: "53394525"),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: sourceFileRelativePath);

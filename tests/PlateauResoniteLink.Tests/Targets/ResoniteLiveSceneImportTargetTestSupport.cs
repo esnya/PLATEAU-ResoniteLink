@@ -480,7 +480,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             binding.TextureOffset is null ? null : ToContractFloat2(binding.TextureOffset),
             binding.AssetScope == ResoniteMaterialAssetScope.Common ? MaterialReuseScope.Shared : MaterialReuseScope.PerObject,
             binding.TerrainOverlay,
-            binding.BundledVariantIndex);
+            binding.BundledVariantIndex,
+            binding.TerrainMeshCode);
     }
 
     private static Transform3D ToContractTransform(ResoniteTransform transform)

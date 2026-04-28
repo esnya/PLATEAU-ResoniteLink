@@ -324,7 +324,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
                 normalizedMaterial.TextureOffset,
                 normalizedMaterial.DepthOffset),
             normalizedMaterial.MaterialKey);
-        Assert.Null(normalizedMaterial.TerrainOverlay);
+        Assert.Same(overlay, normalizedMaterial.TerrainOverlay);
         Assert.Equal(new ResoniteColor(1.0, 1.0, 1.0, 1.0), normalizedMaterial.BaseColor);
     }
 
@@ -361,6 +361,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
                 normalizedMaterial.TextureOffset,
                 normalizedMaterial.DepthOffset),
             normalizedMaterial.MaterialKey);
+        Assert.Null(normalizedMaterial.TerrainOverlay);
     }
 
     [Fact]
@@ -674,6 +675,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
                 normalizedMaterial.TextureOffset,
                 normalizedMaterial.DepthOffset),
             normalizedMaterial.MaterialKey);
+        Assert.Same(overlay, normalizedMaterial.TerrainOverlay);
     }
 
     private static ResoniteFloat2 FacadeDefaultTilesPerMeter()

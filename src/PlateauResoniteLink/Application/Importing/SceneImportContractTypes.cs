@@ -176,4 +176,5 @@ public sealed record MaterialBinding(
     Float2? TextureOffset = null,
     MaterialReuseScope ReuseScope = MaterialReuseScope.PerObject,
     TerrainTextureOverlay? TerrainOverlay = null,
-    int? BundledVariantIndex = null);
+    int? BundledVariantIndex = null,
+    string? TerrainMeshCode = null);

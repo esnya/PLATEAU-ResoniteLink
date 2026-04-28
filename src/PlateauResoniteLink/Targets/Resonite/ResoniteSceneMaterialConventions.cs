@@ -182,7 +182,6 @@ internal static class ResoniteSceneMaterialConventions
         }
 
         if (material.TexturePayload is null
-            && material.TerrainOverlay is null
             && !string.IsNullOrWhiteSpace(material.Family)
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && material.DepthOffset is null
@@ -194,7 +193,6 @@ internal static class ResoniteSceneMaterialConventions
             {
                 BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 TexturePayload = null,
-                TerrainOverlay = null,
                 TextureSourceKind = ResoniteTextureSourceKind.Bundled,
                 AssetScope = ResoniteMaterialAssetScope.Common,
             };
@@ -626,7 +624,7 @@ internal static class ResoniteSceneMaterialConventions
                 material.DepthOffset),
             BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             TexturePayload = null,
-            TerrainOverlay = null,
+            TerrainOverlay = material.TerrainOverlay,
             TextureSourceKind = ResoniteTextureSourceKind.Dataset,
             TextureScale = normalizedTextureScale,
             TextureOffset = normalizedTextureOffset,
