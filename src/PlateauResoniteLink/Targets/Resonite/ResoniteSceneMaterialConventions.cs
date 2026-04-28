@@ -216,6 +216,12 @@ internal static class ResoniteSceneMaterialConventions
             return false;
         }
 
+        if (material.TerrainOverlay is not null
+            && !HasValidTerrainTextureMeshCode(material))
+        {
+            return false;
+        }
+
         if (!string.IsNullOrWhiteSpace(material.Family))
         {
             return false;
@@ -631,6 +637,22 @@ internal static class ResoniteSceneMaterialConventions
             AssetScope = ResoniteMaterialAssetScope.Common,
             BundledVariantIndex = null,
         };
+    }
+
+    private static bool HasValidTerrainTextureMeshCode(ResoniteMaterialBinding material)
+    {
+        if (material.TerrainMeshCode is not { Length: 8 } meshCode
+            || material.TerrainOverlay is null
+            || !PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
+        {
+            return false;
+        }
+
+        const double tolerance = 1e-8;
+        return Math.Abs(bounds.SouthLatitude - material.TerrainOverlay.GeographicBounds.MinLatitude) <= tolerance
+            && Math.Abs(bounds.NorthLatitude - material.TerrainOverlay.GeographicBounds.MaxLatitude) <= tolerance
+            && Math.Abs(bounds.WestLongitude - material.TerrainOverlay.GeographicBounds.MinLongitude) <= tolerance
+            && Math.Abs(bounds.EastLongitude - material.TerrainOverlay.GeographicBounds.MaxLongitude) <= tolerance;
     }
 
     private static ResoniteMaterialBinding NormalizeVertexColorSharedMaterialBinding(ResoniteMaterialBinding material)

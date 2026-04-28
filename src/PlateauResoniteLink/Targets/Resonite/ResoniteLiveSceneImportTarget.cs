@@ -986,7 +986,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         (string TerrainMeshCode, TerrainTextureOverlay TerrainOverlay)[] distinctTerrainOverlays = cityObject.Materials
             .Where(static material => material.TerrainOverlay is not null && material.TerrainMeshCode is not null)
             .Select(material => (
-                TerrainMeshCode: ValidateTerrainTextureMeshCode(material.TerrainMeshCode!),
+                TerrainMeshCode: ValidateTerrainTextureMeshCode(material.TerrainMeshCode!, material.TerrainOverlay!),
                 TerrainOverlay: material.TerrainOverlay!))
             .Distinct()
             .OrderBy(static entry => entry.TerrainMeshCode, StringComparer.Ordinal)
@@ -1457,15 +1457,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             terrainTexturesRoot.Locator,
             meshCode,
             cancellationToken);
-        CreatedComponent? existingComponent = await TryFindSharedTerrainTextureComponentAsync(
+        SharedTerrainTextureAsset? existingTexture = await TryFindSharedTerrainTextureAssetAsync(
             importClient,
             meshSlot,
             cancellationToken);
-        if (existingComponent is { } component)
+        if (existingTexture is not null)
         {
-            return new SharedTerrainTextureAsset(
-                new Uri($"resdb:///terrain-texture/{Uri.EscapeDataString(meshCode)}", UriKind.Absolute),
-                component);
+            return existingTexture;
         }
 
         Uri importedTextureUri = await importClient.ImportTextureAsync(textureImport, cancellationToken);
@@ -1504,7 +1502,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return await slotCreator.CreateAsync(client, parentSlot, childSlotName, null, null, cancellationToken);
     }
 
-    private static async Task<CreatedComponent?> TryFindSharedTerrainTextureComponentAsync(
+    private static async Task<SharedTerrainTextureAsset?> TryFindSharedTerrainTextureAssetAsync(
         IResoniteLinkClient importClient,
         CreatedSlot meshSlot,
         CancellationToken cancellationToken)
@@ -1515,9 +1513,17 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             cancellationToken);
         Component? textureComponent = slot?.Components?
             .FirstOrDefault(IsSharedTerrainTextureComponent);
-        return textureComponent?.ID is null
+        if (textureComponent?.ID is null
+            || textureComponent.Members["URL"] is not Field_Uri url)
+        {
+            return null;
+        }
+
+        return url.Value is null
             ? null
-            : new CreatedComponent(new ResoniteComponentLocator(textureComponent.ID), textureComponent.ComponentType);
+            : new SharedTerrainTextureAsset(
+                url.Value,
+                new CreatedComponent(new ResoniteComponentLocator(textureComponent.ID), textureComponent.ComponentType));
     }
 
     private static bool IsSharedTerrainTextureComponent(Component component)
@@ -1553,20 +1559,35 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             return material with { TerrainMeshCode = null };
         }
 
-        return material.TerrainMeshCode is null
-            ? material
-            : material with { TerrainMeshCode = ValidateTerrainTextureMeshCode(material.TerrainMeshCode) };
+        if (material.TerrainMeshCode is null)
+        {
+            throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
+        }
+
+        return material with { TerrainMeshCode = ValidateTerrainTextureMeshCode(material.TerrainMeshCode, material.TerrainOverlay) };
     }
 
-    private static string ValidateTerrainTextureMeshCode(string meshCode)
+    private static string ValidateTerrainTextureMeshCode(string meshCode, TerrainTextureOverlay terrainOverlay)
     {
         if (meshCode.Length == 8
-            && PlateauMeshCode.TryGetBounds(meshCode, out _))
+            && PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds)
+            && BoundsApproximatelyEqual(bounds, terrainOverlay.GeographicBounds))
         {
             return meshCode;
         }
 
-        throw new InvalidOperationException("Terrain overlay material requires a valid third-level mesh code.");
+        throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
+    }
+
+    private static bool BoundsApproximatelyEqual(
+        (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds,
+        GeographicRectangle geographicBounds)
+    {
+        const double tolerance = 1e-8;
+        return Math.Abs(bounds.SouthLatitude - geographicBounds.MinLatitude) <= tolerance
+            && Math.Abs(bounds.NorthLatitude - geographicBounds.MaxLatitude) <= tolerance
+            && Math.Abs(bounds.WestLongitude - geographicBounds.MinLongitude) <= tolerance
+            && Math.Abs(bounds.EastLongitude - geographicBounds.MaxLongitude) <= tolerance;
     }
 
     private static Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> CreatePreparedTerrainTextureDataByOverlay(

@@ -376,6 +376,33 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void ProjectCityObjectDoesNotUseDemTerrainMaterialWhenOverlayBoundsDoNotMatchThirdMesh()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay mismatchedOverlay = CreateThirdMeshOverlay("53394526");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
+        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+            "mismatched-overlay-roof",
+            BootstrapParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem);
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: mismatchedOverlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Null(material.TerrainOverlay);
+        Assert.Null(material.TerrainMeshCode);
+        Assert.NotEqual(TextureSourceKind.Dataset, material.TextureSourceKind);
+    }
+
+    [Fact]
     public void ProjectCityObjectAssignsDemTerrainMaterialToTexturelessUnknownUpwardHorizontalBuildingSurface()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
@@ -1213,7 +1240,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             static cityObject =>
             {
                 TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(cityObject.Geometry);
-                Assert.Equal("533945", cityObject.ActualMeshCode);
+                Assert.Equal("53394525", cityObject.ActualMeshCode);
                 Assert.True(geometry.Width > 0);
                 Assert.True(geometry.Height > 0);
             });
@@ -1584,7 +1611,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
     private static void CreateRuntimeParentMeshDemFixture(string datasetRoot, string requestedMeshCode, string adjacentMeshCode)
     {
-        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", requestedMeshCode[..6]);
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", requestedMeshCode);
         Directory.CreateDirectory(packageDirectory);
 
         (double requestedSouth, double requestedNorth, double requestedWest, double requestedEast) = GetMeshBounds(requestedMeshCode);
@@ -1649,12 +1676,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             </core:CityModel>
             """;
 
-        File.WriteAllText(Path.Combine(packageDirectory, $"plateau_tokyo23ku_dem_{requestedMeshCode[..6]}_parent.gml"), xml);
+        File.WriteAllText(Path.Combine(packageDirectory, $"plateau_tokyo23ku_dem_{requestedMeshCode}_parent.gml"), xml);
     }
 
     private static void CreateRuntimeNamedParentMeshDemFixture(string datasetRoot, string requestedMeshCode, string adjacentMeshCode)
     {
-        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", requestedMeshCode[..6]);
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", requestedMeshCode);
         Directory.CreateDirectory(packageDirectory);
 
         (double requestedSouth, double requestedNorth, double requestedWest, double requestedEast) = GetMeshBounds(requestedMeshCode);
@@ -1736,7 +1763,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             </core:CityModel>
             """;
 
-        File.WriteAllText(Path.Combine(packageDirectory, $"plateau_tokyo23ku_dem_{requestedMeshCode[..6]}_named-parent.gml"), xml);
+        File.WriteAllText(Path.Combine(packageDirectory, $"plateau_tokyo23ku_dem_{requestedMeshCode}_named-parent.gml"), xml);
     }
 
     private static (double South, double North, double West, double East) GetMeshBounds(string meshCode)

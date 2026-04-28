@@ -397,7 +397,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
                 LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
@@ -471,7 +471,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
                 LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
@@ -544,7 +544,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
                 LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
@@ -617,7 +617,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         TerrainTextureGeoReferencedRasterSource rasterSource = new(
             Path.Combine(datasetDirectory.Path, "dem-partial.tif"),
             new GeoReferencedRasterMetadata(
-                new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                CreateThirdMeshBounds(),
                 "EPSG:4326",
                 1.0,
                 1.0));
@@ -626,7 +626,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: rasterSource,
             FallbackSource: gsiFallbackSource,
@@ -697,7 +697,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
                 LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
@@ -759,13 +759,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         TerrainTextureGeoReferencedRasterSource rasterSource = new(
             Path.Combine(datasetDirectory.Path, "dem-ortho.tif"),
             new GeoReferencedRasterMetadata(
-                new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                CreateThirdMeshBounds(),
                 "EPSG:4326",
                 1.0,
                 1.0));
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: rasterSource,
             FallbackSource: new TerrainTextureTileSource(
@@ -964,6 +964,22 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         ScalarPair value = BundledDefaultMaterialProfiles.GetTilesPerMeterValue(texturePath);
         return new ResoniteFloat2(value.X, value.Y);
+    }
+
+    private static GeographicRectangle CreateThirdMeshBounds()
+    {
+        if (!PlateauMeshCode.TryGetBounds(
+                "53394525",
+                out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
+        {
+            throw new InvalidOperationException("Test mesh code must be a valid third-level mesh code.");
+        }
+
+        return new GeographicRectangle(
+            bounds.SouthLatitude,
+            bounds.NorthLatitude,
+            bounds.WestLongitude,
+            bounds.EastLongitude);
     }
 
     private static ResoniteConstructionCityObject CreateCityObject(string objectKey, string sourceFileRelativePath)

@@ -36,7 +36,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using FakeTerrainTileHandler handler = new();
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator terrainTextureGenerator = new(httpClient, disablePersistentCache: true);
-        TerrainTextureOverlay overlay = CreatePaddedCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/{z}/{x}/{y}.png", maxTextureSize: 4096);
         TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -144,18 +144,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        TerrainTextureOverlay demOverlay = new(
-            PackageName: "dem",
-            UrlTemplate: "https://tiles.example/dem/{z}/{x}/{y}.png",
-            ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
-            MaxTextureSize: 512);
-        TerrainTextureOverlay roofOverlayWithDifferentUri = new(
-            PackageName: "dem",
-            UrlTemplate: "https://tiles.example/roof/{z}/{x}/{y}.png",
-            ZoomLevel: demOverlay.ZoomLevel,
-            GeographicBounds: demOverlay.GeographicBounds,
-            MaxTextureSize: demOverlay.MaxTextureSize);
+        TerrainTextureOverlay demOverlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/dem/{z}/{x}/{y}.png");
+        TerrainTextureOverlay roofOverlayWithDifferentUri = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/roof/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
                 new ResoniteRawTextureImport(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
@@ -213,12 +203,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        TerrainTextureOverlay overlay = new(
-            PackageName: "dem",
-            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
-            ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
-            MaxTextureSize: 512);
+        TerrainTextureOverlay firstOverlay = CreateThirdMeshOverlay("53394525", "https://tiles.example/{z}/{x}/{y}.png");
+        TerrainTextureOverlay secondOverlay = CreateThirdMeshOverlay("53394526", "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
                 new ResoniteRawTextureImport(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
@@ -240,14 +226,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "dem",
             "53394525",
             "terrain-material-53394525",
-            overlay);
+            firstOverlay);
         ResoniteConstructionCityObject second = CreateTerrainOverlayCityObject(
             "terrain-53394526",
             "Terrain 53394526",
             "dem",
             "53394526",
             "terrain-material-53394526",
-            overlay);
+            secondOverlay);
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
             metadata,
@@ -267,16 +253,171 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
+    public async Task BuildAsyncUsesExistingSharedTerrainTextureUriForDedicatedTerrainOverlayMaterial()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/{z}/{x}/{y}.png");
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0)));
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles:
+            [
+                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
+            ]);
+        ResoniteConstructionCityObject sharedTerrain = CreateTerrainOverlayCityObject(
+            "terrain-existing-shared",
+            "Terrain Existing Shared",
+            "dem",
+            MeshCode,
+            "terrain-existing-shared-material",
+            overlay);
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [sharedTerrain],
+            client,
+            terrainTextureGenerator);
+
+        AddComponent sharedTexture = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Contains("/Terrain Textures/53394525", StringComparison.Ordinal));
+        Uri existingTextureUri = Assert.IsType<Field_Uri>(sharedTexture.Data.Members["URL"]).Value;
+        int addedComponentCountBeforeDedicatedRun = client.AddedComponents.Count;
+        ResoniteConstructionCityObject dedicatedTerrain = sharedTerrain with
+        {
+            SlotKey = "terrain-existing-dedicated",
+            DisplayName = "Terrain Existing Dedicated",
+            Materials =
+            [
+                sharedTerrain.Materials[0] with
+                {
+                    MaterialKey = "terrain-existing-dedicated-material",
+                    BaseColor = new ResoniteColor(0.75, 0.75, 0.75, 1.0),
+                },
+            ],
+        };
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [dedicatedTerrain],
+            client,
+            terrainTextureGenerator);
+
+        Component dedicatedTexture = Assert.Single(
+            client.AddedComponents
+                .Skip(addedComponentCountBeforeDedicatedRun)
+                .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+                    && !client.SlotPaths[request.ContainerSlotId].Contains("/Terrain Textures/", StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Assert.Equal(existingTextureUri, Assert.IsType<Field_Uri>(dedicatedTexture.Members["URL"]).Value);
+        Assert.DoesNotContain(
+            "resdb:///terrain-texture/",
+            Assert.IsType<Field_Uri>(dedicatedTexture.Members["URL"]).Value.ToString(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildAsyncRejectsTerrainOverlayMaterialWhenMeshCodeBoundsDoNotMatchOverlay()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        TerrainTextureOverlay mismatchedOverlay = CreateThirdMeshOverlay("53394526", "https://tiles.example/{z}/{x}/{y}.png");
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0)));
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles:
+            [
+                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
+            ]);
+        ResoniteConstructionCityObject cityObject = CreateTerrainOverlayCityObject(
+            "terrain-mismatched-overlay",
+            "Terrain Mismatched Overlay",
+            "dem",
+            MeshCode,
+            "terrain-mismatched-material",
+            mismatchedOverlay);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+                metadata,
+                [cityObject],
+                client,
+                terrainTextureGenerator));
+        Assert.Contains("matches the overlay geographic bounds", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildAsyncRejectsTerrainOverlayMaterialWithoutMeshCode()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/{z}/{x}/{y}.png");
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0)));
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles:
+            [
+                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
+            ]);
+        ResoniteConstructionCityObject baseCityObject = CreateTerrainOverlayCityObject(
+            "terrain-missing-mesh-code",
+            "Terrain Missing Mesh Code",
+            "dem",
+            MeshCode,
+            "terrain-missing-mesh-code-material",
+            overlay);
+        ResoniteConstructionCityObject cityObject = baseCityObject with
+        {
+            Materials =
+            [
+                baseCityObject.Materials[0] with
+                {
+                    TerrainMeshCode = null,
+                },
+            ],
+        };
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+                metadata,
+                [cityObject],
+                client,
+                terrainTextureGenerator));
+        Assert.Contains("matches the overlay geographic bounds", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BuildAsyncReusesExistingTerrainOverlayGenericCommonMaterialComponent()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        TerrainTextureOverlay overlay = new(
-            PackageName: "dem",
-            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
-            ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
-            MaxTextureSize: 512);
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://example.invalid/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             requestedOverlay => new GeneratedTerrainTexture(
                 new ResoniteRawTextureImport(
@@ -653,12 +794,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        TerrainTextureOverlay overlay = new(
-            PackageName: "dem",
-            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
-            ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
-            MaxTextureSize: 512);
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://example.invalid/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
                 new ResoniteRawTextureImport(
@@ -1777,19 +1913,25 @@ public sealed class ResoniteLiveSceneImportTargetTests
         }
     }
 
-    private static TerrainTextureOverlay CreatePaddedCoverageOverlay(string urlTemplate)
+    private static TerrainTextureOverlay CreateThirdMeshOverlay(
+        string meshCode,
+        string urlTemplate,
+        int zoomLevel = 17,
+        int maxTextureSize = 512)
     {
-        GeographicRectangle bounds = new(
-            MinLatitude: WebMercatorTileMath.PixelYToLatitude(100, 1),
-            MaxLatitude: WebMercatorTileMath.PixelYToLatitude(0, 1),
-            MinLongitude: WebMercatorTileMath.PixelXToLongitude(0, 1),
-            MaxLongitude: WebMercatorTileMath.PixelXToLongitude(400, 1));
+        Assert.True(PlateauMeshCode.TryGetBounds(
+            meshCode,
+            out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds));
         return new TerrainTextureOverlay(
             PackageName: "dem",
             UrlTemplate: urlTemplate,
-            ZoomLevel: 1,
-            GeographicBounds: bounds,
-            MaxTextureSize: 512);
+            ZoomLevel: zoomLevel,
+            GeographicBounds: new GeographicRectangle(
+                bounds.SouthLatitude,
+                bounds.NorthLatitude,
+                bounds.WestLongitude,
+                bounds.EastLongitude),
+            MaxTextureSize: maxTextureSize);
     }
 
     private static int RoundUpToPowerOfTwo(int value)
