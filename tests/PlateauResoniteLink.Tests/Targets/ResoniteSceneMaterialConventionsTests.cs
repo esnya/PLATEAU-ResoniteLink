@@ -51,6 +51,31 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
+    public void CreateTextureIdentity_ForMaterialTextureRoles_UsesStableTokens()
+    {
+        Assert.Equal(
+            new TextureIdentity("albedo"),
+            ResoniteSceneMaterialConventions.CreateTextureIdentity(
+                ResoniteSceneMaterialConventions.TextureMemberRole.Albedo));
+        Assert.Equal(
+            new TextureIdentity("normal"),
+            ResoniteSceneMaterialConventions.CreateTextureIdentity(
+                ResoniteSceneMaterialConventions.TextureMemberRole.Normal));
+        Assert.Equal(
+            new TextureIdentity("height"),
+            ResoniteSceneMaterialConventions.CreateTextureIdentity(
+                ResoniteSceneMaterialConventions.TextureMemberRole.Height));
+        Assert.Equal(
+            new TextureIdentity("metallic"),
+            ResoniteSceneMaterialConventions.CreateTextureIdentity(
+                ResoniteSceneMaterialConventions.TextureMemberRole.Metallic));
+        Assert.Equal(
+            new TextureIdentity("emission"),
+            ResoniteSceneMaterialConventions.CreateTextureIdentity(
+                ResoniteSceneMaterialConventions.TextureMemberRole.Emission));
+    }
+
+    [Fact]
     public void CreateMaterialSlotName_ForCommonMaterial_UsesStableSharedDiscriminators()
     {
         ResoniteMaterialBinding material = new(

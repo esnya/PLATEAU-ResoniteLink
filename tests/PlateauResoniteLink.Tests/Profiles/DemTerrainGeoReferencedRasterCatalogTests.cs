@@ -14,6 +14,31 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class DemTerrainGeoReferencedRasterCatalogTests
 {
     [Fact]
+    public void DemTerrainRasterCacheKeySeparatesSourceScopeFromMeshAndBounds()
+    {
+        GeographicRectangle bounds = new(35.0, 35.1, 139.0, 139.1);
+
+        DemTerrainRasterCacheKey firstKey = new(
+            "tokyo-a",
+            new DemTerrainRasterSourceScope("C:\\ortho-a"),
+            "dem-fallback",
+            bounds);
+        DemTerrainRasterCacheKey secondKey = new(
+            "tokyo-a",
+            new DemTerrainRasterSourceScope("C:\\ortho-b"),
+            "dem-fallback",
+            bounds);
+        DemTerrainRasterCacheKey thirdKey = new(
+            "tokyo-b",
+            new DemTerrainRasterSourceScope("C:\\ortho-a"),
+            "dem-fallback",
+            bounds);
+
+        Assert.NotEqual(firstKey, secondKey);
+        Assert.NotEqual(firstKey, thirdKey);
+    }
+
+    [Fact]
     public async Task TryResolveRasterSourceAsyncDoesNotReuseFallbackMaterializationAcrossDistinctBoundsKeys()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -23,12 +48,12 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         GeographicRectangle secondBounds = new(35.1, 35.2, 139.1, 139.2);
 
         _ = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("dem-fallback", firstBounds),
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", firstBounds),
             "dem-fallback",
             firstBounds,
             CancellationToken.None);
         _ = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("dem-fallback", secondBounds),
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", secondBounds),
             "dem-fallback",
             secondBounds,
             CancellationToken.None);
@@ -46,12 +71,12 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         GeographicRectangle secondBounds = new(35.0000001, 35.1000001, 139.0000001, 139.1000001);
 
         _ = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("dem-fallback", firstBounds),
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", firstBounds),
             "dem-fallback",
             firstBounds,
             CancellationToken.None);
         _ = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("dem-fallback", secondBounds),
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", secondBounds),
             "dem-fallback",
             secondBounds,
             CancellationToken.None);
@@ -69,13 +94,13 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         using CancellationTokenSource firstCallerCancellation = new();
 
         Task<TerrainTextureGeoReferencedRasterSource?> firstCall = catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("dem-fallback", bounds),
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
             "dem-fallback",
             bounds,
             firstCallerCancellation.Token);
         await datasetSource.EnsureLocalFileStarted.Task.WaitAsync(CancellationToken.None);
         Task<TerrainTextureGeoReferencedRasterSource?> secondCall = catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("dem-fallback", bounds),
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
             "dem-fallback",
             bounds,
             CancellationToken.None);
@@ -89,7 +114,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         Assert.Equal("EPSG:4326", resolvedSecondResult.Metadata?.CoordinateSystemIdentifier);
 
         TerrainTextureGeoReferencedRasterSource? thirdResult = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("dem-fallback", bounds),
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
             "dem-fallback",
             bounds,
             CancellationToken.None);
@@ -107,7 +132,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         using CancellationTokenSource firstCallerCancellation = new();
 
         Task<TerrainTextureGeoReferencedRasterSource?> firstCall = catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("dem-fallback", bounds),
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
             "dem-fallback",
             bounds,
             firstCallerCancellation.Token);
@@ -120,7 +145,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         await Task.Delay(10);
 
         await Assert.ThrowsAnyAsync<IOException>(async () => await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("dem-fallback", bounds),
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
             "dem-fallback",
             bounds,
             CancellationToken.None));

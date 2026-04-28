@@ -1209,7 +1209,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             cityObject,
             preparedTerrainTextureDataByOverlay,
             buildStepCancellation.Token);
-        Task<PreparedTextureUriData> preparedTextureUriTask = ImportPreparedTextureUrisAsync(
+        Task<UploadedTextureAssetSet> uploadedTextureAssetsTask = UploadPreparedTexturesAsync(
             routedClient,
             preparedCityObject,
             preparedTerrainTextureDataByOverlay,
@@ -1227,8 +1227,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         PlannedGeometryAsset plannedGeometryAsset;
         try
         {
-            PreparedTextureUriData preparedTextureUris = await AwaitMaterialPlanningPrerequisitesAsync(
-                preparedTextureUriTask,
+            UploadedTextureAssetSet uploadedTextureAssets = await AwaitMaterialPlanningPrerequisitesAsync(
+                uploadedTextureAssetsTask,
                 sharedCommonMaterialPreparationTask,
                 geometryPlanningTask);
             materialStopwatch.Start();
@@ -1236,9 +1236,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 state,
                 routedClient,
                 cityObject,
-                preparedTextureUris.TextureUrisByPayload,
-                preparedTextureUris.TerrainTextureUrisByOverlay,
-                preparedTextureUris.GeneratedTerrainTexturesByOverlay,
+                uploadedTextureAssets.TextureUrisByPayload,
+                uploadedTextureAssets.TerrainTextureUrisByOverlay,
+                uploadedTextureAssets.GeneratedTerrainTexturesByOverlay,
                 buildStepCancellation.Token);
             plannedMaterials = await materialPlanningTask;
             materialStopwatch.Stop();
@@ -1251,8 +1251,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             await buildStepCancellation.CancelAsync();
             IEnumerable<Task> tasksToObserve = materialPlanningTask is null
-                ? [preparedTextureUriTask, sharedCommonMaterialPreparationTask, geometryPlanningTask]
-                : [preparedTextureUriTask, sharedCommonMaterialPreparationTask, materialPlanningTask, geometryPlanningTask];
+                ? [uploadedTextureAssetsTask, sharedCommonMaterialPreparationTask, geometryPlanningTask]
+                : [uploadedTextureAssetsTask, sharedCommonMaterialPreparationTask, materialPlanningTask, geometryPlanningTask];
             await ObserveTaskFailuresAsync(tasksToObserve);
             throw;
         }
@@ -1298,18 +1298,18 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         }
     }
 
-    private static async Task<PreparedTextureUriData> AwaitMaterialPlanningPrerequisitesAsync(
-        Task<PreparedTextureUriData> preparedTextureUriTask,
+    private static async Task<UploadedTextureAssetSet> AwaitMaterialPlanningPrerequisitesAsync(
+        Task<UploadedTextureAssetSet> uploadedTextureAssetsTask,
         Task sharedCommonMaterialPreparationTask,
         Task<PlannedGeometryAsset> geometryPlanningTask)
     {
-        PreparedTextureUriData? preparedTextureUris = null;
+        UploadedTextureAssetSet? uploadedTextureAssets = null;
         bool sharedCommonMaterialPrepared = false;
-        while (preparedTextureUris is null || !sharedCommonMaterialPrepared)
+        while (uploadedTextureAssets is null || !sharedCommonMaterialPrepared)
         {
-            if (preparedTextureUriTask.IsCompleted)
+            if (uploadedTextureAssetsTask.IsCompleted)
             {
-                preparedTextureUris = await preparedTextureUriTask;
+                uploadedTextureAssets = await uploadedTextureAssetsTask;
             }
 
             if (sharedCommonMaterialPreparationTask.IsCompleted)
@@ -1318,15 +1318,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 sharedCommonMaterialPrepared = true;
             }
 
-            if (preparedTextureUris is not null && sharedCommonMaterialPrepared)
+            if (uploadedTextureAssets is not null && sharedCommonMaterialPrepared)
             {
                 break;
             }
 
             List<Task> waitTasks = [];
-            if (!preparedTextureUriTask.IsCompleted)
+            if (!uploadedTextureAssetsTask.IsCompleted)
             {
-                waitTasks.Add(preparedTextureUriTask);
+                waitTasks.Add(uploadedTextureAssetsTask);
             }
 
             if (!sharedCommonMaterialPreparationTask.IsCompleted)
@@ -1343,10 +1343,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             await completedTask;
         }
 
-        return preparedTextureUris;
+        return uploadedTextureAssets;
     }
 
-    private static async Task<PreparedTextureUriData> ImportPreparedTextureUrisAsync(
+    private static async Task<UploadedTextureAssetSet> UploadPreparedTexturesAsync(
         IResoniteLinkClient importClient,
         PreparedCityObject preparedCityObject,
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
@@ -1392,7 +1392,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             }
         }
 
-        return new PreparedTextureUriData(
+        return new UploadedTextureAssetSet(
             textureUrisByPayload,
             terrainTextureUrisByOverlay,
             preparedTerrainTextureDataByOverlay);
@@ -1804,10 +1804,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 preparedTerrainTextureUrisByOverlay);
             PlannedRendererMaterialBinding rendererBinding = mainTextureOverride is null
                 ? new PlannedDirectRendererMaterialBinding(sharedMaterialAsset.Identity)
-                : new PlannedMainTextureOverrideRendererMaterialBinding(
+                : CreateMainTextureOverrideRendererBinding(
                     sharedMaterialAsset.Identity,
                     mainTextureOverride,
-                    ClampWrapMode: sourceMaterial.TerrainOverlay is not null);
+                    sourceMaterial);
             return (sharedMaterialAsset, rendererBinding);
         }
 
@@ -1832,6 +1832,16 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 ct);
             return (plannedMaterial, new PlannedDirectRendererMaterialBinding(plannedMaterial.Identity));
         }
+    }
+
+    private static PlannedMainTextureOverrideRendererMaterialBinding CreateMainTextureOverrideRendererBinding(
+        MaterialIdentity materialIdentity,
+        PlannedTextureAsset mainTexture,
+        ResoniteMaterialBinding sourceMaterial)
+    {
+        return sourceMaterial.TerrainOverlay is null
+            ? new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(materialIdentity, mainTexture)
+            : new PlannedTerrainMainTextureOverrideRendererMaterialBinding(materialIdentity, mainTexture);
     }
 
     private async Task EnsureSharedCommonMaterialsPreparedAsync(
@@ -2083,14 +2093,14 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     cancellationToken)),
             PreparedDynamicTerrainGeometry dynamicTerrain => CreatePlannedDynamicTerrainGeometryAsset(
                 cityObject,
-                AssertPreparedTriangleMeshAssetBatch(await geometryAssetAssembler.PrepareTriangleMeshAsync(
+                AssertUploadedTriangleMeshAssetBatch(await geometryAssetAssembler.PrepareTriangleMeshAsync(
                     importClient,
                     CreateMeshAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     dynamicTerrain.StaticMesh.MeshImport,
                     progressReporter,
                     cancellationToken)),
-                AssertPreparedTerrainGridAssetBatch(await geometryAssetAssembler.PrepareTerrainGridAsync(
+                AssertUploadedTerrainGridAssetBatch(await geometryAssetAssembler.PrepareTerrainGridAsync(
                     importClient,
                     CreateMeshAssetSlotName(cityObject),
                     CreateTerrainGridAssetSlotName(cityObject),
@@ -2137,20 +2147,20 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     private static PlannedGeometryAsset CreatePlannedGeometryAsset(
         ResoniteConstructionCityObject cityObject,
-        PreparedGeometryAssetBatch preparedGeometryBatch)
+        UploadedGeometryAssetBatch uploadedGeometryBatch)
     {
         GeometryIdentity identity = new(
             string.Create(
                 CultureInfo.InvariantCulture,
-                $"geometry-{cityObject.PackageName}-{cityObject.SlotKey}-{preparedGeometryBatch.MeshAssetSlotName}"));
+                $"geometry-{cityObject.PackageName}-{cityObject.SlotKey}-{uploadedGeometryBatch.MeshAssetSlotName}"));
 
-        return preparedGeometryBatch switch
+        return uploadedGeometryBatch switch
         {
-            PreparedTriangleMeshAssetBatch triangleMesh => new PlannedTriangleMeshGeometryAsset(
+            UploadedTriangleMeshAssetBatch triangleMesh => new PlannedTriangleMeshGeometryAsset(
                 identity,
                 triangleMesh.MeshAssetSlotName,
                 triangleMesh.MeshUri),
-            PreparedTerrainGridAssetBatch heightMap => new PlannedTerrainGridGeometryAsset(
+            UploadedTerrainGridAssetBatch heightMap => new PlannedTerrainGridGeometryAsset(
                 identity,
                 heightMap.MeshAssetSlotName,
                 heightMap.TerrainGridAssetSlotName,
@@ -2159,14 +2169,14 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 heightMap.UvScale,
                 heightMap.UvOffset),
             _ => throw new InvalidOperationException(
-                $"Unsupported prepared geometry asset batch type '{preparedGeometryBatch.GetType().Name}'."),
+                $"Unsupported uploaded geometry asset batch type '{uploadedGeometryBatch.GetType().Name}'."),
         };
     }
 
     private static PlannedDynamicTerrainGeometryAsset CreatePlannedDynamicTerrainGeometryAsset(
         ResoniteConstructionCityObject cityObject,
-        PreparedTriangleMeshAssetBatch staticMeshBatch,
-        PreparedTerrainGridAssetBatch gridMeshBatch)
+        UploadedTriangleMeshAssetBatch staticMeshBatch,
+        UploadedTerrainGridAssetBatch gridMeshBatch)
     {
         GeometryIdentity identity = new(
             string.Create(
@@ -2184,20 +2194,20 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             gridMeshBatch.UvOffset);
     }
 
-    private static PreparedTriangleMeshAssetBatch AssertPreparedTriangleMeshAssetBatch(
-        PreparedGeometryAssetBatch preparedGeometryBatch)
+    private static UploadedTriangleMeshAssetBatch AssertUploadedTriangleMeshAssetBatch(
+        UploadedGeometryAssetBatch uploadedGeometryBatch)
     {
-        return preparedGeometryBatch as PreparedTriangleMeshAssetBatch
+        return uploadedGeometryBatch as UploadedTriangleMeshAssetBatch
             ?? throw new InvalidOperationException(
-                $"Unsupported prepared static terrain asset batch type '{preparedGeometryBatch.GetType().Name}'.");
+                $"Unsupported uploaded static terrain asset batch type '{uploadedGeometryBatch.GetType().Name}'.");
     }
 
-    private static PreparedTerrainGridAssetBatch AssertPreparedTerrainGridAssetBatch(
-        PreparedGeometryAssetBatch preparedGeometryBatch)
+    private static UploadedTerrainGridAssetBatch AssertUploadedTerrainGridAssetBatch(
+        UploadedGeometryAssetBatch uploadedGeometryBatch)
     {
-        return preparedGeometryBatch as PreparedTerrainGridAssetBatch
+        return uploadedGeometryBatch as UploadedTerrainGridAssetBatch
             ?? throw new InvalidOperationException(
-                $"Unsupported prepared terrain grid asset batch type '{preparedGeometryBatch.GetType().Name}'.");
+                $"Unsupported uploaded terrain grid asset batch type '{uploadedGeometryBatch.GetType().Name}'.");
     }
 
     private static long EstimateBatchPayloadBytes(int operationCount)
@@ -2306,7 +2316,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         TerrainTextureOverlay? TerrainOverlay = null,
         GeneratedTerrainTexture? GeneratedTerrainTexture = null);
 
-    private sealed record PreparedTextureUriData(
+    private sealed record UploadedTextureAssetSet(
         Dictionary<ResoniteTexturePayload, Uri> TextureUrisByPayload,
         Dictionary<TerrainTextureOverlay, Uri> TerrainTextureUrisByOverlay,
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> GeneratedTerrainTexturesByOverlay);

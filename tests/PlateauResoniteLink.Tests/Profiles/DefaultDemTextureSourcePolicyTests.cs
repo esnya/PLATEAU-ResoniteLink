@@ -161,6 +161,8 @@ public sealed class DefaultDemTextureSourcePolicyTests
         IReadOnlyDictionary<string, TerrainTextureGeoReferencedRasterSource?> rasterSourcesByMeshCode)
         : IDemTerrainGeoReferencedRasterCatalog
     {
+        public DemTerrainRasterSourceScope CacheScope { get; } = new("C:\\ortho");
+
         public Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
             DemTerrainRasterCacheKey cacheKey,
             string meshCode,
