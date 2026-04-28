@@ -446,12 +446,6 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
             tokenStart = -1;
         }
 
-        if (coordinateValueCount % GeometryCoordinateDimension != 0)
-        {
-            ringTokens = null;
-            return false;
-        }
-
         ringTokens = new GmlLinearRingTokenSequence(positions);
         return true;
     }
