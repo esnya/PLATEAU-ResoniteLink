@@ -115,12 +115,12 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
 
     public static Uri? TryGetPlannedTextureUri(
         IEnumerable<PlannedTextureAsset> textures,
-        string role)
+        ResoniteSceneMaterialConventions.TextureMemberRole role)
     {
         ArgumentNullException.ThrowIfNull(textures);
-        ArgumentException.ThrowIfNullOrWhiteSpace(role);
 
-        return textures.FirstOrDefault(texture => string.Equals(texture.Identity.Value, role, StringComparison.Ordinal))?.AssetUri;
+        TextureIdentity identity = ResoniteSceneMaterialConventions.CreateTextureIdentity(role);
+        return textures.FirstOrDefault(texture => texture.Identity == identity)?.AssetUri;
     }
 
     public static async Task<PlannedTextureAsset?> PlanMainTextureOverrideAsync(
@@ -174,7 +174,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         ResoniteSlotLocator materialContainerSlot = materialSlot.Locator;
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(plannedMaterial.Material);
 
-        Uri? albedoTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
+        Uri? albedoTextureUri = TryGetPlannedTextureUri(
+            plannedMaterial.Textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo);
         if (albedoTextureUri is not null)
         {
             CreatedComponent albedoTexture = await createComponentAsync(
@@ -191,7 +193,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             };
         }
 
-        Uri? normalTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "normal");
+        Uri? normalTextureUri = TryGetPlannedTextureUri(
+            plannedMaterial.Textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Normal);
         if (normalTextureUri is not null)
         {
             CreatedComponent normalTexture = await createComponentAsync(
@@ -212,7 +216,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             };
         }
 
-        Uri? heightTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "height");
+        Uri? heightTextureUri = TryGetPlannedTextureUri(
+            plannedMaterial.Textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Height);
         if (heightTextureUri is not null)
         {
             CreatedComponent heightTexture = await createComponentAsync(
@@ -233,7 +239,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             };
         }
 
-        Uri? metallicTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "metallic");
+        Uri? metallicTextureUri = TryGetPlannedTextureUri(
+            plannedMaterial.Textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Metallic);
         if (metallicTextureUri is not null)
         {
             CreatedComponent metallicTexture = await createComponentAsync(
@@ -254,7 +262,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             };
         }
 
-        Uri? emissionTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "emission");
+        Uri? emissionTextureUri = TryGetPlannedTextureUri(
+            plannedMaterial.Textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Emission);
         if (emissionTextureUri is not null)
         {
             CreatedComponent emissionTexture = await createComponentAsync(
@@ -420,11 +430,26 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             emissionTextureTask);
 
         List<PlannedTextureAsset> textures = [];
-        AddPlannedTextureAsset(textures, "albedo", await albedoTextureTask);
-        AddPlannedTextureAsset(textures, "normal", await normalTextureTask);
-        AddPlannedTextureAsset(textures, "height", await heightTextureTask);
-        AddPlannedTextureAsset(textures, "metallic", await metallicTextureTask);
-        AddPlannedTextureAsset(textures, "emission", await emissionTextureTask);
+        AddPlannedTextureAsset(
+            textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
+            await albedoTextureTask);
+        AddPlannedTextureAsset(
+            textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Normal,
+            await normalTextureTask);
+        AddPlannedTextureAsset(
+            textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Height,
+            await heightTextureTask);
+        AddPlannedTextureAsset(
+            textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Metallic,
+            await metallicTextureTask);
+        AddPlannedTextureAsset(
+            textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Emission,
+            await emissionTextureTask);
         return textures;
     }
 
@@ -470,7 +495,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
 
     private static void AddPlannedTextureAsset(
         List<PlannedTextureAsset> textures,
-        string role,
+        ResoniteSceneMaterialConventions.TextureMemberRole role,
         Uri? assetUri)
     {
         if (assetUri is null)
@@ -478,7 +503,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             return;
         }
 
-        textures.Add(new PlannedTextureAsset(new TextureIdentity(role), assetUri));
+        textures.Add(new PlannedTextureAsset(
+            ResoniteSceneMaterialConventions.CreateTextureIdentity(role),
+            assetUri));
     }
 
 }

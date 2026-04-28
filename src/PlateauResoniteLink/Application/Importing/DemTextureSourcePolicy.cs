@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,18 +22,41 @@ internal interface IDemTextureSourcePolicy
 
 internal sealed record ResolvedDemTextureSources(IReadOnlyList<TerrainTextureOverlay> Overlays);
 
+internal readonly record struct DemTerrainRasterSourceScope
+{
+    public DemTerrainRasterSourceScope(string sourcePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+
+        SourcePath = Path.GetFullPath(sourcePath);
+    }
+
+    public string SourcePath { get; }
+}
+
 internal readonly record struct DemTerrainRasterCacheKey
 {
-    public DemTerrainRasterCacheKey(string meshCode, GeographicRectangle overlayBounds)
+    public DemTerrainRasterCacheKey(
+        string datasetName,
+        DemTerrainRasterSourceScope sourceScope,
+        string meshCode,
+        GeographicRectangle overlayBounds)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(datasetName);
         ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
 
+        DatasetName = datasetName;
+        SourceScope = sourceScope;
         MeshCode = meshCode;
         MinLatitude = CanonicalizeCoordinate(overlayBounds.MinLatitude);
         MaxLatitude = CanonicalizeCoordinate(overlayBounds.MaxLatitude);
         MinLongitude = CanonicalizeCoordinate(overlayBounds.MinLongitude);
         MaxLongitude = CanonicalizeCoordinate(overlayBounds.MaxLongitude);
     }
+
+    public string DatasetName { get; }
+
+    public DemTerrainRasterSourceScope SourceScope { get; }
 
     public string MeshCode { get; }
 
@@ -53,6 +77,8 @@ internal readonly record struct DemTerrainRasterCacheKey
 
 internal interface IDemTerrainGeoReferencedRasterCatalog
 {
+    DemTerrainRasterSourceScope CacheScope { get; }
+
     Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
         DemTerrainRasterCacheKey cacheKey,
         string meshCode,
@@ -108,6 +134,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
         {
             overlays[index] = await CreateOverlayAsync(
                 overlayRegions[index],
+                request.Dataset,
                 rasterCatalog,
                 cancellationToken);
         }
@@ -134,6 +161,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
 
     private static async Task<TerrainTextureOverlay> CreateOverlayAsync(
         DemTerrainOverlayRegion region,
+        string datasetName,
         IDemTerrainGeoReferencedRasterCatalog? rasterCatalog,
         CancellationToken cancellationToken)
     {
@@ -163,7 +191,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
         if (rasterCatalog is not null)
         {
             TerrainTextureGeoReferencedRasterSource? rasterSource = await rasterCatalog.TryResolveRasterSourceAsync(
-                new DemTerrainRasterCacheKey(region.Identity, region.GeographicBounds),
+                new DemTerrainRasterCacheKey(datasetName, rasterCatalog.CacheScope, region.Identity, region.GeographicBounds),
                 region.Identity,
                 region.GeographicBounds,
                 cancellationToken);

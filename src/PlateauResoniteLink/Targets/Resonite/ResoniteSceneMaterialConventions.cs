@@ -26,6 +26,10 @@ internal static class ResoniteSceneMaterialConventions
         TerrainMainTextureOverride,
     }
 
+    internal readonly record struct TextureSamplingPolicy(
+        string? PreferredProfile,
+        string? WrapMode);
+
     public static string CreateMaterialSlotName(ResoniteMaterialBinding material, bool useCommonMaterialAssets)
     {
         ArgumentNullException.ThrowIfNull(material);
@@ -308,9 +312,43 @@ internal static class ResoniteSceneMaterialConventions
         return ResoniteMaterialSharing.CreateCanonicalVertexColorCommonMaterialKey(projection, depthOffset);
     }
 
+    public static TextureIdentity CreateTextureIdentity(TextureMemberRole role)
+    {
+        return new TextureIdentity(role switch
+        {
+            TextureMemberRole.Albedo => "albedo",
+            TextureMemberRole.Normal => "normal",
+            TextureMemberRole.Height => "height",
+            TextureMemberRole.Metallic => "metallic",
+            TextureMemberRole.Emission => "emission",
+            _ => throw new InvalidOperationException($"Texture role '{role}' does not have a planned texture identity."),
+        });
+    }
+
+    public static TextureSamplingPolicy GetTextureSamplingPolicy(TextureMemberRole role)
+    {
+        return role switch
+        {
+            TextureMemberRole.Normal
+                or TextureMemberRole.Height
+                or TextureMemberRole.Metallic => new TextureSamplingPolicy(
+                    ResoniteTextureColorProfiles.Linear,
+                    WrapMode: null),
+            TextureMemberRole.TerrainMainTextureOverride => new TextureSamplingPolicy(
+                PreferredProfile: null,
+                WrapMode: "Clamp"),
+            TextureMemberRole.Albedo
+                or TextureMemberRole.Emission => new TextureSamplingPolicy(
+                    PreferredProfile: null,
+                    WrapMode: null),
+            _ => throw new InvalidOperationException($"Unsupported texture member role '{role}'."),
+        };
+    }
+
     public static Dictionary<string, Member> CreateTextureMembers(Uri assetUri, TextureMemberRole role)
     {
         ArgumentNullException.ThrowIfNull(assetUri);
+        TextureSamplingPolicy samplingPolicy = GetTextureSamplingPolicy(role);
 
         Dictionary<string, Member> members = new(StringComparer.Ordinal)
         {
@@ -320,22 +358,15 @@ internal static class ResoniteSceneMaterialConventions
             },
         };
 
-        switch (role)
+        if (samplingPolicy.PreferredProfile is not null)
         {
-            case TextureMemberRole.Normal:
-            case TextureMemberRole.Height:
-            case TextureMemberRole.Metallic:
-                members["PreferredProfile"] = CreateNullableEnumMember(ResoniteTextureColorProfiles.Linear);
-                break;
-            case TextureMemberRole.TerrainMainTextureOverride:
-                members["WrapModeU"] = CreateEnumMember("Clamp");
-                members["WrapModeV"] = CreateEnumMember("Clamp");
-                break;
-            case TextureMemberRole.Albedo:
-            case TextureMemberRole.Emission:
-                break;
-            default:
-                throw new InvalidOperationException($"Unsupported texture member role '{role}'.");
+            members["PreferredProfile"] = CreateNullableEnumMember(samplingPolicy.PreferredProfile);
+        }
+
+        if (samplingPolicy.WrapMode is not null)
+        {
+            members["WrapModeU"] = CreateEnumMember(samplingPolicy.WrapMode);
+            members["WrapModeV"] = CreateEnumMember(samplingPolicy.WrapMode);
         }
 
         return members;

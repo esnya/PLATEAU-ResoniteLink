@@ -11,7 +11,7 @@ namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
 internal interface IResoniteGeometryAssetAssembler
 {
-    Task<PreparedGeometryAssetBatch> PrepareTriangleMeshAsync(
+    Task<UploadedGeometryAssetBatch> PrepareTriangleMeshAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string displayName,
@@ -19,7 +19,7 @@ internal interface IResoniteGeometryAssetAssembler
         Action<string>? progressReporter,
         CancellationToken cancellationToken);
 
-    Task<PreparedGeometryAssetBatch> PrepareTerrainGridAsync(
+    Task<UploadedGeometryAssetBatch> PrepareTerrainGridAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string heightMapAssetSlotName,
@@ -34,7 +34,7 @@ internal interface IResoniteGeometryAssetAssembler
 
 internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAssembler
 {
-    public async Task<PreparedGeometryAssetBatch> PrepareTriangleMeshAsync(
+    public async Task<UploadedGeometryAssetBatch> PrepareTriangleMeshAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string displayName,
@@ -47,10 +47,10 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
             + $"(vertices={meshImport.VertexCount}, submeshes={meshImport.Submeshes.Count}).");
         Uri assetUri = await importClient.ImportMeshAsync(meshImport, cancellationToken);
         progressReporter?.Invoke($"[live] Mesh '{displayName}' mesh import completed -> '{assetUri}'.");
-        return new PreparedTriangleMeshAssetBatch(meshAssetSlotName, assetUri);
+        return new UploadedTriangleMeshAssetBatch(meshAssetSlotName, assetUri);
     }
 
-    public async Task<PreparedGeometryAssetBatch> PrepareTerrainGridAsync(
+    public async Task<UploadedGeometryAssetBatch> PrepareTerrainGridAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string heightMapAssetSlotName,
@@ -66,7 +66,7 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
             $"[live] Terrain grid '{geometry.Width}x{geometry.Height}' importing displacement texture via raw payload.");
         Uri textureUri = await importClient.ImportTextureAsync(heightTextureImport, cancellationToken);
         progressReporter?.Invoke($"[live] Terrain grid '{displayName}' displacement texture import completed -> '{textureUri}'.");
-        return new PreparedTerrainGridAssetBatch(
+        return new UploadedTerrainGridAssetBatch(
             meshAssetSlotName,
             heightMapAssetSlotName,
             geometry,
@@ -94,16 +94,16 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
     }
 }
 
-internal abstract record PreparedGeometryAssetBatch(string MeshAssetSlotName);
+internal abstract record UploadedGeometryAssetBatch(string MeshAssetSlotName);
 
-internal sealed record PreparedTriangleMeshAssetBatch(
+internal sealed record UploadedTriangleMeshAssetBatch(
     string MeshAssetSlotName,
-    Uri MeshUri) : PreparedGeometryAssetBatch(MeshAssetSlotName);
+    Uri MeshUri) : UploadedGeometryAssetBatch(MeshAssetSlotName);
 
-internal sealed record PreparedTerrainGridAssetBatch(
+internal sealed record UploadedTerrainGridAssetBatch(
     string MeshAssetSlotName,
     string TerrainGridAssetSlotName,
     ResoniteTerrainGridGeometry Geometry,
     Uri HeightTextureUri,
     ResoniteFloat2? UvScale,
-    ResoniteFloat2? UvOffset) : PreparedGeometryAssetBatch(MeshAssetSlotName);
+    ResoniteFloat2? UvOffset) : UploadedGeometryAssetBatch(MeshAssetSlotName);

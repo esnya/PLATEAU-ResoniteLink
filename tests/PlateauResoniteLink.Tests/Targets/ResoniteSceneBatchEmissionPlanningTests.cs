@@ -16,6 +16,25 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     private static readonly IResoniteBatchEmissionPlanner Planner = new ResoniteBatchEmissionPlanner();
 
     [Fact]
+    public void PlannedDriverTargetBundle_CreatePairsFieldTargetAndDefaultValue()
+    {
+        BatchPlanFieldLocator fieldIdentity = new(42);
+
+        PlannedDriverTargetBundle bundle = PlannedDriverTargetBundle.Create(
+            fieldIdentity,
+            new Field_bool
+            {
+                Value = false,
+            });
+
+        Assert.Equal(fieldIdentity, bundle.Field.Identity);
+        Assert.Equal(fieldIdentity, bundle.Target.Target.PlannedField);
+        Assert.False(Assert.IsType<Field_bool>(bundle.Field.Value).Value);
+        Assert.False(Assert.IsType<Field_bool>(bundle.DefaultValue.Value).Value);
+        Assert.NotSame(bundle.Field.Value, bundle.DefaultValue.Value);
+    }
+
+    [Fact]
     public void CreatePlannedBatchEmission_CreatesTerrainGridPlanWithPlannedTextureReference()
     {
         ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
@@ -419,7 +438,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedRenderer(
                 new GeometryIdentity("geom"),
                 [
-                    new PlannedMainTextureOverrideRendererMaterialBinding(
+                    new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
                         reusableMaterial.Identity,
                         new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override"))),
                 ]),
@@ -476,10 +495,9 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedRenderer(
                 new GeometryIdentity("geom"),
                 [
-                    new PlannedMainTextureOverrideRendererMaterialBinding(
+                    new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
                         reusableMaterial.Identity,
-                        new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override")),
-                        ClampWrapMode: true),
+                        new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override"))),
                 ]),
             new PlannedCollider(
                 new GeometryIdentity("geom"),
@@ -516,10 +534,10 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedRenderer(
                 new GeometryIdentity("geom"),
                 [
-                    new PlannedMainTextureOverrideRendererMaterialBinding(
+                    new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
                         reusableMaterial.Identity,
                         new PlannedTextureAsset(new TextureIdentity("override-a"), new Uri("resdb:///texture/override-a"))),
-                    new PlannedMainTextureOverrideRendererMaterialBinding(
+                    new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
                         reusableMaterial.Identity,
                         new PlannedTextureAsset(new TextureIdentity("override-b"), new Uri("resdb:///texture/override-b"))),
                 ]),

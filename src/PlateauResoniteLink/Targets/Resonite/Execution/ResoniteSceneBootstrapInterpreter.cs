@@ -573,7 +573,9 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(material);
         string componentPrefix = $"bootstrap_common_material_component_{materialIndex}";
 
-        Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
+        Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
+            plannedMaterial.Textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo);
         if (albedoTextureUri is not null)
         {
             ResoniteBatchOperations.PendingBatchComponent albedoTexture = ResoniteBatchOperations.CreatePendingComponent(
@@ -594,7 +596,9 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             };
         }
 
-        Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "normal");
+        Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
+            plannedMaterial.Textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Normal);
         if (normalTextureUri is not null)
         {
             ResoniteBatchOperations.PendingBatchComponent normalTexture = ResoniteBatchOperations.CreatePendingComponent(
@@ -619,7 +623,9 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             };
         }
 
-        Uri? heightTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "height");
+        Uri? heightTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
+            plannedMaterial.Textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Height);
         if (heightTextureUri is not null)
         {
             ResoniteBatchOperations.PendingBatchComponent heightTexture = ResoniteBatchOperations.CreatePendingComponent(
@@ -644,7 +650,9 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             };
         }
 
-        Uri? metallicTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "metallic");
+        Uri? metallicTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
+            plannedMaterial.Textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Metallic);
         if (metallicTextureUri is not null)
         {
             ResoniteBatchOperations.PendingBatchComponent metallicTexture = ResoniteBatchOperations.CreatePendingComponent(
@@ -669,7 +677,9 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             };
         }
 
-        Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "emission");
+        Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
+            plannedMaterial.Textures,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Emission);
         if (emissionTextureUri is not null)
         {
             ResoniteBatchOperations.PendingBatchComponent emissionTexture = ResoniteBatchOperations.CreatePendingComponent(

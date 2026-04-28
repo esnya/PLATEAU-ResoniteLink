@@ -25,6 +25,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         string? directRasterPath,
         string? singleRelativeRasterPath,
         IPlateauDatasetContentSource? contentSource,
+        string sourceScopePath,
         string outputRoot,
         IReadOnlyList<string> orderedRelativeRasterPaths,
         IReadOnlyDictionary<string, string> relativeRasterPathsByStem)
@@ -35,7 +36,10 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         this.outputRoot = outputRoot;
         this.orderedRelativeRasterPaths = orderedRelativeRasterPaths;
         this.relativeRasterPathsByStem = relativeRasterPathsByStem;
+        CacheScope = new DemTerrainRasterSourceScope(sourceScopePath);
     }
+
+    public DemTerrainRasterSourceScope CacheScope { get; }
 
     public static async Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
         DatasetLocation? source,
@@ -57,6 +61,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
                 directRasterPath: fullSourcePath,
                 singleRelativeRasterPath: null,
                 contentSource: null,
+                sourceScopePath: fullSourcePath,
                 outputRoot: Path.GetDirectoryName(fullSourcePath) ?? fullSourcePath,
                 orderedRelativeRasterPaths: [],
                 relativeRasterPathsByStem: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
@@ -91,6 +96,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
             directRasterPath: null,
             singleRelativeRasterPath: rasterFiles.Length == 1 ? rasterFiles[0] : null,
             contentSource,
+            sourceScopePath: fullSourcePath,
             outputRoot: Path.GetDirectoryName(fullSourcePath) ?? fullSourcePath,
             orderedRelativeRasterPaths: rasterFiles,
             relativeRasterPathsByStem: rasterFilesByStem);

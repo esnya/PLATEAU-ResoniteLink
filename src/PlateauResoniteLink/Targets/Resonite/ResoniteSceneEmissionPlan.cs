@@ -63,11 +63,20 @@ internal abstract record PlannedRendererMaterialBinding(MaterialIdentity Materia
 internal sealed record PlannedDirectRendererMaterialBinding(MaterialIdentity MaterialIdentity)
     : PlannedRendererMaterialBinding(MaterialIdentity);
 
-internal sealed record PlannedMainTextureOverrideRendererMaterialBinding(
+internal abstract record PlannedMainTextureOverrideRendererMaterialBinding(
     MaterialIdentity MaterialIdentity,
-    PlannedTextureAsset MainTexture,
-    bool ClampWrapMode = false)
+    PlannedTextureAsset MainTexture)
     : PlannedRendererMaterialBinding(MaterialIdentity);
+
+internal sealed record PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
+    MaterialIdentity MaterialIdentity,
+    PlannedTextureAsset MainTexture)
+    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialIdentity, MainTexture);
+
+internal sealed record PlannedTerrainMainTextureOverrideRendererMaterialBinding(
+    MaterialIdentity MaterialIdentity,
+    PlannedTextureAsset MainTexture)
+    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialIdentity, MainTexture);
 
 internal sealed record PlannedRenderer(
     GeometryIdentity GeometryIdentity,
@@ -92,6 +101,23 @@ internal readonly record struct BatchPlanSlotLocator(int Value);
 internal readonly record struct BatchPlanComponentLocator(int Value);
 
 internal readonly record struct BatchPlanFieldLocator(int Value);
+
+internal sealed record PlannedTerrainGridMeshBundle(
+    BatchPlanComponentLocator ComponentIdentity,
+    BatchPlanFieldLocator PointsIdentity,
+    Field_int2 Points,
+    Field_float2 Size,
+    Field_float DisplacementMagnitude,
+    PlannedWorldElementReference DisplacementTexture,
+    Field_float2? UvScale,
+    Field_float2? UvOffset);
+
+internal sealed record PlannedDynamicTerrainMeshBundle(
+    PlannedWorldElementReference GridMeshTarget,
+    PlannedWorldElementReference StaticMeshTarget)
+{
+    public PlannedWorldElementReference InitialMeshTarget => GridMeshTarget;
+}
 
 internal readonly record struct PlannedSlotTargetReference
 {
@@ -189,6 +215,38 @@ internal sealed record PlannedAddressableReferenceMember(
     : PlannedMember;
 
 internal sealed record PlannedSyncListMember(IReadOnlyList<PlannedMember> Elements) : PlannedMember;
+
+internal sealed record PlannedDriverTargetBundle(
+    PlannedAddressableFieldMember Field,
+    PlannedElementReferenceMember Target,
+    PlannedLiteralMember DefaultValue)
+{
+    public static PlannedDriverTargetBundle Create(BatchPlanFieldLocator fieldIdentity, Member defaultValue)
+    {
+        ArgumentNullException.ThrowIfNull(defaultValue);
+        return new PlannedDriverTargetBundle(
+            new PlannedAddressableFieldMember(fieldIdentity, defaultValue),
+            new PlannedElementReferenceMember(PlannedWorldElementReference.Planned(fieldIdentity)),
+            new PlannedLiteralMember(CloneDriverDefaultValue(defaultValue)));
+    }
+
+    private static Member CloneDriverDefaultValue(Member value)
+    {
+        return value switch
+        {
+            Field_bool field => new Field_bool
+            {
+                Value = field.Value,
+            },
+            Field_float field => new Field_float
+            {
+                Value = field.Value,
+            },
+            _ => throw new InvalidOperationException(
+                $"Unsupported planned driver default value type '{value.GetType().Name}'."),
+        };
+    }
+}
 
 internal static class PlannedMembers
 {

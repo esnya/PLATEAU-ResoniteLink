@@ -377,7 +377,12 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
 
     private static void AddPosListGeometry(string coordinateText, GeometryVramAccumulator geometry)
     {
-        PosListGeometry posListGeometry = InspectPosListGeometry(coordinateText);
+        if (!TryReadParserEquivalentLinearRingTokens(coordinateText, out GmlLinearRingTokenSequence? ringTokens))
+        {
+            return;
+        }
+
+        PosListGeometry posListGeometry = InspectLinearRingTokens(ringTokens);
         long positionCount = posListGeometry.PositionCount;
         if (positionCount <= 0)
         {
@@ -397,10 +402,16 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
         }
     }
 
-    private static PosListGeometry InspectPosListGeometry(string coordinateText)
+    private static bool TryReadParserEquivalentLinearRingTokens(
+        string coordinateText,
+        [NotNullWhen(true)] out GmlLinearRingTokenSequence? ringTokens)
     {
-        double[] firstPosition = new double[GeometryCoordinateDimension];
-        double[] lastPosition = new double[GeometryCoordinateDimension];
+        GmlPositionToken? firstPosition = null;
+        GmlPositionToken? lastPosition = null;
+        long positionCount = 0;
+        double x = 0.0;
+        double y = 0.0;
+        double z = 0.0;
         int coordinateValueCount = 0;
         int tokenStart = -1;
 
@@ -423,40 +434,65 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
             }
 
             ReadOnlySpan<char> token = coordinateText.AsSpan(tokenStart, index - tokenStart);
+            int ordinateIndex = coordinateValueCount % GeometryCoordinateDimension;
             if (double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out double coordinate))
             {
-                int ordinateIndex = coordinateValueCount % GeometryCoordinateDimension;
-                if (coordinateValueCount < GeometryCoordinateDimension)
+                switch (ordinateIndex)
                 {
-                    firstPosition[ordinateIndex] = coordinate;
+                    case 0:
+                        x = coordinate;
+                        break;
+                    case 1:
+                        y = coordinate;
+                        break;
+                    case 2:
+                        z = coordinate;
+                        break;
                 }
+            }
 
-                lastPosition[ordinateIndex] = coordinate;
+            if (ordinateIndex == GeometryCoordinateDimension - 1)
+            {
+                GmlPositionToken position = new(x, y, z);
+                firstPosition ??= position;
+                lastPosition = position;
+                positionCount++;
             }
 
             coordinateValueCount++;
             tokenStart = -1;
         }
 
-        long positionCount = coordinateValueCount / GeometryCoordinateDimension;
-        bool hasCompletePositions = coordinateValueCount % GeometryCoordinateDimension == 0;
-        bool isClosedRing = hasCompletePositions
-            && positionCount > 1
+        ringTokens = new GmlLinearRingTokenSequence(
+            positionCount,
+            firstPosition,
+            lastPosition);
+        return true;
+    }
+
+    private static PosListGeometry InspectLinearRingTokens(GmlLinearRingTokenSequence ringTokens)
+    {
+        bool isClosedRing = ringTokens.PositionCount > 1
+            && ringTokens.FirstPosition is { } firstPosition
+            && ringTokens.LastPosition is { } lastPosition
             && AreSamePosition(firstPosition, lastPosition);
-        return new PosListGeometry(positionCount, isClosedRing);
+        return new PosListGeometry(ringTokens.PositionCount, isClosedRing);
+    }
+
+    internal static bool AreSamePosition(GmlPositionToken left, GmlPositionToken right)
+    {
+        return Math.Abs(left.X - right.X) < 1e-8
+            && Math.Abs(left.Y - right.Y) < 1e-8
+            && Math.Abs(left.Z - right.Z) < 1e-8;
     }
 
     internal static bool AreSamePosition(double[] left, double[] right)
     {
-        for (int index = 0; index < left.Length; index++)
-        {
-            if (Math.Abs(left[index] - right[index]) >= 1e-8)
-            {
-                return false;
-            }
-        }
-
-        return true;
+        return left.Length == GeometryCoordinateDimension
+            && right.Length == GeometryCoordinateDimension
+            && AreSamePosition(
+                new GmlPositionToken(left[0], left[1], left[2]),
+                new GmlPositionToken(right[0], right[1], right[2]));
     }
 
     private static async Task<DatasetTextureVramEstimate> EstimateTextureVramAsync(
@@ -753,6 +789,16 @@ internal sealed record DatasetSourceFileStats(
 internal readonly record struct PosListGeometry(
     long PositionCount,
     bool IsClosedRing);
+
+internal readonly record struct GmlPositionToken(
+    double X,
+    double Y,
+    double Z);
+
+internal sealed record GmlLinearRingTokenSequence(
+    long PositionCount,
+    GmlPositionToken? FirstPosition,
+    GmlPositionToken? LastPosition);
 
 internal sealed record DatasetTextureVramEntry(
     string RelativePath,
