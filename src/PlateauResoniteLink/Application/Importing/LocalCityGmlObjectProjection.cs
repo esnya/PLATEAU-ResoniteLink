@@ -1377,7 +1377,10 @@ internal static partial class LocalCityGmlObjectProjection
             cityObjectCartesian);
         if (roofTerrainTextureMaterial is not null)
         {
-            return new ResolvedSurfaceMaterial(surface, roofTerrainTextureMaterial, DepthOffset: null);
+            return new ResolvedSurfaceMaterial(
+                surface with { BaseColor = DefaultMaterialColor },
+                roofTerrainTextureMaterial,
+                DepthOffset: null);
         }
 
         if (string.Equals(cityObject.PackageName, "veg", StringComparison.OrdinalIgnoreCase)
@@ -1477,7 +1480,10 @@ internal static partial class LocalCityGmlObjectProjection
             cityObjectCartesian);
         if (roofTerrainTextureMaterial is not null)
         {
-            return new ResolvedSurfaceMaterial(legacySurface, roofTerrainTextureMaterial, DepthOffset: null);
+            return new ResolvedSurfaceMaterial(
+                legacySurface with { BaseColor = DefaultMaterialColor },
+                roofTerrainTextureMaterial,
+                DepthOffset: null);
         }
 
         if (string.Equals(cityObject.PackageName, "veg", StringComparison.OrdinalIgnoreCase)
@@ -2586,11 +2592,11 @@ internal static partial class LocalCityGmlObjectProjection
         {
             if (material.TerrainOverlay is not null)
             {
-                if (ResolveTerrainTextureMeshCode(actualMeshCode, material.TerrainOverlay) is { } terrainMeshCode)
+                if (ResolveTerrainTextureMeshCode(actualMeshCode, material.TerrainOverlay) is not null)
                 {
                     return string.Create(
                         CultureInfo.InvariantCulture,
-                        $"terrain-shared-{terrainMeshCode}-{ProjectionToken(material.Projection)}-depth-{FormatDepth(depthOffset)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-color-{FormatColor(color)}");
+                        $"terrain-shared-{ProjectionToken(material.Projection)}-depth-{FormatDepth(depthOffset)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}");
                 }
 
                 throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
@@ -3166,16 +3172,18 @@ internal static partial class LocalCityGmlObjectProjection
                      cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!ShouldProjectTerrainOverlaySplit(splitCityObject.CityObject.ActualMeshCode, request.MeshCode, splitCityObject.Overlay))
+            TerrainTextureOverlay? projectionOverlay = splitCityObject.Overlay
+                ?? ResolveNonDemTerrainTextureOverlay(splitCityObject.CityObject, demTerrainTextureOverlays);
+            if (!ShouldProjectTerrainOverlaySplit(splitCityObject.CityObject.ActualMeshCode, request.MeshCode, projectionOverlay))
             {
-                continue;
+                throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
             }
 
             ImportedCityObject cityObject = ProjectTerrainMeshModeCityObject(
                 splitCityObject.CityObject,
                 globalOriginPoint,
                 globalCartesian,
-                splitCityObject.Overlay,
+                projectionOverlay,
                 request,
                 materialResolver,
                 progressReporter,
@@ -3207,7 +3215,7 @@ internal static partial class LocalCityGmlObjectProjection
                 roadMarkingCityObject,
                 globalOriginPoint,
                 globalCartesian,
-                splitCityObject.Overlay,
+                projectionOverlay,
                 materialResolver) with
             {
                 CollisionEnabled = false,
@@ -3261,9 +3269,11 @@ internal static partial class LocalCityGmlObjectProjection
                      demTerrainTextureOverlays,
                      requestedMeshAreas))
         {
-            if (!ShouldProjectTerrainOverlaySplit(splitCityObject.CityObject.ActualMeshCode, request.MeshCode, splitCityObject.Overlay))
+            TerrainTextureOverlay? projectionOverlay = splitCityObject.Overlay
+                ?? ResolveNonDemTerrainTextureOverlay(splitCityObject.CityObject, demTerrainTextureOverlays);
+            if (!ShouldProjectTerrainOverlaySplit(splitCityObject.CityObject.ActualMeshCode, request.MeshCode, projectionOverlay))
             {
-                continue;
+                throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
             }
 
             global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
@@ -3281,14 +3291,14 @@ internal static partial class LocalCityGmlObjectProjection
                                 splitCityObject.CityObject,
                                 cityObjectOrigin,
                                 cityObjectCartesian,
-                                splitCityObject.Overlay,
+                                projectionOverlay,
                                 request.MeshCode,
                                 materialResolver)
                             : CreateCommonMaterialBindings(
                                 splitCityObject.CityObject,
                                 cityObjectOrigin,
                                 cityObjectCartesian,
-                                splitCityObject.Overlay,
+                                projectionOverlay,
                                 materialResolver))
             {
                 yield return material;
@@ -4263,6 +4273,31 @@ internal static partial class LocalCityGmlObjectProjection
         return requestedMeshCode;
     }
 
+    private static TerrainTextureOverlay? ResolveNonDemTerrainTextureOverlay(
+        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
+    {
+        if (string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        TerrainTextureOverlay? matchingOverlay = demTerrainTextureOverlays.FirstOrDefault(overlay =>
+            ResolveTerrainTextureMeshCode(cityObject.ActualMeshCode, overlay) is not null);
+        if (matchingOverlay is not null)
+        {
+            return matchingOverlay;
+        }
+
+        if (TryCreateMeshCodeBounds(cityObject.ActualMeshCode, out MeshCodeBounds? actualMeshBounds)
+            && demTerrainTextureOverlays.Any(overlay => BoundsOverlap(actualMeshBounds!, overlay.GeographicBounds)))
+        {
+            throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
+        }
+
+        return null;
+    }
+
     private static bool ShouldProjectTerrainOverlaySplit(
         string actualMeshCode,
         string requestedMeshCode,
@@ -4280,6 +4315,14 @@ internal static partial class LocalCityGmlObjectProjection
         }
 
         return ResolveTerrainTextureMeshCode(actualMeshCode, terrainOverlay) is not null;
+    }
+
+    private static bool BoundsOverlap(MeshCodeBounds meshBounds, GeographicRectangle geographicBounds)
+    {
+        return meshBounds.NorthLatitude >= geographicBounds.MinLatitude
+            && meshBounds.SouthLatitude <= geographicBounds.MaxLatitude
+            && meshBounds.EastLongitude >= geographicBounds.MinLongitude
+            && meshBounds.WestLongitude <= geographicBounds.MaxLongitude;
     }
 
     private static Float2 ToContractFloat2(Float2 value) => new(value.X, value.Y);

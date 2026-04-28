@@ -376,7 +376,133 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectKeepsDifferentRoofDemBaseColorsInSeparateTerrainMaterials()
+    public void ProjectParsedCityObjectPassesMatchingDemOverlayToTexturelessBuildingRoof()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+            "textureless-roof",
+            BootstrapParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/plateau",
+            ServerUri: null);
+
+        ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: null,
+            demTerrainTextureOverlays: [overlay],
+            requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver()));
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal("53394525", material.TerrainMeshCode);
+        Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
+    }
+
+    [Fact]
+    public void ProjectParsedCityObjectFailsExplicitlyForNonThirdMeshDemOverlay()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices =
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true);
+        GeographicRectangle nonThirdMeshBounds = new(
+            vertices.Min(static vertex => vertex.Latitude),
+            vertices.Max(static vertex => vertex.Latitude),
+            vertices.Min(static vertex => vertex.Longitude),
+            vertices.Max(static vertex => vertex.Longitude));
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://terrain.example/non-third/{z}/{x}/{y}.png",
+            ZoomLevel: 17,
+            GeographicBounds: nonThirdMeshBounds,
+            MaxTextureSize: 512);
+        BootstrapParsedSurface demSurface = new(
+            PolygonId: "non-third-dem",
+            Semantic: BootstrapParsedSurfaceSemantic.Ground,
+            ExteriorRing: new BootstrapParsedRing("non-third-dem-ring", vertices.Select(GeodeticPoint.FromLegacy).ToArray(), UVs: null),
+            InteriorRings: [],
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null,
+            UsesGeneratedDemTexture: true);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("dem", [demSurface], referenceSystem);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/plateau",
+            ServerUri: null);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            LocalCityGmlObjectProjection.ProjectParsedCityObject(
+                cityObject,
+                GeodeticPoint.FromLegacy(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
+                globalCartesian: null,
+                demTerrainTextureOverlays: [overlay],
+                requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
+                terrainHeightSampler: null,
+                request,
+                new DefaultMaterialResolver()).ToArray());
+
+        Assert.Contains("third-level mesh code", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProjectParsedCityObjectFailsExplicitlyForNonThirdMeshBuildingOverlay()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices =
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true);
+        GeographicRectangle nonThirdMeshBounds = new(
+            vertices.Min(static vertex => vertex.Latitude),
+            vertices.Max(static vertex => vertex.Latitude),
+            vertices.Min(static vertex => vertex.Longitude),
+            vertices.Max(static vertex => vertex.Longitude));
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://terrain.example/non-third-building/{z}/{x}/{y}.png",
+            ZoomLevel: 17,
+            GeographicBounds: nonThirdMeshBounds,
+            MaxTextureSize: 512);
+        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+            "textureless-roof",
+            BootstrapParsedSurfaceSemantic.Roof,
+            vertices,
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/plateau",
+            ServerUri: null);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            LocalCityGmlObjectProjection.ProjectParsedCityObject(
+                cityObject,
+                GeodeticPoint.FromLegacy(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
+                globalCartesian: null,
+                demTerrainTextureOverlays: [overlay],
+                requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
+                terrainHeightSampler: null,
+                request,
+                new DefaultMaterialResolver()).ToArray());
+
+        Assert.Contains("third-level mesh code", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProjectCityObjectIgnoresTexturelessRoofBaseColorsForSharedDemTerrainMaterial()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -403,15 +529,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
 
-        Assert.Equal(2, projected.Materials.Count);
-        Assert.Contains(projected.Materials, static material => material.BaseColor == new ColorRgba(1.0, 0.0, 0.0, 1.0));
-        Assert.Contains(projected.Materials, static material => material.BaseColor == new ColorRgba(0.0, 0.0, 1.0, 1.0));
-        Assert.All(projected.Materials, material =>
-        {
-            Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
-            Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
-            Assert.Same(overlay, material.TerrainOverlay);
-        });
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Equal(new ColorRgba(1.0, 1.0, 1.0, 1.0), material.BaseColor);
+        Assert.DoesNotContain("53394525", material.MaterialKey, StringComparison.Ordinal);
+        Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
+        Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
+        Assert.Same(overlay, material.TerrainOverlay);
     }
 
     [Fact]
