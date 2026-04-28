@@ -147,7 +147,7 @@ public sealed class CommonMaterialCatalog
             ReuseScope: MaterialReuseScope.Shared);
     }
 
-    private static string CreateCanonicalGenericSharedMaterialKey(
+    internal static string CreateCanonicalGenericSharedMaterialKey(
         MaterialProjection projection,
         Float2? textureScale,
         Float2? textureOffset,

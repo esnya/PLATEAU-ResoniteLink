@@ -1239,22 +1239,21 @@ internal static partial class LocalCityGmlObjectProjection
                 .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
-        IGrouping<string, ResolvedSurfaceMaterial>[] materialGroups = resolvedSurfaces
+        IGrouping<MaterialGroupingKey, ResolvedSurfaceMaterial>[] materialGroups = resolvedSurfaces
             .GroupBy(
-                resolvedSurface => CreateBindingMaterialKey(
+                resolvedSurface => CreateMaterialGroupingKey(
                     cityObject.ActualMeshCode,
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
-                    resolvedSurface.Material.TextureOffset),
-                StringComparer.Ordinal)
-            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+                    resolvedSurface.Material.TextureOffset))
+            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
             .ToArray();
 
         for (int materialIndex = 0; materialIndex < materialGroups.Length; materialIndex++)
         {
-            IGrouping<string, ResolvedSurfaceMaterial> materialGroup = materialGroups[materialIndex];
+            IGrouping<MaterialGroupingKey, ResolvedSurfaceMaterial> materialGroup = materialGroups[materialIndex];
             List<int> indices = [];
             FacadeUvProjectionContext? facadeUvProjectionContext = TryCreateFacadeUvProjectionContext(
                 cityObject.PackageName,
@@ -1286,8 +1285,15 @@ internal static partial class LocalCityGmlObjectProjection
             }
 
             ResolvedSurfaceMaterial representativeSurface = materialGroup.First();
-            submeshes.Add(new MeshSubmesh(materialIndex, materialGroup.Key, indices));
-            materials.Add(CreateMaterialBinding(cityObject.ActualMeshCode, representativeSurface, materialGroup.Key, materialIndex));
+            string materialKey = CreateBindingMaterialKey(
+                cityObject.ActualMeshCode,
+                representativeSurface.Material,
+                representativeSurface.DepthOffset,
+                representativeSurface.Material.TextureScale,
+                representativeSurface.Surface.BaseColor,
+                representativeSurface.Material.TextureOffset);
+            submeshes.Add(new MeshSubmesh(materialIndex, materialKey, indices));
+            materials.Add(CreateMaterialBinding(cityObject.ActualMeshCode, representativeSurface, materialKey, materialIndex));
         }
 
         return new ImportedCityObject(
@@ -2594,9 +2600,13 @@ internal static partial class LocalCityGmlObjectProjection
             {
                 if (ResolveTerrainTextureMeshCode(actualMeshCode, material.TerrainOverlay) is not null)
                 {
-                    return string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"terrain-shared-{ProjectionToken(material.Projection)}-depth-{FormatDepth(depthOffset)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}");
+                    Float2? normalizedTextureScale = IsIdentityTextureScale(textureScale) ? null : textureScale;
+                    Float2? normalizedTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
+                    return CommonMaterialCatalog.CreateCanonicalGenericSharedMaterialKey(
+                        material.Projection,
+                        normalizedTextureScale,
+                        normalizedTextureOffset,
+                        depthOffset);
                 }
 
                 throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
@@ -2621,6 +2631,51 @@ internal static partial class LocalCityGmlObjectProjection
             material.Family,
             color,
             textureOffset);
+    }
+
+    private static MaterialGroupingKey CreateMaterialGroupingKey(
+        string actualMeshCode,
+        ResolvedMaterial material,
+        MaterialDepthOffset? depthOffset,
+        Float2? textureScale,
+        ColorRgba color,
+        Float2? textureOffset = null)
+    {
+        if (material.ReuseScope == MaterialReuseScope.Shared && material.TerrainOverlay is not null)
+        {
+            if (ResolveTerrainTextureMeshCode(actualMeshCode, material.TerrainOverlay) is null)
+            {
+                throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
+            }
+
+            return new MaterialGroupingKey(
+                material.MaterialType,
+                TexturePayloadIdentity: null,
+                material.TextureSourceKind,
+                material.Projection,
+                depthOffset,
+                IsIdentityTextureScale(textureScale) ? null : textureScale,
+                Family: null,
+                BaseColor: null,
+                IsZeroTextureOffset(textureOffset) ? null : textureOffset,
+                material.ReuseScope,
+                material.BundledVariantIndex,
+                TerrainOverlay: null);
+        }
+
+        return new MaterialGroupingKey(
+            material.MaterialType,
+            material.TexturePayload?.Identity,
+            material.TextureSourceKind,
+            material.Projection,
+            depthOffset,
+            textureScale,
+            material.Family,
+            color,
+            textureOffset,
+            material.ReuseScope,
+            material.BundledVariantIndex,
+            material.TerrainOverlay);
     }
 
     private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainOverlay)
@@ -2754,6 +2809,13 @@ internal static partial class LocalCityGmlObjectProjection
         return textureOffset is null
             || (Math.Abs(textureOffset.X) < 1e-9
                 && Math.Abs(textureOffset.Y) < 1e-9);
+    }
+
+    private static bool IsIdentityTextureScale(Float2? textureScale)
+    {
+        return textureScale is null
+            || (Math.Abs(textureScale.X - 1.0) < 1e-9
+                && Math.Abs(textureScale.Y - 1.0) < 1e-9);
     }
 
     private static bool ShouldPreferUvProjection(
@@ -3498,15 +3560,14 @@ internal static partial class LocalCityGmlObjectProjection
 
         return resolvedSurfaces
             .GroupBy(
-                resolvedSurface => CreateBindingMaterialKey(
+                resolvedSurface => CreateMaterialGroupingKey(
                     cityObject.ActualMeshCode,
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
-                    resolvedSurface.Material.TextureOffset),
-                StringComparer.Ordinal)
-            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+                    resolvedSurface.Material.TextureOffset))
+            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -3547,15 +3608,14 @@ internal static partial class LocalCityGmlObjectProjection
 
         return resolvedSurfaces
             .GroupBy(
-                resolvedSurface => CreateBindingMaterialKey(
+                resolvedSurface => CreateMaterialGroupingKey(
                     cityObject.ActualMeshCode,
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
-                    resolvedSurface.Material.TextureOffset),
-                StringComparer.Ordinal)
-            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+                    resolvedSurface.Material.TextureOffset))
+            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -4139,15 +4199,14 @@ internal static partial class LocalCityGmlObjectProjection
 
         return resolvedSurfaces
             .GroupBy(
-                resolvedSurface => CreateBindingMaterialKey(
+                resolvedSurface => CreateMaterialGroupingKey(
                     ResolveTerrainTextureMaterialMeshCodeSource(cityObject.ActualMeshCode, requestedMeshCode, resolvedSurface.Material.TerrainOverlay),
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
-                    resolvedSurface.Material.TextureOffset),
-                StringComparer.Ordinal)
-            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+                    resolvedSurface.Material.TextureOffset))
+            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -4192,15 +4251,14 @@ internal static partial class LocalCityGmlObjectProjection
 
         return resolvedSurfaces
             .GroupBy(
-                resolvedSurface => CreateBindingMaterialKey(
+                resolvedSurface => CreateMaterialGroupingKey(
                     ResolveTerrainTextureMaterialMeshCodeSource(cityObject.ActualMeshCode, requestedMeshCode, resolvedSurface.Material.TerrainOverlay),
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
-                    resolvedSurface.Material.TextureOffset),
-                StringComparer.Ordinal)
-            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+                    resolvedSurface.Material.TextureOffset))
+            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -5158,6 +5216,20 @@ internal static partial class LocalCityGmlObjectProjection
         ParsedSurface Surface,
         ResolvedMaterial Material,
         MaterialDepthOffset? DepthOffset);
+
+    private sealed record MaterialGroupingKey(
+        MaterialType MaterialType,
+        string? TexturePayloadIdentity,
+        TextureSourceKind TextureSourceKind,
+        MaterialProjection Projection,
+        MaterialDepthOffset? DepthOffset,
+        Float2? TextureScale,
+        string? Family,
+        ColorRgba? BaseColor,
+        Float2? TextureOffset,
+        MaterialReuseScope ReuseScope,
+        int? BundledVariantIndex,
+        TerrainTextureOverlay? TerrainOverlay);
 
     private sealed record TessellatedVertex(
         Float3 Position,

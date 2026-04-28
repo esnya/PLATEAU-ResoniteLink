@@ -502,7 +502,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectIgnoresTexturelessRoofBaseColorsForSharedDemTerrainMaterial()
+    public void ProjectCityObjectUsesSharedAlbedoOnlyMaterialForTexturelessDemTerrainRoofs()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -531,7 +531,8 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(new ColorRgba(1.0, 1.0, 1.0, 1.0), material.BaseColor);
-        Assert.DoesNotContain("53394525", material.MaterialKey, StringComparison.Ordinal);
+        Assert.Equal("shared-generic-uv-scale-none-offset-none-depth-none", material.MaterialKey);
+        Assert.DoesNotContain("terrain-shared", material.MaterialKey, StringComparison.Ordinal);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
         Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
         Assert.Same(overlay, material.TerrainOverlay);
