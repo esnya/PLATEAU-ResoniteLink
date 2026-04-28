@@ -65,6 +65,127 @@ public sealed class DemTerrainOverlayAssignmentTests
     }
 
     [Fact]
+    public void SplitParsedCityObjectPrunesBoundarySliverOverlayGroupAcrossSurfaces()
+    {
+        const double boundaryLongitude = 139.0100;
+        BootstrapParsedSurface dominantSurface = CreateGeneratedSurface(
+            "dem-dominant",
+            [
+                new GeodeticPoint(35.0000, 139.0000, 0.0),
+                new GeodeticPoint(35.0100, 139.0000, 1.0),
+                new GeodeticPoint(35.0100, boundaryLongitude, 2.0),
+            ]);
+        BootstrapParsedSurface sliverSurface = CreateGeneratedSurface(
+            "dem-sliver-group",
+            [
+                new GeodeticPoint(35.0000, boundaryLongitude, 0.0),
+                new GeodeticPoint(35.0100, boundaryLongitude, 1.0),
+                new GeodeticPoint(35.0100, boundaryLongitude + 0.0000005, 2.0),
+            ]);
+        BootstrapParsedCityObject cityObject = CreateCityObject(dominantSurface) with
+        {
+            Surfaces = [dominantSurface, sliverSurface],
+        };
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, boundaryLongitude),
+            CreateOverlay(boundaryLongitude, 139.0200),
+        ];
+
+        (BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
+
+        (BootstrapParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
+        Assert.NotNull(overlay);
+        Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
+        Assert.Equal(boundaryLongitude, overlay.GeographicBounds.MaxLongitude, 6);
+        Assert.Equal("dem-dominant", Assert.Single(splitCityObject.Surfaces).PolygonId);
+    }
+
+    [Fact]
+    public void SplitParsedCityObjectKeepsSmallCompactOverlayGroupAcrossSurfaces()
+    {
+        const double boundaryLongitude = 139.0100;
+        BootstrapParsedSurface dominantSurface = CreateGeneratedSurface(
+            "dem-dominant",
+            [
+                new GeodeticPoint(35.0000, 139.0000, 0.0),
+                new GeodeticPoint(35.0100, 139.0000, 1.0),
+                new GeodeticPoint(35.0100, boundaryLongitude, 2.0),
+            ]);
+        BootstrapParsedSurface compactSurface = CreateGeneratedSurface(
+            "dem-small-compact",
+            [
+                new GeodeticPoint(35.00000, boundaryLongitude + 0.00020, 0.0),
+                new GeodeticPoint(35.00001, boundaryLongitude + 0.00020, 1.0),
+                new GeodeticPoint(35.00001, boundaryLongitude + 0.00021, 2.0),
+            ]);
+        BootstrapParsedCityObject cityObject = CreateCityObject(dominantSurface) with
+        {
+            Surfaces = [dominantSurface, compactSurface],
+        };
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, boundaryLongitude),
+            CreateOverlay(boundaryLongitude, 139.0200),
+        ];
+
+        (BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
+
+        Assert.Equal(2, results.Length);
+        Assert.Contains(
+            results,
+            static result => Assert.Single(result.CityObject.Surfaces).PolygonId == "dem-small-compact");
+    }
+
+    [Fact]
+    public void SplitParsedCityObjectKeepsCompactSurfaceWhenMixedWithSliverInSmallOverlayGroup()
+    {
+        const double boundaryLongitude = 139.0100;
+        BootstrapParsedSurface dominantSurface = CreateGeneratedSurface(
+            "dem-dominant",
+            [
+                new GeodeticPoint(35.0000, 139.0000, 0.0),
+                new GeodeticPoint(35.0100, 139.0000, 1.0),
+                new GeodeticPoint(35.0100, boundaryLongitude, 2.0),
+            ]);
+        BootstrapParsedSurface sliverSurface = CreateGeneratedSurface(
+            "dem-mixed-sliver",
+            [
+                new GeodeticPoint(35.00000, boundaryLongitude + 0.0000010, 0.0),
+                new GeodeticPoint(35.01000, boundaryLongitude + 0.0000010, 1.0),
+                new GeodeticPoint(35.01000, boundaryLongitude + 0.0000015, 2.0),
+            ]);
+        BootstrapParsedSurface compactSurface = CreateGeneratedSurface(
+            "dem-mixed-compact",
+            [
+                new GeodeticPoint(35.00000, boundaryLongitude + 0.00020, 0.0),
+                new GeodeticPoint(35.00001, boundaryLongitude + 0.00020, 1.0),
+                new GeodeticPoint(35.00001, boundaryLongitude + 0.00021, 2.0),
+            ]);
+        BootstrapParsedCityObject cityObject = CreateCityObject(dominantSurface) with
+        {
+            Surfaces = [dominantSurface, sliverSurface, compactSurface],
+        };
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, boundaryLongitude),
+            CreateOverlay(boundaryLongitude, 139.0200),
+        ];
+
+        (BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
+
+        Assert.Equal(2, results.Length);
+        BootstrapParsedCityObject mixedOverlayObject = Assert.Single(
+            results.Select(static result => result.CityObject),
+            static cityObject => cityObject.Surfaces.Any(static surface => surface.PolygonId == "dem-mixed-compact"));
+        Assert.Contains(mixedOverlayObject.Surfaces, static surface => surface.PolygonId == "dem-mixed-sliver");
+        Assert.Contains(mixedOverlayObject.Surfaces, static surface => surface.PolygonId == "dem-mixed-compact");
+    }
+
+    [Fact]
     public void SplitParsedCityObjectRejectsGeneratedSurfaceWhenSurfaceMissesOverlayBounds()
     {
         BootstrapParsedSurface surface = CreateGeneratedSurface(

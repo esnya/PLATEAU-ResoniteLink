@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 using GeographicLib;
 
@@ -17,5 +18,7 @@ internal interface ICityGmlGeometryProjector
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         PlateauImportRequest request,
-        Func<BootstrapParsedCityObject, bool>? predicate = null);
+        Func<BootstrapParsedCityObject, bool>? predicate = null,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default);
 }

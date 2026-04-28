@@ -316,18 +316,19 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
-    public async Task EnsureTextureAsyncRemovesFaultedSharedGenerationAndRetries()
+    public async Task EnsureTextureAsyncCachesPartiallyCoveredTileGeneration()
     {
         using FlakyMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
-        await Assert.ThrowsAsync<HttpRequestException>(() => generator.EnsureTextureAsync(overlay, CancellationToken.None));
+        GeneratedTerrainTexture firstTexture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
+        Assert.Same(firstTexture, texture);
         Assert.Equal(512, texture.TextureImport.Width);
-        Assert.Equal(8, handler.RequestCount);
+        Assert.Equal(4, handler.RequestCount);
     }
 
     [Fact]
@@ -340,7 +341,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         using (HttpClient firstClient = new(firstHandler))
         {
             TerrainTextureAssetGenerator firstGenerator = new(firstClient, cacheRoot.Path);
-            await Assert.ThrowsAsync<HttpRequestException>(() => firstGenerator.EnsureTextureAsync(overlay, CancellationToken.None));
+            _ = await firstGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
         }
 
         using RetryableMapTileHandler secondHandler = new();
@@ -484,6 +485,30 @@ public sealed class TerrainTextureAssetGeneratorTests
         using Image<Rgba32> image = LoadImage(texture.TextureImport);
         Assert.True(ContainsColor(image, 255, 0, 0));
         Assert.True(ContainsColor(image, 255, 0, 255));
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncFillsRemainingTileGapsWithDefaultGroundColor()
+    {
+        using MissingTileMapTileHandler handler = new((1, 1));
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: WebMercatorTileMath.PixelYToLatitude(2 * WebMercatorTileMath.TileSizePixels, 1),
+                MaxLatitude: WebMercatorTileMath.PixelYToLatitude(0, 1),
+                MinLongitude: WebMercatorTileMath.PixelXToLongitude(0, 1),
+                MaxLongitude: WebMercatorTileMath.PixelXToLongitude(2 * WebMercatorTileMath.TileSizePixels, 1)),
+            MaxTextureSize: 4096,
+            PrimarySource: new TerrainTextureTileSource("https://primary.example/{z}/{x}/{y}.png", 1));
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        Assert.True(ContainsColor(image, 255, 0, 0));
+        Rgba32 fillColor = TerrainTextureAssetGenerator.DefaultDemGroundFillColor;
+        Assert.True(ContainsColor(image, fillColor.R, fillColor.G, fillColor.B));
     }
 
     [Fact]
@@ -733,6 +758,34 @@ public sealed class TerrainTextureAssetGeneratorTests
             }
 
             return FakeMapTileHandler.GetTileColorForTests(tileX, tileY);
+        }
+    }
+
+    private sealed class MissingTileMapTileHandler((int x, int y) missingTile) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
+            int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);
+            int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), CultureInfo.InvariantCulture);
+
+            if ((tileX, tileY) == missingTile)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            using Image<Rgba32> image = new(
+                WebMercatorTileMath.TileSizePixels,
+                WebMercatorTileMath.TileSizePixels,
+                FakeMapTileHandler.GetTileColorForTests(tileX, tileY));
+            MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream),
+            };
         }
     }
 

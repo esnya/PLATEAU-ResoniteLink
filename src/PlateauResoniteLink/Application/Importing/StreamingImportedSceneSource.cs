@@ -199,6 +199,8 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = await GetDemTerrainTextureOverlaysAsync(
             sourceFile,
             cancellationToken);
+        bool isDemSourceFile = string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
+        List<BootstrapParsedCityObject> parsedDemCityObjects = [];
 
         await foreach (BootstrapParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync(cancellationToken))
         {
@@ -206,6 +208,11 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
             parsedCount++;
             resolvedReferenceSystem ??= ResolveReferenceSystem(parsedCityObject.ReferenceSystem);
             globalCartesian ??= CreateGlobalCartesian(resolvedReferenceSystem);
+            if (isDemSourceFile)
+            {
+                parsedDemCityObjects.Add(parsedCityObject);
+                continue;
+            }
 
             foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
                          new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
@@ -214,7 +221,36 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
                          globalCartesian,
                          demTerrainTextureOverlays,
                          requestedMeshAreas,
-                         request))
+                         request,
+                         predicate: null,
+                         progressReporter,
+                         cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yieldedCount++;
+                yield return cityObject;
+            }
+        }
+
+        if (isDemSourceFile && parsedDemCityObjects.Count > 0)
+        {
+            BootstrapParsedCityObject[] aggregatedDemCityObjects =
+                DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
+                    sourceFile.SourceFile,
+                    parsedDemCityObjects);
+            foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
+                         new CachedSourceFileDescriptor(sourceFile.SourceFile, aggregatedDemCityObjects),
+                         resolvedReferenceSystem
+                             ?? throw new PlateauImportValidationException(
+                                 [$"CityGML file '{sourceFile.SourceFile.RelativePath}' does not declare a supported coordinate reference system."]),
+                         globalOriginPoint,
+                         globalCartesian,
+                         demTerrainTextureOverlays,
+                         requestedMeshAreas,
+                         request,
+                         predicate: null,
+                         progressReporter,
+                         cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yieldedCount++;

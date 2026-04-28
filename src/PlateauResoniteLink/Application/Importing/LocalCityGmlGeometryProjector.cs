@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 using GeographicLib;
 
@@ -20,7 +21,9 @@ internal sealed class LocalCityGmlGeometryProjector(
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         PlateauImportRequest request,
-        Func<BootstrapParsedCityObject, bool>? predicate = null)
+        Func<BootstrapParsedCityObject, bool>? predicate = null,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
     {
         return LocalCityGmlObjectProjection.ProjectCityObjects(
             sourceFile,
@@ -31,6 +34,8 @@ internal sealed class LocalCityGmlGeometryProjector(
             requestedMeshAreas,
             request,
             materialResolver,
-            predicate);
+            predicate,
+            progressReporter,
+            cancellationToken);
     }
 }

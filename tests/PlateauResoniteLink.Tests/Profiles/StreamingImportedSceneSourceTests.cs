@@ -480,7 +480,9 @@ public sealed class StreamingImportedSceneSourceTests
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
             IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
             PlateauImportRequest request,
-            Func<BootstrapParsedCityObject, bool>? predicate = null)
+            Func<BootstrapParsedCityObject, bool>? predicate = null,
+            Action<string>? progressReporter = null,
+            CancellationToken cancellationToken = default)
         {
             _ = referenceSystem;
             _ = globalOriginPoint;
@@ -489,6 +491,8 @@ public sealed class StreamingImportedSceneSourceTests
             _ = requestedMeshAreas;
             _ = request;
             _ = predicate;
+            _ = progressReporter;
+            _ = cancellationToken;
             int concurrency = Interlocked.Increment(ref currentConcurrency);
             UpdateMaxConcurrency(concurrency);
 
@@ -544,13 +548,17 @@ public sealed class StreamingImportedSceneSourceTests
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
             IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
             PlateauImportRequest request,
-            Func<BootstrapParsedCityObject, bool>? predicate = null)
+            Func<BootstrapParsedCityObject, bool>? predicate = null,
+            Action<string>? progressReporter = null,
+            CancellationToken cancellationToken = default)
         {
             _ = referenceSystem;
             _ = globalOriginPoint;
             _ = globalCartesian;
             _ = requestedMeshAreas;
             _ = request;
+            _ = progressReporter;
+            _ = cancellationToken;
 
             BootstrapParsedCityObject parsedCityObject = Assert.Single(sourceFile.CityObjects);
             if (predicate is not null && !predicate(parsedCityObject))

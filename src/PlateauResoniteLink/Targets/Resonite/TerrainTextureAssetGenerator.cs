@@ -139,14 +139,6 @@ internal sealed class TerrainTextureAssetGenerator(
                 $"Terrain texture generation failed for sources [{DescribeTerrainTextureSources(terrainTextureOverlay.Sources)}].");
         }
 
-        if (HasTransparentPixels(composedTexture)
-            && usedSources.Any(static source => source is TerrainTextureTileSource))
-        {
-            composedTexture.Dispose();
-            throw new HttpRequestException(
-                $"Terrain texture generation left uncovered tile-backed pixels for sources [{DescribeTerrainTextureSources(terrainTextureOverlay.Sources)}].");
-        }
-
         using (composedTexture)
         {
             TerrainTextureSource terrainTextureSource = usedSource ?? terrainTextureOverlay.PrimarySource;
