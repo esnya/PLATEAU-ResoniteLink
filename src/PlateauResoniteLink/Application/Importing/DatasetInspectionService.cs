@@ -406,8 +406,12 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
         string coordinateText,
         [NotNullWhen(true)] out GmlLinearRingTokenSequence? ringTokens)
     {
-        List<GmlPositionToken> positions = [];
-        double[] position = new double[GeometryCoordinateDimension];
+        GmlPositionToken? firstPosition = null;
+        GmlPositionToken? lastPosition = null;
+        long positionCount = 0;
+        double x = 0.0;
+        double y = 0.0;
+        double z = 0.0;
         int coordinateValueCount = 0;
         int tokenStart = -1;
 
@@ -433,29 +437,46 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
             int ordinateIndex = coordinateValueCount % GeometryCoordinateDimension;
             if (double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out double coordinate))
             {
-                position[ordinateIndex] = coordinate;
+                switch (ordinateIndex)
+                {
+                    case 0:
+                        x = coordinate;
+                        break;
+                    case 1:
+                        y = coordinate;
+                        break;
+                    case 2:
+                        z = coordinate;
+                        break;
+                }
             }
 
             if (ordinateIndex == GeometryCoordinateDimension - 1)
             {
-                positions.Add(new GmlPositionToken(position[0], position[1], position[2]));
-                position = new double[GeometryCoordinateDimension];
+                GmlPositionToken position = new(x, y, z);
+                firstPosition ??= position;
+                lastPosition = position;
+                positionCount++;
             }
 
             coordinateValueCount++;
             tokenStart = -1;
         }
 
-        ringTokens = new GmlLinearRingTokenSequence(positions);
+        ringTokens = new GmlLinearRingTokenSequence(
+            positionCount,
+            firstPosition,
+            lastPosition);
         return true;
     }
 
     private static PosListGeometry InspectLinearRingTokens(GmlLinearRingTokenSequence ringTokens)
     {
-        long positionCount = ringTokens.Positions.Count;
-        bool isClosedRing = positionCount > 1
-            && AreSamePosition(ringTokens.Positions[0], ringTokens.Positions[^1]);
-        return new PosListGeometry(positionCount, isClosedRing);
+        bool isClosedRing = ringTokens.PositionCount > 1
+            && ringTokens.FirstPosition is { } firstPosition
+            && ringTokens.LastPosition is { } lastPosition
+            && AreSamePosition(firstPosition, lastPosition);
+        return new PosListGeometry(ringTokens.PositionCount, isClosedRing);
     }
 
     internal static bool AreSamePosition(GmlPositionToken left, GmlPositionToken right)
@@ -774,7 +795,10 @@ internal readonly record struct GmlPositionToken(
     double Y,
     double Z);
 
-internal sealed record GmlLinearRingTokenSequence(IReadOnlyList<GmlPositionToken> Positions);
+internal sealed record GmlLinearRingTokenSequence(
+    long PositionCount,
+    GmlPositionToken? FirstPosition,
+    GmlPositionToken? LastPosition);
 
 internal sealed record DatasetTextureVramEntry(
     string RelativePath,
