@@ -224,16 +224,7 @@ internal static class DemTerrainOverlayAssignment
                         $"Requested-mesh-clipped DEM surface '{requestedMeshClippedSurface.PolygonId}' did not produce any terrain-overlay-clipped geometry.");
                 }
 
-                if (TryPruneBoundarySliverSplit(
-                        clippedSurfaces,
-                        out IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> prunedSurfaces))
-                {
-                    splitGeneratedSurfaces.AddRange(prunedSurfaces);
-                }
-                else
-                {
-                    splitGeneratedSurfaces.AddRange(clippedSurfaces);
-                }
+                splitGeneratedSurfaces.AddRange(clippedSurfaces);
             }
         }
 
@@ -453,10 +444,7 @@ internal static class DemTerrainOverlayAssignment
             }
 
             double areaRatio = metrics[index].AreaSquareMeters / totalArea;
-            bool isBoundarySliver =
-                areaRatio <= BoundarySliverMaxAreaRatio
-                || metrics[index].AreaSquareMeters <= BoundarySliverMaxAreaSquareMeters
-                || metrics[index].EstimatedThicknessMeters <= BoundarySliverMaxThicknessMeters;
+            bool isBoundarySliver = IsBoundarySliver(metrics[index], areaRatio);
             if (!isBoundarySliver)
             {
                 keptSurfaces.Add(clippedSurfaces[index]);
@@ -497,10 +485,18 @@ internal static class DemTerrainOverlayAssignment
 
         GroupMetrics[] groups = surfaces
             .GroupBy(static surface => surface.Overlay)
-            .Select(static group => new GroupMetrics(
-                group.Key,
-                group.ToArray(),
-                group.Sum(static entry => ComputeSurfaceMetrics(entry.Surface).AreaSquareMeters)))
+            .Select(static group =>
+            {
+                (BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)[] groupSurfaces = group.ToArray();
+                SurfaceMetrics[] metrics = groupSurfaces
+                    .Select(static entry => ComputeSurfaceMetrics(entry.Surface))
+                    .ToArray();
+                return new GroupMetrics(
+                    group.Key,
+                    groupSurfaces,
+                    metrics.Sum(static metric => metric.AreaSquareMeters),
+                    metrics);
+            })
             .ToArray();
         if (groups.Length <= 1)
         {
@@ -530,10 +526,9 @@ internal static class DemTerrainOverlayAssignment
             if (index != dominantIndex)
             {
                 double areaRatio = group.AreaSquareMeters / totalArea;
-                bool isBoundarySliver =
-                    areaRatio <= BoundarySliverMaxAreaRatio
-                    || group.AreaSquareMeters <= BoundarySliverMaxAreaSquareMeters;
-                if (isBoundarySliver)
+                bool isBoundarySliverGroup = group.SurfaceMetrics.Count > 0
+                    && group.SurfaceMetrics.All(metric => IsBoundarySliver(metric, areaRatio));
+                if (isBoundarySliverGroup)
                 {
                     prunedBoundarySliver = true;
                     continue;
@@ -688,6 +683,13 @@ internal static class DemTerrainOverlayAssignment
         return new SurfaceMetrics(areaSquareMeters, estimatedThicknessMeters);
     }
 
+    private static bool IsBoundarySliver(SurfaceMetrics metrics, double areaRatio)
+    {
+        return metrics.EstimatedThicknessMeters <= BoundarySliverMaxThicknessMeters
+            && (areaRatio <= BoundarySliverMaxAreaRatio
+                || metrics.AreaSquareMeters <= BoundarySliverMaxAreaSquareMeters);
+    }
+
     private static double Distance(ProjectedPoint left, ProjectedPoint right)
     {
         double deltaX = right.X - left.X;
@@ -702,5 +704,6 @@ internal static class DemTerrainOverlayAssignment
     private readonly record struct GroupMetrics(
         TerrainTextureOverlay Overlay,
         IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> Surfaces,
-        double AreaSquareMeters);
+        double AreaSquareMeters,
+        IReadOnlyList<SurfaceMetrics> SurfaceMetrics);
 }

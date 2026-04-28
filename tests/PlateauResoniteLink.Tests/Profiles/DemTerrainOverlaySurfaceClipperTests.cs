@@ -220,6 +220,56 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
         Assert.Contains(uvs, static uv => Math.Abs(uv.X - 0.6) < 1e-6 && Math.Abs(uv.Y - 0.6) < 1e-6);
     }
 
+    [Fact]
+    public void ClipGeneratedSurfaceToOverlaysPreservesDisconnectedConcaveIntersectionComponents()
+    {
+        BootstrapParsedSurface surface = new(
+            PolygonId: "dem-surface-disconnected-concave",
+            Semantic: BootstrapParsedSurfaceSemantic.Ground,
+            ExteriorRing: new BootstrapParsedRing(
+                "ring-disconnected",
+                [
+                    new GeodeticPoint(35.0000, 139.0000, 10.0),
+                    new GeodeticPoint(35.0000, 139.0100, 10.0),
+                    new GeodeticPoint(35.0001, 139.0100, 10.0),
+                    new GeodeticPoint(35.0001, 139.0020, 10.0),
+                    new GeodeticPoint(35.0009, 139.0020, 10.0),
+                    new GeodeticPoint(35.0009, 139.0100, 10.0),
+                    new GeodeticPoint(35.0010, 139.0100, 10.0),
+                    new GeodeticPoint(35.0010, 139.0000, 10.0),
+                ],
+                UVs: null),
+            InteriorRings: [],
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null,
+            UsesGeneratedDemTexture: true);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 18,
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 35.0000,
+                MaxLatitude: 35.0010,
+                MinLongitude: 139.0020,
+                MaxLongitude: 139.0080),
+            MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize);
+
+        IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> clipped = DemTerrainOverlaySurfaceClipper
+            .ClipGeneratedSurfaceToOverlays(surface, [overlay]);
+
+        Assert.Equal(2, clipped.Count);
+
+        GeographicRectangle[] bounds = clipped
+            .Select(static entry => GetSurfaceBounds(entry.Surface))
+            .OrderBy(static bound => bound.MinLatitude)
+            .ToArray();
+        Assert.InRange(bounds[0].MaxLatitude, 35.0000, 35.0001);
+        Assert.InRange(bounds[0].MinLatitude, 35.0000, 35.0001);
+        Assert.InRange(bounds[1].MinLatitude, 35.0009, 35.0010);
+        Assert.InRange(bounds[1].MaxLatitude, 35.0009, 35.0010);
+        Assert.True(bounds[0].MaxLatitude < bounds[1].MinLatitude);
+    }
+
     private static double ComputeSignedArea(GeodeticPoint[] vertices)
     {
         double signedArea = 0.0;
