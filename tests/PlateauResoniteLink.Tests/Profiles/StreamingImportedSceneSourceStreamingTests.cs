@@ -311,7 +311,9 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
             IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
             PlateauImportRequest request,
-            Func<BootstrapParsedCityObject, bool>? predicate = null)
+            Func<BootstrapParsedCityObject, bool>? predicate = null,
+            Action<string>? progressReporter = null,
+            CancellationToken cancellationToken = default)
         {
             _ = referenceSystem;
             _ = globalOriginPoint;
@@ -319,6 +321,8 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             _ = demTerrainTextureOverlays;
             _ = requestedMeshAreas;
             _ = request;
+            _ = progressReporter;
+            _ = cancellationToken;
             foreach (BootstrapParsedCityObject cityObject in sourceFile.CityObjects)
             {
                 if (predicate is not null && !predicate(cityObject))

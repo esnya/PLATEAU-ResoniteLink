@@ -376,6 +376,45 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void ProjectCityObjectKeepsDifferentRoofDemBaseColorsInSeparateTerrainMaterials()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
+        BootstrapParsedSurface redRoofSurface = CreateBootstrapParsedSurface(
+            "red-textureless-roof",
+            BootstrapParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.35, maxRatio: 0.45, reverseWinding: true),
+            texturePayload: null,
+            baseColor: new ColorRgba(1.0, 0.0, 0.0, 1.0));
+        BootstrapParsedSurface blueRoofSurface = CreateBootstrapParsedSurface(
+            "blue-textureless-roof",
+            BootstrapParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.55, maxRatio: 0.65, reverseWinding: true),
+            texturePayload: null,
+            baseColor: new ColorRgba(0.0, 0.0, 1.0, 1.0));
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [redRoofSurface, blueRoofSurface], referenceSystem);
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        Assert.Equal(2, projected.Materials.Count);
+        Assert.Contains(projected.Materials, static material => material.BaseColor == new ColorRgba(1.0, 0.0, 0.0, 1.0));
+        Assert.Contains(projected.Materials, static material => material.BaseColor == new ColorRgba(0.0, 0.0, 1.0, 1.0));
+        Assert.All(projected.Materials, material =>
+        {
+            Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
+            Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
+            Assert.Same(overlay, material.TerrainOverlay);
+        });
+    }
+
+    [Fact]
     public void ProjectCityObjectDoesNotUseDemTerrainMaterialWhenOverlayBoundsDoNotMatchThirdMesh()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
@@ -994,7 +1033,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             sceneBuilder.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Materials.Any(static material => material.TerrainOverlay is not null)
-                && cityObject.DisplayName == "Chunk Relief");
+                && cityObject.DisplayName == "DEM 53394525");
         Assert.Equal("dem", demCityObject.PackageName);
 
         MaterialBinding material = Assert.Single(demCityObject.Materials);
@@ -1269,8 +1308,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
-                && cityObject.DisplayName == "53394525");
-        Assert.Equal("53394525", demCityObject.DisplayName);
+                && cityObject.DisplayName == "DEM 53394525");
+        Assert.Equal("DEM 53394525", demCityObject.DisplayName);
     }
 
     [Fact]
@@ -2149,6 +2188,8 @@ public sealed class LocalCityGmlObjectProjectionTests
                 null,
                 request,
                 new DefaultMaterialResolver(),
+                null,
+                CancellationToken.None,
             ])!;
     }
 
