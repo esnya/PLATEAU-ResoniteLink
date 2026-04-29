@@ -8,19 +8,19 @@ internal sealed record ParsedRing(
     GeodeticPoint[] Vertices,
     IReadOnlyList<Float2>? UVs)
 {
-    internal LocalCityGmlObjectProjection.ParsedRing ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedRing ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.ParsedRing(
             RingId,
-            Vertices.Select(static point => point.ToLegacy()).ToArray(),
+            Vertices.Select(static point => point.ToProjectionModel()).ToArray(),
             UVs);
     }
 
-    internal static ParsedRing FromLegacy(LocalCityGmlObjectProjection.ParsedRing ring)
+    internal static ParsedRing FromProjectionModel(LocalCityGmlObjectProjection.ParsedRing ring)
     {
         return new ParsedRing(
             ring.RingId,
-            ring.Vertices.Select(GeodeticPoint.FromLegacy).ToArray(),
+            ring.Vertices.Select(GeodeticPoint.FromProjectionModel).ToArray(),
             ring.UVs);
     }
 }
@@ -48,25 +48,25 @@ internal sealed record ParsedSurface(
     public IEnumerable<GeodeticPoint> Vertices =>
         ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));
 
-    internal LocalCityGmlObjectProjection.ParsedSurface ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedSurface ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.ParsedSurface(
             PolygonId,
             (LocalCityGmlObjectProjection.ParsedSurfaceSemantic)Semantic,
-            ExteriorRing.ToLegacy(),
-            InteriorRings.Select(static ring => ring.ToLegacy()).ToArray(),
+            ExteriorRing.ToProjectionModel(),
+            InteriorRings.Select(static ring => ring.ToProjectionModel()).ToArray(),
             BaseColor,
             TexturePayload,
             UsesGeneratedDemTexture);
     }
 
-    internal static ParsedSurface FromLegacy(LocalCityGmlObjectProjection.ParsedSurface surface)
+    internal static ParsedSurface FromProjectionModel(LocalCityGmlObjectProjection.ParsedSurface surface)
     {
         return new ParsedSurface(
             surface.PolygonId,
             (ParsedSurfaceSemantic)surface.Semantic,
-            ParsedRing.FromLegacy(surface.ExteriorRing),
-            surface.InteriorRings.Select(ParsedRing.FromLegacy).ToArray(),
+            ParsedRing.FromProjectionModel(surface.ExteriorRing),
+            surface.InteriorRings.Select(ParsedRing.FromProjectionModel).ToArray(),
             new ColorRgba(surface.BaseColor.R, surface.BaseColor.G, surface.BaseColor.B, surface.BaseColor.A),
             surface.TexturePayload,
             surface.UsesGeneratedDemTexture);
@@ -88,7 +88,7 @@ internal sealed record ParsedCityObject(
     int? FloorsAboveGround = null,
     double? MeasuredHeightMeters = null)
 {
-    internal LocalCityGmlObjectProjection.ParsedCityObject ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedCityObject ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.ParsedCityObject(
             SlotKey,
@@ -96,17 +96,17 @@ internal sealed record ParsedCityObject(
             PackageName,
             ActualMeshCode,
             LodLevel,
-            Surfaces.Select(static surface => surface.ToLegacy()).ToArray(),
-            ReferenceSystem.ToLegacy(),
+            Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray(),
+            ReferenceSystem.ToProjectionModel(),
             SourceFileRelativePath,
             SharedAcrossMeshCodes,
             TerrainAligned,
-            GeodeticOriginOverride?.ToLegacy(),
+            GeodeticOriginOverride?.ToProjectionModel(),
             FloorsAboveGround,
             MeasuredHeightMeters);
     }
 
-    internal static ParsedCityObject FromLegacy(LocalCityGmlObjectProjection.ParsedCityObject cityObject)
+    internal static ParsedCityObject FromProjectionModel(LocalCityGmlObjectProjection.ParsedCityObject cityObject)
     {
         return new ParsedCityObject(
             cityObject.SlotKey,
@@ -114,12 +114,12 @@ internal sealed record ParsedCityObject(
             cityObject.PackageName,
             cityObject.ActualMeshCode,
             cityObject.LodLevel,
-            cityObject.Surfaces.Select(ParsedSurface.FromLegacy).ToArray(),
-            CoordinateReferenceSystem.FromLegacy(cityObject.ReferenceSystem),
+            cityObject.Surfaces.Select(ParsedSurface.FromProjectionModel).ToArray(),
+            CoordinateReferenceSystem.FromProjectionModel(cityObject.ReferenceSystem),
             cityObject.SourceFileRelativePath,
             cityObject.SharedAcrossMeshCodes,
             cityObject.TerrainAligned,
-            cityObject.GeodeticOriginOverride is null ? null : GeodeticPoint.FromLegacy(cityObject.GeodeticOriginOverride),
+            cityObject.GeodeticOriginOverride is null ? null : GeodeticPoint.FromProjectionModel(cityObject.GeodeticOriginOverride),
             cityObject.FloorsAboveGround,
             cityObject.MeasuredHeightMeters);
     }

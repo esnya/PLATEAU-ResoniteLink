@@ -107,7 +107,7 @@ internal static partial class LocalCityGmlObjectProjection
         return new global::PlateauResoniteLink.Application.Importing.ParsedSourceFileResult(
             sourceFile,
             cityObjectArray,
-            coordinateReferenceSystem is null ? null : global::PlateauResoniteLink.Application.Importing.CoordinateReferenceSystem.FromLegacy(coordinateReferenceSystem),
+            coordinateReferenceSystem is null ? null : global::PlateauResoniteLink.Application.Importing.CoordinateReferenceSystem.FromProjectionModel(coordinateReferenceSystem),
             terrainTriangles,
             fileStopwatch.Elapsed);
     }
@@ -332,7 +332,7 @@ internal static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            yield return global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromLegacy(cityObject);
+            yield return global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel(cityObject);
         }
     }
 
@@ -384,7 +384,7 @@ internal static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            yield return global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromLegacy(cityObject);
+            yield return global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel(cityObject);
         }
     }
 

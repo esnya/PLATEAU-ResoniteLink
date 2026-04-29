@@ -502,7 +502,7 @@ internal sealed class NonDemCityObjectBaker(
             == ResoniteMaterialAssetScope.Common;
     }
 
-    private AtlasBatchPlan BuildAtlasCandidateBatches(
+    private AtlasBatchPlan CreateAtlasCandidateBatches(
         IReadOnlyList<CityObjectBakeCandidate> candidates)
     {
         List<IReadOnlyList<CityObjectBakeCandidate>> batches = [];

@@ -314,7 +314,7 @@ public sealed class DemTerrainOverlayAssignmentTests
             Sources: [new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 18)]);
         GeographicRectangle objectBounds = GetSurfaceBounds(surface);
         LocalCityGmlObjectProjection.ResolvedSurfaceMaterial material = new(
-            surface.ToLegacy(),
+            surface.ToProjectionModel(),
             new ResolvedMaterial(
                 MaterialType.Standard,
                 TexturePayload: null,

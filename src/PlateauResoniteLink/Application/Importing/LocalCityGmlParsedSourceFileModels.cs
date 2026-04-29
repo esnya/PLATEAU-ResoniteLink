@@ -12,7 +12,7 @@ internal sealed record SourceFileDescriptor(
     string MatchedMeshCode,
     bool RequiresMeshAreaFilter)
 {
-    internal LocalCityGmlObjectProjection.SourceFileDescriptor ToLegacy()
+    internal LocalCityGmlObjectProjection.SourceFileDescriptor ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.SourceFileDescriptor(
             RelativePath,
@@ -21,7 +21,7 @@ internal sealed record SourceFileDescriptor(
             RequiresMeshAreaFilter);
     }
 
-    internal static SourceFileDescriptor FromLegacy(LocalCityGmlObjectProjection.SourceFileDescriptor sourceFile)
+    internal static SourceFileDescriptor FromProjectionModel(LocalCityGmlObjectProjection.SourceFileDescriptor sourceFile)
     {
         return new SourceFileDescriptor(
             sourceFile.RelativePath,
@@ -39,18 +39,18 @@ internal sealed record CachedSourceFileDescriptor(
 
     public string PackageName => SourceFile.PackageName;
 
-    internal LocalCityGmlObjectProjection.CachedSourceFileDescriptor ToLegacy()
+    internal LocalCityGmlObjectProjection.CachedSourceFileDescriptor ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.CachedSourceFileDescriptor(
-            SourceFile.ToLegacy(),
-            CityObjects.Select(static cityObject => cityObject.ToLegacy()).ToArray());
+            SourceFile.ToProjectionModel(),
+            CityObjects.Select(static cityObject => cityObject.ToProjectionModel()).ToArray());
     }
 
-    internal static CachedSourceFileDescriptor FromLegacy(LocalCityGmlObjectProjection.CachedSourceFileDescriptor sourceFile)
+    internal static CachedSourceFileDescriptor FromProjectionModel(LocalCityGmlObjectProjection.CachedSourceFileDescriptor sourceFile)
     {
         return new CachedSourceFileDescriptor(
-            SourceFileDescriptor.FromLegacy(sourceFile.SourceFile),
-            sourceFile.CityObjects.Select(ParsedCityObject.FromLegacy).ToArray());
+            SourceFileDescriptor.FromProjectionModel(sourceFile.SourceFile),
+            sourceFile.CityObjects.Select(ParsedCityObject.FromProjectionModel).ToArray());
     }
 }
 
@@ -107,23 +107,23 @@ internal sealed record ParsedSourceFileResult(
     TerrainHeightTriangle[] TerrainTriangles,
     TimeSpan Elapsed)
 {
-    internal LocalCityGmlObjectProjection.ParsedSourceFileResult ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedSourceFileResult ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.ParsedSourceFileResult(
-            SourceFile.ToLegacy(),
-            CityObjects.Select(static cityObject => cityObject.ToLegacy()).ToArray(),
-            ReferenceSystem?.ToLegacy(),
-            TerrainTriangles.Select(static triangle => triangle.ToLegacy()).ToArray(),
+            SourceFile.ToProjectionModel(),
+            CityObjects.Select(static cityObject => cityObject.ToProjectionModel()).ToArray(),
+            ReferenceSystem?.ToProjectionModel(),
+            TerrainTriangles.Select(static triangle => triangle.ToProjectionModel()).ToArray(),
             Elapsed);
     }
 
-    internal static ParsedSourceFileResult FromLegacy(LocalCityGmlObjectProjection.ParsedSourceFileResult sourceFile)
+    internal static ParsedSourceFileResult FromProjectionModel(LocalCityGmlObjectProjection.ParsedSourceFileResult sourceFile)
     {
         return new ParsedSourceFileResult(
-            SourceFileDescriptor.FromLegacy(sourceFile.SourceFile),
-            sourceFile.CityObjects.Select(ParsedCityObject.FromLegacy).ToArray(),
-            sourceFile.ReferenceSystem is null ? null : CoordinateReferenceSystem.FromLegacy(sourceFile.ReferenceSystem),
-            sourceFile.TerrainTriangles.Select(TerrainHeightTriangle.FromLegacy).ToArray(),
+            SourceFileDescriptor.FromProjectionModel(sourceFile.SourceFile),
+            sourceFile.CityObjects.Select(ParsedCityObject.FromProjectionModel).ToArray(),
+            sourceFile.ReferenceSystem is null ? null : CoordinateReferenceSystem.FromProjectionModel(sourceFile.ReferenceSystem),
+            sourceFile.TerrainTriangles.Select(TerrainHeightTriangle.FromProjectionModel).ToArray(),
             sourceFile.Elapsed);
     }
 }

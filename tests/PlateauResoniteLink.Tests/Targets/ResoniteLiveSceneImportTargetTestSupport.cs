@@ -29,14 +29,14 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true)
     {
-        await using ResoniteLiveSceneImportTarget builder = CreateBuilder(
+        await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(
             client,
             terrainTextureAssetGenerator,
             enableMeshBake);
 
         using TemporaryDirectory workDirectory = new();
         _ = await ExecuteSceneAsync(
-            builder,
+            importTarget,
             metadata,
             workDirectory.Path,
             cityObjects,
@@ -120,10 +120,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         bool enableMeshBake = true)
     {
         using TemporaryDirectory firstWorkDirectory = new();
-        await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client, enableMeshBake: enableMeshBake))
+        await using (ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(client, enableMeshBake: enableMeshBake))
         {
             _ = await ExecuteSceneAsync(
-                builder,
+                importTarget,
                 metadata,
                 firstWorkDirectory.Path,
                 firstRunCityObjects,
@@ -131,10 +131,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
-        await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client, enableMeshBake: enableMeshBake))
+        await using (ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(client, enableMeshBake: enableMeshBake))
         {
             _ = await ExecuteSceneAsync(
-                builder,
+                importTarget,
                 metadata,
                 secondWorkDirectory.Path,
                 secondRunCityObjects,
@@ -143,14 +143,14 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     }
 
     public static Task<SceneImportExecutionResult> ExecuteSceneAsync(
-        ResoniteLiveSceneImportTarget builder,
+        ResoniteLiveSceneImportTarget importTarget,
         ImportedSceneMetadata metadata,
         string workDirectory,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         IReadOnlyList<MaterialBinding>? commonMaterials = null,
         CancellationToken cancellationToken = default)
     {
-        return builder.ExecuteAsync(
+        return importTarget.ExecuteAsync(
             CreateExecutionPlan(
                 metadata,
                 workDirectory,
@@ -347,7 +347,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return false;
     }
 
-    public static ResoniteLiveSceneImportTarget CreateBuilder(
+    public static ResoniteLiveSceneImportTarget CreateImportTarget(
         IResoniteLinkClient routedClient,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true,

@@ -426,11 +426,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
-        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             client,
             progressReporter: progressMessages.Add);
         _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            builder,
+            importTarget,
             metadata,
             workDirectory.Path,
             [cityObject]);

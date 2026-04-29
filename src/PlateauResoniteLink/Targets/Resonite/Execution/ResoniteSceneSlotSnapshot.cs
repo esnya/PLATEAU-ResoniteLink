@@ -28,7 +28,7 @@ internal sealed class ResoniteSceneSlotSnapshot
     public ResoniteSceneSlotSnapshot(Slot? root)
     {
         Root = root;
-        uniqueChildrenByName = BuildUniqueChildrenIndex(root);
+        uniqueChildrenByName = CreateUniqueChildrenIndex(root);
     }
 
     public Slot? Root { get; }
@@ -99,7 +99,7 @@ internal sealed class ResoniteSceneSlotSnapshot
         return currentLookup;
     }
 
-    private static Dictionary<string, Slot[]> BuildUniqueChildrenIndex(Slot? root)
+    private static Dictionary<string, Slot[]> CreateUniqueChildrenIndex(Slot? root)
     {
         if (root?.Children is null || root.Children.Count == 0)
         {

@@ -203,7 +203,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -239,7 +239,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -275,7 +275,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -322,7 +322,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -494,7 +494,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToLegacy(), roofSurface.ToLegacy(), groundSurface.ToLegacy(), reversedGroundSurface.ToLegacy(), outerFloorSurface.ToLegacy(), highOuterFloorSurface.ToLegacy()],
+            [wallSurface.ToProjectionModel(), roofSurface.ToProjectionModel(), groundSurface.ToProjectionModel(), reversedGroundSurface.ToProjectionModel(), outerFloorSurface.ToProjectionModel(), highOuterFloorSurface.ToProjectionModel()],
             origin,
             cartesian);
 
@@ -511,7 +511,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -541,7 +541,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "tran",
-            [groundSurface.ToLegacy()],
+            [groundSurface.ToProjectionModel()],
             origin,
             cartesian);
 
@@ -551,7 +551,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -599,7 +599,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToLegacy(), bottomSurface.ToLegacy(), reversedBottomSurface.ToLegacy(), roofSurface.ToLegacy()],
+            [wallSurface.ToProjectionModel(), bottomSurface.ToProjectionModel(), reversedBottomSurface.ToProjectionModel(), roofSurface.ToProjectionModel()],
             origin,
             cartesian);
 
@@ -609,7 +609,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -644,7 +644,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [bottomSurface.ToLegacy(), highDownwardRoofSurface.ToLegacy()],
+            [bottomSurface.ToProjectionModel(), highDownwardRoofSurface.ToProjectionModel()],
             origin,
             cartesian);
 
@@ -670,7 +670,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [onlySurface.ToLegacy()],
+            [onlySurface.ToProjectionModel()],
             origin,
             cartesian);
 
@@ -684,7 +684,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -726,7 +726,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToLegacy(), exactBoundaryBottomSurface.ToLegacy(), aboveBoundaryBottomSurface.ToLegacy(), roofSurface.ToLegacy()],
+            [wallSurface.ToProjectionModel(), exactBoundaryBottomSurface.ToProjectionModel(), aboveBoundaryBottomSurface.ToProjectionModel(), roofSurface.ToProjectionModel()],
             origin,
             cartesian);
 
@@ -1016,7 +1016,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = ProjectTerrainMeshModeCityObjectForTest(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -1832,7 +1832,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         return new ParsedSurface(
             PolygonId: polygonId,
             Semantic: semantic,
-            ExteriorRing: new ParsedRing($"{polygonId}-ring", vertices.Select(GeodeticPoint.FromLegacy).ToArray(), UVs: uvs),
+            ExteriorRing: new ParsedRing($"{polygonId}-ring", vertices.Select(GeodeticPoint.FromProjectionModel).ToArray(), UVs: uvs),
             InteriorRings: [],
             BaseColor: baseColor ?? new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: texturePayload);
@@ -1925,7 +1925,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             null,
             [
                 cityObject,
-                GeodeticPoint.FromLegacy(cityObjectOrigin),
+                GeodeticPoint.FromProjectionModel(cityObjectOrigin),
                 cartesian,
                 null,
                 new DefaultMaterialResolver(),

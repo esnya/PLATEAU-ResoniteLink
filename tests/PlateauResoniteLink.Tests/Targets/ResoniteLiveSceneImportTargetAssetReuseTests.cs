@@ -659,9 +659,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         };
 
         using TemporaryDirectory workDirectory = new();
-        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client);
         _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            builder,
+            importTarget,
             metadata,
             workDirectory.Path,
             [
@@ -819,10 +819,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneSinkRecordingClient client = new();
         using TemporaryDirectory workDirectory = new();
-        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client);
 
         SceneImportExecutionResult executionResult = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            builder,
+            importTarget,
             metadata,
             workDirectory.Path,
             [
@@ -854,15 +854,15 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         using TemporaryDirectory firstWorkDirectory = new();
         using TemporaryDirectory secondWorkDirectory = new();
 
-        await using (ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
         {
-            _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(builder, metadata, firstWorkDirectory.Path, []);
+            _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(importTarget, metadata, firstWorkDirectory.Path, []);
         }
 
-        await using (ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
         {
             SceneImportExecutionResult executionResult = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-                builder,
+                importTarget,
                 metadata,
                 secondWorkDirectory.Path,
                 [
@@ -908,10 +908,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         using TemporaryDirectory secondWorkDirectory = new();
         ResoniteFloat3 secondRunLocalPosition = new(10.0, 0.0, 20.0);
 
-        await using (ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-                builder,
+                importTarget,
                 firstRunMetadata,
                 firstWorkDirectory.Path,
                 [
@@ -923,10 +923,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 ]);
         }
 
-        await using (ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-                builder,
+                importTarget,
                 secondRunMetadata,
                 secondWorkDirectory.Path,
                 [
@@ -960,10 +960,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
         using SceneSinkRecordingClient client = new();
         using TemporaryDirectory workDirectory = new();
-        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client, enableMeshBake: false);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false);
 
         _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            builder,
+            importTarget,
             metadata,
             workDirectory.Path,
             [

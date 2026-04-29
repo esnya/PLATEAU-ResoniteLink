@@ -27,7 +27,7 @@ public sealed class CliHostFactoryTests
         using IServiceScope scope = host.Services.CreateScope();
         IResoniteLiveSceneImportFactory factory = scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
         using HttpClient terrainTextureAssetHttpClient = new();
-        await using ResoniteLiveSceneImportTarget builder = factory.CreateTarget(
+        await using ResoniteLiveSceneImportTarget importTarget = factory.CreateTarget(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
                 ConnectionCount: 1,
@@ -39,7 +39,7 @@ public sealed class CliHostFactoryTests
                 ProgressReporter: null),
             terrainTextureAssetHttpClient);
 
-        Assert.Same(builder.Diagnostics, builder.ClientSession.Diagnostics);
+        Assert.Same(importTarget.Diagnostics, importTarget.ClientSession.Diagnostics);
     }
 }
 

@@ -17,7 +17,7 @@ namespace PlateauResoniteLink.Tests.Cli;
 [SuppressMessage(
     "Reliability",
     "CA2000:Dispose objects before losing scope",
-    Justification = "The CLI test hands builder ownership to PlateauImportService.")]
+    Justification = "The CLI test hands importTarget ownership to PlateauImportService.")]
 public sealed class CliApplicationTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();

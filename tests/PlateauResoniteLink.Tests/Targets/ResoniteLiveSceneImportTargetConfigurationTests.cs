@@ -23,32 +23,32 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     [Fact]
     public async Task OptionsConstructorEnablesMeshBakeByDefault()
     {
-        await using ResoniteLiveSceneImportTarget builder = CreateBuilder();
+        await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget();
 
-        Assert.True(builder.MeshBakeEnabled);
+        Assert.True(importTarget.MeshBakeEnabled);
     }
 
     [Fact]
     public async Task OptionsConstructorCanDisableMeshBake()
     {
-        await using ResoniteLiveSceneImportTarget builder = CreateBuilder(enableMeshBake: false);
+        await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(enableMeshBake: false);
 
-        Assert.False(builder.MeshBakeEnabled);
+        Assert.False(importTarget.MeshBakeEnabled);
     }
 
     [Fact]
     public async Task OptionsConstructorUsesLargeMemoryProfileByDefault()
     {
-        await using ResoniteLiveSceneImportTarget builder = CreateBuilder();
+        await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget();
 
-        Assert.Equal(ResoniteImportMemoryProfile.Large, builder.MemoryProfile);
+        Assert.Equal(ResoniteImportMemoryProfile.Large, importTarget.MemoryProfile);
     }
 
     [Fact]
     public async Task OptionsConstructorReusesDependencyDiagnostics()
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.CreateEnabled();
-        await using ResoniteLiveSceneImportTarget builder = new(
+        await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
                 1,
@@ -71,7 +71,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory()));
 
-        Assert.Same(diagnostics, builder.Diagnostics);
+        Assert.Same(diagnostics, importTarget.Diagnostics);
     }
 
     [Fact]
@@ -96,9 +96,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     DisableTerrainTileCache: false,
                     ProgressReporter: null),
                 terrainTextureAssetHttpClient);
-        await using ResoniteLiveSceneImportTarget builder = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+        await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
-        Assert.Same(builder.Diagnostics, builder.ClientSession.Diagnostics);
+        Assert.Same(importTarget.Diagnostics, importTarget.ClientSession.Diagnostics);
     }
 
     [Fact]
@@ -126,10 +126,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     DisableTerrainTileCache: false,
                     ProgressReporter: null),
                 terrainTextureAssetHttpClient);
-        await using ResoniteLiveSceneImportTarget builder = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+        await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
         Assert.NotNull(recordedSession);
-        Assert.Same(recordedSession, builder.ClientSession);
+        Assert.Same(recordedSession, importTarget.ClientSession);
     }
 
     [Fact]
@@ -187,9 +187,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     DisableTerrainTileCache: false,
                     ProgressReporter: null),
                 terrainTextureAssetHttpClient);
-        await using ResoniteLiveSceneImportTarget builder = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+        await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
-        Assert.NotNull(builder.ClientSession);
+        Assert.NotNull(importTarget.ClientSession);
     }
 
     [Theory]
@@ -258,7 +258,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
 
-    private static ResoniteLiveSceneImportTarget CreateBuilder(bool enableMeshBake = true)
+    private static ResoniteLiveSceneImportTarget CreateImportTarget(bool enableMeshBake = true)
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         return new ResoniteLiveSceneImportTarget(
