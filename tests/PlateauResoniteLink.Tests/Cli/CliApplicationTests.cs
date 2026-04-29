@@ -304,6 +304,41 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public async Task RunAsyncGuidedImportRepromptsUnsupportedPackageInput()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        using StringReader standardInput = new(
+            string.Join(
+                Environment.NewLine,
+                fixturePath,
+                "2",
+                "foo",
+                string.Empty,
+                string.Empty,
+                "tokyo23ku",
+                string.Empty,
+                "12345"));
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
+
+        CliApplication application = CreateApplication(
+            standardOutput,
+            standardError,
+            importServiceFactory,
+            standardInput);
+
+        int exitCode = await application.RunAsync(["import", "--guided"]);
+
+        Assert.Equal(0, exitCode);
+        ImportCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
+        Assert.Equal(["bldg"], capturedOptions.Request.PackageNames);
+        Assert.Contains("Select package numbers between 1 and 1", standardError.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Unsupported package name(s): foo.", standardError.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Available packages:", standardOutput.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RunAsyncGuidedImportRepromptsInvalidEndpoint()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");

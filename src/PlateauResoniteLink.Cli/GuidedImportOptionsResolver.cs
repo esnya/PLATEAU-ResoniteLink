@@ -160,12 +160,7 @@ internal sealed class GuidedImportOptionsResolver(
         string? packageInput = await PromptOptionalValueAsync(
             $"Packages (--packages, blank keeps {detectedPackageDefault})",
             defaultValue: detectedPackageDefault,
-            value =>
-            {
-                string normalizedValue = ResolveCsvSelectionsOrValue(value, inspection.PackageNames);
-                _ = CliArgumentsParser.ParsePackageNames(normalizedValue, out string? packageError);
-                return packageError;
-            },
+            value => ValidatePackageInput(value, inspection.PackageNames),
             cancellationToken);
 
         string normalizedInput = ResolveCsvSelectionsOrValue(packageInput ?? detectedPackageDefault, inspection.PackageNames);
@@ -455,6 +450,50 @@ internal sealed class GuidedImportOptionsResolver(
         }
 
         return string.Join(",", selectedValues);
+    }
+
+    private static string? ValidatePackageInput(string value, IReadOnlyList<string> detectedPackageNames)
+    {
+        string[] parts = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            _ = CliArgumentsParser.ParsePackageNames(value, out string? emptyPackageError);
+            return emptyPackageError;
+        }
+
+        bool allNumericSelections = parts.All(static part => int.TryParse(
+            part,
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out _));
+        if (allNumericSelections
+            && parts.Any(part =>
+                !int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out int selection)
+                || selection < 1
+                || selection > detectedPackageNames.Count))
+        {
+            return "Select package numbers between 1 and "
+                + $"{detectedPackageNames.Count.ToString(CultureInfo.InvariantCulture)}, "
+                + $"or enter supported package names: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.";
+        }
+
+        string normalizedValue = allNumericSelections
+            ? ResolveCsvSelectionsOrValue(value, detectedPackageNames)
+            : value;
+        string[] parsedPackageNames = CliArgumentsParser.ParsePackageNames(normalizedValue, out string? packageError);
+        if (packageError is not null)
+        {
+            return packageError;
+        }
+
+        string[] unsupportedPackageNames = parsedPackageNames
+            .Where(static packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
+            .ToArray();
+        return unsupportedPackageNames.Length == 0
+            ? null
+            : "Unsupported package name(s): "
+                + $"{string.Join(", ", unsupportedPackageNames)}. "
+                + $"Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.";
     }
 
     private static string ResolveTargetSelectionOrValue(string input, IReadOnlyList<ResoniteLinkTarget> targets)
