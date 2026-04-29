@@ -577,7 +577,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             BootstrapParsedSurfaceSemantic.Unknown,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [unknownSurface], referenceSystem);
+        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+            "unknown-horizontal-bottom",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [bottomSurface, unknownSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
@@ -591,6 +596,145 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Null(material.Family);
         Assert.Null(material.TexturePayload);
         Assert.Same(overlay, material.TerrainOverlay);
+    }
+
+    [Fact]
+    public void ProjectCityObjectAssignsDemTerrainMaterialToTexturelessUnknownHorizontalBuildingSurfaceRegardlessOfWinding()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
+        BootstrapParsedSurface unknownSurface = CreateBootstrapParsedSurface(
+            "unknown-horizontal-roof-source-winding",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+            "unknown-horizontal-bottom",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [bottomSurface, unknownSurface], referenceSystem);
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
+        Assert.Null(material.Family);
+        Assert.Null(material.TexturePayload);
+        Assert.Same(overlay, material.TerrainOverlay);
+    }
+
+    [Fact]
+    public void ProjectCityObjectDoesNotAssignDemTerrainMaterialToTexturelessUnknownHorizontalSurfaceAtBuildingBottom()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
+        BootstrapParsedSurface lowerHorizontalSurface = CreateBootstrapParsedSurface(
+            "unknown-horizontal-lower-surface",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+            "building-wall-reaching-higher-altitude",
+            BootstrapParsedSurfaceSemantic.Wall,
+            CreateVerticalQuadVertices(origin, widthMeters: 5.0, heightMeters: 2.0),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [lowerHorizontalSurface, wallSurface], referenceSystem);
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        Assert.DoesNotContain(projected.Materials, static material => material.TerrainOverlay is not null);
+    }
+
+    [Fact]
+    public void ProjectCityObjectAssignsDemTerrainMaterialToTexturelessUnknownRoofBelowHigherBuildingDetail()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
+        BootstrapParsedSurface mainRoofSurface = CreateBootstrapParsedSurface(
+            "unknown-horizontal-main-roof",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 20.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        BootstrapParsedSurface higherDetailSurface = CreateBootstrapParsedSurface(
+            "building-detail-reaching-higher-altitude",
+            BootstrapParsedSurfaceSemantic.Wall,
+            CreateVerticalQuadVertices(new(origin.Latitude, origin.Longitude, origin.Altitude), widthMeters: 5.0, heightMeters: 20.2),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+            "bldg",
+            [mainRoofSurface, higherDetailSurface],
+            referenceSystem);
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding roofMaterial = Assert.Single(
+            projected.Materials,
+            static material => material.TerrainOverlay is not null);
+        Assert.Same(overlay, roofMaterial.TerrainOverlay);
+    }
+
+    [Fact]
+    public void ProjectCityObjectAssignsDemTerrainMaterialToMatsumotoLod1SolidTopWinding()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("54372778");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(36.23163715441054, 137.97501759714283, 590.343);
+        GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
+        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+            "matsumoto-lod1-solid-bottom",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateMatsumotoLod1SolidHorizontalRing(altitudeMeters: 590.343),
+            texturePayload: null);
+        BootstrapParsedSurface topSurface = CreateBootstrapParsedSurface(
+            "matsumoto-lod1-solid-top",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateMatsumotoLod1SolidHorizontalRing(altitudeMeters: 595.009),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject =
+            CreateBootstrapParsedCityObject(
+                "bldg",
+                [bottomSurface, topSurface],
+                referenceSystem) with
+            {
+                ActualMeshCode = "54372778",
+            };
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
+        Assert.Equal(MaterialReuseScope.PerObject, material.ReuseScope);
+        Assert.Null(material.Family);
+        Assert.Null(material.TexturePayload);
+        Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal("54372778", material.TerrainMeshCode);
     }
 
     [Fact]
@@ -2208,6 +2352,24 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         vertices.Add(vertices[0]);
         return vertices;
+    }
+
+    private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateMatsumotoLod1SolidHorizontalRing(
+        double altitudeMeters)
+    {
+        return
+        [
+            new(36.231592650728494, 137.97499237251273, altitudeMeters),
+            new(36.231590994539204, 137.97504154730566, altitudeMeters),
+            new(36.23162464596417, 137.97504328807037, altitudeMeters),
+            new(36.23162469728465, 137.9750418382012, altitudeMeters),
+            new(36.23168179137365, 137.97505169002244, altitudeMeters),
+            new(36.231683315279405, 137.97498571800617, altitudeMeters),
+            new(36.23165163047712, 137.97498460155376, altitudeMeters),
+            new(36.231620443262884, 137.97498350402472, altitudeMeters),
+            new(36.231620204515266, 137.97499379469681, altitudeMeters),
+            new(36.231592650728494, 137.97499237251273, altitudeMeters),
+        ];
     }
 
     private static LocalCityGmlObjectProjection.GeodeticPoint CreateMeshCenterPoint(
