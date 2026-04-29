@@ -230,7 +230,8 @@ internal sealed class GuidedImportOptionsResolver(
                 prompt,
                 defaultSelection,
                 value => string.IsNullOrWhiteSpace(value) ? "Specify --mesh-code." : null,
-                cancellationToken);
+                cancellationToken,
+                allowBlank: defaultSelection is not null);
 
             return ResolveSelectionOrValue(selectedInput!, inspection.MeshCodes);
         }

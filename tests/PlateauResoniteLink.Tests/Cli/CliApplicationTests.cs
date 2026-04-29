@@ -269,6 +269,41 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public async Task RunAsyncGuidedImportRepromptsBlankMeshCodeWhenMultipleDetected()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+        using StringReader standardInput = new(
+            string.Join(
+                Environment.NewLine,
+                fixturePath,
+                "1",
+                string.Empty,
+                "tokyo23ku",
+                string.Empty,
+                "2",
+                "12345"));
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
+
+        CliApplication application = CreateApplication(
+            standardOutput,
+            standardError,
+            importServiceFactory,
+            standardInput);
+
+        int exitCode = await application.RunAsync(["import", "--guided"]);
+
+        Assert.Equal(0, exitCode);
+        ImportCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
+        Assert.Equal("tokyo23ku", capturedOptions.Request.Dataset);
+        Assert.Equal("53394525", capturedOptions.Request.MeshCode);
+        Assert.Equal(["bldg"], capturedOptions.Request.PackageNames);
+        Assert.Contains("Specify --mesh-code.", standardError.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Available mesh codes:", standardOutput.ToString());
+    }
+
+    [Fact]
     public async Task RunAsyncGuidedImportRepromptsInvalidEndpoint()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
