@@ -17,10 +17,12 @@ public static class CliArgumentsParser
 
         Usage:
           plateau-resonitelink import --dataset <dataset> --mesh-code <mesh-code> [options]
+          plateau-resonitelink import --guided [options]
           plateau-resonitelink search --citygml-source <path> --mesh-code <mesh-code> [options]
           plateau-resonitelink stats --citygml-source <path> [options]
 
         Import options:
+          --guided               Optional. Prompt interactively for missing import values and use local inspection/discovery assistance.
           --dataset <value>      Required. PLATEAU dataset identifier.
           --mesh-code <value>    Required. PLATEAU mesh code or regex to construct in Resonite.
           --packages <csv>       Optional. Comma-separated PLATEAU package names. Default: dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg.
@@ -101,8 +103,11 @@ public static class CliArgumentsParser
         bool enableMeshBake = true;
         bool enableSendMetrics = false;
         bool verboseLogging = false;
+        bool guided = false;
         IReadOnlyList<string> packageNames = DefaultPackageNames;
+        bool packageNamesSpecified = false;
         IReadOnlySet<int>? globalExcludeLods = null;
+        bool globalExcludeLodsSpecified = false;
         IReadOnlyDictionary<string, IReadOnlySet<int>>? packageExcludeLods = null;
         bool hasPackageExcludeLodsOption = false;
         bool includeMarkingAlways = true;
@@ -125,12 +130,16 @@ public static class CliArgumentsParser
                     case "--dataset":
                         dataset = ReadValue(args, ref index, token);
                         break;
+                    case "--guided":
+                        guided = true;
+                        break;
                     case "--mesh-code":
                         meshCode = ReadValue(args, ref index, token);
                         break;
                     case "--packages":
                         {
                             string packageValue = ReadValue(args, ref index, token);
+                            packageNamesSpecified = true;
                             packageNames = ParsePackageNames(packageValue, out string? packageError);
                             if (packageError is not null)
                             {
@@ -300,6 +309,7 @@ public static class CliArgumentsParser
                     case "--exclude-lod":
                         {
                             string excludeLodValue = ReadValue(args, ref index, token);
+                            globalExcludeLodsSpecified = true;
                             if (!TryParseLodExclusionRules(excludeLodValue, out globalExcludeLods, out string? lodError))
                             {
                                 return CliParseResult.Failure(lodError!);
@@ -356,12 +366,15 @@ public static class CliArgumentsParser
             };
         }
 
+        DatasetLocation? source = null;
         if (string.IsNullOrWhiteSpace(cityGmlSourceInput))
         {
-            return CliParseResult.Failure("Specify --citygml-source.");
+            if (!guided)
+            {
+                return CliParseResult.Failure("Specify --citygml-source.");
+            }
         }
-
-        if (!TryParseDatasetLocationInput(cityGmlSourceInput, out DatasetLocation? source, out string? sourceError))
+        else if (!TryParseDatasetLocationInput(cityGmlSourceInput, out source, out string? sourceError))
         {
             return CliParseResult.Failure(sourceError!);
         }
@@ -376,7 +389,7 @@ public static class CliArgumentsParser
         PlateauImportRequest request = new(
             Dataset: dataset ?? string.Empty,
             MeshCode: meshCode ?? string.Empty,
-            Source: source!,
+            Source: source ?? DatasetLocation.Local(string.Empty),
             DemTextureSource: demTextureSource,
             PackageNames: packageNames,
             GlobalExcludeLodLevels: globalExcludeLods,
@@ -387,7 +400,7 @@ public static class CliArgumentsParser
             TerrainGridMetersPerVertex: terrainGridMetersPerVertex,
             TerrainGridMaxResolution: terrainGridMaxResolution);
 
-        if (resoniteLinkUri is null)
+        if (resoniteLinkUri is null && !guided)
         {
             return CliParseResult.Failure(
                 "Specify either --resonitelink-port or --resonitelink-url.");
@@ -404,7 +417,10 @@ public static class CliArgumentsParser
                 terrainTileCacheRoot,
                 disableTerrainTileCache,
                 enableSendMetrics,
-                verboseLogging));
+                verboseLogging,
+                guided,
+                packageNamesSpecified,
+                globalExcludeLodsSpecified));
     }
 
     private static CliParseResult ParseSearch(string[] args)
@@ -597,7 +613,7 @@ public static class CliArgumentsParser
             out _);
     }
 
-    private static string[] ParsePackageNames(
+    internal static string[] ParsePackageNames(
         string csvValue,
         out string? error)
     {
@@ -614,7 +630,7 @@ public static class CliArgumentsParser
         return parsedValues;
     }
 
-    private static bool TryParseLodExclusionRules(
+    internal static bool TryParseLodExclusionRules(
         string? csvValue,
         out IReadOnlySet<int>? lodLevels,
         out string? error)
@@ -730,7 +746,7 @@ public static class CliArgumentsParser
         return true;
     }
 
-    private static bool TryParseDatasetLocationInput(
+    internal static bool TryParseDatasetLocationInput(
         string input,
         out DatasetLocation? source,
         out string? error)
@@ -759,6 +775,37 @@ public static class CliArgumentsParser
         }
 
         source = DatasetLocation.Local(trimmedInput);
+        error = null;
+        return true;
+    }
+
+    internal static bool TryParseResoniteLinkEndpointInput(
+        string input,
+        out Uri? resoniteLinkUri,
+        out string? error)
+    {
+        string trimmedInput = input.Trim();
+        if (int.TryParse(trimmedInput, out int port) && port is >= 1 and <= 65535)
+        {
+            resoniteLinkUri = new Uri($"ws://localhost:{port}/", UriKind.Absolute);
+            error = null;
+            return true;
+        }
+
+        if (!Uri.TryCreate(trimmedInput, UriKind.Absolute, out resoniteLinkUri))
+        {
+            error = $"The value '{input}' is not a valid TCP port or absolute ws/wss URL.";
+            return false;
+        }
+
+        if (!string.Equals(resoniteLinkUri.Scheme, "ws", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(resoniteLinkUri.Scheme, "wss", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "The --resonitelink-url value must use the ws or wss scheme.";
+            resoniteLinkUri = null;
+            return false;
+        }
+
         error = null;
         return true;
     }

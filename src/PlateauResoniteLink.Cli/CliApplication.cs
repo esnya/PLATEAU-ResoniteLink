@@ -20,21 +20,27 @@ public sealed class CliApplication
         WriteIndented = true,
     };
 
+    private readonly TextReader standardInput;
     private readonly TextWriter standardError;
     private readonly TextWriter standardOutput;
     private readonly IImportServiceFactory importServiceFactory;
     private readonly DatasetInspectionService datasetInspectionService;
+    private readonly IResoniteLinkTargetDiscovery targetDiscovery;
 
     internal CliApplication(
+        TextReader standardInput,
         TextWriter standardOutput,
         TextWriter standardError,
         IImportServiceFactory importServiceFactory,
-        DatasetInspectionService datasetInspectionService)
+        DatasetInspectionService datasetInspectionService,
+        IResoniteLinkTargetDiscovery targetDiscovery)
     {
+        this.standardInput = standardInput;
         this.standardOutput = standardOutput;
         this.standardError = standardError;
         this.importServiceFactory = importServiceFactory;
         this.datasetInspectionService = datasetInspectionService;
+        this.targetDiscovery = targetDiscovery;
     }
 
     [SuppressMessage(
@@ -65,12 +71,19 @@ public sealed class CliApplication
             {
                 case ImportCommandOptions options:
                     {
-                        Action<string> reporter = CreateReporter(options.VerboseLogging);
-                        PlateauImportService effectiveImportService = importServiceFactory.Create(options, reporter);
+                        GuidedImportOptionsResolver optionsResolver = new(
+                            standardInput,
+                            standardOutput,
+                            standardError,
+                            datasetInspectionService,
+                            targetDiscovery);
+                        ImportCommandOptions effectiveOptions = await optionsResolver.ResolveAsync(options, cancellationToken);
+                        Action<string> reporter = CreateReporter(effectiveOptions.VerboseLogging);
+                        PlateauImportService effectiveImportService = importServiceFactory.Create(effectiveOptions, reporter);
 
                         ImportExecutionResult result = await effectiveImportService.ExecuteAsync(
-                            options.Request,
-                            options.WorkRoot,
+                            effectiveOptions.Request,
+                            effectiveOptions.WorkRoot,
                             cancellationToken);
 
                         await standardOutput.WriteLineAsync("Resonite import completed.");

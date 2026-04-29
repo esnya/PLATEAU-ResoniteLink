@@ -83,6 +83,35 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseGuidedImportAllowsMissingInteractiveValues()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(["import", "--guided"]);
+
+        Assert.Null(result.Error);
+        Assert.NotNull(result.Options);
+        Assert.True(result.Options.Guided);
+        Assert.Equal(string.Empty, result.Options.Request.Dataset);
+        Assert.Equal(string.Empty, result.Options.Request.MeshCode);
+        Assert.Equal(DatasetSourceKind.Local, result.Options.Request.SourceKind);
+        Assert.Equal(string.Empty, result.Options.Request.LocalSourcePath);
+        Assert.Null(result.Options.ResoniteLinkUri);
+    }
+
+    [Fact]
+    public void ParseStrictImportStillRequiresResoniteLinkEndpoint()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+            ]);
+
+        Assert.Equal("Specify either --resonitelink-port or --resonitelink-url.", result.Error);
+    }
+
+    [Fact]
     public void ParseRejectsDeprecatedSourceFlags()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -243,6 +272,10 @@ public sealed class CliArgumentsParserTests
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
         Assert.Contains(
+            "plateau-resonitelink import --guided [options]",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.Contains(
             "Import options:",
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
@@ -259,6 +292,7 @@ public sealed class CliArgumentsParserTests
         Assert.DoesNotContain("--local-source-path <path>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.DoesNotContain("--source <value>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.DoesNotContain("--server-url <url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--guided", CliArgumentsParser.HelpText, StringComparison.Ordinal);
     }
 
     [Fact]

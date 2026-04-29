@@ -68,6 +68,22 @@ public sealed class CliApplicationTests
                 new ArchiveFileLayoutPolicy()));
     }
 
+    private static CliApplication CreateApplication(
+        StringWriter standardOutput,
+        StringWriter standardError,
+        StubImportServiceFactory importServiceFactory,
+        TextReader? standardInput = null,
+        IResoniteLinkTargetDiscovery? targetDiscovery = null)
+    {
+        return new CliApplication(
+            standardInput ?? new StringReader(string.Empty),
+            standardOutput,
+            standardError,
+            importServiceFactory,
+            CreateDatasetInspectionService(),
+            targetDiscovery ?? new StubResoniteLinkTargetDiscovery([]));
+    }
+
     [Fact]
     public async Task RunAsyncWritesLiveCompletionForValidImportCommand()
     {
@@ -77,11 +93,7 @@ public sealed class CliApplicationTests
         StubImportSink importSink = new();
         StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(importSink));
 
-        CliApplication application = new(
-            standardOutput,
-            standardError,
-            importServiceFactory,
-            CreateDatasetInspectionService());
+        CliApplication application = CreateApplication(standardOutput, standardError, importServiceFactory);
 
         int exitCode = await application.RunAsync(
             [
@@ -115,11 +127,7 @@ public sealed class CliApplicationTests
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         StubImportServiceFactory importServiceFactory = new(_ => throw new InvalidOperationException("Unexpected transport failure."));
 
-        CliApplication application = new(
-            standardOutput,
-            standardError,
-            importServiceFactory,
-            CreateDatasetInspectionService());
+        CliApplication application = CreateApplication(standardOutput, standardError, importServiceFactory);
 
         int exitCode = await application.RunAsync(
             BuildImportArgs(fixturePath));
@@ -137,11 +145,7 @@ public sealed class CliApplicationTests
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
 
-        CliApplication application = new(
-            standardOutput,
-            standardError,
-            importServiceFactory,
-            CreateDatasetInspectionService());
+        CliApplication application = CreateApplication(standardOutput, standardError, importServiceFactory);
 
         int exitCode = await application.RunAsync(
             BuildImportArgs(fixturePath));
@@ -162,11 +166,7 @@ public sealed class CliApplicationTests
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
 
-        CliApplication application = new(
-            standardOutput,
-            standardError,
-            importServiceFactory,
-            CreateDatasetInspectionService());
+        CliApplication application = CreateApplication(standardOutput, standardError, importServiceFactory);
 
         int exitCode = await application.RunAsync(
             [
@@ -187,11 +187,7 @@ public sealed class CliApplicationTests
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
 
-        CliApplication application = new(
-            standardOutput,
-            standardError,
-            importServiceFactory,
-            CreateDatasetInspectionService());
+        CliApplication application = CreateApplication(standardOutput, standardError, importServiceFactory);
 
         int exitCode = await application.RunAsync(
             [
@@ -213,11 +209,7 @@ public sealed class CliApplicationTests
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         StubImportServiceFactory importServiceFactory = new(_ => throw new OperationCanceledException());
 
-        CliApplication application = new(
-            standardOutput,
-            standardError,
-            importServiceFactory,
-            CreateDatasetInspectionService());
+        CliApplication application = CreateApplication(standardOutput, standardError, importServiceFactory);
 
         using CancellationTokenSource cancellationTokenSource = new();
         await cancellationTokenSource.CancelAsync();
@@ -226,6 +218,86 @@ public sealed class CliApplicationTests
             () => application.RunAsync(
                 BuildImportArgs(fixturePath),
                 cancellationTokenSource.Token));
+    }
+
+    [Fact]
+    public async Task RunAsyncGuidedImportUsesLocalInspectionAndDiscoveredTarget()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        using StringReader standardInput = new(
+            string.Join(
+                Environment.NewLine,
+                fixturePath,
+                string.Empty,
+                string.Empty,
+                "tokyo23ku",
+                string.Empty,
+                "1",
+                string.Empty));
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
+        ResoniteLinkTarget target = new(
+            "Test World",
+            "session-1",
+            new Uri("ws://localhost:54321/"),
+            DateTime.UtcNow);
+
+        CliApplication application = CreateApplication(
+            standardOutput,
+            standardError,
+            importServiceFactory,
+            standardInput,
+            new StubResoniteLinkTargetDiscovery([target]));
+
+        int exitCode = await application.RunAsync(["import", "--guided"]);
+
+        Assert.Equal(0, exitCode);
+        ImportCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
+        Assert.Equal("tokyo23ku", capturedOptions.Request.Dataset);
+        Assert.Equal("53394525", capturedOptions.Request.MeshCode);
+        Assert.Equal(["bldg"], capturedOptions.Request.PackageNames);
+        Assert.Equal(fixturePath, capturedOptions.Request.LocalSourcePath);
+        Assert.Equal(new Uri("ws://localhost:54321/"), capturedOptions.ResoniteLinkUri);
+        Assert.Contains("Dataset inspection:", standardOutput.ToString());
+        Assert.Contains("Available packages:", standardOutput.ToString());
+        Assert.Contains("blank keeps bldg", standardOutput.ToString());
+        Assert.Contains("Available mesh codes:", standardOutput.ToString());
+        Assert.Contains("Search preview:", standardOutput.ToString());
+        Assert.Contains("Discovered ResoniteLink targets:", standardOutput.ToString());
+        Assert.Equal(string.Empty, standardError.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsyncGuidedImportRepromptsInvalidEndpoint()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        using StringReader standardInput = new(
+            string.Join(
+                Environment.NewLine,
+                fixturePath,
+                string.Empty,
+                string.Empty,
+                "tokyo23ku",
+                string.Empty,
+                "https://example.invalid",
+                "12345",
+                string.Empty));
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
+
+        CliApplication application = CreateApplication(
+            standardOutput,
+            standardError,
+            importServiceFactory,
+            standardInput);
+
+        int exitCode = await application.RunAsync(["import", "--guided"]);
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("The --resonitelink-url value must use the ws or wss scheme.", standardError.ToString());
+        Assert.Equal(new Uri("ws://localhost:12345/"), Assert.Single(importServiceFactory.CapturedOptions).ResoniteLinkUri);
     }
 
     private static string[] BuildImportArgs(string fixturePath)
@@ -275,6 +347,15 @@ public sealed class CliApplicationTests
         {
             CapturedOptions.Add(options);
             return createImportService(options);
+        }
+    }
+
+    private sealed class StubResoniteLinkTargetDiscovery(IReadOnlyList<ResoniteLinkTarget> targets)
+        : IResoniteLinkTargetDiscovery
+    {
+        public Task<IReadOnlyList<ResoniteLinkTarget>> DiscoverAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(targets);
         }
     }
 }

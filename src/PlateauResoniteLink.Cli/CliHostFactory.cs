@@ -23,7 +23,7 @@ internal static class CliHostFactory
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
         builder.Logging.ClearProviders();
-        builder.Services.AddCliServices(Console.Out, Console.Error);
+        builder.Services.AddCliServices(Console.In, Console.Out, Console.Error);
         return builder.Build();
     }
 }
@@ -32,10 +32,12 @@ internal static class CliServiceCollectionExtensions
 {
     public static IServiceCollection AddCliServices(
         this IServiceCollection services,
+        TextReader standardInput,
         TextWriter standardOutput,
         TextWriter standardError)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(standardInput);
         ArgumentNullException.ThrowIfNull(standardOutput);
         ArgumentNullException.ThrowIfNull(standardError);
 
@@ -46,14 +48,17 @@ internal static class CliServiceCollectionExtensions
         services.AddResoniteLiveSendTargetServices();
 
         services.AddSingleton<DatasetInspectionService>();
+        services.AddSingleton<IResoniteLinkTargetDiscovery, ResoniteLinkTargetDiscovery>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
         services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();
         services.AddSingleton<ISceneSinkFactory, DefaultSceneSinkFactory>();
         services.AddSingleton<CliApplication>(_ => new CliApplication(
+            standardInput,
             standardOutput,
             standardError,
             _.GetRequiredService<IImportServiceFactory>(),
-            _.GetRequiredService<DatasetInspectionService>()));
+            _.GetRequiredService<DatasetInspectionService>(),
+            _.GetRequiredService<IResoniteLinkTargetDiscovery>()));
 
         return services;
     }

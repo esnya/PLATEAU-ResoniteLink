@@ -14,4 +14,7 @@ public sealed record ImportCommandOptions(
     string? TerrainTileCacheRoot,
     bool DisableTerrainTileCache,
     bool EnableSendMetrics,
-    bool VerboseLogging) : CliCommandOptions;
+    bool VerboseLogging,
+    bool Guided = false,
+    bool PackageNamesSpecified = false,
+    bool GlobalExcludeLodLevelsSpecified = false) : CliCommandOptions;
