@@ -70,7 +70,9 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
         ArgumentException.ThrowIfNullOrWhiteSpace(polygonId);
 
         CityGmlMaterialAttributes? materialAttributes = materialAttributesByPolygonId.GetValueOrDefault(polygonId);
-        ColorRgba baseColor = materialAttributes?.DiffuseColor ?? DefaultMaterialColor;
+        ColorRgba baseColor = ApplyTransparency(
+            materialAttributes?.DiffuseColor ?? DefaultMaterialColor,
+            materialAttributes?.Transparency);
 
         CityGmlParameterizedTexture? parameterizedTexture = parameterizedTexturesByPolygonId.GetValueOrDefault(polygonId);
         TexturePayload? texturePayload = null;
@@ -308,6 +310,20 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
             G: values[1],
             B: values[2],
             A: values.Length >= 4 ? values[3] : 1.0);
+    }
+
+    private static ColorRgba ApplyTransparency(ColorRgba color, double? transparency)
+    {
+        if (!transparency.HasValue)
+        {
+            return color;
+        }
+
+        double opacity = 1.0 - Math.Clamp(transparency.Value, 0.0, 1.0);
+        return color with
+        {
+            A = Math.Clamp(color.A * opacity, 0.0, 1.0),
+        };
     }
 
     private static double[]? TryParseDoubles(string value)

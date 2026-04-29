@@ -18,4 +18,13 @@ public sealed record ResoniteMaterialBinding(
     ResoniteFloat2? TextureOffset = null,
     ResoniteMaterialAssetScope AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
     TerrainTextureOverlay? TerrainOverlay = null,
-    int? BundledVariantIndex = null);
+    int? BundledVariantIndex = null,
+    ResoniteMaterialOpticalProperties? OpticalProperties = null);
+
+public sealed record ResoniteMaterialOpticalProperties(
+    ResoniteColor? DiffuseColor = null,
+    double? AmbientIntensity = null,
+    ResoniteColor? EmissiveColor = null,
+    ResoniteColor? SpecularColor = null,
+    double? Shininess = null,
+    double? Transparency = null);

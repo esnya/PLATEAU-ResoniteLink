@@ -46,7 +46,7 @@ internal static class ResoniteMaterialComponentPolicy
             materialMembers["AlbedoColor"] = CreateColorMember(material.BaseColor);
             materialMembers["Smoothness"] = new Field_float
             {
-                Value = 0.0f,
+                Value = CreateSmoothnessValue(material.OpticalProperties?.Shininess),
             };
         }
 
@@ -55,8 +55,15 @@ internal static class ResoniteMaterialComponentPolicy
             materialMembers["AlbedoColor"] = CreateColorMember(new ResoniteColor(1.0, 1.0, 1.0, 1.0));
             materialMembers["Smoothness"] = new Field_float
             {
-                Value = 0.0f,
+                Value = CreateSmoothnessValue(material.OpticalProperties?.Shininess),
             };
+        }
+
+        if ((material.MaterialType == ResoniteMaterialType.Standard
+                || material.MaterialType == ResoniteMaterialType.VertexColor)
+            && material.OpticalProperties?.EmissiveColor is not null)
+        {
+            materialMembers["EmissiveColor"] = CreateColorMember(material.OpticalProperties.EmissiveColor);
         }
 
         if (material.MaterialType == ResoniteMaterialType.Standard
@@ -142,6 +149,18 @@ internal static class ResoniteMaterialComponentPolicy
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
             $"type={material.MaterialType}, projection={material.Projection}, assetScope={material.AssetScope}, family={material.Family ?? "none"}, texture={textureShape}, transform={textureTransform}");
+    }
+
+    internal static bool HasRepresentableOpticalProperties(ResoniteMaterialBinding material)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+
+        ResoniteMaterialOpticalProperties? opticalProperties = material.OpticalProperties;
+        return opticalProperties is not null
+            && (opticalProperties.EmissiveColor is not null
+                || opticalProperties.Shininess.HasValue
+                || !IsDefaultDiffuseColor(opticalProperties.DiffuseColor)
+                || HasVisibleTransparency(opticalProperties.Transparency));
     }
 
     private static void AddTextureTransformMembers(
@@ -268,6 +287,27 @@ internal static class ResoniteMaterialComponentPolicy
     public static Field_colorX CreateColorMember(ResoniteColor color)
     {
         return ResoniteColorSpace.CreateSrgbColorMember(color);
+    }
+
+    private static float CreateSmoothnessValue(double? shininess)
+    {
+        return shininess.HasValue
+            ? (float)Math.Clamp(shininess.Value, 0.0, 1.0)
+            : 0.0f;
+    }
+
+    private static bool IsDefaultDiffuseColor(ResoniteColor? color)
+    {
+        return color is null
+            || (Math.Abs(color.R - 1.0) < 1e-9
+                && Math.Abs(color.G - 1.0) < 1e-9
+                && Math.Abs(color.B - 1.0) < 1e-9
+                && Math.Abs(color.A - 1.0) < 1e-9);
+    }
+
+    private static bool HasVisibleTransparency(double? transparency)
+    {
+        return transparency.HasValue && Math.Clamp(transparency.Value, 0.0, 1.0) > 1e-9;
     }
 }
 

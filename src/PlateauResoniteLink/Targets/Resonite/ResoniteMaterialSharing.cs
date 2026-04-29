@@ -17,7 +17,8 @@ public static class ResoniteMaterialSharing
             && material.DepthOffset is null
             && material.TextureScale is null
             && material.TextureOffset is null
-            && material.BaseColor == SharedBaseColor;
+            && material.BaseColor == SharedBaseColor
+            && !ResoniteMaterialComponentPolicy.HasRepresentableOpticalProperties(material);
     }
 
     public static bool CanUseSharedVertexColorMaterial(ResoniteMaterialBinding material)
@@ -30,7 +31,8 @@ public static class ResoniteMaterialSharing
             && material.TexturePayload is null
             && material.TerrainOverlay is null
             && material.TextureScale is null
-            && material.TextureOffset is null;
+            && material.TextureOffset is null
+            && !ResoniteMaterialComponentPolicy.HasRepresentableOpticalProperties(material);
     }
 
 

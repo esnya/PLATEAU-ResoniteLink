@@ -72,6 +72,7 @@ internal static class ResoniteSceneMaterialConventions
             ? "none"
             : normalizedMaterial.Family!;
         string colorName = CreateCompactColorSuffix(normalizedMaterial.BaseColor);
+        string opticalName = CreateOpticalSuffix(normalizedMaterial.OpticalProperties);
         string depthName = normalizedMaterial.DepthOffset is not null
             ? string.Create(
                 CultureInfo.InvariantCulture,
@@ -80,7 +81,7 @@ internal static class ResoniteSceneMaterialConventions
 
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{componentKind}_{projectionName}_{sourceName}_{familyName}_{depthName}_{colorName}");
+            $"{componentKind}_{projectionName}_{sourceName}_{familyName}_{depthName}_{colorName}_{opticalName}");
     }
 
     public static IReadOnlyList<string> CreateCommonMaterialSlotLookupNames(ResoniteMaterialBinding material)
@@ -188,7 +189,8 @@ internal static class ResoniteSceneMaterialConventions
             && material.DepthOffset is null
             && !HasNonDefaultBundledTextureTransform(material)
             && material.AssetScope == ResoniteMaterialAssetScope.Common
-            && IsWhiteBaseColor(material.BaseColor))
+            && IsWhiteBaseColor(material.BaseColor)
+            && !ResoniteMaterialComponentPolicy.HasRepresentableOpticalProperties(material))
         {
             ResoniteMaterialBinding commonBaseCandidate = material with
             {
@@ -245,6 +247,7 @@ internal static class ResoniteSceneMaterialConventions
             && material.TerrainOverlay is null
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && !string.IsNullOrWhiteSpace(material.Family)
+            && !ResoniteMaterialComponentPolicy.HasRepresentableOpticalProperties(material)
             && (!IsWhiteBaseColor(material.BaseColor)
                 || HasNonDefaultBundledTextureTransform(material)
                 || material.DepthOffset is not null))
@@ -268,7 +271,8 @@ internal static class ResoniteSceneMaterialConventions
         if (material.MaterialType == ResoniteMaterialType.Standard
             && material.TexturePayload is null
             && material.AssetScope != ResoniteMaterialAssetScope.Common
-            && string.IsNullOrWhiteSpace(material.Family))
+            && string.IsNullOrWhiteSpace(material.Family)
+            && !ResoniteMaterialComponentPolicy.HasRepresentableOpticalProperties(material))
         {
             return material with
             {
@@ -380,7 +384,8 @@ internal static class ResoniteSceneMaterialConventions
             && !string.IsNullOrWhiteSpace(material.Family)
             && material.DepthOffset is null
             && !HasNonDefaultBundledTextureTransform(material)
-            && IsWhiteBaseColor(material.BaseColor);
+            && IsWhiteBaseColor(material.BaseColor)
+            && !ResoniteMaterialComponentPolicy.HasRepresentableOpticalProperties(material);
     }
 
     private static bool IsGenericSharedCommonMaterialCandidate(ResoniteMaterialBinding material)
@@ -390,7 +395,8 @@ internal static class ResoniteSceneMaterialConventions
             && ResoniteMaterialSharing.IsWhiteBaseColor(material.BaseColor)
             && string.IsNullOrWhiteSpace(material.Family)
             && material.TexturePayload is null
-            && material.TerrainOverlay is null;
+            && material.TerrainOverlay is null
+            && !ResoniteMaterialComponentPolicy.HasRepresentableOpticalProperties(material);
     }
 
     private static string CreateCompactColorSuffix(ResoniteColor color)
@@ -398,6 +404,22 @@ internal static class ResoniteSceneMaterialConventions
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{color.R:0.###}-{color.G:0.###}-{color.B:0.###}-{color.A:0.###}");
+    }
+
+    private static string CreateOpticalSuffix(ResoniteMaterialOpticalProperties? opticalProperties)
+    {
+        if (opticalProperties is null)
+        {
+            return "optical-none";
+        }
+
+        string emissive = opticalProperties.EmissiveColor is null
+            ? "none"
+            : CreateCompactColorSuffix(opticalProperties.EmissiveColor);
+        string shininess = opticalProperties.Shininess is null
+            ? "none"
+            : FormatRounded(opticalProperties.Shininess.Value);
+        return string.Create(CultureInfo.InvariantCulture, $"optical-e-{emissive}-s-{shininess}");
     }
 
     private static string CreateCommonMaterialSlotName(ResoniteMaterialBinding material)

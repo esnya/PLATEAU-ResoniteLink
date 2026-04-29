@@ -156,6 +156,14 @@ public sealed record MaterialDepthOffset(
     double Factor,
     double Units);
 
+public sealed record MaterialOpticalProperties(
+    ColorRgba? DiffuseColor = null,
+    double? AmbientIntensity = null,
+    ColorRgba? EmissiveColor = null,
+    ColorRgba? SpecularColor = null,
+    double? Shininess = null,
+    double? Transparency = null);
+
 public enum MaterialReuseScope
 {
     PerObject = 0,
@@ -176,4 +184,5 @@ public sealed record MaterialBinding(
     Float2? TextureOffset = null,
     MaterialReuseScope ReuseScope = MaterialReuseScope.PerObject,
     TerrainTextureOverlay? TerrainOverlay = null,
-    int? BundledVariantIndex = null);
+    int? BundledVariantIndex = null,
+    MaterialOpticalProperties? OpticalProperties = null);

@@ -12,4 +12,5 @@ internal sealed record ResolvedMaterial(
     MaterialReuseScope ReuseScope,
     TerrainTextureOverlay? TerrainOverlay = null,
     int? BundledVariantIndex = null,
-    Float2? TextureOffset = null);
+    Float2? TextureOffset = null,
+    MaterialOpticalProperties? OpticalProperties = null);

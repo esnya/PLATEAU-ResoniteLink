@@ -1540,7 +1540,8 @@ internal sealed class NonDemCityObjectBaker(
             normalizedMaterial.DepthOffset,
             normalizedMaterial.TextureScale,
             normalizedMaterial.TextureOffset,
-            normalizedMaterial.AssetScope);
+            normalizedMaterial.AssetScope,
+            normalizedMaterial.OpticalProperties);
     }
 
     private static ResoniteMaterialBinding NormalizePreservedMaterial(ResoniteMaterialBinding material)
@@ -1711,7 +1712,8 @@ internal sealed class NonDemCityObjectBaker(
         ResoniteMaterialDepthOffset? DepthOffset,
         ResoniteFloat2? TextureScale,
         ResoniteFloat2? TextureOffset,
-        ResoniteMaterialAssetScope AssetScope);
+        ResoniteMaterialAssetScope AssetScope,
+        ResoniteMaterialOpticalProperties? OpticalProperties);
 
     private sealed class SourceFileBatchKeyComparer : IComparer<SourceFileBatchKey>
     {
@@ -1769,7 +1771,8 @@ internal sealed class NonDemCityObjectBaker(
                 && EqualityComparer<ResoniteMaterialDepthOffset?>.Default.Equals(x.DepthOffset, y.DepthOffset)
                 && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureScale, y.TextureScale)
                 && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureOffset, y.TextureOffset)
-                && x.AssetScope == y.AssetScope;
+                && x.AssetScope == y.AssetScope
+                && EqualityComparer<ResoniteMaterialOpticalProperties?>.Default.Equals(x.OpticalProperties, y.OpticalProperties);
         }
 
         public int GetHashCode(PreservedMaterialGroupingKey obj)
@@ -1789,6 +1792,7 @@ internal sealed class NonDemCityObjectBaker(
             hash.Add(obj.TextureScale);
             hash.Add(obj.TextureOffset);
             hash.Add(obj.AssetScope);
+            hash.Add(obj.OpticalProperties);
             return hash.ToHashCode();
         }
     }

@@ -125,7 +125,19 @@ internal static class SceneImportContractMapper
             binding.TextureOffset is null ? null : ToInternal(binding.TextureOffset),
             binding.ReuseScope == MaterialReuseScope.Shared ? ResoniteMaterialAssetScope.Common : ResoniteMaterialAssetScope.PresentationSlotScoped,
             binding.TerrainOverlay,
-            binding.BundledVariantIndex);
+            binding.BundledVariantIndex,
+            binding.OpticalProperties is null ? null : ToInternal(binding.OpticalProperties));
+    }
+
+    private static ResoniteMaterialOpticalProperties ToInternal(MaterialOpticalProperties properties)
+    {
+        return new ResoniteMaterialOpticalProperties(
+            properties.DiffuseColor is null ? null : ToInternal(properties.DiffuseColor),
+            properties.AmbientIntensity,
+            properties.EmissiveColor is null ? null : ToInternal(properties.EmissiveColor),
+            properties.SpecularColor is null ? null : ToInternal(properties.SpecularColor),
+            properties.Shininess,
+            properties.Transparency);
     }
 
     private static ResoniteTexturePayload ToInternal(TexturePayload payload)
