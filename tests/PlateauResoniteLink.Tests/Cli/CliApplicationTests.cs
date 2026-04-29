@@ -335,6 +335,70 @@ public sealed class CliApplicationTests
         Assert.Equal(new Uri("ws://localhost:12345/"), Assert.Single(importServiceFactory.CapturedOptions).ResoniteLinkUri);
     }
 
+    [Fact]
+    public async Task RunAsyncGuidedImportFallsBackToManualEndpointWhenDiscoveryFails()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        using StringReader standardInput = new(
+            string.Join(
+                Environment.NewLine,
+                fixturePath,
+                string.Empty,
+                string.Empty,
+                "tokyo23ku",
+                string.Empty,
+                "12345"));
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
+
+        CliApplication application = CreateApplication(
+            standardOutput,
+            standardError,
+            importServiceFactory,
+            standardInput,
+            new StubResoniteLinkTargetDiscovery(
+                _ => Task.FromException<IReadOnlyList<ResoniteLinkTarget>>(
+                    new InvalidOperationException("discovery failed"))));
+
+        int exitCode = await application.RunAsync(["import", "--guided"]);
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("ResoniteLink discovery unavailable", standardError.ToString());
+        Assert.DoesNotContain("Discovered ResoniteLink targets:", standardOutput.ToString());
+        Assert.Equal(new Uri("ws://localhost:12345/"), Assert.Single(importServiceFactory.CapturedOptions).ResoniteLinkUri);
+    }
+
+    [Fact]
+    public async Task RunAsyncGuidedImportPropagatesDiscoveryCancellation()
+    {
+        CliParseResult parseResult = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--guided",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--citygml-source",
+                "https://example.invalid/source.zip",
+            ]);
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        GuidedImportOptionsResolver resolver = new(
+            TextReader.Null,
+            standardOutput,
+            standardError,
+            CreateDatasetInspectionService(),
+            new StubResoniteLinkTargetDiscovery(
+                _ => throw new OperationCanceledException()));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => resolver.ResolveAsync(parseResult.Options!));
+
+        Assert.DoesNotContain("ResoniteLink discovery unavailable", standardError.ToString(), StringComparison.Ordinal);
+    }
+
     private static string[] BuildImportArgs(string fixturePath)
     {
         return CliTestData.BuildLocalImportArgs(fixturePath);
@@ -385,12 +449,30 @@ public sealed class CliApplicationTests
         }
     }
 
-    private sealed class StubResoniteLinkTargetDiscovery(IReadOnlyList<ResoniteLinkTarget> targets)
-        : IResoniteLinkTargetDiscovery
+    private sealed class StubResoniteLinkTargetDiscovery : IResoniteLinkTargetDiscovery
     {
+        private readonly Func<CancellationToken, Task<IReadOnlyList<ResoniteLinkTarget>>> discoverAsync;
+
+        public StubResoniteLinkTargetDiscovery(
+            Func<CancellationToken, Task<IReadOnlyList<ResoniteLinkTarget>>> discoverAsync)
+        {
+            this.discoverAsync = discoverAsync;
+        }
+
+        public StubResoniteLinkTargetDiscovery(
+            IReadOnlyList<ResoniteLinkTarget> targets)
+        {
+            discoverAsync = _ => Task.FromResult(targets);
+        }
+
+        public StubResoniteLinkTargetDiscovery()
+            : this((IReadOnlyList<ResoniteLinkTarget>)[])
+        {
+        }
+
         public Task<IReadOnlyList<ResoniteLinkTarget>> DiscoverAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(targets);
+            return discoverAsync(cancellationToken);
         }
     }
 }

@@ -274,7 +274,23 @@ internal sealed class GuidedImportOptionsResolver(
             return resoniteLinkUri;
         }
 
-        IReadOnlyList<ResoniteLinkTarget> targets = await targetDiscovery.DiscoverAsync(cancellationToken);
+        IReadOnlyList<ResoniteLinkTarget> targets;
+        try
+        {
+            targets = await targetDiscovery.DiscoverAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+#pragma warning disable CA1031
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            await standardError.WriteLineAsync($"ResoniteLink discovery unavailable: {exception.Message}");
+            targets = [];
+        }
+#pragma warning restore CA1031
+
         if (targets.Count > 0)
         {
             await WriteDiscoveredTargetsAsync(targets, cancellationToken);
