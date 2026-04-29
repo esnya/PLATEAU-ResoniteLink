@@ -45,7 +45,7 @@ internal static partial class LocalCityGmlObjectProjection
                             appearanceStoreFactory,
                             lodSelector,
                             cancellationToken),
-                        streamFactory: cancellationToken => StreamBootstrapParsedCityObjectsCoreAsync(
+                        streamFactory: cancellationToken => StreamParsedCityObjectsCoreAsync(
                             sourceFile,
                             datasetSource,
                             requestedMeshAreas,
@@ -69,9 +69,9 @@ internal static partial class LocalCityGmlObjectProjection
         cancellationToken.ThrowIfCancellationRequested();
 
         Stopwatch fileStopwatch = Stopwatch.StartNew();
-        List<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject> cityObjects = [];
+        List<global::PlateauResoniteLink.Application.Importing.ParsedCityObject> cityObjects = [];
         CoordinateReferenceSystem? coordinateReferenceSystem = null;
-        await foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
+        await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
                            sourceFile,
                            datasetSource,
                            requestedMeshAreas,
@@ -86,7 +86,7 @@ internal static partial class LocalCityGmlObjectProjection
 
         fileStopwatch.Stop();
 
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject[] cityObjectArray = cityObjects
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject[] cityObjectArray = cityObjects
             .OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)
             .ToArray();
         coordinateReferenceSystem ??= await ReadDocumentReferenceSystemCoreAsync(
@@ -94,7 +94,7 @@ internal static partial class LocalCityGmlObjectProjection
             sourceFile.RelativePath,
             cancellationToken);
         global::PlateauResoniteLink.Application.Importing.TerrainHeightTriangle[] terrainTriangles = string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            ? DemSourceBootstrapSupport.CreateTerrainHeightTriangles(cityObjectArray)
+            ? DemSourceDiscoverySupport.CreateTerrainHeightTriangles(cityObjectArray)
             : [];
 
         progressReporter?.Invoke(
@@ -107,12 +107,12 @@ internal static partial class LocalCityGmlObjectProjection
         return new global::PlateauResoniteLink.Application.Importing.ParsedSourceFileResult(
             sourceFile,
             cityObjectArray,
-            coordinateReferenceSystem is null ? null : global::PlateauResoniteLink.Application.Importing.CoordinateReferenceSystem.FromLegacy(coordinateReferenceSystem),
+            coordinateReferenceSystem is null ? null : global::PlateauResoniteLink.Application.Importing.CoordinateReferenceSystem.FromProjectionModel(coordinateReferenceSystem),
             terrainTriangles,
             fileStopwatch.Elapsed);
     }
 
-    private static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject> StreamBootstrapParsedCityObjectsCoreAsync(
+    private static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.ParsedCityObject> StreamParsedCityObjectsCoreAsync(
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
@@ -121,7 +121,7 @@ internal static partial class LocalCityGmlObjectProjection
         ICityGmlLodSelector lodSelector,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
+        await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
                            sourceFile,
                            datasetSource,
                            requestedMeshAreas,
@@ -135,7 +135,7 @@ internal static partial class LocalCityGmlObjectProjection
         }
     }
 
-    internal static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject> StreamParsedCityObjectsCoreAsync(
+    internal static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.ParsedCityObject> StreamParsedCityObjectsCoreAsync(
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
@@ -149,7 +149,7 @@ internal static partial class LocalCityGmlObjectProjection
         if (await FileMayContainAppearanceMembersAsync(datasetSource, sourceFile.RelativePath, cancellationToken)
             && await HasLateAppearanceMembersAfterCityObjectAsync(datasetSource, sourceFile.RelativePath, cancellationToken))
         {
-            await foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject in StreamParsedCityObjectsFromDocumentCoreAsync(
+            await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsFromDocumentCoreAsync(
                                sourceFile,
                                datasetSource,
                                requestedMeshAreas,
@@ -166,7 +166,7 @@ internal static partial class LocalCityGmlObjectProjection
         }
 
         await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
-        await foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject in StreamParsedCityObjectsFromStreamCoreAsync(
+        await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsFromStreamCoreAsync(
                            stream,
                            sourceFile,
                            datasetSource,
@@ -233,7 +233,7 @@ internal static partial class LocalCityGmlObjectProjection
         }
     }
 
-    private static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject> StreamParsedCityObjectsFromStreamCoreAsync(
+    private static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.ParsedCityObject> StreamParsedCityObjectsFromStreamCoreAsync(
         Stream stream,
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
@@ -332,11 +332,11 @@ internal static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            yield return BootstrapParsedCityObject.FromLegacy(cityObject);
+            yield return global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel(cityObject);
         }
     }
 
-    private static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject> StreamParsedCityObjectsFromDocumentCoreAsync(
+    private static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.ParsedCityObject> StreamParsedCityObjectsFromDocumentCoreAsync(
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
@@ -384,7 +384,7 @@ internal static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            yield return BootstrapParsedCityObject.FromLegacy(cityObject);
+            yield return global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel(cityObject);
         }
     }
 

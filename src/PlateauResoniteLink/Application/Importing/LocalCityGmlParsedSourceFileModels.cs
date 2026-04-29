@@ -12,7 +12,7 @@ internal sealed record SourceFileDescriptor(
     string MatchedMeshCode,
     bool RequiresMeshAreaFilter)
 {
-    internal LocalCityGmlObjectProjection.SourceFileDescriptor ToLegacy()
+    internal LocalCityGmlObjectProjection.SourceFileDescriptor ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.SourceFileDescriptor(
             RelativePath,
@@ -21,7 +21,7 @@ internal sealed record SourceFileDescriptor(
             RequiresMeshAreaFilter);
     }
 
-    internal static SourceFileDescriptor FromLegacy(LocalCityGmlObjectProjection.SourceFileDescriptor sourceFile)
+    internal static SourceFileDescriptor FromProjectionModel(LocalCityGmlObjectProjection.SourceFileDescriptor sourceFile)
     {
         return new SourceFileDescriptor(
             sourceFile.RelativePath,
@@ -33,24 +33,24 @@ internal sealed record SourceFileDescriptor(
 
 internal sealed record CachedSourceFileDescriptor(
     SourceFileDescriptor SourceFile,
-    BootstrapParsedCityObject[] CityObjects)
+    ParsedCityObject[] CityObjects)
 {
     public string RelativePath => SourceFile.RelativePath;
 
     public string PackageName => SourceFile.PackageName;
 
-    internal LocalCityGmlObjectProjection.CachedSourceFileDescriptor ToLegacy()
+    internal LocalCityGmlObjectProjection.CachedSourceFileDescriptor ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.CachedSourceFileDescriptor(
-            SourceFile.ToLegacy(),
-            CityObjects.Select(static cityObject => cityObject.ToLegacy()).ToArray());
+            SourceFile.ToProjectionModel(),
+            CityObjects.Select(static cityObject => cityObject.ToProjectionModel()).ToArray());
     }
 
-    internal static CachedSourceFileDescriptor FromLegacy(LocalCityGmlObjectProjection.CachedSourceFileDescriptor sourceFile)
+    internal static CachedSourceFileDescriptor FromProjectionModel(LocalCityGmlObjectProjection.CachedSourceFileDescriptor sourceFile)
     {
         return new CachedSourceFileDescriptor(
-            SourceFileDescriptor.FromLegacy(sourceFile.SourceFile),
-            sourceFile.CityObjects.Select(BootstrapParsedCityObject.FromLegacy).ToArray());
+            SourceFileDescriptor.FromProjectionModel(sourceFile.SourceFile),
+            sourceFile.CityObjects.Select(ParsedCityObject.FromProjectionModel).ToArray());
     }
 }
 
@@ -58,13 +58,13 @@ internal sealed class SourceFilePipeline
 {
     private readonly object parseTaskGate = new();
     private readonly Func<Task<ParsedSourceFileResult>> parseTaskFactory;
-    private readonly Func<CancellationToken, IAsyncEnumerable<BootstrapParsedCityObject>> streamFactory;
+    private readonly Func<CancellationToken, IAsyncEnumerable<ParsedCityObject>> streamFactory;
     private Task<ParsedSourceFileResult>? parseTask;
 
     internal SourceFilePipeline(
         SourceFileDescriptor sourceFile,
         Func<Task<ParsedSourceFileResult>> parseTaskFactory,
-        Func<CancellationToken, IAsyncEnumerable<BootstrapParsedCityObject>>? streamFactory = null)
+        Func<CancellationToken, IAsyncEnumerable<ParsedCityObject>>? streamFactory = null)
     {
         SourceFile = sourceFile;
         this.parseTaskFactory = parseTaskFactory;
@@ -82,17 +82,17 @@ internal sealed class SourceFilePipeline
         }
     }
 
-    public IAsyncEnumerable<BootstrapParsedCityObject> StreamParsedCityObjectsAsync(
+    public IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
         CancellationToken cancellationToken = default)
     {
         return streamFactory(cancellationToken);
     }
 
-    private async IAsyncEnumerable<BootstrapParsedCityObject> CreateParseTaskBackedStream(
+    private async IAsyncEnumerable<ParsedCityObject> CreateParseTaskBackedStream(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ParsedSourceFileResult parsedSourceFile = await GetParseTask().WaitAsync(cancellationToken);
-        foreach (BootstrapParsedCityObject cityObject in parsedSourceFile.CityObjects)
+        foreach (ParsedCityObject cityObject in parsedSourceFile.CityObjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
             yield return cityObject;
@@ -102,28 +102,28 @@ internal sealed class SourceFilePipeline
 
 internal sealed record ParsedSourceFileResult(
     SourceFileDescriptor SourceFile,
-    BootstrapParsedCityObject[] CityObjects,
+    ParsedCityObject[] CityObjects,
     CoordinateReferenceSystem? ReferenceSystem,
     TerrainHeightTriangle[] TerrainTriangles,
     TimeSpan Elapsed)
 {
-    internal LocalCityGmlObjectProjection.ParsedSourceFileResult ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedSourceFileResult ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.ParsedSourceFileResult(
-            SourceFile.ToLegacy(),
-            CityObjects.Select(static cityObject => cityObject.ToLegacy()).ToArray(),
-            ReferenceSystem?.ToLegacy(),
-            TerrainTriangles.Select(static triangle => triangle.ToLegacy()).ToArray(),
+            SourceFile.ToProjectionModel(),
+            CityObjects.Select(static cityObject => cityObject.ToProjectionModel()).ToArray(),
+            ReferenceSystem?.ToProjectionModel(),
+            TerrainTriangles.Select(static triangle => triangle.ToProjectionModel()).ToArray(),
             Elapsed);
     }
 
-    internal static ParsedSourceFileResult FromLegacy(LocalCityGmlObjectProjection.ParsedSourceFileResult sourceFile)
+    internal static ParsedSourceFileResult FromProjectionModel(LocalCityGmlObjectProjection.ParsedSourceFileResult sourceFile)
     {
         return new ParsedSourceFileResult(
-            SourceFileDescriptor.FromLegacy(sourceFile.SourceFile),
-            sourceFile.CityObjects.Select(BootstrapParsedCityObject.FromLegacy).ToArray(),
-            sourceFile.ReferenceSystem is null ? null : CoordinateReferenceSystem.FromLegacy(sourceFile.ReferenceSystem),
-            sourceFile.TerrainTriangles.Select(TerrainHeightTriangle.FromLegacy).ToArray(),
+            SourceFileDescriptor.FromProjectionModel(sourceFile.SourceFile),
+            sourceFile.CityObjects.Select(ParsedCityObject.FromProjectionModel).ToArray(),
+            sourceFile.ReferenceSystem is null ? null : CoordinateReferenceSystem.FromProjectionModel(sourceFile.ReferenceSystem),
+            sourceFile.TerrainTriangles.Select(TerrainHeightTriangle.FromProjectionModel).ToArray(),
             sourceFile.Elapsed);
     }
 }

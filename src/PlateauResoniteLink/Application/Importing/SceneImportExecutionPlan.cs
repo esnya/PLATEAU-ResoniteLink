@@ -11,24 +11,24 @@ public sealed record SceneImportExecutionPlan
     public SceneImportExecutionPlan(
         PlateauImportRequest normalizedRequest,
         PlateauImportRequest resolvedRequest,
-        SceneBuildRequest sceneBuildRequest)
+        SceneImportRequest sceneImportRequest)
     {
         ArgumentNullException.ThrowIfNull(normalizedRequest);
         ArgumentNullException.ThrowIfNull(resolvedRequest);
-        ArgumentNullException.ThrowIfNull(sceneBuildRequest);
+        ArgumentNullException.ThrowIfNull(sceneImportRequest);
 
-        ValidateRequestConsistency(normalizedRequest, resolvedRequest, sceneBuildRequest.Metadata.Request, sceneBuildRequest.WorkRoot);
+        ValidateRequestConsistency(normalizedRequest, resolvedRequest, sceneImportRequest.Metadata.Request, sceneImportRequest.WorkRoot);
 
         NormalizedRequest = normalizedRequest;
         ResolvedRequest = resolvedRequest;
-        SceneBuildRequest = sceneBuildRequest;
+        SceneImportRequest = sceneImportRequest;
     }
 
     public PlateauImportRequest NormalizedRequest { get; }
 
     public PlateauImportRequest ResolvedRequest { get; }
 
-    public SceneBuildRequest SceneBuildRequest { get; }
+    public SceneImportRequest SceneImportRequest { get; }
 
     public static SceneImportExecutionPlan Create(
         PlateauImportRequest normalizedRequest,
@@ -46,7 +46,7 @@ public sealed record SceneImportExecutionPlan
         return new SceneImportExecutionPlan(
             normalizedRequest,
             resolvedRequest,
-            new SceneBuildRequest(
+            new SceneImportRequest(
                 metadata,
                 resolvedSourcePath,
                 workRoot,
@@ -75,27 +75,27 @@ public sealed record SceneImportExecutionPlan
     private static void ValidateRequestConsistency(
         PlateauImportRequest normalizedRequest,
         PlateauImportRequest resolvedRequest,
-        PlateauImportRequest buildRequest,
+        PlateauImportRequest importRequest,
         string workRoot)
     {
-        if (!string.Equals(normalizedRequest.Dataset, buildRequest.Dataset, StringComparison.Ordinal)
-            || !string.Equals(normalizedRequest.MeshCode, buildRequest.MeshCode, StringComparison.Ordinal)
+        if (!string.Equals(normalizedRequest.Dataset, importRequest.Dataset, StringComparison.Ordinal)
+            || !string.Equals(normalizedRequest.MeshCode, importRequest.MeshCode, StringComparison.Ordinal)
             || !HasCompatibleSourceResolution(normalizedRequest.Source, resolvedRequest.Source, workRoot, "source-archive")
             || !HasCompatibleSourceResolution(normalizedRequest.DemTextureSource, resolvedRequest.DemTextureSource, workRoot, "source-ortho")
-            || !SourcesEqual(resolvedRequest.Source, buildRequest.Source)
-            || !SourcesEqual(resolvedRequest.DemTextureSource, buildRequest.DemTextureSource)
-            || normalizedRequest.IncludeMarkingAlways != buildRequest.IncludeMarkingAlways
-            || normalizedRequest.TerrainMeshMode != buildRequest.TerrainMeshMode
-            || normalizedRequest.TerrainGridMetersPerVertex != buildRequest.TerrainGridMetersPerVertex
-            || normalizedRequest.TerrainGridMaxResolution != buildRequest.TerrainGridMaxResolution
-            || !SequenceEqual(normalizedRequest.PackageNames, buildRequest.PackageNames)
-            || !SetEqual(normalizedRequest.GlobalExcludeLodLevels, buildRequest.GlobalExcludeLodLevels)
-            || !DictionaryOfSetsEqual(normalizedRequest.ExcludeLodLevelsByPackage, buildRequest.ExcludeLodLevelsByPackage)
-            || !DictionaryEqual(normalizedRequest.PackagePatterns, buildRequest.PackagePatterns))
+            || !SourcesEqual(resolvedRequest.Source, importRequest.Source)
+            || !SourcesEqual(resolvedRequest.DemTextureSource, importRequest.DemTextureSource)
+            || normalizedRequest.IncludeMarkingAlways != importRequest.IncludeMarkingAlways
+            || normalizedRequest.TerrainMeshMode != importRequest.TerrainMeshMode
+            || normalizedRequest.TerrainGridMetersPerVertex != importRequest.TerrainGridMetersPerVertex
+            || normalizedRequest.TerrainGridMaxResolution != importRequest.TerrainGridMaxResolution
+            || !SequenceEqual(normalizedRequest.PackageNames, importRequest.PackageNames)
+            || !SetEqual(normalizedRequest.GlobalExcludeLodLevels, importRequest.GlobalExcludeLodLevels)
+            || !DictionaryOfSetsEqual(normalizedRequest.ExcludeLodLevelsByPackage, importRequest.ExcludeLodLevelsByPackage)
+            || !DictionaryEqual(normalizedRequest.PackagePatterns, importRequest.PackagePatterns))
         {
             throw new ArgumentException(
-                "Scene import execution plan requires normalized and build requests to match for execution identity and import options. Only source-resolved location values may differ.",
-                nameof(buildRequest));
+                "Scene import execution plan requires normalized and import requests to match for execution identity and import options. Only source-resolved location values may differ.",
+                nameof(importRequest));
         }
     }
 

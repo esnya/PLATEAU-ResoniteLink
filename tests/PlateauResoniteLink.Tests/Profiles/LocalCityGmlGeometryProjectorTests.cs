@@ -20,7 +20,7 @@ public sealed class LocalCityGmlGeometryProjectorTests
                 MatchedMeshCode: "53394525",
                 RequiresMeshAreaFilter: false),
             [
-                new BootstrapParsedCityObject(
+                new ParsedCityObject(
                     SlotKey: "slot",
                     DisplayName: "display",
                     PackageName: "bldg",

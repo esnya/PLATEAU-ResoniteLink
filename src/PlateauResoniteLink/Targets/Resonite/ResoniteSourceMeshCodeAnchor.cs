@@ -35,7 +35,7 @@ internal static partial class ResoniteSourceMeshCodeAnchor
         return false;
     }
 
-    public static string ResolveCompletionMeshCode(ResoniteSceneBootstrapInfo setupInfo)
+    public static string ResolveCompletionMeshCode(ResoniteSceneSetupInfo setupInfo)
     {
         ArgumentNullException.ThrowIfNull(setupInfo);
 

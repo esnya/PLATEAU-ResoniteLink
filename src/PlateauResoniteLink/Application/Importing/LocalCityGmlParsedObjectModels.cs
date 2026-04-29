@@ -3,29 +3,29 @@ using System.Linq;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed record BootstrapParsedRing(
+internal sealed record ParsedRing(
     string RingId,
     GeodeticPoint[] Vertices,
     IReadOnlyList<Float2>? UVs)
 {
-    internal LocalCityGmlObjectProjection.ParsedRing ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedRing ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.ParsedRing(
             RingId,
-            Vertices.Select(static point => point.ToLegacy()).ToArray(),
+            Vertices.Select(static point => point.ToProjectionModel()).ToArray(),
             UVs);
     }
 
-    internal static BootstrapParsedRing FromLegacy(LocalCityGmlObjectProjection.ParsedRing ring)
+    internal static ParsedRing FromProjectionModel(LocalCityGmlObjectProjection.ParsedRing ring)
     {
-        return new BootstrapParsedRing(
+        return new ParsedRing(
             ring.RingId,
-            ring.Vertices.Select(GeodeticPoint.FromLegacy).ToArray(),
+            ring.Vertices.Select(GeodeticPoint.FromProjectionModel).ToArray(),
             ring.UVs);
     }
 }
 
-internal enum BootstrapParsedSurfaceSemantic
+internal enum ParsedSurfaceSemantic
 {
     Unknown = 0,
     Wall = 1,
@@ -36,11 +36,11 @@ internal enum BootstrapParsedSurfaceSemantic
     OuterFloor = 6,
 }
 
-internal sealed record BootstrapParsedSurface(
+internal sealed record ParsedSurface(
     string PolygonId,
-    BootstrapParsedSurfaceSemantic Semantic,
-    BootstrapParsedRing ExteriorRing,
-    BootstrapParsedRing[] InteriorRings,
+    ParsedSurfaceSemantic Semantic,
+    ParsedRing ExteriorRing,
+    ParsedRing[] InteriorRings,
     ColorRgba BaseColor,
     TexturePayload? TexturePayload,
     bool UsesGeneratedDemTexture = false,
@@ -49,26 +49,26 @@ internal sealed record BootstrapParsedSurface(
     public IEnumerable<GeodeticPoint> Vertices =>
         ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));
 
-    internal LocalCityGmlObjectProjection.ParsedSurface ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedSurface ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.ParsedSurface(
             PolygonId,
             (LocalCityGmlObjectProjection.ParsedSurfaceSemantic)Semantic,
-            ExteriorRing.ToLegacy(),
-            InteriorRings.Select(static ring => ring.ToLegacy()).ToArray(),
+            ExteriorRing.ToProjectionModel(),
+            InteriorRings.Select(static ring => ring.ToProjectionModel()).ToArray(),
             BaseColor,
             TexturePayload,
             UsesGeneratedDemTexture,
             OpticalProperties);
     }
 
-    internal static BootstrapParsedSurface FromLegacy(LocalCityGmlObjectProjection.ParsedSurface surface)
+    internal static ParsedSurface FromProjectionModel(LocalCityGmlObjectProjection.ParsedSurface surface)
     {
-        return new BootstrapParsedSurface(
+        return new ParsedSurface(
             surface.PolygonId,
-            (BootstrapParsedSurfaceSemantic)surface.Semantic,
-            BootstrapParsedRing.FromLegacy(surface.ExteriorRing),
-            surface.InteriorRings.Select(BootstrapParsedRing.FromLegacy).ToArray(),
+            (ParsedSurfaceSemantic)surface.Semantic,
+            ParsedRing.FromProjectionModel(surface.ExteriorRing),
+            surface.InteriorRings.Select(ParsedRing.FromProjectionModel).ToArray(),
             new ColorRgba(surface.BaseColor.R, surface.BaseColor.G, surface.BaseColor.B, surface.BaseColor.A),
             surface.TexturePayload,
             surface.UsesGeneratedDemTexture,
@@ -76,22 +76,22 @@ internal sealed record BootstrapParsedSurface(
     }
 }
 
-internal sealed record BootstrapParsedCityObject(
+internal sealed record ParsedCityObject(
     string SlotKey,
     string DisplayName,
     string PackageName,
     string ActualMeshCode,
     int? LodLevel,
-    BootstrapParsedSurface[] Surfaces,
+    ParsedSurface[] Surfaces,
     CoordinateReferenceSystem ReferenceSystem,
     string SourceFileRelativePath,
     bool SharedAcrossMeshCodes,
     bool TerrainAligned = false,
-    GeodeticPoint? OriginOverride = null,
+    GeodeticPoint? GeodeticOriginOverride = null,
     int? FloorsAboveGround = null,
     double? MeasuredHeightMeters = null)
 {
-    internal LocalCityGmlObjectProjection.ParsedCityObject ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedCityObject ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.ParsedCityObject(
             SlotKey,
@@ -99,30 +99,30 @@ internal sealed record BootstrapParsedCityObject(
             PackageName,
             ActualMeshCode,
             LodLevel,
-            Surfaces.Select(static surface => surface.ToLegacy()).ToArray(),
-            ReferenceSystem.ToLegacy(),
+            Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray(),
+            ReferenceSystem.ToProjectionModel(),
             SourceFileRelativePath,
             SharedAcrossMeshCodes,
             TerrainAligned,
-            OriginOverride?.ToLegacy(),
+            GeodeticOriginOverride?.ToProjectionModel(),
             FloorsAboveGround,
             MeasuredHeightMeters);
     }
 
-    internal static BootstrapParsedCityObject FromLegacy(LocalCityGmlObjectProjection.ParsedCityObject cityObject)
+    internal static ParsedCityObject FromProjectionModel(LocalCityGmlObjectProjection.ParsedCityObject cityObject)
     {
-        return new BootstrapParsedCityObject(
+        return new ParsedCityObject(
             cityObject.SlotKey,
             cityObject.DisplayName,
             cityObject.PackageName,
             cityObject.ActualMeshCode,
             cityObject.LodLevel,
-            cityObject.Surfaces.Select(BootstrapParsedSurface.FromLegacy).ToArray(),
-            CoordinateReferenceSystem.FromLegacy(cityObject.ReferenceSystem),
+            cityObject.Surfaces.Select(ParsedSurface.FromProjectionModel).ToArray(),
+            CoordinateReferenceSystem.FromProjectionModel(cityObject.ReferenceSystem),
             cityObject.SourceFileRelativePath,
             cityObject.SharedAcrossMeshCodes,
             cityObject.TerrainAligned,
-            cityObject.OriginOverride is null ? null : GeodeticPoint.FromLegacy(cityObject.OriginOverride),
+            cityObject.GeodeticOriginOverride is null ? null : GeodeticPoint.FromProjectionModel(cityObject.GeodeticOriginOverride),
             cityObject.FloorsAboveGround,
             cityObject.MeasuredHeightMeters);
     }

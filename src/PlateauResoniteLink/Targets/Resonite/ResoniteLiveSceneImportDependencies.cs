@@ -6,7 +6,7 @@ internal sealed record ResoniteLiveSceneImportDependencies(
     ILiveSendClientSession ClientSession,
     ResoniteLinkSendDiagnostics Diagnostics,
     ITerrainTextureAssetGenerator TerrainTextureAssetGenerator,
-    Execution.IResoniteSceneBootstrapInterpreter SceneBootstrapInterpreter,
+    Execution.IResoniteSceneSetupInterpreter SceneSetupInterpreter,
     Execution.IResoniteDatasetLicenseWriter DatasetLicenseWriter,
     Execution.IResoniteGeometryAssetAssembler GeometryAssetAssembler,
     Execution.IResoniteMaterialPlanning MaterialPlanning,

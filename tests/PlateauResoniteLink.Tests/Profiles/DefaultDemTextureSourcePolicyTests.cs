@@ -109,7 +109,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
     }
 
     [Fact]
-    public void CreateMapTileFallbackOverlaysBuildsProviderOrderInsidePolicy()
+    public void CreateMapTileFallbackOverlaysCreatesProviderOrderInsidePolicy()
     {
         DefaultDemTextureSourcePolicy policy = new(
             new StubDemTerrainGeoReferencedRasterCatalogFactory(
@@ -178,6 +178,6 @@ public sealed class DefaultDemTextureSourcePolicyTests
 
     private static IReadOnlyList<DemTerrainOverlayRegion> CreateOverlayRegions(params string[] meshCodes)
     {
-        return DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(meshCodes);
+        return DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(meshCodes);
     }
 }

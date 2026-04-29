@@ -17,12 +17,12 @@ public sealed class ImportServiceFactoryTests
     {
         StubPlateauDatasetSourceResolverFactory datasetResolverFactory = new();
         StubSceneSinkFactory sceneImportTargetFactory = new();
-        StubConstructionSourceFactory constructionSourceFactory = new();
+        StubImportedSceneSourceFactory importedSceneSourceFactory = new();
         IArchiveFileLayoutPolicy archiveFileLayoutPolicy = new ArchiveFileLayoutPolicy();
         DefaultImportServiceFactory factory = new(
             datasetResolverFactory,
             sceneImportTargetFactory,
-            constructionSourceFactory,
+            importedSceneSourceFactory,
             new CommonMaterialCatalog(),
             archiveFileLayoutPolicy);
 
@@ -43,7 +43,7 @@ public sealed class ImportServiceFactoryTests
         Assert.Equal("PLATEAU tokyo23ku 53394525", firstResult.Metadata.SceneName);
         Assert.Equal("PLATEAU tokyo23ku 53394526", secondResult.Metadata.SceneName);
         Assert.True(sceneImportTargetFactory.CreatedTargets.All(static target => target.DisposeCallCount == 1));
-        Assert.Equal(2, constructionSourceFactory.CreateCallCount);
+        Assert.Equal(2, importedSceneSourceFactory.CreateCallCount);
     }
 
     private static ImportCommandOptions CreateOptions(string meshCode, bool enableMeshBake)
@@ -130,7 +130,7 @@ public sealed class ImportServiceFactoryTests
         }
     }
 
-    private sealed class StubConstructionSourceFactory : IImportedSceneSourceFactory
+    private sealed class StubImportedSceneSourceFactory : IImportedSceneSourceFactory
     {
         public int CreateCallCount { get; private set; }
 
@@ -151,11 +151,11 @@ public sealed class ImportServiceFactoryTests
                     []),
                 GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
 
-            return Task.FromResult<IImportedSceneSource>(new StubConstructionSource(metadata));
+            return Task.FromResult<IImportedSceneSource>(new StubImportedSceneSource(metadata));
         }
     }
 
-    private sealed class StubConstructionSource(ImportedSceneMetadata metadata) : IImportedSceneSource
+    private sealed class StubImportedSceneSource(ImportedSceneMetadata metadata) : IImportedSceneSource
     {
         public ImportedSceneMetadata Metadata { get; } = metadata;
 

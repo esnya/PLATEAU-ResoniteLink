@@ -27,7 +27,7 @@ internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return await ImportedSceneSourceBootstrapPipeline.ReadDocumentSetCoreAsync(
+        return await ImportedSceneSourceDiscoveryPipeline.ReadDocumentSetCoreAsync(
             request,
             datasetContentSourceFactory,
             appearanceStoreFactory,

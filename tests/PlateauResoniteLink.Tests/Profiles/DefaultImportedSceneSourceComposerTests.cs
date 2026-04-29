@@ -79,7 +79,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
             IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
             PlateauImportRequest request,
-            Func<BootstrapParsedCityObject, bool>? predicate = null,
+            Func<ParsedCityObject, bool>? predicate = null,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {

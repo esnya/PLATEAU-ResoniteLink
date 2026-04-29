@@ -26,16 +26,16 @@ public sealed class LocalCityGmlObjectProjectionTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateService(ISceneSink sceneBuilder, Action<string>? progressReporter = null)
+    private static PlateauImportService CreateService(ISceneSink sceneSink, Action<string>? progressReporter = null)
     {
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
-            sceneBuilder,
+            sceneSink,
             new CkanPlateauDatasetSourceResolver(
                 SharedDatasetSourceResolverHttpClient,
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
-            constructionSourceFactory: new DefaultImportedSceneSourceFactory(
+            importedSceneSourceFactory: new DefaultImportedSceneSourceFactory(
                 documentReader,
                 new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
@@ -70,7 +70,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         "Performance",
         "CA1849:Call async methods when in an async method",
         Justification = "This test intentionally compares the sync wrapper against the async entrypoint.")]
-    public async Task ConstructionSourceFactoryComposesExpectedBootstrapMetadata()
+    public async Task ImportedSceneSourceFactoryComposesExpectedSetupMetadata()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
@@ -193,12 +193,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "floor-context-wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, widthMeters: 7.0, heightMeters: 7.0),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface],
             referenceSystem,
@@ -207,7 +207,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -229,12 +229,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "suspicious-floor-context-wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, widthMeters: 7.0, heightMeters: 30.2),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface],
             referenceSystem,
@@ -243,7 +243,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -265,12 +265,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "unknown-storey-wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, widthMeters: 7.0, heightMeters: 3.2),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface],
             referenceSystem,
@@ -279,7 +279,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -309,15 +309,15 @@ public sealed class LocalCityGmlObjectProjectionTests
             new(0.10, 0.80),
             new(0.10, 0.20),
         ];
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "textured-wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, 8.0, 7.0),
             CreateTexturePayload("wall-texture"),
             baseColor: null,
             uvs: sourceUvs);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface],
             referenceSystem,
@@ -326,7 +326,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -352,17 +352,17 @@ public sealed class LocalCityGmlObjectProjectionTests
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         Float2[] sourceUvs = [new(0.01, 0.02), new(0.03, 0.04), new(0.05, 0.06), new(0.07, 0.08), new(0.01, 0.02)];
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "textureless-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null,
             uvs: sourceUvs);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
@@ -385,12 +385,12 @@ public sealed class LocalCityGmlObjectProjectionTests
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "textureless-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem);
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -400,7 +400,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: null,
             demTerrainTextureOverlays: [overlay],
             requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
@@ -421,12 +421,12 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay unrelatedFirstOverlay = CreateThirdMeshOverlay("53394525");
         TerrainTextureOverlay expectedOverlay = CreateThirdMeshOverlay("53394526");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "textureless-parent-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem) with
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem) with
         {
             ActualMeshCode = "533945",
         };
@@ -439,7 +439,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: null,
             demTerrainTextureOverlays: [unrelatedFirstOverlay, expectedOverlay],
             requestedMeshAreas: [MeshCodeBounds.TryParse("533945")!],
@@ -459,17 +459,17 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay firstOverlay = CreateThirdMeshOverlay("53394525");
         TerrainTextureOverlay secondOverlay = CreateThirdMeshOverlay("53394526");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
-        BootstrapParsedSurface firstRoofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface firstRoofSurface = CreateParsedSurface(
             "textureless-parent-roof-first",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedSurface secondRoofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface secondRoofSurface = CreateParsedSurface(
             "textureless-parent-roof-second",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [firstRoofSurface, secondRoofSurface], referenceSystem) with
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [firstRoofSurface, secondRoofSurface], referenceSystem) with
         {
             ActualMeshCode = "533945",
         };
@@ -482,7 +482,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: null,
             demTerrainTextureOverlays: [firstOverlay, secondOverlay],
             requestedMeshAreas: [MeshCodeBounds.TryParse("533945")!],
@@ -513,17 +513,17 @@ public sealed class LocalCityGmlObjectProjectionTests
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay firstOverlay = CreateThirdMeshOverlay("53394525");
         TerrainTextureOverlay secondOverlay = CreateThirdMeshOverlay("53394526");
-        BootstrapParsedSurface firstRoofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface firstRoofSurface = CreateParsedSurface(
             "textureless-parent-common-roof-first",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedSurface secondRoofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface secondRoofSurface = CreateParsedSurface(
             "textureless-parent-common-roof-second",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [firstRoofSurface, secondRoofSurface], referenceSystem) with
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [firstRoofSurface, secondRoofSurface], referenceSystem) with
         {
             ActualMeshCode = "533945",
         };
@@ -536,7 +536,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding[] materialBindings = LocalCityGmlObjectProjection.EnumerateCommonMaterialsForParsedCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
+            GeodeticPoint.FromProjectionModel(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
             globalCartesian: null,
             demTerrainTextureOverlays: [firstOverlay, secondOverlay],
             requestedMeshAreas: [MeshCodeBounds.TryParse("533945")!],
@@ -577,15 +577,15 @@ public sealed class LocalCityGmlObjectProjectionTests
             ZoomLevel: 17,
             GeographicBounds: nonThirdMeshBounds,
             MaxTextureSize: 512);
-        BootstrapParsedSurface demSurface = new(
+        ParsedSurface demSurface = new(
             PolygonId: "non-third-dem",
-            Semantic: BootstrapParsedSurfaceSemantic.Ground,
-            ExteriorRing: new BootstrapParsedRing("non-third-dem-ring", vertices.Select(GeodeticPoint.FromLegacy).ToArray(), UVs: null),
+            Semantic: ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new ParsedRing("non-third-dem-ring", vertices.Select(GeodeticPoint.FromProjectionModel).ToArray(), UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
             UsesGeneratedDemTexture: true);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("dem", [demSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("dem", [demSurface], referenceSystem);
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -596,7 +596,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
             LocalCityGmlObjectProjection.ProjectParsedCityObject(
                 cityObject,
-                GeodeticPoint.FromLegacy(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
+                GeodeticPoint.FromProjectionModel(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
                 globalCartesian: null,
                 demTerrainTextureOverlays: [overlay],
                 requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
@@ -624,12 +624,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             ZoomLevel: 17,
             GeographicBounds: nonThirdMeshBounds,
             MaxTextureSize: 512);
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "textureless-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             vertices,
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem);
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -640,7 +640,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
             LocalCityGmlObjectProjection.ProjectParsedCityObject(
                 cityObject,
-                GeodeticPoint.FromLegacy(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
+                GeodeticPoint.FromProjectionModel(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
                 globalCartesian: null,
                 demTerrainTextureOverlays: [overlay],
                 requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
@@ -658,23 +658,23 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
-        BootstrapParsedSurface redRoofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface redRoofSurface = CreateParsedSurface(
             "red-textureless-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.35, maxRatio: 0.45, reverseWinding: true),
             texturePayload: null,
             baseColor: new ColorRgba(1.0, 0.0, 0.0, 1.0));
-        BootstrapParsedSurface blueRoofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface blueRoofSurface = CreateParsedSurface(
             "blue-textureless-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.55, maxRatio: 0.65, reverseWinding: true),
             texturePayload: null,
             baseColor: new ColorRgba(0.0, 0.0, 1.0, 1.0));
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [redRoofSurface, blueRoofSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [redRoofSurface, blueRoofSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
@@ -693,16 +693,16 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay mismatchedOverlay = CreateThirdMeshOverlay("53394526");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "mismatched-overlay-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: mismatchedOverlay,
             materialResolver: new DefaultMaterialResolver());
@@ -720,21 +720,21 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
-        BootstrapParsedSurface unknownSurface = CreateBootstrapParsedSurface(
+        ParsedSurface unknownSurface = CreateParsedSurface(
             "unknown-upward-roof",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface bottomSurface = CreateParsedSurface(
             "unknown-horizontal-bottom",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [bottomSurface, unknownSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [bottomSurface, unknownSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
@@ -753,21 +753,21 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
-        BootstrapParsedSurface unknownSurface = CreateBootstrapParsedSurface(
+        ParsedSurface unknownSurface = CreateParsedSurface(
             "unknown-horizontal-roof-source-winding",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
             texturePayload: null);
-        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface bottomSurface = CreateParsedSurface(
             "unknown-horizontal-bottom",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [bottomSurface, unknownSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [bottomSurface, unknownSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
@@ -786,21 +786,21 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
-        BootstrapParsedSurface lowerHorizontalSurface = CreateBootstrapParsedSurface(
+        ParsedSurface lowerHorizontalSurface = CreateParsedSurface(
             "unknown-horizontal-lower-surface",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
             texturePayload: null);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "building-wall-reaching-higher-altitude",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, widthMeters: 5.0, heightMeters: 2.0),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [lowerHorizontalSurface, wallSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [lowerHorizontalSurface, wallSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
@@ -815,24 +815,24 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
-        BootstrapParsedSurface mainRoofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface mainRoofSurface = CreateParsedSurface(
             "unknown-horizontal-main-roof",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 20.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
             texturePayload: null);
-        BootstrapParsedSurface higherDetailSurface = CreateBootstrapParsedSurface(
+        ParsedSurface higherDetailSurface = CreateParsedSurface(
             "building-detail-reaching-higher-altitude",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(new(origin.Latitude, origin.Longitude, origin.Altitude), widthMeters: 5.0, heightMeters: 20.2),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [mainRoofSurface, higherDetailSurface],
             referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
@@ -850,18 +850,18 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("54372778");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(36.23163715441054, 137.97501759714283, 590.343);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
-        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface bottomSurface = CreateParsedSurface(
             "matsumoto-lod1-solid-bottom",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateMatsumotoLod1SolidHorizontalRing(altitudeMeters: 590.343),
             texturePayload: null);
-        BootstrapParsedSurface topSurface = CreateBootstrapParsedSurface(
+        ParsedSurface topSurface = CreateParsedSurface(
             "matsumoto-lod1-solid-top",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateMatsumotoLod1SolidHorizontalRing(altitudeMeters: 595.009),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject =
-            CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject =
+            CreateParsedCityObject(
                 "bldg",
                 [bottomSurface, topSurface],
                 referenceSystem) with
@@ -871,7 +871,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
@@ -892,16 +892,16 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "textured-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             CreateTexturePayload("roof-texture"));
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
@@ -919,16 +919,16 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "outside-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: -0.05, maxRatio: 1.05, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
@@ -945,12 +945,12 @@ public sealed class LocalCityGmlObjectProjectionTests
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "outside-parsed-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: -0.05, maxRatio: 1.05, reverseWinding: true),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem);
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -960,7 +960,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: null,
             demTerrainTextureOverlays: [overlay],
             requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
@@ -980,9 +980,9 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateX3DMaterialOpticalFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
+        await using StubSceneSink sceneSink = new();
         List<string> progressMessages = [];
-        PlateauImportService service = CreateService(sceneBuilder, progressMessages.Add);
+        PlateauImportService service = CreateService(sceneSink, progressMessages.Add);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -994,7 +994,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        ImportedCityObject cityObject = Assert.Single(sceneBuilder.CityObjects);
+        ImportedCityObject cityObject = Assert.Single(sceneSink.CityObjects);
         MaterialBinding material = Assert.Single(cityObject.Materials);
 
         Assert.Equal(new ColorRgba(0.2, 0.4, 0.6, 0.75), material.BaseColor);
@@ -1038,9 +1038,9 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateProjectedTransparencyOnlyX3DMaterialFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
+        await using StubSceneSink sceneSink = new();
         List<string> progressMessages = [];
-        PlateauImportService service = CreateService(sceneBuilder, progressMessages.Add);
+        PlateauImportService service = CreateService(sceneSink, progressMessages.Add);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1052,7 +1052,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        ImportedCityObject cityObject = Assert.Single(sceneBuilder.CityObjects);
+        ImportedCityObject cityObject = Assert.Single(sceneSink.CityObjects);
         MaterialBinding material = Assert.Single(cityObject.Materials);
 
         Assert.Equal(new ColorRgba(0.2, 0.4, 0.6, 0.75), material.BaseColor);
@@ -1062,12 +1062,12 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Theory]
-    [InlineData((int)BootstrapParsedSurfaceSemantic.Wall)]
-    [InlineData((int)BootstrapParsedSurfaceSemantic.Unknown)]
+    [InlineData((int)ParsedSurfaceSemantic.Wall)]
+    [InlineData((int)ParsedSurfaceSemantic.Unknown)]
     public void CreateCommonMaterialBindingsGeneratesFacadeMappingForTexturelessVerticalBuildingSurfaces(
         int semanticValue)
     {
-        BootstrapParsedSurfaceSemantic semantic = (BootstrapParsedSurfaceSemantic)semanticValue;
+        ParsedSurfaceSemantic semantic = (ParsedSurfaceSemantic)semanticValue;
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
@@ -1075,13 +1075,13 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface surface = CreateBootstrapParsedSurface(
+        ParsedSurface surface = CreateParsedSurface(
             $"texturedless-{semantic}",
             semantic,
             CreateVerticalQuadVertices(origin, 8.0, 7.0),
             texturePayload: null);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [surface],
             referenceSystem,
@@ -1102,12 +1102,12 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Theory]
-    [InlineData((int)BootstrapParsedSurfaceSemantic.Roof)]
-    [InlineData((int)BootstrapParsedSurfaceSemantic.Ground)]
+    [InlineData((int)ParsedSurfaceSemantic.Roof)]
+    [InlineData((int)ParsedSurfaceSemantic.Ground)]
     public void CreateCommonMaterialBindingsDoesNotGenerateFacadeMaterialForRoofOrGround(
         int semanticValue)
     {
-        BootstrapParsedSurfaceSemantic semantic = (BootstrapParsedSurfaceSemantic)semanticValue;
+        ParsedSurfaceSemantic semantic = (ParsedSurfaceSemantic)semanticValue;
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
@@ -1117,13 +1117,13 @@ public sealed class LocalCityGmlObjectProjectionTests
             referenceSystem.Geocentric);
         IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> surfaceVertices =
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: true);
-        BootstrapParsedSurface surface = CreateBootstrapParsedSurface(
+        ParsedSurface surface = CreateParsedSurface(
             $"non-facade-{semantic}",
             semantic,
             surfaceVertices,
             texturePayload: null);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [surface],
             referenceSystem,
@@ -1182,40 +1182,40 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, 8.0, 6.0),
             CreateTexturePayload("wall"));
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("roof"));
-        BootstrapParsedSurface groundSurface = CreateBootstrapParsedSurface(
+        ParsedSurface groundSurface = CreateParsedSurface(
             "ground",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("ground"));
-        BootstrapParsedSurface reversedGroundSurface = CreateBootstrapParsedSurface(
+        ParsedSurface reversedGroundSurface = CreateParsedSurface(
             "ground-reversed",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 6.0, reverseWinding: true),
             CreateTexturePayload("ground-reversed"));
-        BootstrapParsedSurface outerFloorSurface = CreateBootstrapParsedSurface(
+        ParsedSurface outerFloorSurface = CreateParsedSurface(
             "outer-floor",
-            BootstrapParsedSurfaceSemantic.OuterFloor,
+            ParsedSurfaceSemantic.OuterFloor,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 4.0, reverseWinding: true),
             CreateTexturePayload("outer-floor"));
-        BootstrapParsedSurface highOuterFloorSurface = CreateBootstrapParsedSurface(
+        ParsedSurface highOuterFloorSurface = CreateParsedSurface(
             "high-outer-floor",
-            BootstrapParsedSurfaceSemantic.OuterFloor,
+            ParsedSurfaceSemantic.OuterFloor,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.5, sizeMeters: 4.0, reverseWinding: true),
             CreateTexturePayload("high-outer-floor"));
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToLegacy(), roofSurface.ToLegacy(), groundSurface.ToLegacy(), reversedGroundSurface.ToLegacy(), outerFloorSurface.ToLegacy(), highOuterFloorSurface.ToLegacy()],
+            [wallSurface.ToProjectionModel(), roofSurface.ToProjectionModel(), groundSurface.ToProjectionModel(), reversedGroundSurface.ToProjectionModel(), outerFloorSurface.ToProjectionModel(), highOuterFloorSurface.ToProjectionModel()],
             origin,
             cartesian);
 
@@ -1225,14 +1225,14 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.DoesNotContain("high-outer-floor", culledSurfaceIds);
         Assert.DoesNotContain("roof", culledSurfaceIds);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface, roofSurface, groundSurface, reversedGroundSurface, outerFloorSurface, highOuterFloorSurface],
             referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -1254,25 +1254,25 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface groundSurface = CreateBootstrapParsedSurface(
+        ParsedSurface groundSurface = CreateParsedSurface(
             "tran-ground",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("tran-ground"));
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "tran",
-            [groundSurface.ToLegacy()],
+            [groundSurface.ToProjectionModel()],
             origin,
             cartesian);
 
         Assert.Empty(culledSurfaceIds);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("tran", [groundSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("tran", [groundSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -1292,27 +1292,27 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "lod1-wall",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateVerticalQuadVertices(origin, 8.0, 6.0),
             CreateTexturePayload("lod1-wall"));
-        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface bottomSurface = CreateParsedSurface(
             "lod1-bottom",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("lod1-bottom"));
-        BootstrapParsedSurface reversedBottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface reversedBottomSurface = CreateParsedSurface(
             "lod1-bottom-reversed",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 6.0, reverseWinding: true),
             CreateTexturePayload("lod1-bottom-reversed"));
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "lod1-roof",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: true),
             CreateTexturePayload("lod1-roof"));
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface, bottomSurface, reversedBottomSurface, roofSurface],
             referenceSystem,
@@ -1320,7 +1320,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToLegacy(), bottomSurface.ToLegacy(), reversedBottomSurface.ToLegacy(), roofSurface.ToLegacy()],
+            [wallSurface.ToProjectionModel(), bottomSurface.ToProjectionModel(), reversedBottomSurface.ToProjectionModel(), roofSurface.ToProjectionModel()],
             origin,
             cartesian);
 
@@ -1330,7 +1330,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -1352,20 +1352,20 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface bottomSurface = CreateParsedSurface(
             "bottom",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("bottom"));
-        BootstrapParsedSurface highDownwardRoofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface highDownwardRoofSurface = CreateParsedSurface(
             "high-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("high-roof"));
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [bottomSurface.ToLegacy(), highDownwardRoofSurface.ToLegacy()],
+            [bottomSurface.ToProjectionModel(), highDownwardRoofSurface.ToProjectionModel()],
             origin,
             cartesian);
 
@@ -1383,21 +1383,21 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface onlySurface = CreateBootstrapParsedSurface(
+        ParsedSurface onlySurface = CreateParsedSurface(
             "only-surface",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("only-surface"));
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [onlySurface.ToLegacy()],
+            [onlySurface.ToProjectionModel()],
             origin,
             cartesian);
 
         Assert.Empty(culledSurfaceIds);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [onlySurface],
             referenceSystem,
@@ -1405,7 +1405,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
@@ -1424,30 +1424,30 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, 8.0, 6.0),
             CreateTexturePayload("wall"));
-        BootstrapParsedSurface exactBoundaryBottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface exactBoundaryBottomSurface = CreateParsedSurface(
             "bottom-inside-threshold",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.099, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("bottom-inside-threshold"));
-        BootstrapParsedSurface aboveBoundaryBottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface aboveBoundaryBottomSurface = CreateParsedSurface(
             "bottom-outside-threshold",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.101, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("bottom-outside-threshold"));
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "roof",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: true),
             CreateTexturePayload("roof"));
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToLegacy(), exactBoundaryBottomSurface.ToLegacy(), aboveBoundaryBottomSurface.ToLegacy(), roofSurface.ToLegacy()],
+            [wallSurface.ToProjectionModel(), exactBoundaryBottomSurface.ToProjectionModel(), aboveBoundaryBottomSurface.ToProjectionModel(), roofSurface.ToProjectionModel()],
             origin,
             cartesian);
 
@@ -1466,24 +1466,24 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, 8.0, 6.0),
             texturePayload: null);
-        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface bottomSurface = CreateParsedSurface(
             "bottom",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             texturePayload: null,
             baseColor: new ColorRgba(1.0, 0.0, 0.0, 1.0));
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "roof",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: true),
             texturePayload: null,
             baseColor: new ColorRgba(0.0, 0.0, 1.0, 1.0));
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface, bottomSurface, roofSurface],
             referenceSystem,
@@ -1504,8 +1504,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeMixedSurfaceDemFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1517,7 +1517,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        ImportedCityObject[] demCityObjects = sceneBuilder.CityObjects
+        ImportedCityObject[] demCityObjects = sceneSink.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem")
             .ToArray();
 
@@ -1554,8 +1554,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1568,7 +1568,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Materials.Any(static material => material.TerrainOverlay is not null)
                 && cityObject.DisplayName == "DEM 53394525");
@@ -1598,8 +1598,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1613,7 +1613,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Geometry is TerrainGridGeometry);
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(demCityObject.Geometry);
@@ -1643,8 +1643,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1658,7 +1658,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Geometry is TerrainGridGeometry
                 && cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
@@ -1681,8 +1681,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1696,7 +1696,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Geometry is DynamicTerrainGeometry
                 && cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
@@ -1718,26 +1718,26 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 10.0);
-        BootstrapParsedSurface validSurface = CreateBootstrapParsedSurface(
+        ParsedSurface validSurface = CreateParsedSurface(
             "valid-dem",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             CreateHorizontalQuadVertices(origin, origin.Altitude, 10.0, reverseWinding: false),
             texturePayload: null,
             baseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0));
-        BootstrapParsedSurface degenerateSurface = CreateBootstrapParsedSurface(
+        ParsedSurface degenerateSurface = CreateParsedSurface(
             "degenerate-dem",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             [origin, origin, origin, origin],
             texturePayload: null,
             baseColor: new ColorRgba(0.5, 0.5, 0.5, 1.0));
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "dem",
             [validSurface, degenerateSurface],
             referenceSystem);
 
         ImportedCityObject projected = ProjectTerrainMeshModeCityObjectForTest(
             cityObject,
-            GeodeticPoint.FromLegacy(origin),
+            GeodeticPoint.FromProjectionModel(origin),
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -1763,7 +1763,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void DemTerrainDynamicModeSkipsDemWhenGridCannotBeProjected()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "dem",
             [],
             referenceSystem);
@@ -1792,8 +1792,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeParentMeshDemFixture(datasetRoot.Path, "53394525", "53394526");
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1806,7 +1806,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        ImportedCityObject[] demCityObjects = sceneBuilder.CityObjects
+        ImportedCityObject[] demCityObjects = sceneSink.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Geometry is TerrainGridGeometry)
             .ToArray();
@@ -1829,8 +1829,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeNamedParentMeshDemFixture(datasetRoot.Path, "53394525", "53394526");
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1844,7 +1844,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.DisplayName == "DEM 53394525");
         Assert.Equal("DEM 53394525", demCityObject.DisplayName);
@@ -1902,8 +1902,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemAndLandUseGapFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1916,7 +1916,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject landUse = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "luse");
 
         Assert.True(
@@ -2632,15 +2632,15 @@ public sealed class LocalCityGmlObjectProjectionTests
             TexturePayload: null);
     }
 
-    private static BootstrapParsedCityObject CreateBootstrapParsedCityObject(
+    private static ParsedCityObject CreateParsedCityObject(
         string packageName,
-        BootstrapParsedSurface[] surfaces,
+        ParsedSurface[] surfaces,
         CoordinateReferenceSystem referenceSystem,
         int? lodLevel = 1,
         int? floorsAboveGround = null,
         double? measuredHeightMeters = null)
     {
-        return new BootstrapParsedCityObject(
+        return new ParsedCityObject(
             SlotKey: $"{packageName}-slot",
             DisplayName: $"{packageName}-display",
             PackageName: packageName,
@@ -2654,18 +2654,18 @@ public sealed class LocalCityGmlObjectProjectionTests
             MeasuredHeightMeters: measuredHeightMeters);
     }
 
-    private static BootstrapParsedSurface CreateBootstrapParsedSurface(
+    private static ParsedSurface CreateParsedSurface(
         string polygonId,
-        BootstrapParsedSurfaceSemantic semantic,
+        ParsedSurfaceSemantic semantic,
         IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices,
         TexturePayload? texturePayload,
         ColorRgba? baseColor = null,
         IReadOnlyList<Float2>? uvs = null)
     {
-        return new BootstrapParsedSurface(
+        return new ParsedSurface(
             PolygonId: polygonId,
             Semantic: semantic,
-            ExteriorRing: new BootstrapParsedRing($"{polygonId}-ring", vertices.Select(GeodeticPoint.FromLegacy).ToArray(), UVs: uvs),
+            ExteriorRing: new ParsedRing($"{polygonId}-ring", vertices.Select(GeodeticPoint.FromProjectionModel).ToArray(), UVs: uvs),
             InteriorRings: [],
             BaseColor: baseColor ?? new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: texturePayload);
@@ -2798,7 +2798,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     private static MaterialBinding[] CreateCommonMaterialBindingsForTest(
-        BootstrapParsedCityObject cityObject,
+        ParsedCityObject cityObject,
         LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
         GeographicLib.LocalCartesian cartesian)
     {
@@ -2813,14 +2813,14 @@ public sealed class LocalCityGmlObjectProjectionTests
 
                 ParameterInfo[] parameters = candidate.GetParameters();
                 return parameters.Length == 5
-                    && parameters[0].ParameterType == typeof(BootstrapParsedCityObject);
+                    && parameters[0].ParameterType == typeof(ParsedCityObject);
             });
 
         return (MaterialBinding[])method.Invoke(
             null,
             [
                 cityObject,
-                GeodeticPoint.FromLegacy(cityObjectOrigin),
+                GeodeticPoint.FromProjectionModel(cityObjectOrigin),
                 cartesian,
                 null,
                 new DefaultMaterialResolver(),
@@ -2828,7 +2828,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     private static ImportedCityObject ProjectTerrainMeshModeCityObjectForTest(
-        BootstrapParsedCityObject cityObject,
+        ParsedCityObject cityObject,
         GeodeticPoint globalOriginPoint,
         PlateauImportRequest request)
     {
@@ -2886,7 +2886,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             Materials: [material],
             SourceFileRelativePath: $"udx/dem/53394525/{slotKey}.gml");
     }
-    private sealed class StubSceneBuilder : ISceneSink
+    private sealed class StubSceneSink : ISceneSink
     {
         public List<ImportedCityObject> CityObjects { get; } = [];
 

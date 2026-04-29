@@ -4,13 +4,13 @@ internal sealed class ImportedSceneSourceSnapshot
 {
     internal ImportedSceneSourceSnapshot(
         ImportedSceneSourceDataset documentSet,
-        ImportedSceneSourceContext bootstrapContext)
+        ImportedSceneSourceContext discoveryContext)
     {
         DocumentSet = documentSet;
-        BootstrapContext = bootstrapContext;
+        DiscoveryContext = discoveryContext;
     }
 
     public ImportedSceneSourceDataset DocumentSet { get; }
 
-    internal ImportedSceneSourceContext BootstrapContext { get; }
+    internal ImportedSceneSourceContext DiscoveryContext { get; }
 }

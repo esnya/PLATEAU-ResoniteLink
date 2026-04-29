@@ -8,9 +8,9 @@ using GeographicLib;
 using PlateauResoniteLink.Domain.Importing;
 namespace PlateauResoniteLink.Application.Importing;
 
-internal static class DemSourceBootstrapSupport
+internal static class DemSourceDiscoverySupport
 {
-    internal static DemBootstrapAggregation AggregateDemParsedSourceFiles(
+    internal static DemDiscoveryAggregation AggregateDemParsedSourceFiles(
         IReadOnlyList<ParsedSourceFileResult> demParsedSourceFiles)
     {
         ArgumentNullException.ThrowIfNull(demParsedSourceFiles);
@@ -23,19 +23,19 @@ internal static class DemSourceBootstrapSupport
             .SelectMany(static parsed => parsed.TerrainTriangles)
             .ToArray();
 
-        return new DemBootstrapAggregation(
+        return new DemDiscoveryAggregation(
             cachedDemSourceFiles,
             terrainTriangles,
             demParsedSourceFiles.Sum(static parsed => parsed.CityObjects.Length));
     }
 
     internal static TerrainHeightTriangle[] CreateTerrainHeightTriangles(
-        IEnumerable<BootstrapParsedCityObject> cityObjects)
+        IEnumerable<ParsedCityObject> cityObjects)
     {
         ArgumentNullException.ThrowIfNull(cityObjects);
 
         List<TerrainHeightTriangle> terrainTriangles = [];
-        foreach (BootstrapParsedSurface surface in cityObjects.SelectMany(static cityObject => cityObject.Surfaces))
+        foreach (ParsedSurface surface in cityObjects.SelectMany(static cityObject => cityObject.Surfaces))
         {
             GeodeticPoint[] vertices = surface.Vertices.ToArray();
             if (vertices.Length < 3)
@@ -43,10 +43,10 @@ internal static class DemSourceBootstrapSupport
                 continue;
             }
 
-            GeodeticPoint origin = vertices[0];
+            GeodeticPoint triangleAnchor = vertices[0];
             for (int index = 1; index + 1 < vertices.Length; index++)
             {
-                terrainTriangles.Add(new TerrainHeightTriangle(origin, vertices[index], vertices[index + 1]));
+                terrainTriangles.Add(new TerrainHeightTriangle(triangleAnchor, vertices[index], vertices[index + 1]));
             }
         }
 
@@ -222,7 +222,7 @@ internal static class DemSourceBootstrapSupport
     }
 
     private static (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) GetBounds(
-        IEnumerable<BootstrapParsedCityObject> cityObjects)
+        IEnumerable<ParsedCityObject> cityObjects)
     {
         List<GeodeticPoint> allPoints = cityObjects
             .SelectMany(static cityObject => cityObject.Surfaces)
@@ -260,7 +260,7 @@ internal static class DemSourceBootstrapSupport
     }
 }
 
-internal sealed record DemBootstrapAggregation(
+internal sealed record DemDiscoveryAggregation(
     CachedSourceFileDescriptor[] CachedDemSourceFiles,
     TerrainHeightTriangle[] TerrainTriangles,
     int ParsedCityObjectCount);

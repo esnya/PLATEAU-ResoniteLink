@@ -15,13 +15,13 @@ public sealed class DemCityObjectAggregationTests
             "dem",
             "503033",
             RequiresMeshAreaFilter: true);
-        BootstrapParsedCityObject[] cityObjects =
+        ParsedCityObject[] cityObjects =
         [
             CreateCityObject("dem-b", "polygon-b", "50303312", sourceFile.RelativePath, referenceSystem),
             CreateCityObject("dem-a", "polygon-a", "50303312", sourceFile.RelativePath, referenceSystem),
         ];
 
-        BootstrapParsedCityObject result = Assert.Single(
+        ParsedCityObject result = Assert.Single(
             DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(sourceFile, cityObjects));
 
         Assert.Equal("dem_plateau_fukuoka_dem_503033_50303312", result.SlotKey);
@@ -40,27 +40,27 @@ public sealed class DemCityObjectAggregationTests
             "dem",
             "503033",
             RequiresMeshAreaFilter: true);
-        BootstrapParsedCityObject[] cityObjects =
+        ParsedCityObject[] cityObjects =
         [
             CreateCityObject("dem-2", "polygon-2", "50303313", sourceFile.RelativePath, referenceSystem),
             CreateCityObject("dem-1", "polygon-1", "50303312", sourceFile.RelativePath, referenceSystem),
         ];
 
-        BootstrapParsedCityObject[] results =
+        ParsedCityObject[] results =
             DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(sourceFile, cityObjects);
 
         Assert.Equal(["50303312", "50303313"], results.Select(static result => result.ActualMeshCode).ToArray());
         Assert.All(results, static result => Assert.Single(result.Surfaces));
     }
 
-    private static BootstrapParsedCityObject CreateCityObject(
+    private static ParsedCityObject CreateCityObject(
         string slotKey,
         string polygonId,
         string actualMeshCode,
         string sourceFileRelativePath,
         CoordinateReferenceSystem referenceSystem)
     {
-        BootstrapParsedRing exteriorRing = new(
+        ParsedRing exteriorRing = new(
             $"{polygonId}-ring",
             [
                 new GeodeticPoint(35.0, 139.0, 0.0),
@@ -68,15 +68,15 @@ public sealed class DemCityObjectAggregationTests
                 new GeodeticPoint(35.001, 139.001, 1.0),
             ],
             UVs: null);
-        BootstrapParsedSurface surface = new(
+        ParsedSurface surface = new(
             polygonId,
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             exteriorRing,
             [],
             new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
             UsesGeneratedDemTexture: true);
-        return new BootstrapParsedCityObject(
+        return new ParsedCityObject(
             slotKey,
             slotKey,
             "dem",

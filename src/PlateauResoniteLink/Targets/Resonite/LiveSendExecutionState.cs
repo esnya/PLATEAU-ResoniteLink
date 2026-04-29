@@ -18,7 +18,7 @@ internal sealed class LiveSendProgressSink
 
     public int FirstPreparedCityObjectLogged;
 
-    public int FirstBuiltCityObjectLogged;
+    public int FirstImportedCityObjectLogged;
 
     public int FirstCityObjectPreparationStartedLogged;
 
@@ -35,7 +35,7 @@ internal sealed class LiveSendProgressSink
         FailedCityObjectCount = 0;
         FirstQueuedCityObjectLogged = 0;
         FirstPreparedCityObjectLogged = 0;
-        FirstBuiltCityObjectLogged = 0;
+        FirstImportedCityObjectLogged = 0;
         FirstCityObjectPreparationStartedLogged = 0;
         FirstCommonMaterialPrepLogged = 0;
         FirstCityObjectStreamingStartedLogged = 0;
@@ -49,7 +49,7 @@ internal sealed class CommonMaterialAssetCache
 
     public AsyncInFlightResultCache<string, CreatedMaterialAsset> CommonMaterialCreationTasks { get; } = new();
 
-    public required IReadOnlySet<string> BootstrapKnownMaterialKeys { get; init; }
+    public required IReadOnlySet<string> SetupKnownMaterialKeys { get; init; }
 }
 
 internal sealed class TerrainTextureAssetCache
@@ -62,7 +62,7 @@ internal sealed record SharedTerrainTextureAsset(
     CreatedComponent TextureComponent);
 
 internal sealed record LiveSendRunPlan(
-    ResoniteSceneBootstrapInfo BootstrapInfo,
+    ResoniteSceneSetupInfo SetupInfo,
     string ResolvedWorkRoot,
     ResoniteLocalOrigin RequestLocalOrigin,
     IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath,

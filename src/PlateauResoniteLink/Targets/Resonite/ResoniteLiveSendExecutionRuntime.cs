@@ -15,7 +15,7 @@ internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
     private readonly CancellationTokenSource processingCancellationSource;
     private readonly TaskCompletionSource<Exception> firstProcessingFailureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly AsyncWeightedGate cityObjectMemoryGate;
-    private readonly Stopwatch sceneBuildStopwatch = Stopwatch.StartNew();
+    private readonly Stopwatch sceneImportStopwatch = Stopwatch.StartNew();
     private Task[] processingTasks = [];
 
     public LiveSendExecutionRuntime(LiveSendQueuePlan plan, CancellationToken cancellationToken)
@@ -41,7 +41,7 @@ internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
 
     public int ProcessingTaskCount => processingTasks.Length;
 
-    public double ElapsedTotalSeconds => sceneBuildStopwatch.Elapsed.TotalSeconds;
+    public double ElapsedTotalSeconds => sceneImportStopwatch.Elapsed.TotalSeconds;
 
     public void Start(Task[] tasks)
     {

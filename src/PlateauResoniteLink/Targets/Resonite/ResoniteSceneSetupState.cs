@@ -6,7 +6,7 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal readonly record struct ResoniteSceneBootstrapState(
+internal readonly record struct ResoniteSceneSetupState(
     CreatedSlot DatasetRootSlot,
     CreatedSlot DatasetAssetsRootSlot,
     CreatedSlot CommonAssetsRootSlot,

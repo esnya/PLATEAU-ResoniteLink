@@ -28,8 +28,8 @@ internal static class DemTerrainOverlaySurfaceClipper
         North,
     }
 
-    public static IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> ClipGeneratedSurfaceToOverlays(
-        BootstrapParsedSurface surface,
+    public static IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> ClipGeneratedSurfaceToOverlays(
+        ParsedSurface surface,
         IReadOnlyList<TerrainTextureOverlay> overlays,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
@@ -37,11 +37,11 @@ internal static class DemTerrainOverlaySurfaceClipper
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(overlays);
 
-        List<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> results = [];
+        List<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> results = [];
         foreach (TerrainTextureOverlay overlay in overlays)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (BootstrapParsedSurface clippedSurface in ClipSurfaceCore(
+            foreach (ParsedSurface clippedSurface in ClipSurfaceCore(
                          surface,
                          [overlay.GeographicBounds],
                          suffixFactory: (_, localPolygonIndex) => $"{CreateOverlayToken(overlay.GeographicBounds)}_{localPolygonIndex:D2}",
@@ -57,8 +57,8 @@ internal static class DemTerrainOverlaySurfaceClipper
         return results;
     }
 
-    public static IReadOnlyList<BootstrapParsedSurface> ClipGeneratedSurfaceToBounds(
-        BootstrapParsedSurface surface,
+    public static IReadOnlyList<ParsedSurface> ClipGeneratedSurfaceToBounds(
+        ParsedSurface surface,
         IReadOnlyList<GeographicRectangle> bounds,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
@@ -66,8 +66,8 @@ internal static class DemTerrainOverlaySurfaceClipper
         return ClipSurfaceToBounds(surface, bounds, progressReporter, cancellationToken);
     }
 
-    public static IReadOnlyList<BootstrapParsedSurface> ClipSurfaceToBounds(
-        BootstrapParsedSurface surface,
+    public static IReadOnlyList<ParsedSurface> ClipSurfaceToBounds(
+        ParsedSurface surface,
         IReadOnlyList<GeographicRectangle> bounds,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
@@ -83,15 +83,15 @@ internal static class DemTerrainOverlaySurfaceClipper
             cancellationToken);
     }
 
-    private static List<BootstrapParsedSurface> ClipSurfaceCore(
-        BootstrapParsedSurface surface,
+    private static List<ParsedSurface> ClipSurfaceCore(
+        ParsedSurface surface,
         IReadOnlyList<GeographicRectangle> bounds,
         Func<int, int, string> suffixFactory,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        List<BootstrapParsedSurface> results = [];
+        List<ParsedSurface> results = [];
         if (surface.ExteriorRing.Vertices.Length < 3)
         {
             return results;
@@ -132,7 +132,7 @@ internal static class DemTerrainOverlaySurfaceClipper
                 results.Add(surface with
                 {
                     PolygonId = $"{surface.PolygonId}_{suffix}",
-                    ExteriorRing = new BootstrapParsedRing(
+                    ExteriorRing = new ParsedRing(
                         $"{surface.ExteriorRing.RingId}_{suffix}",
                         vertices,
                         uvs),
@@ -145,7 +145,7 @@ internal static class DemTerrainOverlaySurfaceClipper
         return results;
     }
 
-    private static GeographicRectangle GetSurfaceBounds(BootstrapParsedSurface surface)
+    private static GeographicRectangle GetSurfaceBounds(ParsedSurface surface)
     {
         return new GeographicRectangle(
             MinLatitude: surface.ExteriorRing.Vertices.Min(static point => point.Latitude),
@@ -170,7 +170,7 @@ internal static class DemTerrainOverlaySurfaceClipper
     }
 
     private static IEnumerable<IReadOnlyList<ResolvedSurfaceVertex>> ClipToOverlay(
-        BootstrapParsedSurface surface,
+        ParsedSurface surface,
         GeographicRectangle rectangle,
         CancellationToken cancellationToken)
     {
@@ -712,7 +712,7 @@ internal static class DemTerrainOverlaySurfaceClipper
     private static (
         GeodeticPoint[] Vertices,
         IReadOnlyList<Float2>? Uvs) NormalizeResolvedVertices(
-        BootstrapParsedSurface sourceSurface,
+        ParsedSurface sourceSurface,
         IReadOnlyList<ResolvedSurfaceVertex> resolvedVertices)
     {
         List<ResolvedSurfaceVertex> normalized = [];

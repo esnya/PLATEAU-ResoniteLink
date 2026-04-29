@@ -43,7 +43,7 @@ public sealed class LocalCityGmlDocumentReaderTests
     }
 
     [Fact]
-    public async Task ReadAsyncDoesNotOpenDemFilesDuringBootstrapDiscovery()
+    public async Task ReadAsyncDoesNotOpenDemFilesDuringSetupDiscovery()
     {
         CountingDatasetContentSource datasetSource = new(
             "C:\\fixtures\\plateau",
@@ -108,7 +108,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             CancellationToken cancellationToken = default)
         {
             OpenReadCallCount++;
-            throw new InvalidOperationException($"Bootstrap discovery should not open '{relativePath}'.");
+            throw new InvalidOperationException($"Discovery should not open '{relativePath}'.");
         }
 
         public Task<string> EnsureLocalFileAsync(
@@ -116,7 +116,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             string outputRoot,
             CancellationToken cancellationToken = default)
         {
-            throw new InvalidOperationException("Bootstrap discovery should not materialize files.");
+            throw new InvalidOperationException("Discovery should not materialize files.");
         }
     }
 }

@@ -32,18 +32,18 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void ParseRejectsLegacyBuildCommandToken()
+    public void ParseRejectsUnknownCommandToken()
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "bogus",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--citygml-source", "/data/plateau",
                 "--resonitelink-port", "12345",
             ]);
 
-        Assert.Equal("Unknown command 'build'.", result.Error);
+        Assert.Equal("Unknown command 'bogus'.", result.Error);
         Assert.False(result.ShowHelp);
         Assert.Null(result.Options);
     }
@@ -80,36 +80,6 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Equal("Specify --citygml-source.", result.Error);
-    }
-
-    [Fact]
-    public void ParseRejectsDeprecatedSourceFlags()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "import",
-                "--dataset", "tokyo23ku",
-                "--mesh-code", "53394525",
-                "--source", "local",
-                "--resonitelink-port", "12345",
-            ]);
-
-        Assert.Equal("The --source option has been replaced. Use --citygml-source.", result.Error);
-    }
-
-    [Fact]
-    public void ParseRejectsDeprecatedServerUrlFlag()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "import",
-                "--dataset", "tokyo23ku",
-                "--mesh-code", "53394525",
-                "--server-url", "https://example.invalid/plateau.zip",
-                "--resonitelink-port", "12345",
-            ]);
-
-        Assert.Equal("The --server-url option has been replaced. Use --citygml-source.", result.Error);
     }
 
     [Fact]
@@ -246,60 +216,8 @@ public sealed class CliArgumentsParserTests
             "Import options:",
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "plateau-resonitelink build --dataset <dataset> --mesh-code <mesh-code> [options]",
-            CliArgumentsParser.HelpText,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "Build options:",
-            CliArgumentsParser.HelpText,
-            StringComparison.Ordinal);
         Assert.Contains("--citygml-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.Contains("--geotiff-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
-        Assert.DoesNotContain("--local-source-path <path>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
-        Assert.DoesNotContain("--source <value>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
-        Assert.DoesNotContain("--server-url <url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void ParseRejectsDeprecatedOrthoSourceFlag()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "import",
-                "--dataset", "tokyo23ku",
-                "--mesh-code", "53394525",
-                "--citygml-source", "/data/plateau.zip",
-                "--ortho-source", "/data/53394525.tif",
-                "--resonitelink-port", "12345",
-            ]);
-
-        Assert.Equal("The --ortho-source option has been replaced. Use --geotiff-source.", result.Error);
-    }
-
-    [Fact]
-    public void ParseRejectsDeprecatedLocalSourcePathForSearch()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "search",
-                "--local-source-path", "/data/plateau.zip",
-                "--mesh-code", "53394525",
-            ]);
-
-        Assert.Equal("The --local-source-path option has been replaced. Use --citygml-source.", result.Error);
-    }
-
-    [Fact]
-    public void ParseRejectsDeprecatedTileOption()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "import",
-                "--dataset", "tokyo23ku",
-                "--tile", "53394525",
-            ]);
-
-        Assert.Equal("The --tile option has been replaced. Use --mesh-code.", result.Error);
-    }
 }

@@ -24,7 +24,7 @@ internal sealed class DefaultImportedSceneSourceComposer(
         ArgumentNullException.ThrowIfNull(readResult);
         ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
-        ImportedSceneSourceContext bootstrapContext = readResult.BootstrapContext;
+        ImportedSceneSourceContext discoveryContext = readResult.DiscoveryContext;
 
         ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",
@@ -36,9 +36,9 @@ internal sealed class DefaultImportedSceneSourceComposer(
                 SelectedMeshCodes: documentSet.SelectedMeshCodes),
             Attribution: CreateAttribution(request),
             GeodeticOrigin: new GeodeticOrigin(
-                Latitude: bootstrapContext.GlobalOriginPoint.Latitude,
-                Longitude: bootstrapContext.GlobalOriginPoint.Longitude,
-                Altitude: bootstrapContext.GlobalOriginPoint.Altitude));
+                Latitude: discoveryContext.GlobalOriginPoint.Latitude,
+                Longitude: discoveryContext.GlobalOriginPoint.Longitude,
+                Altitude: discoveryContext.GlobalOriginPoint.Altitude));
 
         return new StreamingImportedSceneSource(
             metadata,

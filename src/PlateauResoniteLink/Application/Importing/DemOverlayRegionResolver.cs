@@ -9,14 +9,14 @@ namespace PlateauResoniteLink.Application.Importing;
 internal static class DemOverlayRegionResolver
 {
     internal static async Task<IReadOnlyList<DemTerrainOverlayRegion>> ResolveAsync(
-        ImportedSceneSourceContext bootstrapContext,
+        ImportedSceneSourceContext discoveryContext,
         IReadOnlyList<string> requestedDemMeshCodes,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(bootstrapContext);
+        ArgumentNullException.ThrowIfNull(discoveryContext);
         ArgumentNullException.ThrowIfNull(requestedDemMeshCodes);
 
-        SourceFilePipeline[] demPipelines = bootstrapContext.SourceFilePipelines
+        SourceFilePipeline[] demPipelines = discoveryContext.SourceFilePipelines
             .Where(static pipeline => string.Equals(
                 pipeline.SourceFile.PackageName,
                 "dem",
@@ -24,16 +24,16 @@ internal static class DemOverlayRegionResolver
             .ToArray();
         if (demPipelines.Length == 0)
         {
-            return DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes);
+            return DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes);
         }
 
         ParsedSourceFileResult[] parsedDemSourceFiles = await Task.WhenAll(
             demPipelines.Select(pipeline => pipeline.GetParseTask().WaitAsync(cancellationToken)));
-        DemTerrainBounds? demBounds = DemSourceBootstrapSupport.ResolveDemTerrainBounds(
+        DemTerrainBounds? demBounds = DemSourceDiscoverySupport.ResolveDemTerrainBounds(
             parsedDemSourceFiles,
             fallbackBounds: null);
         return demBounds is null
-            ? DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes)
-            : DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(demBounds, requestedDemMeshCodes);
+            ? DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes)
+            : DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(demBounds, requestedDemMeshCodes);
     }
 }

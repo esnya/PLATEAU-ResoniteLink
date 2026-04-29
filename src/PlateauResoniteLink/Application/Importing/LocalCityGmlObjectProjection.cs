@@ -152,8 +152,8 @@ internal static partial class LocalCityGmlObjectProjection
         MeshCodeBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
     {
-        return DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
-                DemTerrainBounds.FromLegacy(demBounds),
+        return DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
+                DemTerrainBounds.FromProjectionModel(demBounds),
                 requestedMeshCodes)
             .Select(static region => DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.GeographicBounds))
             .ToArray();
@@ -446,18 +446,18 @@ internal static partial class LocalCityGmlObjectProjection
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeBounds? fallbackBounds)
     {
-        DemTerrainBounds? bounds = DemSourceBootstrapSupport.ResolveDemTerrainBounds(
-            demParsedSourceFiles.Select(global::PlateauResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy),
-            fallbackBounds is null ? null : DemTerrainBounds.FromLegacy(fallbackBounds));
-        return bounds?.ToLegacy();
+        DemTerrainBounds? bounds = DemSourceDiscoverySupport.ResolveDemTerrainBounds(
+            demParsedSourceFiles.Select(global::PlateauResoniteLink.Application.Importing.ParsedSourceFileResult.FromProjectionModel),
+            fallbackBounds is null ? null : DemTerrainBounds.FromProjectionModel(fallbackBounds));
+        return bounds?.ToProjectionModel();
     }
 
     private static TerrainHeightTriangle[] ExtractTerrainHeightTriangles(
         IEnumerable<ParsedCityObject> cityObjects)
     {
-        return DemSourceBootstrapSupport.CreateTerrainHeightTriangles(
-                cityObjects.Select(BootstrapParsedCityObject.FromLegacy))
-            .Select(static triangle => triangle.ToLegacy())
+        return DemSourceDiscoverySupport.CreateTerrainHeightTriangles(
+                cityObjects.Select(global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel))
+            .Select(static triangle => triangle.ToProjectionModel())
             .ToArray();
     }
 
@@ -494,13 +494,13 @@ internal static partial class LocalCityGmlObjectProjection
             return [surface];
         }
 
-        List<ParsedSurface> strips = BuildTerrainAlignedTransportationStrips(surface, positions, edgePair, segmentLength);
+        List<ParsedSurface> strips = CreateTerrainAlignedTransportationStrips(surface, positions, edgePair, segmentLength);
         return strips.Count > 0 ? strips : [surface];
     }
 
-    private static List<global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface> SubdivideTransportationSurfaceForTerrainAlignment(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface surface,
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject)
+    private static List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> SubdivideTransportationSurfaceForTerrainAlignment(
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
         if (surface.InteriorRings.Length != 0
             || surface.ExteriorRing.Vertices.Length != 4)
@@ -517,23 +517,23 @@ internal static partial class LocalCityGmlObjectProjection
                 cityObject.ReferenceSystem.Geocentric)
             : null;
         Float3[] positions = surface.ExteriorRing.Vertices
-            .Select(point => CreateScenePosition(point.ToLegacy(), cityObjectOrigin.ToLegacy(), cityObjectCartesian))
+            .Select(point => CreateScenePosition(point.ToProjectionModel(), cityObjectOrigin.ToProjectionModel(), cityObjectCartesian))
             .ToArray();
         if (!IsNearHorizontalSurface(positions))
         {
             return [surface];
         }
 
-        EdgePairSelection edgePair = SelectPrimaryRoadEdgePair(surface.ExteriorRing.ToLegacy(), positions);
+        EdgePairSelection edgePair = SelectPrimaryRoadEdgePair(surface.ExteriorRing.ToProjectionModel(), positions);
         double segmentLength = ComputeTerrainAlignedSegmentLength(edgePair.Width);
         if (edgePair.Length <= segmentLength + 1e-6)
         {
             return [surface];
         }
 
-        List<ParsedSurface> strips = BuildTerrainAlignedTransportationStrips(surface.ToLegacy(), positions, edgePair, segmentLength);
+        List<ParsedSurface> strips = CreateTerrainAlignedTransportationStrips(surface.ToProjectionModel(), positions, edgePair, segmentLength);
         return strips.Count > 0
-            ? strips.Select(global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface.FromLegacy).ToList()
+            ? strips.Select(global::PlateauResoniteLink.Application.Importing.ParsedSurface.FromProjectionModel).ToList()
             : [surface];
     }
 
@@ -546,7 +546,7 @@ internal static partial class LocalCityGmlObjectProjection
             DefaultTerrainAlignedTransportationSegmentLengthMeters);
     }
 
-    private static List<ParsedSurface> BuildTerrainAlignedTransportationStrips(
+    private static List<ParsedSurface> CreateTerrainAlignedTransportationStrips(
         ParsedSurface surface,
         Float3[] positions,
         EdgePairSelection edgePair,
@@ -1205,7 +1205,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     internal static ImportedCityObject ProjectCityObject(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
@@ -1221,13 +1221,13 @@ internal static partial class LocalCityGmlObjectProjection
                 cityObject.ReferenceSystem.Geocentric)
             : null;
         Float3 slotPosition = CreateScenePosition(
-            cityObjectOrigin.ToLegacy(),
-            globalOriginPoint.ToLegacy(),
+            cityObjectOrigin.ToProjectionModel(),
+            globalOriginPoint.ToProjectionModel(),
             globalCartesian);
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
             cityObject.PackageName,
-            cityObject.Surfaces.Select(static surface => surface.ToLegacy()),
-            cityObjectOrigin.ToLegacy(),
+            cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()),
+            cityObjectOrigin.ToProjectionModel(),
             cityObjectCartesian);
         List<MeshVertex> vertices = [];
         List<MeshSubmesh> submeshes = [];
@@ -1269,8 +1269,8 @@ internal static partial class LocalCityGmlObjectProjection
             List<int> indices = [];
             FacadeUvProjectionContext? facadeUvProjectionContext = TryCreateFacadeUvProjectionContext(
                 cityObject.PackageName,
-                cityObject.Surfaces.Select(static surface => surface.ToLegacy()),
-                cityObjectOrigin.ToLegacy(),
+                cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()),
+                cityObjectOrigin.ToProjectionModel(),
                 cityObjectCartesian);
 
             foreach (ResolvedSurfaceMaterial resolvedSurface in materialGroup
@@ -1280,9 +1280,9 @@ internal static partial class LocalCityGmlObjectProjection
                     cityObject.PackageName,
                     resolvedSurface.Surface,
                     resolvedSurface.Material,
-                    cityObjectOrigin.ToLegacy(),
+                    cityObjectOrigin.ToProjectionModel(),
                     cityObjectCartesian,
-                    globalOriginPoint.ToLegacy(),
+                    globalOriginPoint.ToProjectionModel(),
                     globalCartesian,
                     facadeUvProjectionContext,
                     demTerrainTextureOverlay,
@@ -1322,9 +1322,9 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)
     {
-        if (cityObject.OriginOverride is not null)
+        if (cityObject.GeodeticOriginOverride is not null)
         {
-            return cityObject.OriginOverride;
+            return cityObject.GeodeticOriginOverride;
         }
 
         List<GeodeticPoint> allPoints = cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
@@ -1341,11 +1341,11 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static global::PlateauResoniteLink.Application.Importing.GeodeticPoint GetCityObjectOrigin(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject)
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
-        if (cityObject.OriginOverride is not null)
+        if (cityObject.GeodeticOriginOverride is not null)
         {
-            return cityObject.OriginOverride;
+            return cityObject.GeodeticOriginOverride;
         }
 
         List<global::PlateauResoniteLink.Application.Importing.GeodeticPoint> allPoints =
@@ -1467,19 +1467,19 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static ResolvedSurfaceMaterial ResolveSurfaceMaterial(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface surface,
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface,
         double cityObjectMinAltitude,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedSurface legacySurface = surface.ToLegacy();
-        if (legacySurface.UsesGeneratedDemTexture)
+        ParsedSurface projectionSurface = surface.ToProjectionModel();
+        if (projectionSurface.UsesGeneratedDemTexture)
         {
             return new ResolvedSurfaceMaterial(
-                legacySurface,
+                projectionSurface,
                 new ResolvedMaterial(
                     MaterialType.Standard,
                     TexturePayload: null,
@@ -1495,26 +1495,26 @@ internal static partial class LocalCityGmlObjectProjection
         ResolvedMaterial? roofTerrainTextureMaterial = TryCreateRoofTerrainTextureMaterial(
             cityObject.ActualMeshCode,
             cityObject.PackageName,
-            legacySurface,
+            projectionSurface,
             cityObjectMinAltitude,
             demTerrainTextureOverlay,
-            cityObjectOrigin.ToLegacy(),
+            cityObjectOrigin.ToProjectionModel(),
             cityObjectCartesian);
         if (roofTerrainTextureMaterial is not null)
         {
             return new ResolvedSurfaceMaterial(
-                legacySurface with { BaseColor = DefaultMaterialColor },
+                projectionSurface with { BaseColor = DefaultMaterialColor },
                 roofTerrainTextureMaterial,
                 DepthOffset: null);
         }
 
         if (string.Equals(cityObject.PackageName, "veg", StringComparison.OrdinalIgnoreCase)
-            && legacySurface.TexturePayload is null)
+            && projectionSurface.TexturePayload is null)
         {
-            if (HasExplicitMaterialColor(legacySurface.BaseColor))
+            if (HasExplicitMaterialColor(projectionSurface.BaseColor))
             {
                 return new ResolvedSurfaceMaterial(
-                    legacySurface,
+                    projectionSurface,
                     new ResolvedMaterial(
                         MaterialType.VertexColor,
                         TexturePayload: null,
@@ -1527,7 +1527,7 @@ internal static partial class LocalCityGmlObjectProjection
             }
 
             return new ResolvedSurfaceMaterial(
-                legacySurface with { BaseColor = DefaultVegetationMaterialColor },
+                projectionSurface with { BaseColor = DefaultVegetationMaterialColor },
                 new ResolvedMaterial(
                     MaterialType.Standard,
                     TexturePayload: null,
@@ -1539,10 +1539,10 @@ internal static partial class LocalCityGmlObjectProjection
                 DepthOffset: null);
         }
 
-        if (IsGeneratedRoadMarkingSurface(legacySurface))
+        if (IsGeneratedRoadMarkingSurface(projectionSurface))
         {
             return new ResolvedSurfaceMaterial(
-                legacySurface,
+                projectionSurface,
                 new ResolvedMaterial(
                     MaterialType.VertexColor,
                     TexturePayload: null,
@@ -1556,19 +1556,19 @@ internal static partial class LocalCityGmlObjectProjection
 
         bool preferUvProjection = ShouldPreferUvProjection(
             cityObject.PackageName,
-            legacySurface,
-            cityObjectOrigin.ToLegacy(),
+            projectionSurface,
+            cityObjectOrigin.ToProjectionModel(),
             cityObjectCartesian);
         ResolvedMaterial resolvedMaterial = materialResolver.ResolveMaterial(
             cityObject.PackageName,
-            legacySurface.TexturePayload,
+            projectionSurface.TexturePayload,
             preferUvProjection,
             preferUvProjection && IsBuildingPackage(cityObject.PackageName) ? BundledDefaultMaterialFamilies.Facade : null,
             $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}");
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
-        return new ResolvedSurfaceMaterial(legacySurface, resolvedMaterial, depthOffset);
+        return new ResolvedSurfaceMaterial(projectionSurface, resolvedMaterial, depthOffset);
     }
 
     private static ResolvedMaterial? TryCreateRoofTerrainTextureMaterial(
@@ -1630,8 +1630,8 @@ internal static partial class LocalCityGmlObjectProjection
         return surfaceMinAltitude > cityObjectMinAltitude + UnknownRoofBottomAltitudeToleranceMeters;
     }
 
-    private static global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject? CreateGeneratedRoadMarkingCityObject(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+    private static global::PlateauResoniteLink.Application.Importing.ParsedCityObject? CreateGeneratedRoadMarkingCityObject(
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
@@ -1640,15 +1640,15 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        List<global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface> markingSurfaces = [];
-        foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface surface in cityObject.Surfaces)
+        List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> markingSurfaces = [];
+        foreach (global::PlateauResoniteLink.Application.Importing.ParsedSurface surface in cityObject.Surfaces)
         {
             if (surface.TexturePayload is not null)
             {
                 continue;
             }
 
-            List<global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface> generatedSurfaces =
+            List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> generatedSurfaces =
                 CreateGeneratedRoadMarkingSurfaces(surface, cityObjectOrigin, cityObjectCartesian);
             if (generatedSurfaces.Count == 0)
             {
@@ -1751,16 +1751,16 @@ internal static partial class LocalCityGmlObjectProjection
         return segments;
     }
 
-    private static List<global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface> CreateGeneratedRoadMarkingSurfaces(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface surface,
+    private static List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> CreateGeneratedRoadMarkingSurfaces(
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
         return CreateGeneratedRoadMarkingSurfaces(
-                surface.ToLegacy(),
-                cityObjectOrigin.ToLegacy(),
+                surface.ToProjectionModel(),
+                cityObjectOrigin.ToProjectionModel(),
                 cityObjectCartesian)
-            .Select(global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface.FromLegacy)
+            .Select(global::PlateauResoniteLink.Application.Importing.ParsedSurface.FromProjectionModel)
             .ToList();
     }
 
@@ -2163,7 +2163,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static DemUvProjection? TryCreateDemUvProjection(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         TerrainTextureOverlay? demTerrainTextureOverlay)
     {
         if (demTerrainTextureOverlay is null
@@ -3192,7 +3192,7 @@ internal static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
-        Func<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject, bool>? predicate = null,
+        Func<global::PlateauResoniteLink.Application.Importing.ParsedCityObject, bool>? predicate = null,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
@@ -3202,17 +3202,17 @@ internal static partial class LocalCityGmlObjectProjection
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
-        CoordinateReferenceSystem legacyReferenceSystem = referenceSystem.ToLegacy();
+        CoordinateReferenceSystem projectionReferenceSystem = referenceSystem.ToProjectionModel();
         ValidateCompatibleReferenceSystem(
-            legacyReferenceSystem,
-            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem.ToLegacy() ?? legacyReferenceSystem);
+            projectionReferenceSystem,
+            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem.ToProjectionModel() ?? projectionReferenceSystem);
 
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject[] projectedInputCityObjects =
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject[] projectedInputCityObjects =
             global::PlateauResoniteLink.Application.Importing.DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
                 sourceFile.SourceFile,
                 sourceFile.CityObjects);
 
-        foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject parsedCityObject in projectedInputCityObjects)
+        foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject parsedCityObject in projectedInputCityObjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (predicate is not null && !predicate(parsedCityObject))
@@ -3238,7 +3238,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     internal static IEnumerable<ImportedCityObject> ProjectParsedCityObject(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject parsedCityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject parsedCityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
@@ -3254,14 +3254,14 @@ internal static partial class LocalCityGmlObjectProjection
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject terrainAlignedBootstrapCityObject =
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject terrainAlignedParsedCityObject =
             ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
         List<ImportedCityObject> projectedCityObjects = [];
         List<ImportedCityObject> generatedRoadMarkings = [];
 
-        foreach ((global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
+        foreach ((global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
                  in SplitParsedCityObjectForTerrainProjection(
-                     terrainAlignedBootstrapCityObject,
+                     terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshAreas,
                      progressReporter,
@@ -3296,7 +3296,7 @@ internal static partial class LocalCityGmlObjectProjection
                     markingOrigin.Altitude,
                     splitCityObject.CityObject.ReferenceSystem.Geocentric)
                 : null;
-            global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject? roadMarkingCityObject = CreateGeneratedRoadMarkingCityObject(
+            global::PlateauResoniteLink.Application.Importing.ParsedCityObject? roadMarkingCityObject = CreateGeneratedRoadMarkingCityObject(
                 splitCityObject.CityObject,
                 markingOrigin,
                 markingCartesian);
@@ -3322,7 +3322,7 @@ internal static partial class LocalCityGmlObjectProjection
 
         ImportedCityObject[] alignedCityObjects =
             request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic
-            && string.Equals(terrainAlignedBootstrapCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(terrainAlignedParsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? AlignAdjacentDemTerrainGridChunkBoundaries(projectedCityObjects)
                 : [.. projectedCityObjects];
 
@@ -3340,7 +3340,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     internal static IEnumerable<MaterialBinding> EnumerateCommonMaterialsForParsedCityObject(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject parsedCityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject parsedCityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
@@ -3354,12 +3354,12 @@ internal static partial class LocalCityGmlObjectProjection
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject terrainAlignedBootstrapCityObject =
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject terrainAlignedParsedCityObject =
             ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
 
-        foreach ((global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
+        foreach ((global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
                  in SplitParsedCityObjectForTerrainProjection(
-                     terrainAlignedBootstrapCityObject,
+                     terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshAreas))
         {
@@ -3399,7 +3399,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static ImportedCityObject ProjectTerrainMeshModeCityObject(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
@@ -3455,7 +3455,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static ImportedCityObject CreateNonRenderableCityObject(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject)
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
         return new ImportedCityObject(
             cityObject.SlotKey,
@@ -3469,8 +3469,8 @@ internal static partial class LocalCityGmlObjectProjection
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
     }
 
-    private static global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject ConformCityObjectToTerrain(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject parsedCityObject,
+    private static global::PlateauResoniteLink.Application.Importing.ParsedCityObject ConformCityObjectToTerrain(
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject parsedCityObject,
         TerrainHeightSampler? terrainHeightSampler)
     {
         if (terrainHeightSampler is null
@@ -3479,7 +3479,7 @@ internal static partial class LocalCityGmlObjectProjection
             return parsedCityObject;
         }
 
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject subdividedCityObject =
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject subdividedCityObject =
             SubdivideTerrainAlignedCityObject(parsedCityObject);
         bool terrainAligned = false;
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(subdividedCityObject);
@@ -3490,22 +3490,22 @@ internal static partial class LocalCityGmlObjectProjection
                 cityObjectOrigin.Altitude,
                 subdividedCityObject.ReferenceSystem.Geocentric)
             : null;
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface[] conformedSurfaces =
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface[] conformedSurfaces =
             PlateauPackageCatalog.IsRoadPackage(subdividedCityObject.PackageName)
                 ? ConformRoadSurfacesToTerrainWithFallback(
-                        subdividedCityObject.Surfaces.Select(static surface => surface.ToLegacy()).ToArray(),
+                        subdividedCityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray(),
                         terrainHeightSampler,
                         ref terrainAligned)
-                    .Select(global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface.FromLegacy)
+                    .Select(global::PlateauResoniteLink.Application.Importing.ParsedSurface.FromProjectionModel)
                     .ToArray()
                 : ConformSurfacesToTerrain(
                         subdividedCityObject.PackageName,
-                        subdividedCityObject.Surfaces.Select(static surface => surface.ToLegacy()).ToArray(),
+                        subdividedCityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray(),
                         terrainHeightSampler,
-                        cityObjectOrigin.ToLegacy(),
+                        cityObjectOrigin.ToProjectionModel(),
                         cityObjectCartesian,
                         ref terrainAligned)
-                    .Select(global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface.FromLegacy)
+                    .Select(global::PlateauResoniteLink.Application.Importing.ParsedSurface.FromProjectionModel)
                     .ToArray();
 
         return terrainAligned
@@ -3517,16 +3517,16 @@ internal static partial class LocalCityGmlObjectProjection
             : subdividedCityObject;
     }
 
-    private static global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject SubdivideTerrainAlignedCityObject(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject)
+    private static global::PlateauResoniteLink.Application.Importing.ParsedCityObject SubdivideTerrainAlignedCityObject(
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
         if (!ShouldSubdivideTerrainAlignedCityObject(cityObject))
         {
             return cityObject;
         }
 
-        List<global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface> subdividedSurfaces = [];
-        foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface surface in cityObject.Surfaces)
+        List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> subdividedSurfaces = [];
+        foreach (global::PlateauResoniteLink.Application.Importing.ParsedSurface surface in cityObject.Surfaces)
         {
             subdividedSurfaces.AddRange(SubdivideTransportationSurfaceForTerrainAlignment(surface, cityObject));
         }
@@ -3537,13 +3537,13 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static bool ShouldSubdivideTerrainAlignedCityObject(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject)
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
         return ShouldSubdivideTerrainAlignedCityObject(cityObject.PackageName, cityObject.LodLevel);
     }
 
     private static bool ShouldTerrainAlignCityObject(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject)
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
         return ShouldTerrainAlignCityObject(cityObject.PackageName, cityObject.LodLevel);
     }
@@ -3628,19 +3628,19 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static MaterialBinding[] CreateCommonMaterialBindings(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedSurface[] legacySurfaces = cityObject.Surfaces.Select(static surface => surface.ToLegacy()).ToArray();
+        ParsedSurface[] projectionSurfaces = cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray();
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
             cityObject.PackageName,
-            legacySurfaces,
-            cityObjectOrigin.ToLegacy(),
+            projectionSurfaces,
+            cityObjectOrigin.ToProjectionModel(),
             cityObjectCartesian);
-        double cityObjectMinAltitude = legacySurfaces
+        double cityObjectMinAltitude = projectionSurfaces
             .SelectMany(static surface => surface.Vertices)
             .Min(static vertex => vertex.Altitude);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
@@ -4055,7 +4055,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static bool TryProjectDemTerrainGridCityObject(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
@@ -4086,16 +4086,16 @@ internal static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        Float3 slotPosition = CreateScenePosition(cityObjectOrigin.ToLegacy(), globalOriginPoint.ToLegacy(), globalCartesian);
+        Float3 slotPosition = CreateScenePosition(cityObjectOrigin.ToProjectionModel(), globalOriginPoint.ToProjectionModel(), globalCartesian);
         Float3[] positions = cityObject.Surfaces
             .SelectMany(static surface => surface.Vertices)
-            .Select(point => CreateGlobalTerrainGridLocalPosition(point.ToLegacy(), slotPosition, globalOriginPoint.ToLegacy(), globalCartesian))
+            .Select(point => CreateGlobalTerrainGridLocalPosition(point.ToProjectionModel(), slotPosition, globalOriginPoint.ToProjectionModel(), globalCartesian))
             .ToArray();
         TerrainGridTriangle[] triangles = CreateDemTerrainGridTriangles(cityObject, slotPosition, globalOriginPoint, globalCartesian);
         double seaLevelLocalHeight = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(cityObjectOrigin.Latitude, cityObjectOrigin.Longitude, 0.0),
             slotPosition,
-            globalOriginPoint.ToLegacy(),
+            globalOriginPoint.ToProjectionModel(),
             globalCartesian).Y;
         if (positions.Length < 3)
         {
@@ -4291,20 +4291,20 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static MaterialBinding[] CreateDemTerrainGridMaterials(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         string requestedMeshCode,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedSurface[] legacySurfaces = cityObject.Surfaces.Select(static surface => surface.ToLegacy()).ToArray();
+        ParsedSurface[] projectionSurfaces = cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray();
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
             cityObject.PackageName,
-            legacySurfaces,
-            cityObjectOrigin.ToLegacy(),
+            projectionSurfaces,
+            cityObjectOrigin.ToProjectionModel(),
             cityObjectCartesian);
-        double cityObjectMinAltitude = legacySurfaces
+        double cityObjectMinAltitude = projectionSurfaces
             .SelectMany(static surface => surface.Vertices)
             .Min(static vertex => vertex.Altitude);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
@@ -4406,14 +4406,14 @@ internal static partial class LocalCityGmlObjectProjection
         return requestedMeshCode;
     }
 
-    private static IEnumerable<(global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObjectForTerrainProjection(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+    private static IEnumerable<(global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObjectForTerrainProjection(
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        foreach ((global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
+        foreach ((global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
                  in DemTerrainOverlayAssignment.SplitParsedCityObject(
                      cityObject,
                      demTerrainTextureOverlays,
@@ -4429,7 +4429,7 @@ internal static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            foreach ((global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay) nonDemSplit
+            foreach ((global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) nonDemSplit
                      in SplitNonDemCityObjectByTerrainOverlay(
                          splitCityObject.CityObject,
                          demTerrainTextureOverlays,
@@ -4441,8 +4441,8 @@ internal static partial class LocalCityGmlObjectProjection
         }
     }
 
-    private static IEnumerable<(global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitNonDemCityObjectByTerrainOverlay(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+    private static IEnumerable<(global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitNonDemCityObjectByTerrainOverlay(
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
@@ -4473,9 +4473,9 @@ internal static partial class LocalCityGmlObjectProjection
 
         double cityObjectMinAltitude = cityObjectVertices.Min(static vertex => vertex.Altitude);
 
-        List<global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface> untexturedSurfaces = [];
-        List<(global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> terrainOverlaySurfaces = [];
-        foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface surface in cityObject.Surfaces)
+        List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> untexturedSurfaces = [];
+        List<(global::PlateauResoniteLink.Application.Importing.ParsedSurface Surface, TerrainTextureOverlay Overlay)> terrainOverlaySurfaces = [];
+        foreach (global::PlateauResoniteLink.Application.Importing.ParsedSurface surface in cityObject.Surfaces)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsNonDemTerrainTextureSurface(cityObject, surface, cityObjectMinAltitude, cityObjectOrigin, cityObjectCartesian)
@@ -4516,7 +4516,7 @@ internal static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            IReadOnlyList<(global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
+            IReadOnlyList<(global::PlateauResoniteLink.Application.Importing.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
                 DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
                     surface,
                     candidateOverlays,
@@ -4531,7 +4531,7 @@ internal static partial class LocalCityGmlObjectProjection
             terrainOverlaySurfaces.AddRange(clippedSurfaces);
         }
 
-        IGrouping<TerrainTextureOverlay, (global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)>[] terrainGroups =
+        IGrouping<TerrainTextureOverlay, (global::PlateauResoniteLink.Application.Importing.ParsedSurface Surface, TerrainTextureOverlay Overlay)>[] terrainGroups =
             terrainOverlaySurfaces
                 .GroupBy(static entry => entry.Overlay)
                 .OrderBy(static group => group.Key.GeographicBounds.MinLatitude)
@@ -4551,7 +4551,7 @@ internal static partial class LocalCityGmlObjectProjection
                     cityObject with
                     {
                         Surfaces = terrainGroups[0].Select(static entry => entry.Surface).ToArray(),
-                        OriginOverride = cityObjectOrigin,
+                        GeodeticOriginOverride = cityObjectOrigin,
                     },
                     terrainGroups[0].Key);
                 yield break;
@@ -4561,14 +4561,14 @@ internal static partial class LocalCityGmlObjectProjection
                 cityObject with
                 {
                     Surfaces = untexturedSurfaces.ToArray(),
-                    OriginOverride = cityObjectOrigin,
+                    GeodeticOriginOverride = cityObjectOrigin,
                 },
                 null);
             yield break;
         }
 
         int splitIndex = 0;
-        foreach (IGrouping<TerrainTextureOverlay, (global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> group in terrainGroups)
+        foreach (IGrouping<TerrainTextureOverlay, (global::PlateauResoniteLink.Application.Importing.ParsedSurface Surface, TerrainTextureOverlay Overlay)> group in terrainGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
             string terrainMeshCode = ResolveTerrainTextureMeshCode(cityObject.ActualMeshCode, group.Key)
@@ -4579,7 +4579,7 @@ internal static partial class LocalCityGmlObjectProjection
                     SlotKey = $"{cityObject.SlotKey}_terrain_{terrainMeshCode}",
                     DisplayName = $"{cityObject.DisplayName} ({splitIndex + 1})",
                     Surfaces = group.Select(static entry => entry.Surface).ToArray(),
-                    OriginOverride = cityObjectOrigin,
+                    GeodeticOriginOverride = cityObjectOrigin,
                 },
                 group.Key);
             splitIndex++;
@@ -4593,15 +4593,15 @@ internal static partial class LocalCityGmlObjectProjection
                     SlotKey = $"{cityObject.SlotKey}_terrain_none",
                     DisplayName = $"{cityObject.DisplayName} ({splitIndex + 1})",
                     Surfaces = untexturedSurfaces.ToArray(),
-                    OriginOverride = cityObjectOrigin,
+                    GeodeticOriginOverride = cityObjectOrigin,
                 },
                 null);
         }
     }
 
     private static bool IsNonDemTerrainTextureSurface(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface surface,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface,
         double cityObjectMinAltitude,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
@@ -4609,9 +4609,9 @@ internal static partial class LocalCityGmlObjectProjection
         return surface.TexturePayload is null
             && !surface.UsesGeneratedDemTexture
             && IsRoofTerrainTextureSurface(
-                surface.ToLegacy(),
+                surface.ToProjectionModel(),
                 cityObjectMinAltitude,
-                cityObjectOrigin.ToLegacy(),
+                cityObjectOrigin.ToProjectionModel(),
                 cityObjectCartesian);
     }
 
@@ -4659,7 +4659,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static bool TryCreateSurfaceGeographicBounds(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface surface,
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface,
         out GeographicRectangle bounds)
     {
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
@@ -4739,7 +4739,7 @@ internal static partial class LocalCityGmlObjectProjection
         }
 
         TextureUvRect? occupiedUvRect = DemTerrainOverlayAssignment.TryCreateTerrainGridOccupiedUvRect(
-            global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject),
+            global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel(cityObject),
             representativeSurface,
             demTerrainTextureOverlay,
             demObjectBounds);
@@ -4747,7 +4747,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static TextureUvRect? TryCreateDemTerrainGridOccupiedUvRect(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
@@ -4799,7 +4799,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static GeographicRectangle? TryGetDemObjectGeographicBounds(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         TerrainTextureOverlay? demTerrainTextureOverlay)
     {
         if (demTerrainTextureOverlay is null
@@ -4870,7 +4870,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static DemTerrainGridBounds CreateDemTerrainGridBounds(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         Float3 slotPosition,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
@@ -4896,22 +4896,22 @@ internal static partial class LocalCityGmlObjectProjection
         Float3 westPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(referenceLatitude, clippedBounds.MinLongitude, cityObjectOrigin.Altitude),
             slotPosition,
-            globalOriginPoint.ToLegacy(),
+            globalOriginPoint.ToProjectionModel(),
             globalCartesian);
         Float3 eastPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(referenceLatitude, clippedBounds.MaxLongitude, cityObjectOrigin.Altitude),
             slotPosition,
-            globalOriginPoint.ToLegacy(),
+            globalOriginPoint.ToProjectionModel(),
             globalCartesian);
         Float3 southPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(clippedBounds.MinLatitude, referenceLongitude, cityObjectOrigin.Altitude),
             slotPosition,
-            globalOriginPoint.ToLegacy(),
+            globalOriginPoint.ToProjectionModel(),
             globalCartesian);
         Float3 northPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(clippedBounds.MaxLatitude, referenceLongitude, cityObjectOrigin.Altitude),
             slotPosition,
-            globalOriginPoint.ToLegacy(),
+            globalOriginPoint.ToProjectionModel(),
             globalCartesian);
 
         double clippedMinX = Math.Min(westPosition.X, eastPosition.X);
@@ -4938,7 +4938,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static GeographicRectangle GetCityObjectGeographicBounds(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject)
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
         List<global::PlateauResoniteLink.Application.Importing.GeodeticPoint> vertices =
             cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
@@ -5082,16 +5082,16 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static TerrainGridTriangle[] CreateDemTerrainGridTriangles(
-        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         Float3 slotPosition,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian)
     {
         List<TerrainGridTriangle> triangles = [];
-        foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface surface in cityObject.Surfaces)
+        foreach (global::PlateauResoniteLink.Application.Importing.ParsedSurface surface in cityObject.Surfaces)
         {
             Float3[] positions = surface.ExteriorRing.Vertices
-                .Select(point => CreateGlobalTerrainGridLocalPosition(point.ToLegacy(), slotPosition, globalOriginPoint.ToLegacy(), globalCartesian))
+                .Select(point => CreateGlobalTerrainGridLocalPosition(point.ToProjectionModel(), slotPosition, globalOriginPoint.ToProjectionModel(), globalCartesian))
                 .ToArray();
             if (positions.Length < 3)
             {
@@ -5338,7 +5338,7 @@ internal static partial class LocalCityGmlObjectProjection
         string SourceFileRelativePath,
         bool SharedAcrossMeshCodes,
         bool TerrainAligned = false,
-        GeodeticPoint? OriginOverride = null,
+        GeodeticPoint? GeodeticOriginOverride = null,
         int? FloorsAboveGround = null,
         double? MeasuredHeightMeters = null);
 
@@ -5733,9 +5733,9 @@ internal static partial class LocalCityGmlObjectProjection
             double maxZ = points.Max(static point => point.Z);
             double cellSize = ComputeCellSize(minX, maxX, minZ, maxZ, triangles.Count);
 
-            Dictionary<TerrainGridCell, TerrainHeightPoint[]> pointsByCell = BuildPointIndex(points, minX, minZ, cellSize);
+            Dictionary<TerrainGridCell, TerrainHeightPoint[]> pointsByCell = CreatePointIndex(points, minX, minZ, cellSize);
             Dictionary<TerrainGridCell, ProjectedTerrainHeightTriangle[]> trianglesByCell =
-                BuildTriangleIndex(triangles, minX, minZ, cellSize);
+                CreateTriangleIndex(triangles, minX, minZ, cellSize);
 
             return new TerrainHeightSampler(
                 cartesian,
@@ -5933,7 +5933,7 @@ internal static partial class LocalCityGmlObjectProjection
             return Math.Max(1.0, Math.Sqrt(Math.Max(estimatedCellArea, 1e-6)));
         }
 
-        private static Dictionary<TerrainGridCell, TerrainHeightPoint[]> BuildPointIndex(
+        private static Dictionary<TerrainGridCell, TerrainHeightPoint[]> CreatePointIndex(
             IEnumerable<TerrainHeightPoint> points,
             double minX,
             double minZ,
@@ -5958,7 +5958,7 @@ internal static partial class LocalCityGmlObjectProjection
                 static pair => pair.Value.ToArray());
         }
 
-        private static Dictionary<TerrainGridCell, ProjectedTerrainHeightTriangle[]> BuildTriangleIndex(
+        private static Dictionary<TerrainGridCell, ProjectedTerrainHeightTriangle[]> CreateTriangleIndex(
             IEnumerable<ProjectedTerrainHeightTriangle> triangles,
             double minX,
             double minZ,

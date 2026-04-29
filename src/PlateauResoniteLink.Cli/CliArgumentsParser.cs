@@ -139,9 +139,6 @@ public static class CliArgumentsParser
 
                             break;
                         }
-                    case "--tile":
-                        return CliParseResult.Failure(
-                            "The --tile option has been replaced. Use --mesh-code.");
                     case "--citygml-source":
                         cityGmlSourceInput = ReadValue(args, ref index, token);
                         break;
@@ -238,10 +235,6 @@ public static class CliArgumentsParser
                     case "--verbose":
                         verboseLogging = true;
                         break;
-                    case "--source":
-                        return CliParseResult.Failure("The --source option has been replaced. Use --citygml-source.");
-                    case "--ortho-source":
-                        return CliParseResult.Failure("The --ortho-source option has been replaced. Use --geotiff-source.");
                     case "--terrain-mesh":
                         {
                             string terrainMeshValue = ReadValue(args, ref index, token);
@@ -293,10 +286,6 @@ public static class CliArgumentsParser
 
                             break;
                         }
-                    case "--local-source-path":
-                        return CliParseResult.Failure("The --local-source-path option has been replaced. Use --citygml-source.");
-                    case "--server-url":
-                        return CliParseResult.Failure("The --server-url option has been replaced. Use --citygml-source.");
                     case "--exclude-lod":
                         {
                             string excludeLodValue = ReadValue(args, ref index, token);
@@ -427,8 +416,6 @@ public static class CliArgumentsParser
                     case "--citygml-source":
                         cityGmlSourcePath = ReadValue(args, ref index, token);
                         break;
-                    case "--local-source-path":
-                        return CliParseResult.Failure("The --local-source-path option has been replaced. Use --citygml-source.");
                     case "--mesh-code":
                         meshCode = ReadValue(args, ref index, token);
                         break;
@@ -497,8 +484,6 @@ public static class CliArgumentsParser
                     case "--citygml-source":
                         cityGmlSourcePath = ReadValue(args, ref index, token);
                         break;
-                    case "--local-source-path":
-                        return CliParseResult.Failure("The --local-source-path option has been replaced. Use --citygml-source.");
                     case "--packages":
                         {
                             string packageValue = ReadValue(args, ref index, token);

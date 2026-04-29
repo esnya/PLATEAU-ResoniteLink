@@ -12,10 +12,10 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     [Fact]
     public void ClipGeneratedSurfaceToOverlaysPreservesSourceWinding()
     {
-        BootstrapParsedSurface surface = new(
+        ParsedSurface surface = new(
             PolygonId: "dem-surface",
-            Semantic: BootstrapParsedSurfaceSemantic.Ground,
-            ExteriorRing: new BootstrapParsedRing(
+            Semantic: ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new ParsedRing(
                 "ring-1",
                 [
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
@@ -38,7 +38,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 MaxLongitude: 139.0120),
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize);
 
-        (BootstrapParsedSurface clippedSurface, _) = Assert.Single(
+        (ParsedSurface clippedSurface, _) = Assert.Single(
             DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, [overlay]));
 
         double sourceSignedArea = ComputeSignedArea(surface.ExteriorRing.Vertices);
@@ -52,10 +52,10 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     [Fact]
     public void ClipGeneratedSurfaceToOverlaysPreservesAreaAcrossBoundarySplit()
     {
-        BootstrapParsedSurface surface = new(
+        ParsedSurface surface = new(
             PolygonId: "dem-surface-area",
-            Semantic: BootstrapParsedSurfaceSemantic.Ground,
-            ExteriorRing: new BootstrapParsedRing(
+            Semantic: ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new ParsedRing(
                 "ring-area",
                 [
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
@@ -83,7 +83,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize),
         ];
 
-        IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> clipped =
+        IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clipped =
             DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, overlays);
 
         Assert.Equal(2, clipped.Count);
@@ -95,10 +95,10 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     [Fact]
     public void ClipGeneratedSurfaceToOverlaysPreservesClockwiseSourceWinding()
     {
-        BootstrapParsedSurface surface = new(
+        ParsedSurface surface = new(
             PolygonId: "dem-surface-clockwise",
-            Semantic: BootstrapParsedSurfaceSemantic.Ground,
-            ExteriorRing: new BootstrapParsedRing(
+            Semantic: ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new ParsedRing(
                 "ring-clockwise",
                 [
                     new GeodeticPoint(35.0100, 139.0200, 30.0),
@@ -121,7 +121,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 MaxLongitude: 139.0120),
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize);
 
-        (BootstrapParsedSurface clippedSurface, _) = Assert.Single(
+        (ParsedSurface clippedSurface, _) = Assert.Single(
             DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, [overlay]));
 
         Assert.Equal(
@@ -133,10 +133,10 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     public void ClipGeneratedSurfaceToOverlaysRespectsOverlayBoundaryForCentimeterBoundaryOverlap()
     {
         const double boundaryLongitude = 139.0100;
-        BootstrapParsedSurface surface = new(
+        ParsedSurface surface = new(
             PolygonId: "dem-boundary-overlap",
-            Semantic: BootstrapParsedSurfaceSemantic.Ground,
-            ExteriorRing: new BootstrapParsedRing(
+            Semantic: ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new ParsedRing(
                 "ring-overlap",
                 [
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
@@ -164,7 +164,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize),
         ];
 
-        IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> clipped =
+        IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clipped =
             DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, overlays);
 
         Assert.Equal(2, clipped.Count);
@@ -179,10 +179,10 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     [Fact]
     public void ClipGeneratedSurfaceToOverlaysInterpolatesNeutralUvs()
     {
-        BootstrapParsedSurface surface = new(
+        ParsedSurface surface = new(
             PolygonId: "dem-surface-uv",
-            Semantic: BootstrapParsedSurfaceSemantic.Ground,
-            ExteriorRing: new BootstrapParsedRing(
+            Semantic: ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new ParsedRing(
                 "ring-uv",
                 [
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
@@ -210,7 +210,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 MaxLongitude: 139.0120),
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize);
 
-        (BootstrapParsedSurface clippedSurface, _) = Assert.Single(
+        (ParsedSurface clippedSurface, _) = Assert.Single(
             DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, [overlay]));
 
         Float2[] uvs = Assert.IsAssignableFrom<IReadOnlyList<Float2>>(clippedSurface.ExteriorRing.UVs).ToArray();
@@ -223,10 +223,10 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     [Fact]
     public void ClipGeneratedSurfaceToOverlaysPreservesDisconnectedConcaveIntersectionComponents()
     {
-        BootstrapParsedSurface surface = new(
+        ParsedSurface surface = new(
             PolygonId: "dem-surface-disconnected-concave",
-            Semantic: BootstrapParsedSurfaceSemantic.Ground,
-            ExteriorRing: new BootstrapParsedRing(
+            Semantic: ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new ParsedRing(
                 "ring-disconnected",
                 [
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
@@ -254,7 +254,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 MaxLongitude: 139.0080),
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize);
 
-        IReadOnlyList<(BootstrapParsedSurface Surface, TerrainTextureOverlay Overlay)> clipped = DemTerrainOverlaySurfaceClipper
+        IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clipped = DemTerrainOverlaySurfaceClipper
             .ClipGeneratedSurfaceToOverlays(surface, [overlay]);
 
         Assert.Equal(2, clipped.Count);
@@ -308,7 +308,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
         return Math.Abs(signedArea) * 0.5;
     }
 
-    private static GeographicRectangle GetSurfaceBounds(BootstrapParsedSurface surface)
+    private static GeographicRectangle GetSurfaceBounds(ParsedSurface surface)
     {
         return new GeographicRectangle(
             MinLatitude: surface.ExteriorRing.Vertices.Min(static point => point.Latitude),

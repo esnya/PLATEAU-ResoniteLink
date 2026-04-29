@@ -117,9 +117,9 @@ public static class PlateauLog
             return message;
         }
 
-        if (TryParseLegacyScopeAndLevel(message, out string? legacyScope, out PlateauLogLevel level, out string? legacyBody))
+        if (TryParseLegacyScopeAndLevel(message, out string? parsedScope, out PlateauLogLevel level, out string? parsedBody))
         {
-            return new PlateauLogEntry(legacyScope, level, legacyBody).ToString();
+            return new PlateauLogEntry(parsedScope, level, parsedBody).ToString();
         }
 
         if (message[0] != '[')
