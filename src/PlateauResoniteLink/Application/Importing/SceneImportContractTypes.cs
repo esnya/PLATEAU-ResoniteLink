@@ -156,6 +156,14 @@ public sealed record MaterialDepthOffset(
     double Factor,
     double Units);
 
+public sealed record MaterialOpticalProperties(
+    ColorRgba? DiffuseColor = null,
+    ColorRgba? EmissiveColor = null,
+    ColorRgba? SpecularColor = null,
+    double? AmbientIntensity = null,
+    double? Shininess = null,
+    double? Transparency = null);
+
 public enum MaterialReuseScope
 {
     PerObject = 0,

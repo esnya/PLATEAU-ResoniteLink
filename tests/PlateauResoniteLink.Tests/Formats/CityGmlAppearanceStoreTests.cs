@@ -69,6 +69,7 @@ public sealed class CityGmlAppearanceStoreTests
         CityGmlResolvedAppearance appearance = store.Resolve("poly-1");
 
         Assert.Equal(0.2, appearance.BaseColor.R, 6);
+        Assert.Equal(0.85, appearance.BaseColor.A, 6);
         Assert.NotNull(appearance.TexturePayload);
         Assert.NotNull(appearance.ParameterizedTexture);
         Assert.Equal("image/png", appearance.ParameterizedTexture!.MimeType);

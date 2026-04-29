@@ -28,6 +28,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
     private readonly object referenceSystemGate = new();
     private readonly object sceneDemTerrainTextureOverlayGate = new();
     private readonly ConcurrentDictionary<string, Task<TerrainTextureOverlay[]>> demTerrainTextureOverlayTasks = new(StringComparer.Ordinal);
+    private readonly X3DMaterialWarningStatistics x3DMaterialWarningStatistics = new();
     private readonly MeshCodeBounds[] requestedMeshAreas;
     private readonly string[] selectedMeshCodes;
     private readonly TerrainTextureOverlay[] bootstrapTerrainTextureOverlays;
@@ -106,6 +107,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         }
 
         await completionTask;
+        x3DMaterialWarningStatistics.ReportFinal(ReportProgress);
     }
 
     private LocalCartesian? CreateGlobalCartesian(CoordinateReferenceSystem referenceSystem)
@@ -207,11 +209,14 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
             cancellationToken);
         bool isDemSourceFile = string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
         List<BootstrapParsedCityObject> parsedDemCityObjects = [];
+        X3DMaterialWarningStatistics fileWarningStatistics = new();
 
         await foreach (BootstrapParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
             parsedCount++;
+            fileWarningStatistics.Add(parsedCityObject);
+            x3DMaterialWarningStatistics.Add(parsedCityObject);
             resolvedReferenceSystem ??= ResolveReferenceSystem(parsedCityObject.ReferenceSystem);
             globalCartesian ??= CreateGlobalCartesian(resolvedReferenceSystem);
             if (isDemSourceFile)
@@ -265,6 +270,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         }
 
         fileStopwatch.Stop();
+        fileWarningStatistics.ReportFile(sourceFile.SourceFile.RelativePath, progressReporter);
         progressReporter?.Invoke(
             PlateauLog.Info(
                 "import",
@@ -568,5 +574,161 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
 
         throw new PlateauImportValidationException(
             [$"Mixed CityGML coordinate reference systems are not supported. Found '{expectedReferenceSystem.SrsName}' and '{actualReferenceSystem.SrsName}'."]);
+    }
+
+    private sealed class X3DMaterialWarningStatistics
+    {
+        private readonly object gate = new();
+        private int materialSurfaceCount;
+        private int unsupportedMaterialSurfaceCount;
+        private int nonDefaultShininessCount;
+        private int nonDefaultSpecularColorCount;
+        private int specularOnlyCount;
+        private int shininessOnlyCount;
+        private int specularWithShininessCount;
+        private int emissiveColorCount;
+        private int ambientIntensityCount;
+
+        public void Add(BootstrapParsedCityObject cityObject)
+        {
+            ArgumentNullException.ThrowIfNull(cityObject);
+
+            foreach (BootstrapParsedSurface surface in cityObject.Surfaces)
+            {
+                MaterialOpticalProperties? opticalProperties = surface.OpticalProperties;
+                if (opticalProperties is null)
+                {
+                    continue;
+                }
+
+                lock (gate)
+                {
+                    materialSurfaceCount++;
+                    bool hasNonDefaultShininess = HasNonDefaultShininess(opticalProperties.Shininess);
+                    bool hasNonDefaultSpecularColor = HasNonDefaultSpecularColor(opticalProperties.SpecularColor);
+                    bool hasNonDefaultEmissiveColor = HasNonDefaultEmissiveColor(opticalProperties.EmissiveColor);
+                    bool hasNonDefaultAmbientIntensity =
+                        HasNonDefaultAmbientIntensity(opticalProperties.AmbientIntensity);
+                    if (hasNonDefaultShininess)
+                    {
+                        nonDefaultShininessCount++;
+                    }
+
+                    if (hasNonDefaultSpecularColor)
+                    {
+                        nonDefaultSpecularColorCount++;
+                    }
+
+                    if (hasNonDefaultSpecularColor && hasNonDefaultShininess)
+                    {
+                        specularWithShininessCount++;
+                    }
+                    else if (hasNonDefaultSpecularColor)
+                    {
+                        specularOnlyCount++;
+                    }
+                    else if (hasNonDefaultShininess)
+                    {
+                        shininessOnlyCount++;
+                    }
+
+                    if (hasNonDefaultEmissiveColor)
+                    {
+                        emissiveColorCount++;
+                    }
+
+                    if (hasNonDefaultAmbientIntensity)
+                    {
+                        ambientIntensityCount++;
+                    }
+
+                    if (hasNonDefaultShininess
+                        || hasNonDefaultSpecularColor
+                        || hasNonDefaultEmissiveColor
+                        || hasNonDefaultAmbientIntensity)
+                    {
+                        unsupportedMaterialSurfaceCount++;
+                    }
+                }
+            }
+        }
+
+        public void ReportFile(string sourceFileRelativePath, Action<string>? progressReporter)
+        {
+            if (!HasUnsupportedValues)
+            {
+                return;
+            }
+
+            progressReporter?.Invoke(
+                PlateauLog.Warning(
+                    "import",
+                    $"CityGML file '{sourceFileRelativePath}' contains unsupported X3DMaterial optical attributes left unprojected "
+                    + CreateSummarySuffix()));
+        }
+
+        public void ReportFinal(Action<string> progressReporter)
+        {
+            if (!HasUnsupportedValues)
+            {
+                return;
+            }
+
+            progressReporter(
+                PlateauLog.Warning(
+                    "import",
+                    "Unsupported X3DMaterial optical attribute summary: values were parsed for diagnostics but not projected to Resonite materials "
+                    + CreateSummarySuffix()));
+        }
+
+        private bool HasUnsupportedValues =>
+            nonDefaultShininessCount > 0
+            || nonDefaultSpecularColorCount > 0
+            || emissiveColorCount > 0
+            || ambientIntensityCount > 0;
+
+        private string CreateSummarySuffix()
+        {
+            lock (gate)
+            {
+                return string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"(x3d_material_surfaces={materialSurfaceCount}, unsupported_x3d_material_surfaces={unsupportedMaterialSurfaceCount}, shininess_nonzero={nonDefaultShininessCount}, specular_nondefault={nonDefaultSpecularColorCount}, specular_nondefault_only={specularOnlyCount}, shininess_nonzero_only={shininessOnlyCount}, specular_nondefault_with_shininess={specularWithShininessCount}, emissive_nonzero={emissiveColorCount}, ambient_nonzero={ambientIntensityCount}).");
+            }
+        }
+
+        private static bool HasNonDefaultShininess(double? shininess)
+        {
+            return shininess.HasValue && Math.Abs(Math.Clamp(shininess.Value, 0.0, 1.0)) > 1e-9;
+        }
+
+        private static bool HasNonDefaultAmbientIntensity(double? ambientIntensity)
+        {
+            return ambientIntensity.HasValue && Math.Abs(Math.Clamp(ambientIntensity.Value, 0.0, 1.0)) > 1e-9;
+        }
+
+        private static bool HasNonDefaultEmissiveColor(ColorRgba? emissiveColor)
+        {
+            if (emissiveColor is null)
+            {
+                return false;
+            }
+
+            return Math.Abs(emissiveColor.R) > 1e-6
+                || Math.Abs(emissiveColor.G) > 1e-6
+                || Math.Abs(emissiveColor.B) > 1e-6;
+        }
+
+        private static bool HasNonDefaultSpecularColor(ColorRgba? specularColor)
+        {
+            if (specularColor is null)
+            {
+                return false;
+            }
+
+            return Math.Abs(specularColor.R - 0.4) > 1e-6
+                || Math.Abs(specularColor.G - 0.4) > 1e-6
+                || Math.Abs(specularColor.B - 0.4) > 1e-6;
+        }
     }
 }
