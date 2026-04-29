@@ -45,13 +45,14 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
         string completionMeshCode = ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(setupInfo);
         string datasetRootName = $"PLATEAU {setupInfo.Dataset}";
-        Slot rootSnapshot = await setupClient.GetSlotAsync(new ResoniteTransportSlotLocator(ResoniteSlotLocator.Root.Value), 4, cancellationToken)
+        Slot rootSnapshot = await setupClient.GetSlotAsync(new ResoniteTransportSlotLocator(ResoniteSlotLocator.Root.Value), 1, cancellationToken)
             ?? throw new InvalidOperationException("ResoniteLink did not surface the Root slot during bootstrap.");
         ResoniteSceneSlotSnapshot rootSlotSnapshot = new(rootSnapshot);
         Slot? sharedAssetsSlot = GetReusableChildSlot(rootSlotSnapshot, SharedAssetsRootName, "Root");
-        Slot? sharedCommonMaterialsSlot = sharedAssetsSlot is null
-            ? null
-            : GetReusableChildSlot(new ResoniteSceneSlotSnapshot(sharedAssetsSlot), SharedCommonMaterialsRootName, sharedAssetsSlot.ID!);
+        Slot? sharedCommonMaterialsSlot = await TryGetExistingSharedCommonMaterialsSlotAsync(
+            setupClient,
+            sharedAssetsSlot,
+            cancellationToken);
         CreatedSlot? existingDatasetRoot = await sceneSlotLocator.TryGetDatasetRootAsync(
             setupClient,
             datasetRootName,
@@ -221,6 +222,37 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         return lookup.State == ResoniteSceneChildLookupState.FoundWithId
             ? lookup.Slot
             : null;
+    }
+
+    private static async Task<Slot?> TryGetExistingSharedCommonMaterialsSlotAsync(
+        IResoniteLinkClient setupClient,
+        Slot? sharedAssetsSlot,
+        CancellationToken cancellationToken)
+    {
+        if (sharedAssetsSlot?.ID is null)
+        {
+            return null;
+        }
+
+        Slot? sharedAssetsSnapshot = await setupClient.GetSlotAsync(
+            new ResoniteTransportSlotLocator(sharedAssetsSlot.ID),
+            1,
+            cancellationToken);
+        Slot? commonMaterialsSlot = sharedAssetsSnapshot is null
+            ? null
+            : GetReusableChildSlot(
+                new ResoniteSceneSlotSnapshot(sharedAssetsSnapshot),
+                SharedCommonMaterialsRootName,
+                sharedAssetsSlot.ID);
+        if (commonMaterialsSlot?.ID is null)
+        {
+            return commonMaterialsSlot;
+        }
+
+        return await setupClient.GetSlotAsync(
+            new ResoniteTransportSlotLocator(commonMaterialsSlot.ID),
+            2,
+            cancellationToken);
     }
 
     private async Task<ResoniteSceneBootstrapState> CreateInitialBootstrapStateAsync(

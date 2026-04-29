@@ -341,6 +341,48 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
+    public async Task BuildAsyncReadsExistingSharedMaterialAssetsWithTargetedGetSlotDepth()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        string emptyCurrentMaterialSlotId = await SeedEmptyCurrentGenericSharedMaterialSlotAsync(client);
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [
+                CreatePayloadTriangleCityObject(
+                    "targeted-shared-material-read",
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/targeted-shared-material-read.png")),
+            ],
+            client,
+            enableMeshBake: false);
+
+        string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject targeted-shared-material-read");
+        AddComponent materialComponentRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, rendererMaterialId, StringComparison.Ordinal));
+        Assert.Equal(emptyCurrentMaterialSlotId, materialComponentRequest.ContainerSlotId);
+        SlotGetRequest[] rootGetSlotCalls = client.SlotGetRequests
+            .Where(static request => string.Equals(request.SlotPath, "Root", StringComparison.Ordinal))
+            .ToArray();
+        SlotGetRequest[] sharedAssetsGetSlotCalls = client.SlotGetRequests
+            .Where(static request => string.Equals(request.SlotPath, "PLATEAU Shared Assets", StringComparison.Ordinal))
+            .ToArray();
+        SlotGetRequest[] commonMaterialsGetSlotCalls = client.SlotGetRequests
+            .Where(static request => string.Equals(request.SlotPath, "PLATEAU Shared Assets/Common Materials", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.NotEmpty(rootGetSlotCalls);
+        Assert.NotEmpty(sharedAssetsGetSlotCalls);
+        Assert.NotEmpty(commonMaterialsGetSlotCalls);
+        Assert.All(rootGetSlotCalls, request => Assert.Equal(1, request.Depth));
+        Assert.All(sharedAssetsGetSlotCalls, request => Assert.Equal(1, request.Depth));
+        Assert.All(commonMaterialsGetSlotCalls, request => Assert.Equal(2, request.Depth));
+    }
+
+    [Fact]
     public async Task BuildAsyncReusesSharedCommonMaterialAcrossRunsForPayloadAlbedoOverridesWithDifferentUvTransforms()
     {
         using TemporaryDirectory datasetDirectory = new();

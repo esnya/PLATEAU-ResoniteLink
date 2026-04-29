@@ -514,6 +514,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 
 }
 
+internal sealed record SlotGetRequest(string SlotId, string SlotPath, int Depth);
+
 internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 {
     private readonly object gate = new();
@@ -539,6 +541,8 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
     public Dictionary<string, Slot> SlotsById { get; } = new(StringComparer.Ordinal);
 
     public Dictionary<string, string> SlotPaths { get; } = new(StringComparer.Ordinal);
+
+    public List<SlotGetRequest> SlotGetRequests { get; } = [];
 
     public List<string> OperationNames { get; } = [];
 
@@ -682,6 +686,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
             string observedSlot = SlotPaths.TryGetValue(slot.Value, out string? path)
                 ? path
                 : slot.Value;
+            SlotGetRequests.Add(new SlotGetRequest(slot.Value, observedSlot, depth));
             OperationNames.Add($"GetSlot:{observedSlot}");
         }
 
