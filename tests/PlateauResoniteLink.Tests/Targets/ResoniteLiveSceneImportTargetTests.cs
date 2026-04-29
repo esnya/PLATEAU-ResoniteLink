@@ -95,10 +95,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)).Data;
 
-        Assert.DoesNotContain(
+        AddComponent sharedMaterialOperation = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal)
-                && client.SlotPaths[request.ContainerSlotId].Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal));
+                && client.SlotPaths[request.ContainerSlotId].Replace('\\', '/').Contains(
+                    "PLATEAU Shared Assets/Common Materials/generic/shared_uv_generic",
+                    StringComparison.Ordinal));
+        Assert.DoesNotContain("AlbedoTexture", sharedMaterialOperation.Data.Members.Keys);
         Assert.Equal("[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", propertyBlock.ComponentType);
         string propertyBlockReferenceId = Assert.IsType<Reference>(Assert.Single(propertyBlocks.Elements)).TargetID;
         AddComponent plannedPropertyBlock = Assert.Single(
@@ -115,7 +118,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 && string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
         Component overrideTextureComponent = overrideTextureOperation.Data;
         Assert.Equal("[FrooxEngine]FrooxEngine.StaticTexture2D", overrideTextureComponent.ComponentType);
-        Assert.Contains("/Terrain Textures/53394525", client.SlotPaths[overrideTextureOperation.ContainerSlotId], StringComparison.Ordinal);
+        Assert.Contains(
+            $"{DatasetName}/Assets/Terrain Textures/{MeshCode}",
+            client.SlotPaths[overrideTextureOperation.ContainerSlotId].Replace('\\', '/'),
+            StringComparison.Ordinal);
         Field_Uri textureUrl = Assert.IsType<Field_Uri>(overrideTextureComponent.Members["URL"]);
         Assert.StartsWith("resdb:///texture/", textureUrl.Value.ToString(), StringComparison.Ordinal);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(overrideTextureComponent.Members["WrapModeU"]).Value);
@@ -123,10 +129,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.DoesNotContain("PreferredProfile", overrideTextureComponent.Members.Keys);
         ImportMeshRawData importedMesh = Assert.Single(client.ImportedMeshes);
         Assert.Equal(3, importedMesh.VertexCount);
-        Assert.Equal((float)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth), importedMesh.AccessUV_2D(0)[1].x, 6);
-        Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[1].y, 6);
-        Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[2].x, 6);
-        Assert.Equal((float)layout.CropHeight / RoundUpToPowerOfTwo(layout.CropHeight), importedMesh.AccessUV_2D(0)[2].y, 6);
+        int canvasWidth = RoundUpToPowerOfTwo(layout.CropWidth);
+        int canvasHeight = RoundUpToPowerOfTwo(layout.CropHeight);
+        float occupiedOffsetX = ((canvasWidth - layout.CropWidth) / 2.0f) / canvasWidth;
+        int drawOffsetY = (canvasHeight - layout.CropHeight) / 2;
+        float occupiedOffsetY = (float)(canvasHeight - (drawOffsetY + layout.CropHeight)) / canvasHeight;
+        Assert.Equal(occupiedOffsetX + ((float)layout.CropWidth / canvasWidth), importedMesh.AccessUV_2D(0)[1].x, 6);
+        Assert.Equal(occupiedOffsetY, importedMesh.AccessUV_2D(0)[1].y, 6);
+        Assert.Equal(occupiedOffsetX, importedMesh.AccessUV_2D(0)[2].x, 6);
+        Assert.Equal(occupiedOffsetY + ((float)layout.CropHeight / canvasHeight), importedMesh.AccessUV_2D(0)[2].y, 6);
     }
 
     [Fact]
@@ -176,7 +187,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         AddComponent sharedTexture = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
-                && client.SlotPaths[request.ContainerSlotId].Contains("/Terrain Textures/53394525", StringComparison.Ordinal));
+                && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
         string sharedTextureId = sharedTexture.Data.ID!;
         string[] propertyBlockTextureIds = client.AddedComponents
             .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))
@@ -233,13 +244,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
 
         AddComponent[] sharedTextures = client.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
-                && client.SlotPaths[request.ContainerSlotId].Contains("/Terrain Textures/", StringComparison.Ordinal))
+                && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/", StringComparison.Ordinal))
             .ToArray();
 
         Assert.Equal(2, client.ImportedRawTextures.Count);
         Assert.Equal(2, sharedTextures.Length);
-        Assert.Contains(sharedTextures, request => client.SlotPaths[request.ContainerSlotId].Contains("/Terrain Textures/53394525", StringComparison.Ordinal));
-        Assert.Contains(sharedTextures, request => client.SlotPaths[request.ContainerSlotId].Contains("/Terrain Textures/53394526", StringComparison.Ordinal));
+        Assert.Contains(sharedTextures, request => client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
+        Assert.Contains(sharedTextures, request => client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394526", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -280,7 +291,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         AddComponent sharedTexture = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
-                && client.SlotPaths[request.ContainerSlotId].Contains("/Terrain Textures/53394525", StringComparison.Ordinal));
+                && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
         int addedComponentCountBeforeDedicatedRun = client.AddedComponents.Count;
         ResoniteConstructionCityObject dedicatedTerrain = sharedTerrain with
         {
@@ -309,7 +320,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.DoesNotContain(
             client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
-                && !client.SlotPaths[request.ContainerSlotId].Contains("/Terrain Textures/", StringComparison.Ordinal));
+                && !client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -399,7 +410,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncDoesNotReuseExistingGenericCommonMaterialForTerrainOverlayMaterial()
+    public async Task BuildAsyncReusesExistingGenericCommonMaterialForTerrainOverlayAlbedoOnlyMaterial()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
@@ -465,11 +476,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
             .Data;
         string materialId = Assert.IsType<Reference>(Assert.Single(Assert.IsType<SyncList>(meshRenderer.Members["Materials"]).Elements)).TargetID;
 
-        Assert.NotEqual(seededCommonMaterial.ComponentId, materialId);
-        Assert.DoesNotContain(
+        Assert.Equal(seededCommonMaterial.ComponentId, materialId);
+        AddComponent propertyBlock = Assert.Single(
             client.AddedComponents,
-            request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal)
-                && client.SlotPaths[request.ContainerSlotId].Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal));
+            static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+        AddComponent sharedTexture = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
+        Assert.Equal(sharedTexture.Data.ID, Assert.IsType<Reference>(propertyBlock.Data.Members["Texture"]).TargetID);
     }
 
     [Fact]

@@ -389,7 +389,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_DoesNotBootstrapTerrainOverlayAsSharedCommonMaterial()
+    public async Task ExecuteAsync_BootstrapsTerrainOverlayAsSharedGenericAlbedoOnlyMaterial()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -451,12 +451,12 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 CreateDemCityObject("dem-bootstrap-generic", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
         Assert.Equal(1, executionResult.ProcessedCityObjectCount);
-        Assert.DoesNotContain(
-            routedClient.SlotPaths.Values,
-            path => string.Equals(
-                path.Replace('\\', '/'),
-                "PLATEAU Shared Assets/Common Materials/generic/shared_uv_generic",
-                StringComparison.Ordinal));
+        AddComponent sharedGenericMaterial = Assert.Single(
+            routedClient.AddedComponents,
+            request => request.Data.ComponentType == "[FrooxEngine]FrooxEngine.PBS_Metallic"
+                && routedClient.SlotPaths[request.ContainerSlotId].Replace('\\', '/') ==
+                    "PLATEAU Shared Assets/Common Materials/generic/shared_uv_generic");
+        Assert.DoesNotContain("AlbedoTexture", sharedGenericMaterial.Data.Members.Keys);
     }
 
     [Fact]

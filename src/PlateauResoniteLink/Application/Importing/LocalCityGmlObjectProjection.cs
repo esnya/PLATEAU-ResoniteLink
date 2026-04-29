@@ -1381,7 +1381,7 @@ internal static partial class LocalCityGmlObjectProjection
                     MaterialProjection.Uv,
                     Family: null,
                     TextureScale: null,
-                    ReuseScope: MaterialReuseScope.PerObject,
+                    ReuseScope: MaterialReuseScope.Shared,
                     TerrainOverlay: demTerrainTextureOverlay),
                 DepthOffset: null);
         }
@@ -1486,7 +1486,7 @@ internal static partial class LocalCityGmlObjectProjection
                     MaterialProjection.Uv,
                     Family: null,
                     TextureScale: null,
-                    ReuseScope: MaterialReuseScope.PerObject,
+                    ReuseScope: MaterialReuseScope.Shared,
                     TerrainOverlay: demTerrainTextureOverlay),
                 DepthOffset: null);
         }
@@ -1595,7 +1595,7 @@ internal static partial class LocalCityGmlObjectProjection
             MaterialProjection.Uv,
             Family: null,
             TextureScale: null,
-            ReuseScope: MaterialReuseScope.PerObject,
+            ReuseScope: MaterialReuseScope.Shared,
             TerrainOverlay: demTerrainTextureOverlay);
     }
 

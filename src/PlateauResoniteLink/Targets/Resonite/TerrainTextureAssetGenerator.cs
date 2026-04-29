@@ -280,8 +280,8 @@ internal sealed class TerrainTextureAssetGenerator(
         }
 
         using Image<Rgba32> canvasImage = new(canvasWidth, canvasHeight, DefaultDemGroundFillColor);
-        int drawOffsetX = 0;
-        int drawOffsetY = canvasHeight - image.Height;
+        int drawOffsetX = (canvasWidth - image.Width) / 2;
+        int drawOffsetY = (canvasHeight - image.Height) / 2;
         canvasImage.Mutate(context => context.DrawImage(
             image,
             new Point(drawOffsetX, drawOffsetY),

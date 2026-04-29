@@ -288,7 +288,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsTerrainOverlayMainTextureOverride()
+    public void TryNormalizeSharedMaterialBinding_AllowsTerrainOverlayAsGenericSharedMaterial()
     {
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         ResoniteMaterialBinding material = new(
@@ -303,16 +303,60 @@ public sealed class ResoniteSceneMaterialConventionsTests
             TerrainOverlay: overlay,
             TerrainMeshCode: "53394525",
             Family: null,
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+            AssetScope: ResoniteMaterialAssetScope.Common);
 
         bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
             material,
             out ResoniteMaterialBinding normalizedMaterial,
             out string familySlotName);
 
-        Assert.False(normalized);
-        Assert.Equal(string.Empty, familySlotName);
-        Assert.Same(material, normalizedMaterial);
+        Assert.True(normalized);
+        Assert.Equal("generic", familySlotName);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
+        Assert.Equal("shared-generic-uv-scale-none-offset-none-depth-none", normalizedMaterial.MaterialKey);
+        Assert.Null(normalizedMaterial.TexturePayload);
+        Assert.Null(normalizedMaterial.TerrainOverlay);
+        Assert.Null(normalizedMaterial.TerrainMeshCode);
+    }
+
+    [Fact]
+    public void TryNormalizeSharedMaterialBinding_UsesSameGenericSharedMaterialForPayloadAndTerrainOverlayAlbedoOnly()
+    {
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        ResoniteMaterialBinding payloadMaterial = new(
+            MaterialKey: "payload-albedo-only",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/albedo-only.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            AssetScope: ResoniteMaterialAssetScope.Common);
+        ResoniteMaterialBinding terrainMaterial = payloadMaterial with
+        {
+            MaterialKey = "terrain-overlay-albedo-only",
+            TexturePayload = null,
+            TerrainOverlay = overlay,
+            TerrainMeshCode = "53394525",
+        };
+
+        bool payloadNormalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            payloadMaterial,
+            out ResoniteMaterialBinding normalizedPayloadMaterial,
+            out string payloadFamilySlotName);
+        bool terrainNormalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            terrainMaterial,
+            out ResoniteMaterialBinding normalizedTerrainMaterial,
+            out string terrainFamilySlotName);
+
+        Assert.True(payloadNormalized);
+        Assert.True(terrainNormalized);
+        Assert.Equal(payloadFamilySlotName, terrainFamilySlotName);
+        Assert.Equal("generic", terrainFamilySlotName);
+        Assert.Equal(normalizedPayloadMaterial.MaterialKey, normalizedTerrainMaterial.MaterialKey);
+        Assert.Null(normalizedPayloadMaterial.TexturePayload);
+        Assert.Null(normalizedTerrainMaterial.TerrainOverlay);
     }
 
     [Fact]

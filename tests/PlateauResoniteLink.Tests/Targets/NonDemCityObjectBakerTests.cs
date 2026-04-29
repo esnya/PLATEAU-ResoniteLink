@@ -722,6 +722,53 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task TryBufferAsyncPreservesTerrainOverlayAlbedoOnlyAsSharedGenericCommonMaterial()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        ResoniteConstructionCityObject firstCityObject = CreateLod2Building(
+            "lod1-terrain-overlay",
+            CreatePayload("textures/unused.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            0,
+            "unit-a") with
+        {
+            LodLevel = 1,
+            Materials =
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "terrain-overlay-source-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    TerrainOverlay: overlay,
+                    TerrainMeshCode: "53394525"),
+            ],
+        };
+        ResoniteConstructionCityObject secondCityObject = firstCityObject with
+        {
+            SlotKey = "lod1-terrain-overlay-b",
+            DisplayName = "lod1-terrain-overlay-b",
+            Transform = new ResoniteTransform(new ResoniteFloat3(2.0, 0.0, 0.0)),
+        };
+
+        await AssertBufferedAsync(baker, firstCityObject);
+        await AssertBufferedAsync(baker, secondCityObject);
+
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding material = Assert.Single(baked.Materials);
+        Assert.Equal("shared-generic-uv-scale-none-offset-none-depth-none", material.MaterialKey);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
+        Assert.Null(material.TexturePayload);
+        Assert.Null(material.TerrainOverlay);
+        Assert.Null(material.TerrainMeshCode);
+    }
+
+    [Fact]
     public async Task TryBufferAsyncSkipsDemCityObjectsWithoutNormalizingDynamicUvTransform()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
@@ -922,6 +969,21 @@ public sealed class NonDemCityObjectBakerTests
                     SubmeshIndices: [0]),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
+    }
+
+    private static TerrainTextureOverlay CreateThirdMeshOverlay(string meshCode)
+    {
+        Assert.True(PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds));
+        return new TerrainTextureOverlay(
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 17,
+            GeographicBounds: new GeographicRectangle(
+                bounds.SouthLatitude,
+                bounds.NorthLatitude,
+                bounds.WestLongitude,
+                bounds.EastLongitude),
+            MaxTextureSize: 4096);
     }
 
 

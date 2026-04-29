@@ -390,9 +390,10 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             texture.TextureImport.RawRgba32Bytes,
             texture.TextureImport.Width,
             texture.TextureImport.Height);
-        int occupiedTop = outputImage.Height - layout.CropHeight;
+        int occupiedLeft = (outputImage.Width - layout.CropWidth) / 2;
+        int occupiedTop = (outputImage.Height - layout.CropHeight) / 2;
         Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 0]);
-        Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[0, occupiedTop]);
+        Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[occupiedLeft, occupiedTop]);
     }
 
     [Fact]

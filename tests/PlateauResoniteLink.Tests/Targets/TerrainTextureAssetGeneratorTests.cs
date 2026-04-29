@@ -43,9 +43,15 @@ public sealed class TerrainTextureAssetGeneratorTests
         using Image<Rgba32> image = LoadImage(firstTexture.TextureImport);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), image.Width);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), image.Height);
-        int occupiedTop = image.Height - layout.CropHeight;
-        AssertColor(image[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
-        AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
+        int occupiedLeft = (image.Width - layout.CropWidth) / 2;
+        int occupiedTop = (image.Height - layout.CropHeight) / 2;
+        Assert.Equal(
+            new ScalarPair(
+                (double)occupiedLeft / image.Width,
+                (double)(image.Height - (occupiedTop + layout.CropHeight)) / image.Height),
+            firstTexture.OccupiedUvRect.OffsetValue);
+        AssertColor(image[occupiedLeft + (layout.CropWidth / 4), occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
+        AssertColor(image[occupiedLeft + ((layout.CropWidth * 3) / 4), occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
     }
 
     [Fact]
@@ -99,16 +105,17 @@ public sealed class TerrainTextureAssetGeneratorTests
                 (double)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth),
                 (double)layout.CropHeight / RoundUpToPowerOfTwo(layout.CropHeight)),
             texture.OccupiedUvRect.ScaleValue);
+        int occupiedLeft = (image.Width - layout.CropWidth) / 2;
+        int occupiedTop = (image.Height - layout.CropHeight) / 2;
         Assert.Equal(
             new ScalarPair(
-                0.0,
-                0.0),
+                (double)occupiedLeft / image.Width,
+                (double)(image.Height - (occupiedTop + layout.CropHeight)) / image.Height),
             texture.OccupiedUvRect.OffsetValue);
-        int occupiedTop = image.Height - layout.CropHeight;
         Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, image[0, 0]);
-        AssertColor(image[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
-        AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
-        Assert.True(occupiedTop > 0);
+        AssertColor(image[occupiedLeft + (layout.CropWidth / 4), occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
+        AssertColor(image[occupiedLeft + ((layout.CropWidth * 3) / 4), occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
+        Assert.True(occupiedLeft > 0 || occupiedTop > 0);
     }
 
     [Fact]
@@ -155,11 +162,12 @@ public sealed class TerrainTextureAssetGeneratorTests
         using Image<Rgba32> image = LoadImage(texture.TextureImport);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), image.Width);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), image.Height);
-        int occupiedTop = image.Height - layout.CropHeight;
-        AssertColor(image[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 4)], 255, 0, 0);
-        AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 4)], 0, 255, 0);
-        AssertColor(image[layout.CropWidth / 4, occupiedTop + ((layout.CropHeight * 3) / 4)], 0, 0, 255);
-        AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + ((layout.CropHeight * 3) / 4)], 255, 255, 0);
+        int occupiedLeft = (image.Width - layout.CropWidth) / 2;
+        int occupiedTop = (image.Height - layout.CropHeight) / 2;
+        AssertColor(image[occupiedLeft + (layout.CropWidth / 4), occupiedTop + (layout.CropHeight / 4)], 255, 0, 0);
+        AssertColor(image[occupiedLeft + ((layout.CropWidth * 3) / 4), occupiedTop + (layout.CropHeight / 4)], 0, 255, 0);
+        AssertColor(image[occupiedLeft + (layout.CropWidth / 4), occupiedTop + ((layout.CropHeight * 3) / 4)], 0, 0, 255);
+        AssertColor(image[occupiedLeft + ((layout.CropWidth * 3) / 4), occupiedTop + ((layout.CropHeight * 3) / 4)], 255, 255, 0);
     }
 
     [Fact]

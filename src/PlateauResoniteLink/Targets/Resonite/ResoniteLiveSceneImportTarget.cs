@@ -262,6 +262,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         LiveSendRunContext context = new(
             runPlan,
             bootstrapState.DatasetRootSlot,
+            bootstrapState.DatasetAssetsRootSlot,
             bootstrapState.CommonAssetsRootSlot,
             cityObjectBaker);
         LiveSendRunState state = new()
@@ -1436,20 +1437,20 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     {
         return state.TerrainTextures.AssetsByMeshCode.GetOrCreateAsync(
             meshCode,
-            () => EnsureSharedTerrainTextureAssetCoreAsync(importClient, state.Context.DatasetRootSlot, meshCode, textureImport, cancellationToken),
+            () => EnsureSharedTerrainTextureAssetCoreAsync(importClient, state.Context.DatasetAssetsRootSlot, meshCode, textureImport, cancellationToken),
             cancellationToken);
     }
 
     private async Task<SharedTerrainTextureAsset> EnsureSharedTerrainTextureAssetCoreAsync(
         IResoniteLinkClient importClient,
-        CreatedSlot datasetRootSlot,
+        CreatedSlot datasetAssetsRootSlot,
         string meshCode,
         ResoniteTextureImport textureImport,
         CancellationToken cancellationToken)
     {
         CreatedSlot terrainTexturesRoot = await EnsureTerrainTextureChildSlotAsync(
             importClient,
-            datasetRootSlot.Locator,
+            datasetAssetsRootSlot.Locator,
             "Terrain Textures",
             cancellationToken);
         CreatedSlot meshSlot = await EnsureTerrainTextureChildSlotAsync(

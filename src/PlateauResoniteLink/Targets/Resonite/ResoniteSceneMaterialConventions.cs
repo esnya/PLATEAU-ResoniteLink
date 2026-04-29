@@ -221,7 +221,7 @@ internal static class ResoniteSceneMaterialConventions
             return false;
         }
 
-        if (material.TerrainOverlay is not null)
+        if (material.TerrainOverlay is not null && !HasValidTerrainTextureMeshCode(material))
         {
             return false;
         }
@@ -258,8 +258,7 @@ internal static class ResoniteSceneMaterialConventions
         }
 
         if (TryNormalizeSharedMaterialBinding(material, out ResoniteMaterialBinding normalizedSharedMaterial, out _)
-            && material.TexturePayload is null
-            && material.TerrainOverlay is null)
+            && material.TexturePayload is null)
         {
             return normalizedSharedMaterial with
             {
@@ -391,8 +390,9 @@ internal static class ResoniteSceneMaterialConventions
             && material.Projection == ResoniteMaterialProjection.Uv
             && ResoniteMaterialSharing.IsWhiteBaseColor(material.BaseColor)
             && string.IsNullOrWhiteSpace(material.Family)
-            && material.TexturePayload is null
-            && material.TerrainOverlay is null;
+            && material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
+            && (material.TerrainOverlay is null || HasValidTerrainTextureMeshCode(material))
+            && (material.TerrainOverlay is null || !HasEffectiveGenericTextureTransform(material));
     }
 
     private static string CreateCompactColorSuffix(ResoniteColor color)
@@ -628,12 +628,13 @@ internal static class ResoniteSceneMaterialConventions
                 material.DepthOffset),
             BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             TexturePayload = null,
-            TerrainOverlay = material.TerrainOverlay,
+            TerrainOverlay = null,
             TextureSourceKind = ResoniteTextureSourceKind.Dataset,
             TextureScale = normalizedTextureScale,
             TextureOffset = normalizedTextureOffset,
             AssetScope = ResoniteMaterialAssetScope.Common,
             BundledVariantIndex = null,
+            TerrainMeshCode = null,
         };
     }
 
