@@ -640,7 +640,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             PreparedCityObject preparedCityObject = await AwaitWithSlowCityObjectWarningAsync(
                 CreatePreparationTask(state, queuedCityObject.CityObject, cancellationToken),
                 cancellationToken);
-            await BuildPreparedCityObjectAsync(state, queuedCityObject, preparedCityObject, cancellationToken);
+            await ImportPreparedCityObjectAsync(state, queuedCityObject, preparedCityObject, cancellationToken);
 
             int processedCount = Interlocked.Increment(ref state.Progress.ProcessedCityObjectCount);
             ReportProgress(
@@ -1196,7 +1196,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 TerrainOverlay: null));
     }
 
-    private async Task BuildPreparedCityObjectAsync(
+    private async Task ImportPreparedCityObjectAsync(
         LiveSendRunState state,
         QueuedCityObject queuedCityObject,
         PreparedCityObject preparedCityObject,
@@ -1205,7 +1205,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
         using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = Diagnostics.BeginCityObjectSend(cityObject.PackageName);
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-        ReportBuildStep(cityObject, "Creating object slot hierarchy.");
+        ReportImportStep(cityObject, "Creating object slot hierarchy.");
         Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
         ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = await AwaitWithSlowCityObjectWarningAsync(
             queuedCityObject.ObjectHierarchyTask,
@@ -1257,7 +1257,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             plannedMaterials = await materialPlanningTask;
             materialStopwatch.Stop();
 
-            ReportBuildStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
+            ReportImportStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
             plannedGeometryAsset = await geometryPlanningTask;
             geometryStopwatch.Stop();
         }
@@ -1282,7 +1282,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 cityObject.CollisionEnabled));
         PlannedBatchEmission batchEmission = batchEmissionPlanner.Create(objectSlots, emissionPlan);
 
-        ReportBuildStep(cityObject, "Creating object-scoped DataModel batch.");
+        ReportImportStep(cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
         await batchEmitter.ExecuteAsync(
             routedClient,
@@ -1292,7 +1292,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             cancellationToken);
         batchStopwatch.Stop();
 
-        ReportBuildStep(cityObject, "Live build completed.");
+        ReportImportStep(cityObject, "Live import completed.");
         cityObjectStopwatch.Stop();
         ReportProgress(
             PlateauLog.Debug(
@@ -1304,10 +1304,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 + $"batch_s={batchStopwatch.Elapsed.TotalSeconds:F3} "
                 + $"total_send_s={cityObjectStopwatch.Elapsed.TotalSeconds:F3}."));
         sendScope.MarkSent();
-        if (Interlocked.CompareExchange(ref state.Progress.FirstBuiltCityObjectLogged, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref state.Progress.FirstImportedCityObjectLogged, 1, 0) == 0)
         {
             ReportProgress(
-                $"[live] First city object built after {GetSceneElapsedSeconds(state):F3}s: "
+                $"[live] First city object imported after {GetSceneElapsedSeconds(state):F3}s: "
                 + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
         }
     }
@@ -1909,7 +1909,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 cityObject.Materials[materialIndex],
                 preparedTerrainTextureDataByOverlay);
             material = ValidateTerrainTextureMaterialContract(material);
-            ReportBuildStep(
+            ReportImportStep(
                 cityObject,
                 $"Creating material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
             if (TryCreateSharedCommonRendererMaterialPlanTask(
@@ -2457,7 +2457,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return Math.Max(1L, operationCount) * 1024L;
     }
 
-    private void ReportBuildStep(ResoniteConstructionCityObject cityObject, string step)
+    private void ReportImportStep(ResoniteConstructionCityObject cityObject, string step)
     {
         ReportProgress(
             $"[live] Importing '{cityObject.DisplayName}' ({cityObject.PackageName}/{cityObject.SlotKey}): {step}");

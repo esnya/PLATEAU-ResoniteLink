@@ -11,7 +11,10 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Tests.Application.Importing;
+
+using ResoniteLink;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -23,7 +26,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateService(ISceneSink sceneSink)
+    private static PlateauImportService CreateService(ISceneSink sceneSink, Action<string>? progressReporter = null)
     {
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
@@ -48,7 +51,8 @@ public sealed class LocalCityGmlObjectProjectionTests
                             new ArchiveFileLayoutPolicy()))),
                 new PassthroughImportedObjectUnitOptimizer()),
             commonMaterialCatalog: new CommonMaterialCatalog(),
-            archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy());
+            archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy(),
+            progressReporter);
     }
 
     private static LocalCityGmlDocumentReader CreateDocumentReader()
@@ -970,6 +974,93 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Contains(projected.Mesh.Vertices, static vertex => vertex.UV0.Y > 1.0);
     }
 
+    [Fact]
+    public async Task ParsedX3DMaterialOpticalAttributesReportWarningsWithoutChangingResoniteMaterialMembers()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateX3DMaterialOpticalFixture(datasetRoot.Path);
+
+        await using StubSceneSink sceneSink = new();
+        List<string> progressMessages = [];
+        PlateauImportService service = CreateService(sceneSink, progressMessages.Add);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["bldg"],
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject cityObject = Assert.Single(sceneSink.CityObjects);
+        MaterialBinding material = Assert.Single(cityObject.Materials);
+
+        Assert.Equal(new ColorRgba(0.2, 0.4, 0.6, 0.75), material.BaseColor);
+        Assert.DoesNotContain(
+            cityObject.Materials,
+            static candidate => candidate.MaterialKey.Contains("optical", StringComparison.Ordinal));
+
+        ResoniteMaterialBinding resoniteMaterial = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(
+            SceneImportContractMapper.ToInternal(material));
+        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(resoniteMaterial);
+
+        Field_colorX albedo = Assert.IsType<Field_colorX>(members["AlbedoColor"]);
+        Field_float smoothness = Assert.IsType<Field_float>(members["Smoothness"]);
+
+        Assert.Equal(0.2f, albedo.Value.r, 6);
+        Assert.Equal(0.4f, albedo.Value.g, 6);
+        Assert.Equal(0.6f, albedo.Value.b, 6);
+        Assert.Equal(0.75f, albedo.Value.a, 6);
+        Assert.Equal(0.0f, smoothness.Value, 6);
+        Assert.DoesNotContain("EmissiveColor", members.Keys);
+        Assert.DoesNotContain("AmbientIntensity", members.Keys);
+        Assert.DoesNotContain("SpecularColor", members.Keys);
+
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("[import][warn]", StringComparison.Ordinal)
+                && message.Contains("Unsupported X3DMaterial optical attribute summary", StringComparison.Ordinal)
+                && message.Contains("unsupported_x3d_material_surfaces=1", StringComparison.Ordinal)
+                && message.Contains("shininess_nonzero=1", StringComparison.Ordinal)
+                && message.Contains("specular_nondefault=1", StringComparison.Ordinal)
+                && message.Contains("specular_nondefault_only=0", StringComparison.Ordinal)
+                && message.Contains("shininess_nonzero_only=0", StringComparison.Ordinal)
+                && message.Contains("specular_nondefault_with_shininess=1", StringComparison.Ordinal)
+                && message.Contains("emissive_nonzero=1", StringComparison.Ordinal)
+                && message.Contains("ambient_nonzero=1", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DefaultEmissiveAndProjectedTransparencyDoNotReportUnsupportedX3DOpticalWarnings()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateProjectedTransparencyOnlyX3DMaterialFixture(datasetRoot.Path);
+
+        await using StubSceneSink sceneSink = new();
+        List<string> progressMessages = [];
+        PlateauImportService service = CreateService(sceneSink, progressMessages.Add);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["bldg"],
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject cityObject = Assert.Single(sceneSink.CityObjects);
+        MaterialBinding material = Assert.Single(cityObject.Materials);
+
+        Assert.Equal(new ColorRgba(0.2, 0.4, 0.6, 0.75), material.BaseColor);
+        Assert.DoesNotContain(
+            progressMessages,
+            static message => message.Contains("Unsupported X3DMaterial optical attribute summary", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData((int)ParsedSurfaceSemantic.Wall)]
     [InlineData((int)ParsedSurfaceSemantic.Unknown)]
@@ -1832,6 +1923,108 @@ public sealed class LocalCityGmlObjectProjectionTests
             landUse.Transform.Position.Y > 40.0,
             $"Land-use object was incorrectly snapped toward nearby DEM fallback height: y={landUse.Transform.Position.Y:F6}");
     }
+
+    private static void CreateX3DMaterialOpticalFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "bldg", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel
+              xmlns:app="http://www.opengis.net/citygml/appearance/2.0"
+              xmlns:bldg="http://www.opengis.net/citygml/building/2.0"
+              xmlns:core="http://www.opengis.net/citygml/2.0"
+              xmlns:gml="http://www.opengis.net/gml">
+              <app:appearanceMember>
+                <app:Appearance>
+                  <app:surfaceDataMember>
+                    <app:X3DMaterial>
+                      <app:ambientIntensity>0.33</app:ambientIntensity>
+                      <app:diffuseColor>0.2 0.4 0.6</app:diffuseColor>
+                      <app:emissiveColor>0.05 0.10 0.15</app:emissiveColor>
+                      <app:specularColor>0.7 0.8 0.9</app:specularColor>
+                      <app:shininess>0.72</app:shininess>
+                      <app:transparency>0.25</app:transparency>
+                      <app:target uri="#poly-x3d-wall" />
+                    </app:X3DMaterial>
+                  </app:surfaceDataMember>
+                </app:Appearance>
+              </app:appearanceMember>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-x3d">
+                  <gml:name>X3D optical material test</gml:name>
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-x3d-wall">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-x3d-wall">
+                              <gml:posList>0 0 0 10 0 0 10 0 10 0 0 10 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_x3d_material.gml"), xml);
+    }
+
+    private static void CreateProjectedTransparencyOnlyX3DMaterialFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "bldg", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel
+              xmlns:app="http://www.opengis.net/citygml/appearance/2.0"
+              xmlns:bldg="http://www.opengis.net/citygml/building/2.0"
+              xmlns:core="http://www.opengis.net/citygml/2.0"
+              xmlns:gml="http://www.opengis.net/gml">
+              <app:appearanceMember>
+                <app:Appearance>
+                  <app:surfaceDataMember>
+                    <app:X3DMaterial>
+                      <app:diffuseColor>0.2 0.4 0.6</app:diffuseColor>
+                      <app:emissiveColor>0 0 0</app:emissiveColor>
+                      <app:transparency>0.25</app:transparency>
+                      <app:target uri="#poly-x3d-wall" />
+                    </app:X3DMaterial>
+                  </app:surfaceDataMember>
+                </app:Appearance>
+              </app:appearanceMember>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-x3d">
+                  <gml:name>X3D projected transparency material test</gml:name>
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-x3d-wall">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-x3d-wall">
+                              <gml:posList>0 0 0 10 0 0 10 0 10 0 0 10 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_x3d_transparency.gml"),
+            xml);
+    }
+
     private static void CreateRuntimeMixedSurfaceDemFixture(string datasetRoot)
     {
         string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");

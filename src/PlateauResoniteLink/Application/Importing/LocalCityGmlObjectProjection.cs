@@ -1093,7 +1093,8 @@ internal static partial class LocalCityGmlObjectProjection
             ExteriorRing: exteriorParsedRing,
             InteriorRings: interiorRings,
             BaseColor: ToInternalColor(appearance.BaseColor),
-            TexturePayload: appearance.TexturePayload);
+            TexturePayload: appearance.TexturePayload,
+            OpticalProperties: CreateMaterialOpticalProperties(appearance.MaterialAttributes));
     }
 
     private static ParsedRing? ParseRing(
@@ -4684,6 +4685,22 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static ColorRgba ToInternalColor(ColorRgba value) => new(value.R, value.G, value.B, value.A);
 
+    private static MaterialOpticalProperties? CreateMaterialOpticalProperties(CityGmlMaterialAttributes? attributes)
+    {
+        if (attributes is null)
+        {
+            return null;
+        }
+
+        return new MaterialOpticalProperties(
+            DiffuseColor: ToInternalColor(attributes.DiffuseColor),
+            EmissiveColor: attributes.EmissiveColor is null ? null : ToInternalColor(attributes.EmissiveColor),
+            SpecularColor: attributes.SpecularColor is null ? null : ToInternalColor(attributes.SpecularColor),
+            AmbientIntensity: attributes.AmbientIntensity,
+            Shininess: attributes.Shininess,
+            Transparency: attributes.Transparency);
+    }
+
     private static Float3 ToContractFloat3(Float3 value) => new(value.X, value.Y, value.Z);
 
     private static Quaternion ToContractQuaternion(Quaternion value) => new(value.X, value.Y, value.Z, value.W);
@@ -5519,7 +5536,8 @@ internal static partial class LocalCityGmlObjectProjection
         ParsedRing[] InteriorRings,
         ColorRgba BaseColor,
         TexturePayload? TexturePayload,
-        bool UsesGeneratedDemTexture = false)
+        bool UsesGeneratedDemTexture = false,
+        MaterialOpticalProperties? OpticalProperties = null)
     {
         public IEnumerable<GeodeticPoint> Vertices =>
             ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));

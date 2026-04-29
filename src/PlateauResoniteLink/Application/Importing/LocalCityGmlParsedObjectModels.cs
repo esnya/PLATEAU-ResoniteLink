@@ -43,7 +43,8 @@ internal sealed record ParsedSurface(
     ParsedRing[] InteriorRings,
     ColorRgba BaseColor,
     TexturePayload? TexturePayload,
-    bool UsesGeneratedDemTexture = false)
+    bool UsesGeneratedDemTexture = false,
+    MaterialOpticalProperties? OpticalProperties = null)
 {
     public IEnumerable<GeodeticPoint> Vertices =>
         ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));
@@ -57,7 +58,8 @@ internal sealed record ParsedSurface(
             InteriorRings.Select(static ring => ring.ToProjectionModel()).ToArray(),
             BaseColor,
             TexturePayload,
-            UsesGeneratedDemTexture);
+            UsesGeneratedDemTexture,
+            OpticalProperties);
     }
 
     internal static ParsedSurface FromProjectionModel(LocalCityGmlObjectProjection.ParsedSurface surface)
@@ -69,7 +71,8 @@ internal sealed record ParsedSurface(
             surface.InteriorRings.Select(ParsedRing.FromProjectionModel).ToArray(),
             new ColorRgba(surface.BaseColor.R, surface.BaseColor.G, surface.BaseColor.B, surface.BaseColor.A),
             surface.TexturePayload,
-            surface.UsesGeneratedDemTexture);
+            surface.UsesGeneratedDemTexture,
+            surface.OpticalProperties);
     }
 }
 

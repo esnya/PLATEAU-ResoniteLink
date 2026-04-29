@@ -269,6 +269,7 @@ internal static class ResoniteMaterialComponentPolicy
     {
         return ResoniteColorSpace.CreateSrgbColorMember(color);
     }
+
 }
 
 internal sealed record BundledDefaultMaterialTextureSet(

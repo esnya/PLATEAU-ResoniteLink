@@ -18,7 +18,7 @@ internal sealed class LiveSendProgressSink
 
     public int FirstPreparedCityObjectLogged;
 
-    public int FirstBuiltCityObjectLogged;
+    public int FirstImportedCityObjectLogged;
 
     public int FirstCityObjectPreparationStartedLogged;
 
@@ -35,7 +35,7 @@ internal sealed class LiveSendProgressSink
         FailedCityObjectCount = 0;
         FirstQueuedCityObjectLogged = 0;
         FirstPreparedCityObjectLogged = 0;
-        FirstBuiltCityObjectLogged = 0;
+        FirstImportedCityObjectLogged = 0;
         FirstCityObjectPreparationStartedLogged = 0;
         FirstCommonMaterialPrepLogged = 0;
         FirstCityObjectStreamingStartedLogged = 0;
