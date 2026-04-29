@@ -52,6 +52,15 @@ internal sealed class CommonMaterialAssetCache
     public required IReadOnlySet<string> BootstrapKnownMaterialKeys { get; init; }
 }
 
+internal sealed class TerrainTextureAssetCache
+{
+    public AsyncInFlightResultCache<string, SharedTerrainTextureAsset> AssetsByMeshCode { get; } = new();
+}
+
+internal sealed record SharedTerrainTextureAsset(
+    Uri TextureUri,
+    CreatedComponent TextureComponent);
+
 internal sealed record LiveSendRunPlan(
     ResoniteSceneBootstrapInfo BootstrapInfo,
     string ResolvedWorkRoot,
@@ -69,6 +78,7 @@ internal sealed record LiveSendQueuePlan(
 internal sealed record LiveSendRunContext(
     LiveSendRunPlan Plan,
     CreatedSlot DatasetRootSlot,
+    CreatedSlot DatasetAssetsRootSlot,
     CreatedSlot CommonAssetsRootSlot,
     CompositeCityObjectBaker? CityObjectBaker);
 
@@ -79,6 +89,8 @@ internal sealed class LiveSendRunState
     public required LiveSendProgressSink Progress { get; init; }
 
     public required CommonMaterialAssetCache Materials { get; init; }
+
+    public required TerrainTextureAssetCache TerrainTextures { get; init; }
 
     public required ResoniteSharedSlotIndex Placement { get; init; }
 

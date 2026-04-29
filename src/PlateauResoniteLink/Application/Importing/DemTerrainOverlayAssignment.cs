@@ -47,9 +47,7 @@ internal static class DemTerrainOverlayAssignment
         foreach (BootstrapParsedSurface generatedSurface in generatedSurfaces)
         {
             BootstrapParsedSurface[] requestedMeshClippedSurfaces =
-                parsedCityObject.SharedAcrossMeshCodes
-                    ? ClipBootstrapGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds)
-                    : [generatedSurface];
+                ClipBootstrapGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds);
             if (requestedMeshClippedSurfaces.Length == 0)
             {
                 continue;
@@ -157,9 +155,11 @@ internal static class DemTerrainOverlayAssignment
         if (demTerrainTextureOverlays.Count == 0)
         {
             BootstrapParsedSurface[] texturelessGeneratedSurfaces = generatedSurfaces
-                .SelectMany(generatedSurface => parsedCityObject.SharedAcrossMeshCodes
-                    ? ClipGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds, progressReporter, cancellationToken)
-                    : [generatedSurface])
+                .SelectMany(generatedSurface => ClipGeneratedSurfaceToRequestedMeshAreas(
+                    generatedSurface,
+                    requestedMeshBounds,
+                    progressReporter,
+                    cancellationToken))
                 .ToArray();
             BootstrapParsedSurface[] texturelessSurfaces = [.. texturelessGeneratedSurfaces, .. nonGeneratedSurfaces];
             if (texturelessSurfaces.Length == 0)
@@ -176,9 +176,11 @@ internal static class DemTerrainOverlayAssignment
         {
             cancellationToken.ThrowIfCancellationRequested();
             BootstrapParsedSurface[] requestedMeshClippedSurfaces =
-                parsedCityObject.SharedAcrossMeshCodes
-                    ? ClipGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds, progressReporter, cancellationToken)
-                    : [generatedSurface];
+                ClipGeneratedSurfaceToRequestedMeshAreas(
+                    generatedSurface,
+                    requestedMeshBounds,
+                    progressReporter,
+                    cancellationToken);
             if (requestedMeshClippedSurfaces.Length == 0)
             {
                 continue;
