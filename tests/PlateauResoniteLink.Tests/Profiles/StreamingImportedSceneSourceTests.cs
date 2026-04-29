@@ -51,11 +51,11 @@ public sealed class StreamingImportedSceneSourceTests
     }
 
     [Fact]
-    public async Task ReadCityObjectsAsyncPassesSetupDemOverlaysOnlyToDemSourceFiles()
+    public async Task ReadCityObjectsAsyncPassesDiscoveryDemOverlaysToDemAndBuildingSourceFiles()
     {
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
-            MeshCode: "57402736",
+            MeshCode: "53394525",
             SourceKind: DatasetSourceKind.Local,
             LocalSourcePath: "/tmp/source.zip",
             ServerUri: null,
@@ -73,7 +73,7 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(
                 [
-                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "57402736", RequiresMeshAreaFilter: false),
+                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshAreaFilter: false),
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
                 ],
                 [overlay]),
@@ -88,8 +88,54 @@ public sealed class StreamingImportedSceneSourceTests
         }
 
         Assert.Equal(2, cityObjects.Count);
-        Assert.Equal(0, geometryProjector.OverlayCountsByPackage["bldg"]);
+        Assert.Equal(1, geometryProjector.OverlayCountsByPackage["bldg"]);
         Assert.Equal(1, geometryProjector.OverlayCountsByPackage["dem"]);
+    }
+
+    [Fact]
+    public async Task ReadCityObjectsAsyncResolvesSceneDemOverlaysForBuildingProjectionByThirdMeshCode()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/source.zip",
+            ServerUri: null,
+            PackageNames: ["bldg", "dem"]);
+        TerrainTextureOverlay fallbackOverlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            MaxTextureSize: 1024,
+            Sources:
+            [
+                new TerrainTextureTileSource("https://tiles.example/fallback/{z}/{x}/{y}.png", 17),
+            ]);
+        OverlayRecordingGeometryProjector geometryProjector = new();
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(fallbackOverlay);
+        StreamingImportedSceneSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateReadResult(
+                [
+                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshAreaFilter: false),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshAreaFilter: false),
+                ],
+                selectedMeshCodes: ["53394525"]),
+            geometryProjector,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
+
+        List<ImportedCityObject> cityObjects = [];
+        await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
+        {
+            cityObjects.Add(cityObject);
+        }
+
+        Assert.Equal(2, cityObjects.Count);
+        Assert.Equal(1, geometryProjector.OverlayCountsByPackage["bldg"]);
+        Assert.Contains(
+            demTextureSourcePolicy.OverlayRegionIdentityCalls,
+            static identities => identities.SequenceEqual(["53394525"]));
     }
 
     [Fact]
@@ -323,7 +369,8 @@ public sealed class StreamingImportedSceneSourceTests
 
     private static ImportedSceneSourceSnapshot CreateReadResult(
         IReadOnlyList<SourceFileDescriptor> sourceFiles,
-        IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
+        IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null,
+        IReadOnlyList<string>? selectedMeshCodes = null)
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         SourceFilePipeline[] pipelines = sourceFiles
@@ -344,7 +391,7 @@ public sealed class StreamingImportedSceneSourceTests
                 pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
                 terrainTextureOverlays ?? [],
-                ["57402736"]),
+                selectedMeshCodes ?? ["57402736"]),
             new ImportedSceneSourceContext(
                 pipelines,
                 new GeodeticPoint(35.0, 139.0, 0.0)));
@@ -603,6 +650,8 @@ public sealed class StreamingImportedSceneSourceTests
 
         public IReadOnlyList<string>? LastOverlayRegionIdentities { get; private set; }
 
+        public ConcurrentQueue<IReadOnlyList<string>> OverlayRegionIdentityCalls { get; } = new();
+
         private int resolveOverlayRegionsCallCount;
 
         public int ResolveOverlayRegionsCallCount => resolveOverlayRegionsCallCount;
@@ -615,6 +664,7 @@ public sealed class StreamingImportedSceneSourceTests
             _ = request;
             Interlocked.Increment(ref resolveOverlayRegionsCallCount);
             LastOverlayRegionIdentities = overlayRegions.Select(static region => region.Identity).ToArray();
+            OverlayRegionIdentityCalls.Enqueue(LastOverlayRegionIdentities);
             return ResolveOverlayRegionsCoreAsync(cancellationToken);
         }
 
@@ -622,6 +672,7 @@ public sealed class StreamingImportedSceneSourceTests
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
         {
             LastOverlayRegionIdentities = overlayRegions.Select(static region => region.Identity).ToArray();
+            OverlayRegionIdentityCalls.Enqueue(LastOverlayRegionIdentities);
             return fallbackOverlays;
         }
 

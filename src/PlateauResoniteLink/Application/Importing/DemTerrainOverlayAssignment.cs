@@ -47,9 +47,7 @@ internal static class DemTerrainOverlayAssignment
         foreach (ParsedSurface generatedSurface in generatedSurfaces)
         {
             ParsedSurface[] requestedMeshClippedSurfaces =
-                parsedCityObject.SharedAcrossMeshCodes
-                    ? ClipSetupGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds)
-                    : [generatedSurface];
+                ClipGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds);
             if (requestedMeshClippedSurfaces.Length == 0)
             {
                 continue;
@@ -113,7 +111,7 @@ internal static class DemTerrainOverlayAssignment
             yield break;
         }
 
-        GeodeticPoint sharedGeodeticOrigin = GetCityObjectGeodeticOrigin(parsedCityObject);
+        GeodeticPoint sharedOrigin = GetCityObjectOrigin(parsedCityObject);
         GeographicRectangle[] requestedMeshBounds = requestedMeshAreas is null
             ? []
             : requestedMeshAreas
@@ -150,16 +148,18 @@ internal static class DemTerrainOverlayAssignment
                 yield break;
             }
 
-            yield return (parsedCityObject with { Surfaces = nonGeneratedSurfaces, GeodeticOriginOverride = sharedGeodeticOrigin }, null);
+            yield return (parsedCityObject with { Surfaces = nonGeneratedSurfaces, GeodeticOriginOverride = sharedOrigin }, null);
             yield break;
         }
 
         if (demTerrainTextureOverlays.Count == 0)
         {
             ParsedSurface[] texturelessGeneratedSurfaces = generatedSurfaces
-                .SelectMany(generatedSurface => parsedCityObject.SharedAcrossMeshCodes
-                    ? ClipGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds, progressReporter, cancellationToken)
-                    : [generatedSurface])
+                .SelectMany(generatedSurface => ClipGeneratedSurfaceToRequestedMeshAreas(
+                    generatedSurface,
+                    requestedMeshBounds,
+                    progressReporter,
+                    cancellationToken))
                 .ToArray();
             ParsedSurface[] texturelessSurfaces = [.. texturelessGeneratedSurfaces, .. nonGeneratedSurfaces];
             if (texturelessSurfaces.Length == 0)
@@ -167,7 +167,7 @@ internal static class DemTerrainOverlayAssignment
                 yield break;
             }
 
-            yield return (parsedCityObject with { Surfaces = texturelessSurfaces, GeodeticOriginOverride = sharedGeodeticOrigin }, null);
+            yield return (parsedCityObject with { Surfaces = texturelessSurfaces, GeodeticOriginOverride = sharedOrigin }, null);
             yield break;
         }
 
@@ -176,9 +176,11 @@ internal static class DemTerrainOverlayAssignment
         {
             cancellationToken.ThrowIfCancellationRequested();
             ParsedSurface[] requestedMeshClippedSurfaces =
-                parsedCityObject.SharedAcrossMeshCodes
-                    ? ClipGeneratedSurfaceToRequestedMeshAreas(generatedSurface, requestedMeshBounds, progressReporter, cancellationToken)
-                    : [generatedSurface];
+                ClipGeneratedSurfaceToRequestedMeshAreas(
+                    generatedSurface,
+                    requestedMeshBounds,
+                    progressReporter,
+                    cancellationToken);
             if (requestedMeshClippedSurfaces.Length == 0)
             {
                 continue;
@@ -250,7 +252,7 @@ internal static class DemTerrainOverlayAssignment
                 parsedCityObject with
                 {
                     Surfaces = groups[0].Select(static entry => entry.Surface).ToArray(),
-                    GeodeticOriginOverride = sharedGeodeticOrigin,
+                    GeodeticOriginOverride = sharedOrigin,
                 },
                 groups[0].First().Overlay);
             yield break;
@@ -270,7 +272,7 @@ internal static class DemTerrainOverlayAssignment
                         ? $"{parsedCityObject.DisplayName} ({index + 1})"
                         : parsedCityObject.DisplayName,
                     Surfaces = group.Select(static entry => entry.Surface).ToArray(),
-                    GeodeticOriginOverride = sharedGeodeticOrigin,
+                    GeodeticOriginOverride = sharedOrigin,
                 },
                 group.First().Overlay);
         }
@@ -281,7 +283,7 @@ internal static class DemTerrainOverlayAssignment
             yield break;
         }
 
-        yield return (parsedCityObject with { Surfaces = untexturedSurfaces, GeodeticOriginOverride = sharedGeodeticOrigin }, null);
+        yield return (parsedCityObject with { Surfaces = untexturedSurfaces, GeodeticOriginOverride = sharedOrigin }, null);
     }
 
     private static ParsedSurface[] ClipGeneratedSurfaceToRequestedMeshAreas(
@@ -320,7 +322,7 @@ internal static class DemTerrainOverlayAssignment
             cancellationToken).ToArray();
     }
 
-    private static ParsedSurface[] ClipSetupGeneratedSurfaceToRequestedMeshAreas(
+    private static ParsedSurface[] ClipGeneratedSurfaceToRequestedMeshAreas(
         ParsedSurface generatedSurface,
         GeographicRectangle[] requestedMeshBounds)
     {
@@ -552,7 +554,7 @@ internal static class DemTerrainOverlayAssignment
         return true;
     }
 
-    private static GeodeticPoint GetCityObjectGeodeticOrigin(
+    private static GeodeticPoint GetCityObjectOrigin(
         ParsedCityObject cityObject)
     {
         if (cityObject.GeodeticOriginOverride is not null)
@@ -561,19 +563,19 @@ internal static class DemTerrainOverlayAssignment
         }
 
         bool hasPoint = false;
-        GeodeticPoint? geodeticOrigin = null;
+        GeodeticPoint? origin = null;
         foreach (ParsedSurface surface in cityObject.Surfaces)
         {
             foreach (GeodeticPoint point in surface.Vertices)
             {
                 if (!hasPoint
-                    || point.Latitude < geodeticOrigin!.Latitude
-                    || (point.Latitude.Equals(geodeticOrigin.Latitude) && point.Longitude < geodeticOrigin.Longitude)
-                    || (point.Latitude.Equals(geodeticOrigin.Latitude)
-                        && point.Longitude.Equals(geodeticOrigin.Longitude)
-                        && point.Altitude < geodeticOrigin.Altitude))
+                    || point.Latitude < origin!.Latitude
+                    || (point.Latitude.Equals(origin.Latitude) && point.Longitude < origin.Longitude)
+                    || (point.Latitude.Equals(origin.Latitude)
+                        && point.Longitude.Equals(origin.Longitude)
+                        && point.Altitude < origin.Altitude))
                 {
-                    geodeticOrigin = point;
+                    origin = point;
                     hasPoint = true;
                 }
             }
@@ -584,7 +586,7 @@ internal static class DemTerrainOverlayAssignment
             throw new InvalidOperationException("DEM city object has no vertices.");
         }
 
-        return geodeticOrigin!;
+        return origin!;
     }
 
     private static GeographicRectangle GetCityObjectGeographicBounds(

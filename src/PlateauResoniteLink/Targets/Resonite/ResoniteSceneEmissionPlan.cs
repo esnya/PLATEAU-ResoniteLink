@@ -75,7 +75,8 @@ internal sealed record PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
 
 internal sealed record PlannedTerrainMainTextureOverrideRendererMaterialBinding(
     MaterialIdentity MaterialIdentity,
-    PlannedTextureAsset MainTexture)
+    PlannedTextureAsset MainTexture,
+    ResoniteComponentLocator? SharedMainTextureComponent = null)
     : PlannedMainTextureOverrideRendererMaterialBinding(MaterialIdentity, MainTexture);
 
 internal sealed record PlannedRenderer(

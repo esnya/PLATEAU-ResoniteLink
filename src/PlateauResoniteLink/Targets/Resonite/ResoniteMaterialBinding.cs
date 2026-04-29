@@ -18,4 +18,5 @@ public sealed record ResoniteMaterialBinding(
     ResoniteFloat2? TextureOffset = null,
     ResoniteMaterialAssetScope AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
     TerrainTextureOverlay? TerrainOverlay = null,
-    int? BundledVariantIndex = null);
+    int? BundledVariantIndex = null,
+    string? TerrainMeshCode = null);

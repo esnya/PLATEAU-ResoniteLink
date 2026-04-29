@@ -81,13 +81,14 @@ internal sealed class TerrainTextureAssetGenerator(
         CancellationToken cancellationToken)
     {
         Image<Rgba32>? composedTexture = null;
+        TextureUvRect? composedOccupiedUvRect = null;
         List<TerrainTextureSource> usedSources = [];
         TerrainTextureSource? usedSource = null;
 
         for (int sourceIndex = 0; sourceIndex < terrainTextureOverlay.Sources.Count; sourceIndex++)
         {
             TerrainTextureSource source = terrainTextureOverlay.Sources[sourceIndex];
-            Image<Rgba32>? image = source switch
+            TerrainTextureSourceImage? sourceImage = source switch
             {
                 TerrainTextureTileSource tileSource => await TryCreateTextureFromTileSourceAsync(
                     terrainTextureOverlay,
@@ -99,13 +100,14 @@ internal sealed class TerrainTextureAssetGenerator(
                     cancellationToken),
                 _ => null,
             };
-            if (image is null)
+            if (sourceImage is null)
             {
                 continue;
             }
 
-            using (image)
+            using (sourceImage)
             {
+                Image<Rgba32> image = sourceImage.Image;
                 if (!HasRenderablePixels(image))
                 {
                     continue;
@@ -114,6 +116,7 @@ internal sealed class TerrainTextureAssetGenerator(
                 if (composedTexture is null)
                 {
                     composedTexture = image.Clone();
+                    composedOccupiedUvRect = sourceImage.OccupiedUvRect;
                     usedSource = source;
                     usedSources.Add(source);
                 }
@@ -146,12 +149,78 @@ internal sealed class TerrainTextureAssetGenerator(
                 composedTexture,
                 terrainTextureOverlay.MaxTextureSize,
                 terrainTextureSource,
-                usedSources);
+                usedSources,
+                composedOccupiedUvRect);
             return new CachedTerrainTexture(generatedTexture, terrainTextureSource);
         }
     }
 
-    private async Task<Image<Rgba32>?> TryCreateTextureFromTileSourceAsync(
+    private static ExpandedTileCrop CreateExpandedTileCrop(
+        TerrainTextureLayoutPlan layoutPlan,
+        int zoomLevel,
+        int maxTextureSize)
+    {
+        int canvasWidth = RoundUpToPowerOfTwo(layoutPlan.CropWidth);
+        int canvasHeight = RoundUpToPowerOfTwo(layoutPlan.CropHeight);
+        if (canvasWidth > maxTextureSize || canvasHeight > maxTextureSize)
+        {
+            return ExpandedTileCrop.FromLayout(layoutPlan);
+        }
+
+        int occupiedLeft = (canvasWidth - layoutPlan.CropWidth) / 2;
+        int occupiedTop = (canvasHeight - layoutPlan.CropHeight) / 2;
+        int layoutGlobalLeft = (layoutPlan.MinTileX * WebMercatorTileMath.TileSizePixels) + layoutPlan.CropLeft;
+        int layoutGlobalTop = (layoutPlan.MinTileY * WebMercatorTileMath.TileSizePixels) + layoutPlan.CropTop;
+        int expandedGlobalLeft = layoutGlobalLeft - occupiedLeft;
+        int expandedGlobalTop = layoutGlobalTop - occupiedTop;
+        int expandedGlobalRight = expandedGlobalLeft + canvasWidth;
+        int expandedGlobalBottom = expandedGlobalTop + canvasHeight;
+        int maxTileIndex = (1 << zoomLevel) - 1;
+        int minTileX = Math.Clamp((int)Math.Floor(expandedGlobalLeft / (double)WebMercatorTileMath.TileSizePixels), 0, maxTileIndex);
+        int maxTileX = Math.Clamp((int)Math.Floor((expandedGlobalRight - 1) / (double)WebMercatorTileMath.TileSizePixels), 0, maxTileIndex);
+        int minTileY = Math.Clamp((int)Math.Floor(expandedGlobalTop / (double)WebMercatorTileMath.TileSizePixels), 0, maxTileIndex);
+        int maxTileY = Math.Clamp((int)Math.Floor((expandedGlobalBottom - 1) / (double)WebMercatorTileMath.TileSizePixels), 0, maxTileIndex);
+        int stitchedWidth = (maxTileX - minTileX + 1) * WebMercatorTileMath.TileSizePixels;
+        int stitchedHeight = (maxTileY - minTileY + 1) * WebMercatorTileMath.TileSizePixels;
+        int cropLeft = Math.Clamp(expandedGlobalLeft - (minTileX * WebMercatorTileMath.TileSizePixels), 0, Math.Max(0, stitchedWidth - canvasWidth));
+        int cropTop = Math.Clamp(expandedGlobalTop - (minTileY * WebMercatorTileMath.TileSizePixels), 0, Math.Max(0, stitchedHeight - canvasHeight));
+        int actualCropWidth = Math.Min(canvasWidth, stitchedWidth - cropLeft);
+        int actualCropHeight = Math.Min(canvasHeight, stitchedHeight - cropTop);
+        if (actualCropWidth <= 0 || actualCropHeight <= 0)
+        {
+            return ExpandedTileCrop.FromLayout(layoutPlan);
+        }
+
+        int occupiedX = Math.Clamp(
+            layoutGlobalLeft - ((minTileX * WebMercatorTileMath.TileSizePixels) + cropLeft),
+            0,
+            actualCropWidth - 1);
+        int occupiedY = Math.Clamp(
+            layoutGlobalTop - ((minTileY * WebMercatorTileMath.TileSizePixels) + cropTop),
+            0,
+            actualCropHeight - 1);
+        TextureUvRect occupiedUvRect = TextureUvRect.FromTopLeftPixelRect(
+            occupiedX,
+            occupiedY,
+            Math.Min(layoutPlan.CropWidth, actualCropWidth - occupiedX),
+            Math.Min(layoutPlan.CropHeight, actualCropHeight - occupiedY),
+            actualCropWidth,
+            actualCropHeight);
+        return new ExpandedTileCrop(
+            minTileX,
+            maxTileX,
+            minTileY,
+            maxTileY,
+            stitchedWidth,
+            stitchedHeight,
+            cropLeft,
+            cropTop,
+            actualCropWidth,
+            actualCropHeight,
+            occupiedUvRect);
+    }
+
+    private async Task<TerrainTextureSourceImage?> TryCreateTextureFromTileSourceAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         TerrainTextureTileSource tileSource,
         CancellationToken cancellationToken)
@@ -159,11 +228,12 @@ internal sealed class TerrainTextureAssetGenerator(
         TerrainTextureLayoutPlan layoutPlan = TerrainTextureLayoutPlanner.Create(
             terrainTextureOverlay.GeographicBounds,
             tileSource.ZoomLevel);
-        using Image<Rgba32> stitchedImage = new(layoutPlan.StitchedWidth, layoutPlan.StitchedHeight);
+        ExpandedTileCrop tileCrop = CreateExpandedTileCrop(layoutPlan, tileSource.ZoomLevel, terrainTextureOverlay.MaxTextureSize);
+        using Image<Rgba32> stitchedImage = new(tileCrop.StitchedWidth, tileCrop.StitchedHeight);
         bool anyTileRendered = false;
-        for (int tileY = layoutPlan.MinTileY; tileY <= layoutPlan.MaxTileY; tileY++)
+        for (int tileY = tileCrop.MinTileY; tileY <= tileCrop.MaxTileY; tileY++)
         {
-            for (int tileX = layoutPlan.MinTileX; tileX <= layoutPlan.MaxTileX; tileX++)
+            for (int tileX = tileCrop.MinTileX; tileX <= tileCrop.MaxTileX; tileX++)
             {
                 Image<Rgba32>? tileImage = await TryDownloadTileAsync(
                     tileSource,
@@ -181,8 +251,8 @@ internal sealed class TerrainTextureAssetGenerator(
                     stitchedImage.Mutate(context => context.DrawImage(
                         tileImage,
                         new Point(
-                            (tileX - layoutPlan.MinTileX) * WebMercatorTileMath.TileSizePixels,
-                            (tileY - layoutPlan.MinTileY) * WebMercatorTileMath.TileSizePixels),
+                            (tileX - tileCrop.MinTileX) * WebMercatorTileMath.TileSizePixels,
+                            (tileY - tileCrop.MinTileY) * WebMercatorTileMath.TileSizePixels),
                         1.0f));
                 }
             }
@@ -193,14 +263,20 @@ internal sealed class TerrainTextureAssetGenerator(
             return null;
         }
 
-        return stitchedImage.Clone(context => context.Crop(new Rectangle(
-            layoutPlan.CropLeft,
-            layoutPlan.CropTop,
-            layoutPlan.CropWidth,
-            layoutPlan.CropHeight)));
+        return new TerrainTextureSourceImage(
+            stitchedImage.Clone(context => context.Crop(new Rectangle(
+                tileCrop.CropLeft,
+                tileCrop.CropTop,
+                tileCrop.CropWidth,
+                tileCrop.CropHeight))),
+            tileCrop.OccupiedUvRect);
     }
 
-    private static async Task<Image<Rgba32>?> TryCreateTextureFromGeoReferencedRasterSourceAsync(
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "The returned source image owns and disposes the cropped raster image.")]
+    private static async Task<TerrainTextureSourceImage?> TryCreateTextureFromGeoReferencedRasterSourceAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         TerrainTextureGeoReferencedRasterSource rasterSource,
         CancellationToken cancellationToken)
@@ -216,10 +292,13 @@ internal sealed class TerrainTextureAssetGenerator(
         try
         {
             using Image<Rgba32> sourceImage = await Image.LoadAsync<Rgba32>(sourcePath, cancellationToken);
-            return TerrainTextureGeoReferencedRasterCropper.TryCrop(
+            Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(
                 sourceImage,
                 metadata,
                 terrainTextureOverlay.GeographicBounds);
+            return cropped is null
+                ? null
+                : new TerrainTextureSourceImage(cropped, null);
         }
         catch (UnknownImageFormatException)
         {
@@ -243,19 +322,20 @@ internal sealed class TerrainTextureAssetGenerator(
         Image<Rgba32> image,
         int maxTextureSize,
         TerrainTextureSource usedSource,
-        List<TerrainTextureSource> usedSources)
+        List<TerrainTextureSource> usedSources,
+        TextureUvRect? sourceOccupiedUvRect)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
         using Image<Rgba32> opaqueImage = CreateOpaqueGroundImage(image);
 
-        if (TryCreatePowerOfTwoCanvasTexture(opaqueImage, maxTextureSize, usedSource, usedSources, out GeneratedTerrainTexture? generatedTexture))
+        if (TryCreatePowerOfTwoCanvasTexture(opaqueImage, maxTextureSize, usedSource, usedSources, sourceOccupiedUvRect, out GeneratedTerrainTexture? generatedTexture))
         {
             return generatedTexture!;
         }
 
         int fallbackMaxTextureSize = RoundDownToPowerOfTwo(maxTextureSize);
         using Image<Rgba32> resizedImage = ResizeToMaxTextureSize(opaqueImage, fallbackMaxTextureSize);
-        if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, usedSource, usedSources, out generatedTexture))
+        if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, usedSource, usedSources, null, out generatedTexture))
         {
             return generatedTexture!;
         }
@@ -269,6 +349,7 @@ internal sealed class TerrainTextureAssetGenerator(
         int maxTextureSize,
         TerrainTextureSource usedSource,
         IReadOnlyList<TerrainTextureSource> usedSources,
+        TextureUvRect? sourceOccupiedUvRect,
         out GeneratedTerrainTexture? generatedTexture)
     {
         int canvasWidth = RoundUpToPowerOfTwo(image.Width);
@@ -280,25 +361,52 @@ internal sealed class TerrainTextureAssetGenerator(
         }
 
         using Image<Rgba32> canvasImage = new(canvasWidth, canvasHeight, DefaultDemGroundFillColor);
-        int drawOffsetX = 0;
-        int drawOffsetY = canvasHeight - image.Height;
+        int drawOffsetX = (canvasWidth - image.Width) / 2;
+        int drawOffsetY = (canvasHeight - image.Height) / 2;
         canvasImage.Mutate(context => context.DrawImage(
             image,
             new Point(drawOffsetX, drawOffsetY),
             1.0f));
-        TextureUvRect occupiedUvRect = TextureUvRect.FromTopLeftPixelRect(
-            drawOffsetX,
-            drawOffsetY,
-            image.Width,
-            image.Height,
-            canvasWidth,
-            canvasHeight);
+        TextureUvRect occupiedUvRect = sourceOccupiedUvRect is { } sourceRect
+            ? CreateOccupiedUvRect(
+                (int)Math.Round(drawOffsetX + (sourceRect.MinU * image.Width), MidpointRounding.AwayFromZero),
+                (int)Math.Round(drawOffsetY + ((1.0 - sourceRect.MaxV) * image.Height), MidpointRounding.AwayFromZero),
+                (int)Math.Round(sourceRect.Width * image.Width, MidpointRounding.AwayFromZero),
+                (int)Math.Round(sourceRect.Height * image.Height, MidpointRounding.AwayFromZero),
+                canvasWidth,
+                canvasHeight)
+            : TextureUvRect.FromTopLeftPixelRect(
+                drawOffsetX,
+                drawOffsetY,
+                image.Width,
+                image.Height,
+                canvasWidth,
+                canvasHeight);
         generatedTexture = new GeneratedTerrainTexture(
             CreateRawTextureImport(canvasImage),
             occupiedUvRect,
             usedSource,
             usedSources.Distinct().ToArray());
         return true;
+    }
+
+    private static TextureUvRect CreateOccupiedUvRect(
+        int x,
+        int y,
+        int width,
+        int height,
+        int canvasWidth,
+        int canvasHeight)
+    {
+        int clampedX = Math.Clamp(x, 0, canvasWidth - 1);
+        int clampedY = Math.Clamp(y, 0, canvasHeight - 1);
+        return TextureUvRect.FromTopLeftPixelRect(
+            clampedX,
+            clampedY,
+            Math.Min(width, canvasWidth - clampedX),
+            Math.Min(height, canvasHeight - clampedY),
+            canvasWidth,
+            canvasHeight);
     }
 
     private static Image<Rgba32> CreateOpaqueGroundImage(Image<Rgba32> image)
@@ -568,6 +676,46 @@ internal sealed class TerrainTextureAssetGenerator(
     private sealed record CachedTerrainTexture(
         GeneratedTerrainTexture GeneratedTexture,
         TerrainTextureSource UsedSource);
+
+    private sealed record TerrainTextureSourceImage(
+        Image<Rgba32> Image,
+        TextureUvRect? OccupiedUvRect) : IDisposable
+    {
+        public void Dispose()
+        {
+            Image.Dispose();
+        }
+    }
+
+    private sealed record ExpandedTileCrop(
+        int MinTileX,
+        int MaxTileX,
+        int MinTileY,
+        int MaxTileY,
+        int StitchedWidth,
+        int StitchedHeight,
+        int CropLeft,
+        int CropTop,
+        int CropWidth,
+        int CropHeight,
+        TextureUvRect? OccupiedUvRect)
+    {
+        public static ExpandedTileCrop FromLayout(TerrainTextureLayoutPlan layoutPlan)
+        {
+            return new ExpandedTileCrop(
+                layoutPlan.MinTileX,
+                layoutPlan.MaxTileX,
+                layoutPlan.MinTileY,
+                layoutPlan.MaxTileY,
+                layoutPlan.StitchedWidth,
+                layoutPlan.StitchedHeight,
+                layoutPlan.CropLeft,
+                layoutPlan.CropTop,
+                layoutPlan.CropWidth,
+                layoutPlan.CropHeight,
+                null);
+        }
+    }
 
     private static bool IsTransientStatusCode(int statusCode)
     {

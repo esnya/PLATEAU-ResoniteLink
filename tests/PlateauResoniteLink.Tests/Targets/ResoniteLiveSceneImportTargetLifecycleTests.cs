@@ -228,7 +228,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_FailsWhenSetupKnownCommonMaterialWasNotResolvedDuringSetup()
+    public async Task ExecuteAsync_FailsWhensetupKnownCommonMaterialWasNotResolvedDuringSetup()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -389,7 +389,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_SetsUpTerrainOverlaySharedCommonMaterialBeforeRuntimeEmission()
+    public async Task ExecuteAsync_SetsUpTerrainOverlayAsSharedGenericAlbedoOnlyMaterial()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -397,7 +397,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
                 LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
@@ -439,7 +439,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 null,
                 [0],
                 AssetScope: ResoniteMaterialAssetScope.Common,
-                TerrainOverlay: overlay));
+                TerrainOverlay: overlay,
+                TerrainMeshCode: "53394525"));
 
         SceneImportExecutionResult executionResult = await importTarget.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
@@ -450,15 +451,12 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 CreateDemCityObject("dem-setup-generic", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
         Assert.Equal(1, executionResult.ProcessedCityObjectCount);
-        Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            routedClient,
-            "PLATEAU Shared Assets/Common Materials");
-        Assert.Contains(
-            routedClient.SlotPaths.Values,
-            path => string.Equals(
-                path,
-                $"{routedClient.SlotPaths[commonRoot.ID!]}/generic/shared_uv_generic",
-                StringComparison.Ordinal));
+        AddComponent sharedGenericMaterial = Assert.Single(
+            routedClient.AddedComponents,
+            request => request.Data.ComponentType == "[FrooxEngine]FrooxEngine.PBS_Metallic"
+                && routedClient.SlotPaths[request.ContainerSlotId].Replace('\\', '/') ==
+                    "PLATEAU Shared Assets/Common Materials/generic/shared_uv_generic");
+        Assert.DoesNotContain("AlbedoTexture", sharedGenericMaterial.Data.Members.Keys);
     }
 
     [Fact]
@@ -470,7 +468,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
                 LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
@@ -543,7 +541,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
                 LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
@@ -616,7 +614,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         TerrainTextureGeoReferencedRasterSource rasterSource = new(
             Path.Combine(datasetDirectory.Path, "dem-partial.tif"),
             new GeoReferencedRasterMetadata(
-                new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                CreateThirdMeshBounds(),
                 "EPSG:4326",
                 1.0,
                 1.0));
@@ -625,7 +623,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: rasterSource,
             FallbackSource: gsiFallbackSource,
@@ -696,7 +694,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
                 LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
@@ -758,13 +756,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         TerrainTextureGeoReferencedRasterSource rasterSource = new(
             Path.Combine(datasetDirectory.Path, "dem-ortho.tif"),
             new GeoReferencedRasterMetadata(
-                new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                CreateThirdMeshBounds(),
                 "EPSG:4326",
                 1.0,
                 1.0));
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: rasterSource,
             FallbackSource: new TerrainTextureTileSource(
@@ -965,6 +963,22 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         return new ResoniteFloat2(value.X, value.Y);
     }
 
+    private static GeographicRectangle CreateThirdMeshBounds()
+    {
+        if (!PlateauMeshCode.TryGetBounds(
+                "53394525",
+                out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
+        {
+            throw new InvalidOperationException("Test mesh code must be a valid third-level mesh code.");
+        }
+
+        return new GeographicRectangle(
+            bounds.SouthLatitude,
+            bounds.NorthLatitude,
+            bounds.WestLongitude,
+            bounds.EastLongitude);
+    }
+
     private static ResoniteConstructionCityObject CreateCityObject(string objectKey, string sourceFileRelativePath)
     {
         return new ResoniteConstructionCityObject(
@@ -1013,7 +1027,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     ResoniteMaterialProjection.Uv,
                     null,
                     [0],
-                    TerrainOverlay: overlay),
+                    TerrainOverlay: overlay,
+                    TerrainMeshCode: "53394525"),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: sourceFileRelativePath);
