@@ -381,7 +381,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         }
         catch (OperationCanceledException)
         {
-            ReportProgress($"[live][warn] Send lane {laneIndex + 1}/{connectionCount} canceled.");
+            ReportProgress(PlateauLog.Warning("live", $"Send lane {laneIndex + 1}/{connectionCount} canceled."));
             throw;
         }
         catch (Exception exception)
@@ -396,7 +396,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     + $"({currentCityObject.CityObject.PackageName}/{currentCityObject.CityObject.SlotKey}) "
                     + $"mesh='{currentCityObject.CityObject.ActualMeshCode}' "
                     + $"sourceFile='{currentCityObject.CityObject.SourceFileRelativePath ?? "<null>"}'");
-            ReportProgress($"[live][error] Send lane {laneIndex + 1}/{connectionCount} failed{cityObjectContext}: {exception.Message}");
+            ReportProgress(PlateauLog.Error("live", $"Send lane {laneIndex + 1}/{connectionCount} failed{cityObjectContext}: {exception.Message}"));
             throw;
         }
     }
@@ -565,8 +565,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             foreach ((string name, int inputCount, int outputCount) in cityObjectBaker.GetBakeSummaries().Where(static summary => summary.OutputCount > 0))
             {
                 ReportProgress(
-                    $"[live] {name} batched {inputCount} input city objects "
-                    + $"into {outputCount} baked batch objects.");
+                    PlateauLog.Debug(
+                        "live",
+                        $"{name} batched {inputCount} input city objects "
+                        + $"into {outputCount} baked batch objects."));
             }
         }
 
@@ -644,10 +646,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
             int processedCount = Interlocked.Increment(ref state.Progress.ProcessedCityObjectCount);
             ReportProgress(
-                $"[live] Sent city object {processedCount}: "
-                + $"{preparedCityObject.CityObject.DisplayName} "
-                + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})",
-                PlateauLogLevel.Info);
+                PlateauLog.Info(
+                    "live",
+                    $"Sent city object {processedCount}: "
+                    + $"{preparedCityObject.CityObject.DisplayName} "
+                    + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})"));
         }
         catch (OperationCanceledException)
         {
@@ -886,18 +889,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     private void ReportProgress(string message)
     {
-        ReportProgress(message, null);
+        progressReporter?.Invoke(message);
     }
 
     private IResoniteLinkClient GetRoutedClient()
     {
         return ClientSessionInternal.GetRequiredClient();
-    }
-
-    private void ReportProgress(string message, PlateauLogLevel? defaultLevel)
-    {
-        PlateauLogLevel resolvedDefaultLevel = defaultLevel ?? PlateauLog.InferLegacyDefaultLevel(message);
-        progressReporter?.Invoke(PlateauLog.NormalizeLegacyMessage(message, resolvedDefaultLevel));
     }
 
     private Task<PreparedCityObject> CreatePreparationTask(
@@ -1307,8 +1304,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         if (Interlocked.CompareExchange(ref state.Progress.FirstImportedCityObjectLogged, 1, 0) == 0)
         {
             ReportProgress(
-                $"[live] First city object imported after {GetSceneElapsedSeconds(state):F3}s: "
-                + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
+                PlateauLog.Debug(
+                    "live",
+                    $"First city object imported after {GetSceneElapsedSeconds(state):F3}s: "
+                    + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})"));
         }
     }
 
@@ -2460,7 +2459,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private void ReportImportStep(ResoniteConstructionCityObject cityObject, string step)
     {
         ReportProgress(
-            $"[live] Importing '{cityObject.DisplayName}' ({cityObject.PackageName}/{cityObject.SlotKey}): {step}");
+            PlateauLog.Debug(
+                "live",
+                $"Importing '{cityObject.DisplayName}' ({cityObject.PackageName}/{cityObject.SlotKey}): {step}"));
     }
 
     private static string DescribePreparedGeometry(PreparedConstructionGeometry geometry)

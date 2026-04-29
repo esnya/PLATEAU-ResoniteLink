@@ -30,9 +30,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/plateau",
-            ServerUri: null);
+            Source: DatasetLocation.Local("/tmp/plateau"));
 
         IImportedSceneSource result = await factory.CreateAsync(request, progressReporter);
 
@@ -80,10 +78,9 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/plateau",
-            PackageNames: ["dem"],
-            ServerUri: null);
+            Source: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem"]
+);
 
         _ = await factory.CreateAsync(request);
 
@@ -296,9 +293,8 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             Request: new PlateauImportRequest(
                 Dataset: "stub",
                 MeshCode: "53394525",
-                SourceKind: DatasetSourceKind.Local,
-                LocalSourcePath: "/tmp/plateau",
-                ServerUri: null),
+                Source: DatasetLocation.Local("/tmp/plateau")
+),
             SourceDataset: new PlateauSourceDataset([], [], []),
             Attribution: new Attribution(
                 new LicenseMetadata(

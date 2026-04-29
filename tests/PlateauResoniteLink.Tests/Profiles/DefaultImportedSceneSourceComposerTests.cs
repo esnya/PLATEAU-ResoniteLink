@@ -20,9 +20,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/plateau",
-            ServerUri: null);
+            Source: DatasetLocation.Local("/tmp/plateau"));
 
         TerrainTextureOverlay overlay = new(
             PackageName: "bldg",

@@ -17,41 +17,6 @@ public sealed record PlateauImportRequest(
     double TerrainGridMetersPerVertex = 2.0,
     int TerrainGridMaxResolution = 1024)
 {
-    public PlateauImportRequest(
-        string Dataset,
-        string MeshCode,
-        DatasetSourceKind SourceKind,
-        string? LocalSourcePath,
-        Uri? ServerUri,
-        DatasetSourceKind? DemTextureSourceKind = null,
-        string? DemTextureLocalSourcePath = null,
-        Uri? DemTextureServerUri = null,
-        IReadOnlyList<string>? PackageNames = null,
-        IReadOnlySet<int>? GlobalExcludeLodLevels = null,
-        IReadOnlyDictionary<string, IReadOnlySet<int>>? ExcludeLodLevelsByPackage = null,
-        IReadOnlyDictionary<string, string>? PackagePatterns = null,
-        bool IncludeMarkingAlways = true,
-        TerrainMeshMode TerrainMeshMode = TerrainMeshMode.Static,
-        double TerrainGridMetersPerVertex = 2.0,
-        int TerrainGridMaxResolution = 1024)
-        : this(
-            Dataset,
-            MeshCode,
-            DatasetLocation.FromLegacy(SourceKind, LocalSourcePath, ServerUri),
-            DemTextureSourceKind is null
-                ? null
-                : DatasetLocation.FromLegacy(DemTextureSourceKind.Value, DemTextureLocalSourcePath, DemTextureServerUri),
-            PackageNames,
-            GlobalExcludeLodLevels,
-            ExcludeLodLevelsByPackage,
-            PackagePatterns,
-            IncludeMarkingAlways,
-            TerrainMeshMode,
-            TerrainGridMetersPerVertex,
-            TerrainGridMaxResolution)
-    {
-    }
-
     public DatasetSourceKind SourceKind => Source.SourceKind;
 
     public string? LocalSourcePath => Source is LocalDatasetLocation localSource ? localSource.LocalSourcePath : null;
