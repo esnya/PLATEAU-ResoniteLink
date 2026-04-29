@@ -85,6 +85,25 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     }
 
     [Fact]
+    public async Task TryResolveRasterSourceAsyncStopsAfterFirstUsableCandidate()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        RecordingDatasetContentSource datasetSource = CreateResolvableDatasetSource(datasetRoot.Path);
+        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        GeographicRectangle bounds = new(35.0, 35.1, 139.0, 139.1);
+
+        TerrainTextureGeoReferencedRasterSource? result = await catalog.TryResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "53394525", bounds),
+            "53394525",
+            bounds,
+            CancellationToken.None);
+
+        TerrainTextureGeoReferencedRasterSource resolvedResult = Assert.IsType<TerrainTextureGeoReferencedRasterSource>(result);
+        Assert.EndsWith("53394525.tif", resolvedResult.SourcePath, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, datasetSource.EnsureLocalFileCallCount);
+    }
+
+    [Fact]
     public async Task TryResolveRasterSourceAsyncKeepsSuccessfulCachedTaskAfterCanceledWaiter()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -161,6 +180,26 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         return new RecordingDatasetContentSource(
             datasetRoot,
             [Path.GetFileName(westRasterPath), Path.GetFileName(eastRasterPath)]);
+    }
+
+    private static RecordingDatasetContentSource CreateResolvableDatasetSource(string datasetRoot)
+    {
+        string exactRasterPath = Path.Combine(datasetRoot, "53394525.tif");
+        string fallbackRasterPath = Path.Combine(datasetRoot, "fallback.tif");
+        File.WriteAllBytes(
+            exactRasterPath,
+            CreateClassicLittleEndianGeoTiffBytes(
+                modelTiePoint: [0.0, 0.0, 0.0, 139.0, 35.1, 0.0],
+                pixelScale: [0.01, 0.01, 0.0],
+                geoKeyDirectory:
+                [
+                    1, 1, 0, 1,
+                    2048, 0, 1, 4326,
+                ]));
+        File.WriteAllText(fallbackRasterPath, "dummy");
+        return new RecordingDatasetContentSource(
+            datasetRoot,
+            [Path.GetFileName(exactRasterPath), Path.GetFileName(fallbackRasterPath)]);
     }
 
     private static FaultingGateableDatasetContentSource CreateFaultingGateableDatasetSource(string datasetRoot)

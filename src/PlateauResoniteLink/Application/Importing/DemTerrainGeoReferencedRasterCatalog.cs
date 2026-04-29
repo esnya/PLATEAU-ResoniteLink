@@ -154,8 +154,14 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken)
     {
-        foreach (string rasterPath in await ResolveCandidateRasterPathsAsync(meshCode, cancellationToken))
+        foreach (string candidateRasterPath in await ResolveCandidateRasterPathsAsync(meshCode, cancellationToken))
         {
+            string rasterPath = contentSource is null
+                ? candidateRasterPath
+                : await contentSource.EnsureLocalFileAsync(
+                    candidateRasterPath,
+                    outputRoot,
+                    cancellationToken);
             GeoReferencedRasterMetadata? metadata = await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
                 rasterPath,
                 cancellationToken);
@@ -191,18 +197,20 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         }
     }
 
-    private async Task<IReadOnlyList<string>> ResolveCandidateRasterPathsAsync(
+    private Task<IReadOnlyList<string>> ResolveCandidateRasterPathsAsync(
         string meshCode,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (directRasterPath is not null)
         {
-            return [directRasterPath];
+            return Task.FromResult<IReadOnlyList<string>>([directRasterPath]);
         }
 
         if (contentSource is null)
         {
-            return [];
+            return Task.FromResult<IReadOnlyList<string>>([]);
         }
 
         List<string> relativePaths = [];
@@ -227,13 +235,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
             }
         }
 
-        List<string> localPaths = [];
-        foreach (string relativePath in relativePaths)
-        {
-            localPaths.Add(await contentSource.EnsureLocalFileAsync(relativePath, outputRoot, cancellationToken));
-        }
-
-        return localPaths;
+        return Task.FromResult<IReadOnlyList<string>>(relativePaths);
     }
 
     private static bool IsSupportedArchive(string path)
