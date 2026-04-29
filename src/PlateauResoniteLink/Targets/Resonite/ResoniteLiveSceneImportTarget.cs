@@ -97,13 +97,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
         try
         {
-            SceneBuildRequest request = plan.SceneBuildRequest;
+            SceneImportRequest request = plan.SceneImportRequest;
             state = await CreateRunStateAsync(
                 CreateSceneBootstrapInfo(request),
                 request.WorkRoot,
                 request.CommonMaterials,
                 plan.NormalizedRequest,
-                CreateLocalOrigin(plan.SceneBuildRequest.Metadata.GeodeticOrigin),
+                CreateLocalOrigin(plan.SceneImportRequest.Metadata.GeodeticOrigin),
                 cancellationToken);
 
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
@@ -1278,7 +1278,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             cancellationToken);
         batchStopwatch.Stop();
 
-        ReportBuildStep(cityObject, "Live build completed.");
+        ReportBuildStep(cityObject, "Live import completed.");
         cityObjectStopwatch.Stop();
         ReportProgress(
             PlateauLog.Debug(
@@ -2261,7 +2261,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return string.Concat(CreateMeshAssetSlotName(cityObject), TerrainGridAssetSlotSuffix);
     }
 
-    private static ResoniteSceneBootstrapInfo CreateSceneBootstrapInfo(SceneBuildRequest request)
+    private static ResoniteSceneBootstrapInfo CreateSceneBootstrapInfo(SceneImportRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -2277,10 +2277,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 request.Metadata.Attribution.DatasetLicense.LicenseUrl));
     }
 
-    private static ResoniteLocalOrigin CreateLocalOrigin(GeodeticOrigin origin)
+    private static ResoniteLocalOrigin CreateLocalOrigin(GeodeticOrigin geodeticOrigin)
     {
-        ArgumentNullException.ThrowIfNull(origin);
-        return new ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
+        ArgumentNullException.ThrowIfNull(geodeticOrigin);
+        return new ResoniteLocalOrigin(geodeticOrigin.Latitude, geodeticOrigin.Longitude, geodeticOrigin.Altitude);
     }
 
     internal sealed record QueuedCityObject(

@@ -23,11 +23,11 @@ public sealed class LocalCityGmlObjectProjectionTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateService(ISceneSink sceneBuilder)
+    private static PlateauImportService CreateService(ISceneSink sceneSink)
     {
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
-            sceneBuilder,
+            sceneSink,
             new CkanPlateauDatasetSourceResolver(
                 SharedDatasetSourceResolverHttpClient,
                 new RemoteArchiveDistributionPolicy(),
@@ -783,8 +783,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeMixedSurfaceDemFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -796,7 +796,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        ImportedCityObject[] demCityObjects = sceneBuilder.CityObjects
+        ImportedCityObject[] demCityObjects = sceneSink.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem")
             .ToArray();
 
@@ -833,8 +833,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -847,7 +847,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Materials.Any(static material => material.TerrainOverlay is not null)
                 && cityObject.DisplayName == "DEM 53394525");
@@ -877,8 +877,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -892,7 +892,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Geometry is TerrainGridGeometry);
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(demCityObject.Geometry);
@@ -922,8 +922,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -937,7 +937,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Geometry is TerrainGridGeometry
                 && cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
@@ -960,8 +960,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -975,7 +975,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Geometry is DynamicTerrainGeometry
                 && cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
@@ -1071,8 +1071,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeParentMeshDemFixture(datasetRoot.Path, "53394525", "53394526");
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1085,7 +1085,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        ImportedCityObject[] demCityObjects = sceneBuilder.CityObjects
+        ImportedCityObject[] demCityObjects = sceneSink.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem"
                 && cityObject.Geometry is TerrainGridGeometry)
             .ToArray();
@@ -1108,8 +1108,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeNamedParentMeshDemFixture(datasetRoot.Path, "53394525", "53394526");
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1123,7 +1123,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
                 && cityObject.DisplayName == "DEM 53394525");
         Assert.Equal("DEM 53394525", demCityObject.DisplayName);
@@ -1181,8 +1181,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemAndLandUseGapFixture(datasetRoot.Path);
 
-        await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = CreateService(sceneBuilder);
+        await using StubSceneSink sceneSink = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1195,7 +1195,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             workRoot: "runtime/resonite");
 
         ImportedCityObject landUse = Assert.Single(
-            sceneBuilder.CityObjects,
+            sceneSink.CityObjects,
             static cityObject => cityObject.PackageName == "luse");
 
         Assert.True(
@@ -1991,7 +1991,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             Materials: [material],
             SourceFileRelativePath: $"udx/dem/53394525/{slotKey}.gml");
     }
-    private sealed class StubSceneBuilder : ISceneSink
+    private sealed class StubSceneSink : ISceneSink
     {
         public List<ImportedCityObject> CityObjects { get; } = [];
 

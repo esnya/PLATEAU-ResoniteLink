@@ -25,7 +25,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     public static async Task BuildSceneAsync(
         ImportedSceneMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
-        SceneBuilderRecordingClient client,
+        SceneSinkRecordingClient client,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true)
     {
@@ -116,7 +116,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ImportedSceneMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> firstRunCityObjects,
         IReadOnlyList<ResoniteConstructionCityObject> secondRunCityObjects,
-        SceneBuilderRecordingClient client,
+        SceneSinkRecordingClient client,
         bool enableMeshBake = true)
     {
         using TemporaryDirectory firstWorkDirectory = new();
@@ -170,10 +170,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             effectiveNormalizedRequest,
             metadata.Request,
             workDirectory);
-        PlateauImportRequest buildRequest = CreateBuildRequest(effectiveNormalizedRequest, resolvedRequest);
+        PlateauImportRequest importRequest = CreateBuildRequest(effectiveNormalizedRequest, resolvedRequest);
         ImportedSceneMetadata effectiveMetadata = metadata with
         {
-            Request = buildRequest,
+            Request = importRequest,
         };
 
         return SceneImportExecutionPlan.Create(
@@ -302,7 +302,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         };
     }
 
-    public static Slot FindUniqueSlotByPathSuffix(SceneBuilderRecordingClient client, string suffix)
+    public static Slot FindUniqueSlotByPathSuffix(SceneSinkRecordingClient client, string suffix)
     {
         return Assert.Single(
             client.SlotsById.Values,
@@ -310,7 +310,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 && path.EndsWith(suffix, StringComparison.Ordinal));
     }
 
-    public static Slot[] FindSlotsByPathSuffix(SceneBuilderRecordingClient client, string suffix)
+    public static Slot[] FindSlotsByPathSuffix(SceneSinkRecordingClient client, string suffix)
     {
         return client.SlotsById.Values
             .Where(slot => client.SlotPaths.TryGetValue(slot.ID, out string? path)
@@ -320,7 +320,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             .ToArray();
     }
 
-    public static Slot FindUniqueSlotByNameOutsideAssets(SceneBuilderRecordingClient client, string name)
+    public static Slot FindUniqueSlotByNameOutsideAssets(SceneSinkRecordingClient client, string name)
     {
         return Assert.Single(
             client.SlotsById.Values,
@@ -329,7 +329,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 && !path.Contains("/Assets/", StringComparison.Ordinal));
     }
 
-    public static bool IsDescendantOf(SceneBuilderRecordingClient client, string slotId, string ancestorSlotId)
+    public static bool IsDescendantOf(SceneSinkRecordingClient client, string slotId, string ancestorSlotId)
     {
         string? currentSlotId = slotId;
         while (!string.IsNullOrWhiteSpace(currentSlotId)
@@ -516,7 +516,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 
 internal sealed record SlotGetRequest(string SlotId, string SlotPath, int Depth);
 
-internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
+internal sealed class SceneSinkRecordingClient : IResoniteLinkClient
 {
     private readonly object gate = new();
     private int nextComponentId;

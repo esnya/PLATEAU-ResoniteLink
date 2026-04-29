@@ -13,7 +13,7 @@ using PlateauResoniteLink.Domain.Importing;
 namespace PlateauResoniteLink.Tests.UseCases;
 
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
-[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "PlateauImportService owns the scene builder lifetime in these tests.")]
+[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "PlateauImportService owns the scene sink lifetime in these tests.")]
 public sealed class PlateauImportServiceTests
 {
     [Fact]
@@ -77,14 +77,14 @@ public sealed class PlateauImportServiceTests
                 SubmeshIndices: [2],
                 ReuseScope: MaterialReuseScope.Shared),
         ];
-        RecordingSceneBuilder sceneBuilder = new();
+        RecordingSceneSink sceneSink = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
         StubConstructionSource source = new(
             CreateMetadata(resolvedRequest, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
         RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
-            sceneBuilder,
+            sceneSink,
             datasetSourceResolver,
             constructionSourceFactory,
             new CommonMaterialCatalog(),
@@ -93,35 +93,35 @@ public sealed class PlateauImportServiceTests
         ImportExecutionResult result = await service.ExecuteAsync(rawRequest, workRoot.Path);
 
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), datasetSourceResolver.LastWorkRoot);
-        Assert.NotNull(sceneBuilder.ConnectedRequest);
-        Assert.Equal("tokyo23ku", sceneBuilder.ConnectedRequest!.Dataset);
-        Assert.Equal("53394525", sceneBuilder.ConnectedRequest.MeshCode);
-        Assert.Equal(rawSourceUri, sceneBuilder.ConnectedRequest.ServerUri);
-        Assert.Equal(["bldg"], sceneBuilder.ConnectedRequest.PackageNames);
+        Assert.NotNull(sceneSink.ConnectedRequest);
+        Assert.Equal("tokyo23ku", sceneSink.ConnectedRequest!.Dataset);
+        Assert.Equal("53394525", sceneSink.ConnectedRequest.MeshCode);
+        Assert.Equal(rawSourceUri, sceneSink.ConnectedRequest.ServerUri);
+        Assert.Equal(["bldg"], sceneSink.ConnectedRequest.PackageNames);
         Assert.NotNull(constructionSourceFactory.LastRequest);
         Assert.Equal("tokyo23ku", constructionSourceFactory.LastRequest!.Dataset);
         Assert.Equal("53394525", constructionSourceFactory.LastRequest.MeshCode);
         Assert.Equal(resolvedSourcePath, constructionSourceFactory.LastRequest.LocalSourcePath);
         Assert.Equal(["bldg"], constructionSourceFactory.LastRequest.PackageNames);
-        Assert.NotNull(sceneBuilder.BeginRequest);
-        Assert.Equal(resolvedSourcePath, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
-        Assert.Equal(resolvedSourcePath, sceneBuilder.BeginRequest.ResolvedSourcePath);
-        Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneBuilder.BeginRequest.WorkRoot);
-        Assert.Equal(["bldg"], sceneBuilder.BeginRequest.Metadata.SourceDataset.PackageNames);
-        Assert.Equal(readResult.DocumentSet.RelativeSourceFiles, sceneBuilder.BeginRequest.Metadata.SourceDataset.SourceFiles);
-        Assert.Equal(readResult.DocumentSet.SelectedMeshCodes, sceneBuilder.BeginRequest.Metadata.SourceDataset.SelectedMeshCodes);
-        Assert.NotNull(sceneBuilder.BeginRequest.CommonMaterials);
+        Assert.NotNull(sceneSink.BeginRequest);
+        Assert.Equal(resolvedSourcePath, sceneSink.BeginRequest!.Metadata.Request.LocalSourcePath);
+        Assert.Equal(resolvedSourcePath, sceneSink.BeginRequest.ResolvedSourcePath);
+        Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneSink.BeginRequest.WorkRoot);
+        Assert.Equal(["bldg"], sceneSink.BeginRequest.Metadata.SourceDataset.PackageNames);
+        Assert.Equal(readResult.DocumentSet.RelativeSourceFiles, sceneSink.BeginRequest.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal(readResult.DocumentSet.SelectedMeshCodes, sceneSink.BeginRequest.Metadata.SourceDataset.SelectedMeshCodes);
+        Assert.NotNull(sceneSink.BeginRequest.CommonMaterials);
         Assert.Equal(
             new CommonMaterialCatalog().CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
-            [.. sceneBuilder.BeginRequest.CommonMaterials.Select(material => material.MaterialKey).OrderBy(materialKey => materialKey)]);
+            [.. sceneSink.BeginRequest.CommonMaterials.Select(material => material.MaterialKey).OrderBy(materialKey => materialKey)]);
         Assert.All(
             sourceCommonMaterials.Select(static material => material.MaterialKey),
-            materialKey => Assert.DoesNotContain(materialKey, sceneBuilder.BeginRequest.CommonMaterials.Select(material => material.MaterialKey)));
-        Assert.Single(sceneBuilder.ProcessedCityObjects);
+            materialKey => Assert.DoesNotContain(materialKey, sceneSink.BeginRequest.CommonMaterials.Select(material => material.MaterialKey)));
+        Assert.Single(sceneSink.ProcessedCityObjects);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
-        Assert.Equal(1, sceneBuilder.ExecuteCallCount);
+        Assert.Equal(1, sceneSink.ExecuteCallCount);
         Assert.Equal(1, constructionSourceFactory.CreateCallCount);
-        Assert.Equal(1, sceneBuilder.DisposeCount);
+        Assert.Equal(1, sceneSink.DisposeCount);
         Assert.Equal(source.Metadata.SceneName, result.Metadata.SceneName);
         Assert.Equal(source.Metadata.SourceDataset.PackageNames, result.Metadata.SourceDataset.PackageNames);
         Assert.Equal(["stub://destination"], result.Destinations);
@@ -139,7 +139,7 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ThrowsValidationExceptionWhenSourceProducesNoCityObjects_AndStillDisposesSceneBuilder()
+    public async Task ExecuteAsync_ThrowsValidationExceptionWhenSourceProducesNoCityObjects_AndStillDisposesSceneSink()
     {
         using TemporaryDirectory rawSourceRoot = new();
         using TemporaryDirectory workRoot = new();
@@ -157,7 +157,7 @@ public sealed class PlateauImportServiceTests
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
-        RecordingSceneBuilder sceneBuilder = new();
+        RecordingSceneSink sceneSink = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
         StubConstructionSource source = new(
             CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
@@ -165,7 +165,7 @@ public sealed class PlateauImportServiceTests
         RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
-            sceneBuilder,
+            sceneSink,
             datasetSourceResolver,
             constructionSourceFactory,
             new CommonMaterialCatalog(),
@@ -178,13 +178,13 @@ public sealed class PlateauImportServiceTests
             exception.Errors,
             static error => error.Contains("No triangulated CityGML geometry", StringComparison.Ordinal));
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
-        Assert.Equal(0, sceneBuilder.ExecuteCallCount);
+        Assert.Equal(0, sceneSink.ExecuteCallCount);
         Assert.Equal(1, constructionSourceFactory.CreateCallCount);
-        Assert.Equal(1, sceneBuilder.DisposeCount);
+        Assert.Equal(1, sceneSink.DisposeCount);
     }
 
     [Fact]
-    public async Task ExecuteAsync_DisposesSceneBuilderWhenSourceResolutionFails()
+    public async Task ExecuteAsync_DisposesSceneSinkWhenSourceResolutionFails()
     {
         using TemporaryDirectory rawSourceRoot = new();
         using TemporaryDirectory workRoot = new();
@@ -200,14 +200,14 @@ public sealed class PlateauImportServiceTests
             MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
             Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
-        RecordingSceneBuilder sceneBuilder = new();
+        RecordingSceneSink sceneSink = new();
         ThrowingDatasetSourceResolver datasetSourceResolver = new();
         RecordingConstructionSourceFactory constructionSourceFactory = new(
             new StubConstructionSource(CreateMetadata(request, ["bldg"], ["udx/bldg/53394525/building.gml"])),
             CreateReadResult(new RecordingDatasetSource(rawSourceRoot.Path), ["bldg"], ["udx/bldg/53394525/building.gml"]));
 
         PlateauImportService service = new(
-            sceneBuilder,
+            sceneSink,
             datasetSourceResolver,
             constructionSourceFactory,
             new CommonMaterialCatalog(),
@@ -219,8 +219,8 @@ public sealed class PlateauImportServiceTests
         Assert.Equal("resolver-failed", exception.Message);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(0, constructionSourceFactory.CreateCallCount);
-        Assert.Equal(0, sceneBuilder.ExecuteCallCount);
-        Assert.Equal(1, sceneBuilder.DisposeCount);
+        Assert.Equal(0, sceneSink.ExecuteCallCount);
+        Assert.Equal(1, sceneSink.DisposeCount);
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public sealed class PlateauImportServiceTests
             MeshCode: "53394525",
             Source: DatasetLocation.Local(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
-        RecordingSceneBuilder sceneBuilder = new()
+        RecordingSceneSink sceneSink = new()
         {
             DisposeException = new InvalidOperationException("dispose-failed"),
         };
@@ -244,7 +244,7 @@ public sealed class PlateauImportServiceTests
             CreateReadResult(new RecordingDatasetSource(rawSourceRoot.Path), ["bldg"], ["udx/bldg/53394525/building.gml"]));
 
         PlateauImportService service = new(
-            sceneBuilder,
+            sceneSink,
             datasetSourceResolver,
             constructionSourceFactory,
             new CommonMaterialCatalog(),
@@ -254,7 +254,7 @@ public sealed class PlateauImportServiceTests
             () => service.ExecuteAsync(request, workRoot.Path));
 
         Assert.Equal("resolver-failed", exception.Message);
-        Assert.Equal(1, sceneBuilder.DisposeCount);
+        Assert.Equal(1, sceneSink.DisposeCount);
     }
 
     [Fact]
@@ -276,7 +276,7 @@ public sealed class PlateauImportServiceTests
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
-        RecordingSceneBuilder sceneBuilder = new()
+        RecordingSceneSink sceneSink = new()
         {
             DisposeException = new InvalidOperationException("dispose-failed"),
         };
@@ -286,7 +286,7 @@ public sealed class PlateauImportServiceTests
         RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
-            sceneBuilder,
+            sceneSink,
             datasetSourceResolver,
             constructionSourceFactory,
             new CommonMaterialCatalog(),
@@ -296,8 +296,8 @@ public sealed class PlateauImportServiceTests
             () => service.ExecuteAsync(request, workRoot.Path));
 
         Assert.Equal("dispose-failed", exception.Message);
-        Assert.Equal(1, sceneBuilder.ExecuteCallCount);
-        Assert.Equal(1, sceneBuilder.DisposeCount);
+        Assert.Equal(1, sceneSink.ExecuteCallCount);
+        Assert.Equal(1, sceneSink.DisposeCount);
     }
 
     [Fact]
@@ -319,14 +319,14 @@ public sealed class PlateauImportServiceTests
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
-        RecordingSceneBuilder sceneBuilder = new();
+        RecordingSceneSink sceneSink = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
         StubConstructionSource source = new(
             CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
         RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
-            sceneBuilder,
+            sceneSink,
             datasetSourceResolver,
             constructionSourceFactory,
             new CommonMaterialCatalog(),
@@ -334,10 +334,10 @@ public sealed class PlateauImportServiceTests
 
         _ = await service.ExecuteAsync(request, workRoot.Path);
 
-        Assert.NotNull(sceneBuilder.BeginRequest);
+        Assert.NotNull(sceneSink.BeginRequest);
         Assert.Equal(
             new CommonMaterialCatalog().CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
-            sceneBuilder.BeginRequest!.CommonMaterials.Select(material => material.MaterialKey).OrderBy(static key => key));
+            sceneSink.BeginRequest!.CommonMaterials.Select(material => material.MaterialKey).OrderBy(static key => key));
     }
 
     [Fact]
@@ -359,7 +359,7 @@ public sealed class PlateauImportServiceTests
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
-        RecordingSceneBuilder sceneBuilder = new()
+        RecordingSceneSink sceneSink = new()
         {
             ExecutionResultFactory = static cityObjectCount => new SceneImportExecutionResult(
                 ["stub://destination"],
@@ -371,7 +371,7 @@ public sealed class PlateauImportServiceTests
         RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
-            sceneBuilder,
+            sceneSink,
             datasetSourceResolver,
             constructionSourceFactory,
             new CommonMaterialCatalog(),
@@ -381,9 +381,9 @@ public sealed class PlateauImportServiceTests
             () => service.ExecuteAsync(request, workRoot.Path));
 
         Assert.Contains("Live send failed for all", exception.Message, StringComparison.Ordinal);
-        Assert.Equal(1, sceneBuilder.ExecuteCallCount);
-        Assert.Single(sceneBuilder.ProcessedCityObjects);
-        Assert.Equal(1, sceneBuilder.DisposeCount);
+        Assert.Equal(1, sceneSink.ExecuteCallCount);
+        Assert.Single(sceneSink.ProcessedCityObjects);
+        Assert.Equal(1, sceneSink.DisposeCount);
     }
 
     private static ImportedSceneSourceSnapshot CreateReadResult(
@@ -419,13 +419,13 @@ public sealed class PlateauImportServiceTests
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 
-    private sealed class RecordingSceneBuilder : ISceneSink
+    private sealed class RecordingSceneSink : ISceneSink
     {
         public int ExecuteCallCount { get; private set; }
 
         public PlateauImportRequest? ConnectedRequest { get; private set; }
 
-        public SceneBuildRequest? BeginRequest { get; private set; }
+        public SceneImportRequest? BeginRequest { get; private set; }
 
         public List<ImportedCityObject> ProcessedCityObjects { get; } = [];
 
@@ -442,7 +442,7 @@ public sealed class PlateauImportServiceTests
         {
             ExecuteCallCount++;
             ConnectedRequest = plan.NormalizedRequest;
-            BeginRequest = plan.SceneBuildRequest;
+            BeginRequest = plan.SceneImportRequest;
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
                 ProcessedCityObjects.AddRange(objectUnit.CityObjects);

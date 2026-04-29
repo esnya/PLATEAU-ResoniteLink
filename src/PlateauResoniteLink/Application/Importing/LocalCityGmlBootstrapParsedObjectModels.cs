@@ -84,7 +84,7 @@ internal sealed record BootstrapParsedCityObject(
     string SourceFileRelativePath,
     bool SharedAcrossMeshCodes,
     bool TerrainAligned = false,
-    GeodeticPoint? OriginOverride = null,
+    GeodeticPoint? GeodeticOriginOverride = null,
     int? FloorsAboveGround = null,
     double? MeasuredHeightMeters = null)
 {
@@ -101,7 +101,7 @@ internal sealed record BootstrapParsedCityObject(
             SourceFileRelativePath,
             SharedAcrossMeshCodes,
             TerrainAligned,
-            OriginOverride?.ToLegacy(),
+            GeodeticOriginOverride?.ToLegacy(),
             FloorsAboveGround,
             MeasuredHeightMeters);
     }
@@ -119,7 +119,7 @@ internal sealed record BootstrapParsedCityObject(
             cityObject.SourceFileRelativePath,
             cityObject.SharedAcrossMeshCodes,
             cityObject.TerrainAligned,
-            cityObject.OriginOverride is null ? null : GeodeticPoint.FromLegacy(cityObject.OriginOverride),
+            cityObject.GeodeticOriginOverride is null ? null : GeodeticPoint.FromLegacy(cityObject.GeodeticOriginOverride),
             cityObject.FloorsAboveGround,
             cityObject.MeasuredHeightMeters);
     }

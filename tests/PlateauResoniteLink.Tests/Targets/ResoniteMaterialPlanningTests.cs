@@ -16,7 +16,7 @@ public sealed class ResoniteMaterialPlanningTests
     [Fact]
     public async Task PlanCommonMaterialAssetAsyncImportsMetallicCompanionTextureWithLinearProfile()
     {
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
         ResoniteMaterialBinding material = new(
             MaterialKey: "facade-common",

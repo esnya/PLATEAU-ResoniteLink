@@ -61,7 +61,7 @@ internal static class DemCityObjectAggregation
             SourceFileRelativePath = key.SourceFileRelativePath,
             SharedAcrossMeshCodes = orderedCityObjects.Any(static cityObject => cityObject.SharedAcrossMeshCodes),
             TerrainAligned = orderedCityObjects.Any(static cityObject => cityObject.TerrainAligned),
-            OriginOverride = null,
+            GeodeticOriginOverride = null,
             FloorsAboveGround = null,
             MeasuredHeightMeters = null,
         };

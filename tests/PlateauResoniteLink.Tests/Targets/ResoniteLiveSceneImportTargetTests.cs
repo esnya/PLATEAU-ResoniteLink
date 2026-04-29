@@ -32,7 +32,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncImportsGeneratedDemTerrainTextureWithCanvasTransform()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         using FakeTerrainTileHandler handler = new();
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator terrainTextureGenerator = new(httpClient, disablePersistentCache: true);
@@ -143,7 +143,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncReusesExistingTerrainOverlayGenericCommonMaterialComponent()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
             UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
@@ -223,7 +223,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncSendsTerrainGridDisplacementAsHdrRawTextureAndCreatesGridMesh()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -326,7 +326,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncCreatesDistinctTerrainGridPointsFieldIdsForMultipleDemGrids()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -384,7 +384,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         List<string> progressMessages = [];
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -524,7 +524,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncAppliesTerrainOverlayUvTransformToGridMeshInsteadOfMaterial()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
             UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
@@ -608,7 +608,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncDisablesColliderForNoCollisionCityObjects()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -774,7 +774,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncResolvesPlannedIdsBeforeBatchExecution()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -826,7 +826,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncPlacesObjectUnderLodHierarchy()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -873,7 +873,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncDoesNotCreateRedundantCompletionMeshCodePlaceholderSlot()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -923,10 +923,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncPreservesOriginalNameForNonBakedLod1WhenMeshBakeIsDisabled()
+    public async Task ImportAsyncPreservesOriginalNameForNonBakedLod1WhenMeshBakeIsDisabled()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -979,7 +979,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncBakesBundledFamilyUvScaleIntoMeshAndUsesDefaultCommonScale()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -1066,7 +1066,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncBakesBundledFamilyUvTransformIntoMeshAndAvoidsDedicatedUvTransformEmission()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -1160,7 +1160,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncFailsFastOnOutOfRangeMaterialSubmeshAssignment()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -1204,7 +1204,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncFailsFastOnDynamicTerrainOutOfRangeMaterialSubmeshAssignment()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -1256,7 +1256,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncFailsFastOnDuplicateMaterialSubmeshAssignment()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -1309,7 +1309,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncFailsFastOnDuplicateMaterialSubmeshAssignmentBeforeDynamicUvNormalization()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -1364,7 +1364,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncFailsFastOnUnassignedMeshSubmesh()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -1408,7 +1408,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncFailsFastOnTriangleMeshWithoutAnySubmesh()
     {
         using TemporaryDirectory datasetDirectory = new();
-        using SceneBuilderRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -1531,7 +1531,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     private static async Task<SeededCommonMaterialComponent> SeedCommonMaterialComponentAsync(
-        SceneBuilderRecordingClient client,
+        SceneSinkRecordingClient client,
         string familySlotName,
         string materialSlotName,
         string componentType)

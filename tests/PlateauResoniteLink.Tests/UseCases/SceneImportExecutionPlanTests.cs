@@ -29,11 +29,11 @@ public sealed class SceneImportExecutionPlanTests
         SceneImportExecutionPlan plan = new(
             normalizedRequest,
             resolvedRequest,
-            new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, []));
+            new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, []));
 
         Assert.Equal(normalizedRequest, plan.NormalizedRequest);
         Assert.Equal(resolvedRequest, plan.ResolvedRequest);
-        Assert.Equal(resolvedRequest.LocalSourcePath, plan.SceneBuildRequest.Metadata.Request.LocalSourcePath);
+        Assert.Equal(resolvedRequest.LocalSourcePath, plan.SceneImportRequest.Metadata.Request.LocalSourcePath);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 mismatchedRequest,
-                new SceneBuildRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
+                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 mismatchedRequest,
-                new SceneBuildRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
+                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 mismatchedRequest,
-                new SceneBuildRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
+                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
     }
 
     [Fact]
@@ -118,11 +118,11 @@ public sealed class SceneImportExecutionPlanTests
         SceneImportExecutionPlan plan = new(
             normalizedRequest,
             resolvedRequest,
-            new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, []));
+            new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, []));
 
         Assert.Equal(
             RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho"),
-            plan.SceneBuildRequest.Metadata.Request.DemTextureLocalSourcePath);
+            plan.SceneImportRequest.Metadata.Request.DemTextureLocalSourcePath);
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 resolvedRequest,
-                new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, [])));
+                new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, [])));
     }
 
     private static ImportedSceneMetadata CreateMetadata(PlateauImportRequest request)

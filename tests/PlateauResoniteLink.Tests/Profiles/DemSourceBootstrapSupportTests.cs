@@ -102,7 +102,7 @@ public sealed class DemSourceBootstrapSupportTests
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
             SharedAcrossMeshCodes: false,
             TerrainAligned: false,
-            OriginOverride: null);
+            GeodeticOriginOverride: null);
     }
 
     private static TerrainHeightTriangle CreateTerrainTriangle()

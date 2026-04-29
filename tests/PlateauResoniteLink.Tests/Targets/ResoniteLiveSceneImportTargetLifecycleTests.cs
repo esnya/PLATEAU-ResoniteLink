@@ -29,7 +29,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory resolvedDatasetDirectory = new();
         using TemporaryDirectory firstWorkDirectory = new();
         using TemporaryDirectory secondWorkDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         await using ResoniteLiveSceneImportTarget builder = new(
@@ -136,7 +136,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory secondWorkDirectory = new();
         TaskCompletionSource enteredEnsureConnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource releaseEnsureConnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(
             routedClient,
             async (_, cancellationToken) =>
@@ -196,7 +196,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory firstWorkDirectory = new();
         using TemporaryDirectory secondWorkDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
@@ -232,7 +232,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget builder = new(
             new ResoniteLiveSceneImportTargetOptions(
@@ -287,7 +287,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget builder = new(
             new ResoniteLiveSceneImportTargetOptions(
@@ -338,7 +338,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget builder = new(
             new ResoniteLiveSceneImportTargetOptions(
@@ -393,7 +393,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
@@ -466,7 +466,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
@@ -507,7 +507,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory firstWorkDirectory = new();
         using TemporaryDirectory secondWorkDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
@@ -539,7 +539,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
@@ -611,7 +611,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         TerrainTextureGeoReferencedRasterSource rasterSource = new(
             Path.Combine(datasetDirectory.Path, "dem-partial.tif"),
@@ -692,7 +692,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
@@ -753,7 +753,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         TerrainTextureGeoReferencedRasterSource rasterSource = new(
             Path.Combine(datasetDirectory.Path, "dem-ortho.tif"),
@@ -816,7 +816,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     public async Task ExecuteAsync_BootstrapHandlesDatasetAttributionWithoutUsingUpdates()
     {
         using TemporaryDirectory workDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = new(
@@ -865,7 +865,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory firstWorkDirectory = new();
         using TemporaryDirectory secondWorkDirectory = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
@@ -891,7 +891,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     public async Task DisposeAsync_DisposesInjectedSession()
     {
         DelegatingClientSession session = new();
-        using SceneBuilderRecordingClient routedClient = new();
+        using SceneSinkRecordingClient routedClient = new();
         ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
 
         try

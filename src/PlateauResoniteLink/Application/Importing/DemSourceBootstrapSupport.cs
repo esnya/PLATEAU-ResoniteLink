@@ -43,10 +43,10 @@ internal static class DemSourceBootstrapSupport
                 continue;
             }
 
-            GeodeticPoint origin = vertices[0];
+            GeodeticPoint triangleAnchor = vertices[0];
             for (int index = 1; index + 1 < vertices.Length; index++)
             {
-                terrainTriangles.Add(new TerrainHeightTriangle(origin, vertices[index], vertices[index + 1]));
+                terrainTriangles.Add(new TerrainHeightTriangle(triangleAnchor, vertices[index], vertices[index + 1]));
             }
         }
 
