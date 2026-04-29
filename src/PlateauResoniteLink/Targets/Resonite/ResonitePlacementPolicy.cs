@@ -5,6 +5,7 @@ using System.IO;
 
 using GeographicLib;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -110,11 +111,11 @@ internal static class ResonitePlacementPolicy
             $"Source-file root '{sourceFileSlotName}' did not contain a concrete meshcode and actual mesh '{actualMeshCode}' was not concrete.");
     }
 
-    public static string FormatLodSlotName(int? lodLevel)
+    public static string FormatDetailSlotName(DetailLevel? detailLevel)
     {
-        return lodLevel.HasValue
-            ? string.Create(CultureInfo.InvariantCulture, $"LOD{lodLevel.Value}")
-            : "LOD0";
+        return detailLevel.HasValue
+            ? string.Create(CultureInfo.InvariantCulture, $"Detail{detailLevel.Value.Order}")
+            : "Detail0";
     }
 
     public static ResoniteFloat3 ResolveCityObjectLocalPosition(

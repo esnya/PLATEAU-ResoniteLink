@@ -13,7 +13,7 @@ public sealed class ImportedObjectUnitTests
             () => new ImportedObjectUnit(
                 "source.gml",
                 "bldg",
-                1,
+                new DetailLevel(1),
                 []));
 
         Assert.Contains("at least one city object", exception.Message, StringComparison.Ordinal);

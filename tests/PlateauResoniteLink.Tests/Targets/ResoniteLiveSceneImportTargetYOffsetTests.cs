@@ -66,7 +66,7 @@ public sealed class ResoniteLiveSceneImportTargetYOffsetTests
             DisplayName: displayName,
             PackageName: "bldg",
             ActualMeshCode: actualMeshCode,
-            LodLevel: 0,
+            DetailLevel: new DetailLevel(0),
             Transform: new ResoniteTransform(worldPosition),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("wireframe-material"),
             Materials: [CreateWireframeMaterial()],

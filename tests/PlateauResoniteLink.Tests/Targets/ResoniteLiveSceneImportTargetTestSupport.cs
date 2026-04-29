@@ -394,7 +394,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             yield return new ImportedObjectUnit(
                 sourceFileRelativePath,
                 importedCityObject.PackageName,
-                importedCityObject.LodLevel,
+                importedCityObject.DetailLevel,
                 [importedCityObject],
                 importedCityObject.ActualMeshCode);
         }
@@ -414,7 +414,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                cityObject.DetailLevel,
                 ToContractTransform(cityObject.Transform),
                 ToContractMesh(triangleMesh.Mesh),
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
@@ -425,7 +425,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                cityObject.DetailLevel,
                 ToContractTransform(cityObject.Transform),
                 new TerrainGridGeometry(
                     heightMap.Width,
@@ -444,7 +444,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                cityObject.DetailLevel,
                 ToContractTransform(cityObject.Transform),
                 new DynamicTerrainGeometry(
                     new TriangleMeshGeometry(ToContractMesh(dynamicTerrain.StaticMesh.Mesh)),

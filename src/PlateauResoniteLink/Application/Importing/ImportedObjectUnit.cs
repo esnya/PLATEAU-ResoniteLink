@@ -6,7 +6,7 @@ namespace PlateauResoniteLink.Application.Importing;
 public sealed record ImportedObjectUnitDescriptor(
     string SourceFileRelativePath,
     string PackageName,
-    int? LodLevel,
+    DetailLevel? DetailLevel,
     string? MatchedMeshCode = null);
 
 public sealed record ImportedObjectUnit
@@ -33,14 +33,14 @@ public sealed record ImportedObjectUnit
     public ImportedObjectUnit(
         string sourceFileRelativePath,
         string packageName,
-        int? lodLevel,
+        DetailLevel? detailLevel,
         IReadOnlyList<ImportedCityObject> cityObjects,
         string? matchedMeshCode = null)
         : this(
             new ImportedObjectUnitDescriptor(
                 sourceFileRelativePath,
                 packageName,
-                lodLevel,
+                detailLevel,
                 matchedMeshCode),
             cityObjects)
     {

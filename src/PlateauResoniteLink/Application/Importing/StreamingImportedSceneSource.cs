@@ -200,7 +200,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
             sourceFile,
             cancellationToken);
         bool isDemSourceFile = string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
-        List<BootstrapParsedCityObject> parsedDemCityObjects = [];
+        List<BootstrapParsedCityObject> parsedCityObjects = [];
 
         await foreach (BootstrapParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync(cancellationToken))
         {
@@ -208,38 +208,19 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
             parsedCount++;
             resolvedReferenceSystem ??= ResolveReferenceSystem(parsedCityObject.ReferenceSystem);
             globalCartesian ??= CreateGlobalCartesian(resolvedReferenceSystem);
-            if (isDemSourceFile)
-            {
-                parsedDemCityObjects.Add(parsedCityObject);
-                continue;
-            }
-
-            foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
-                         new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
-                         resolvedReferenceSystem,
-                         globalOriginPoint,
-                         globalCartesian,
-                         demTerrainTextureOverlays,
-                         requestedMeshAreas,
-                         request,
-                         predicate: null,
-                         progressReporter,
-                         cancellationToken))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yieldedCount++;
-                yield return cityObject;
-            }
+            parsedCityObjects.Add(parsedCityObject);
         }
 
-        if (isDemSourceFile && parsedDemCityObjects.Count > 0)
+        if (parsedCityObjects.Count > 0)
         {
-            BootstrapParsedCityObject[] aggregatedDemCityObjects =
-                DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
+            BootstrapParsedCityObject[] projectedInputCityObjects = isDemSourceFile
+                ? DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
                     sourceFile.SourceFile,
-                    parsedDemCityObjects);
+                    parsedCityObjects)
+                : parsedCityObjects.ToArray();
+
             foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
-                         new CachedSourceFileDescriptor(sourceFile.SourceFile, aggregatedDemCityObjects),
+                         new CachedSourceFileDescriptor(sourceFile.SourceFile, projectedInputCityObjects),
                          resolvedReferenceSystem
                              ?? throw new PlateauImportValidationException(
                                  [$"CityGML file '{sourceFile.SourceFile.RelativePath}' does not declare a supported coordinate reference system."]),
@@ -270,24 +251,24 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         SourceFilePipeline sourceFile,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        List<(int? LodLevel, List<ImportedCityObject> CityObjects)> objectUnitsByLod = [];
+        List<(DetailLevel? DetailLevel, List<ImportedCityObject> CityObjects)> objectUnitsByDetail = [];
 
         await foreach (ImportedCityObject cityObject in StreamProjectedCityObjectsAsync(sourceFile, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            int? lodLevel = cityObject.LodLevel;
-            int existingIndex = objectUnitsByLod.FindIndex(group => group.LodLevel == lodLevel);
+            DetailLevel? detailLevel = cityObject.DetailLevel;
+            int existingIndex = objectUnitsByDetail.FindIndex(group => group.DetailLevel == detailLevel);
             if (existingIndex < 0)
             {
                 List<ImportedCityObject> cityObjects = [cityObject];
-                objectUnitsByLod.Add((lodLevel, cityObjects));
+                objectUnitsByDetail.Add((detailLevel, cityObjects));
                 continue;
             }
 
-            objectUnitsByLod[existingIndex].CityObjects.Add(cityObject);
+            objectUnitsByDetail[existingIndex].CityObjects.Add(cityObject);
         }
 
-        foreach ((int? lodLevel, List<ImportedCityObject> cityObjects) in objectUnitsByLod)
+        foreach ((DetailLevel? detailLevel, List<ImportedCityObject> cityObjects) in objectUnitsByDetail)
         {
             if (cityObjects.Count == 0)
             {
@@ -297,7 +278,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
             yield return new ImportedObjectUnit(
                 sourceFileRelativePath: sourceFile.SourceFile.RelativePath,
                 packageName: sourceFile.SourceFile.PackageName,
-                lodLevel: lodLevel,
+                detailLevel: detailLevel,
                 cityObjects: cityObjects.ToArray(),
                 matchedMeshCode: sourceFile.SourceFile.MatchedMeshCode);
         }

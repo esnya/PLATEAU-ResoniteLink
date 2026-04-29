@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -103,8 +104,8 @@ internal sealed class ResoniteSharedSlotIndex(
         string sourceFileSlotName = ResonitePlacementPolicy.ResolveSourceFileSlotName(cityObject, sourceFileRelativePath, sourceFileSlotNamesByRelativePath);
         string rootMeshCode = ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(sourceFileSlotName, cityObject.ActualMeshCode);
         CanonicalParentScope parentScope = await canonicalParentScopeCache.GetOrCreateAsync(
-            new CanonicalParentSourceFile(sourceFileRelativePath, rootMeshCode, cityObject.LodLevel),
-            ct => CreateCanonicalParentScopeAsync(client, sourceFileSlotName, rootMeshCode, cityObject.LodLevel, ct),
+            new CanonicalParentSourceFile(sourceFileRelativePath, rootMeshCode, cityObject.DetailLevel),
+            ct => CreateCanonicalParentScopeAsync(client, sourceFileSlotName, rootMeshCode, cityObject.DetailLevel, ct),
             cancellationToken);
         ResoniteFloat3 plannedRootPosition = ResolvePlannedRootPosition(rootMeshCode);
         return new ObjectSlotHierarchy(
@@ -116,17 +117,18 @@ internal sealed class ResoniteSharedSlotIndex(
                 rootMeshCode,
                 TryGetObservedSlotPosition(parentScope.SourceFileSlot.Locator),
                 cityObject.Transform.Position),
-            cityObject.Transform.Rotation);
+            cityObject.Transform.Rotation,
+            parentScope.SourceFileSlot);
     }
 
     private async Task<CanonicalParentScope> CreateCanonicalParentScopeAsync(
         IResoniteLinkClient client,
         string sourceFileSlotName,
         string rootMeshCode,
-        int? lodLevel,
+        DetailLevel? detailLevel,
         CancellationToken cancellationToken)
     {
-        string lodSlotName = ResonitePlacementPolicy.FormatLodSlotName(lodLevel);
+        string lodSlotName = ResonitePlacementPolicy.FormatDetailSlotName(detailLevel);
         ResoniteFloat3 rootPosition = ResolvePlannedRootPosition(rootMeshCode);
         CreatedSlot sourceFileSlot = await GetOrCreateRunScopedSourceFileRootAsync(
             client,
@@ -348,7 +350,8 @@ internal sealed class ResoniteSharedSlotIndex(
         CreatedSlot LodSlot,
         string CityObjectSlotName,
         ResoniteFloat3 CityObjectLocalPosition,
-        ResoniteFloatQ? CityObjectRotation);
+        ResoniteFloatQ? CityObjectRotation,
+        CreatedSlot SourceFileSlot = default);
 
     private sealed record CanonicalParentScope(
         CreatedSlot SourceFileSlot,
@@ -359,7 +362,7 @@ internal sealed class ResoniteSharedSlotIndex(
     private readonly record struct CanonicalParentSourceFile(
         string SourceFileRelativePath,
         string RootMeshCode,
-        int? LodLevel);
+        DetailLevel? DetailLevel);
 
     private readonly record struct SharedSlotIndexKey(
         string ParentSlotId,

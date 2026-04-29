@@ -14,7 +14,7 @@ namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
 internal interface IResoniteSceneBatchEmitter
 {
-    Task ExecuteAsync(
+    Task<PlannedBatchEmissionResult> ExecuteAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
@@ -24,7 +24,7 @@ internal interface IResoniteSceneBatchEmitter
 
 internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitter
 {
-    public Task ExecuteAsync(
+    public Task<PlannedBatchEmissionResult> ExecuteAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
@@ -34,7 +34,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         return ExecuteCoreAsync(client, cityObject, batchEmission, reportProgress, cancellationToken);
     }
 
-    private static async Task ExecuteCoreAsync(
+    private static async Task<PlannedBatchEmissionResult> ExecuteCoreAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
@@ -99,10 +99,14 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
             _ = canonicalBatchEntityMap.ResolveSlot(pendingSlotsByPlanId[slotResolutionTarget]);
         }
 
+        Dictionary<BatchPlanComponentLocator, CreatedComponent> resolvedComponentsByPlanId = new();
         foreach (BatchPlanComponentLocator componentResolutionTarget in batchEmission.ComponentResolutionTargets)
         {
-            _ = canonicalBatchEntityMap.ResolveComponent(pendingComponentsByPlanId[componentResolutionTarget]);
+            resolvedComponentsByPlanId[componentResolutionTarget] = canonicalBatchEntityMap.ResolveComponent(
+                pendingComponentsByPlanId[componentResolutionTarget]);
         }
+
+        return new PlannedBatchEmissionResult(resolvedComponentsByPlanId);
     }
 
     private static long EstimateBatchPayloadBytes(int operationCount)

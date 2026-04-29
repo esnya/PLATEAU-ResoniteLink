@@ -944,7 +944,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             yield return new ImportedObjectUnit(
                 sourceFileRelativePath,
                 importedCityObject.PackageName,
-                importedCityObject.LodLevel,
+                importedCityObject.DetailLevel,
                 [importedCityObject],
                 importedCityObject.ActualMeshCode);
         }
@@ -972,7 +972,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             $"CityObject {objectKey}",
             "bldg",
             "53394525",
-            1,
+            new DetailLevel(1),
             new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("material-1"),
             [
@@ -1000,7 +1000,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             $"DEM {objectKey}",
             "dem",
             "53394525",
-            0,
+            new DetailLevel(0),
             new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-material"),
             [
@@ -1032,7 +1032,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             $"CityObject {objectKey}",
             "bldg",
             "53394525",
-            0,
+            new DetailLevel(0),
             new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(materialKey),
             [
@@ -1062,7 +1062,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             DisplayName: $"CityObject {objectIdentity}",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 0,
+            DetailLevel: new DetailLevel(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("vertex-color-material"),
             Materials:
@@ -1089,7 +1089,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             DisplayName: $"CityObject {objectIdentity}",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 0,
+            DetailLevel: new DetailLevel(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: CreateTwoMaterialMesh(),
             Materials:

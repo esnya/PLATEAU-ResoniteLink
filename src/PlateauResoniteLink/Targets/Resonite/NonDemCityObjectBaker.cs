@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
 using SixLabors.ImageSharp;
@@ -645,7 +646,7 @@ internal sealed class NonDemCityObjectBaker(
         if (submeshes.Count == 0 || materials.Count == 0)
         {
             throw new InvalidOperationException(
-                $"Non-DEM bake batch '{sourceFileKey.PackageName}:{sourceFileKey.ActualMeshCode}:LOD{sourceFileKey.LodLevel}' produced no materialized submesh.");
+                $"Non-DEM bake batch '{sourceFileKey.PackageName}:{sourceFileKey.ActualMeshCode}:{FormatDetailToken(sourceFileKey.DetailLevel)}' produced no materialized submesh.");
         }
 
         return new ResoniteConstructionCityObject(
@@ -653,7 +654,7 @@ internal sealed class NonDemCityObjectBaker(
             DisplayName: displayName,
             PackageName: firstCityObject.PackageName,
             ActualMeshCode: firstCityObject.ActualMeshCode,
-            LodLevel: firstCityObject.LodLevel,
+            DetailLevel: firstCityObject.DetailLevel,
             Transform: new ResoniteTransform(bakeOrigin),
             Mesh: new ResoniteImportedMesh(vertices, submeshes),
             Materials: materials,
@@ -1154,25 +1155,32 @@ internal sealed class NonDemCityObjectBaker(
         return new SourceFileBatchKey(
             cityObject.ActualMeshCode,
             cityObject.PackageName.ToLowerInvariant(),
-            cityObject.LodLevel,
+            cityObject.DetailLevel,
             context,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
     private static string CreateBatchSlotKey(SourceFileBatchKey sourceFileKey, int batchIndex)
     {
-        string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
+        string detailToken = FormatDetailToken(sourceFileKey.DetailLevel);
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.SourceFileRelativePath)}-{sourceFileKey.PackageName}-lod{lodToken}-{batchIndex + 1}");
+            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.SourceFileRelativePath)}-{sourceFileKey.PackageName}-{detailToken.ToLowerInvariant()}-{batchIndex + 1}");
     }
 
     private static string CreateBatchDisplayName(SourceFileBatchKey sourceFileKey, int batchIndex, string batchSlotKey)
     {
-        string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
+        string detailToken = FormatDetailToken(sourceFileKey.DetailLevel);
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"AtlasBake {sourceFileKey.PackageName} LOD{lodToken} #{batchIndex + 1} [{batchSlotKey}]");
+            $"AtlasBake {sourceFileKey.PackageName} {detailToken} #{batchIndex + 1} [{batchSlotKey}]");
+    }
+
+    private static string FormatDetailToken(DetailLevel? detailLevel)
+    {
+        return detailLevel.HasValue
+            ? string.Create(CultureInfo.InvariantCulture, $"Detail{detailLevel.Value.Order}")
+            : "Detail0";
     }
 
     private static string CreateAtlasTextureIdentity(SourceFileBatchKey sourceFileKey, int batchIndex)
@@ -1696,7 +1704,7 @@ internal sealed class NonDemCityObjectBaker(
     private readonly record struct SourceFileBatchKey(
         string ActualMeshCode,
         string PackageName,
-        int? LodLevel,
+        DetailLevel? DetailLevel,
         string PolicyContext,
         string SourceFileRelativePath);
 
@@ -1731,7 +1739,7 @@ internal sealed class NonDemCityObjectBaker(
                 return compare;
             }
 
-            compare = Nullable.Compare(x.LodLevel, y.LodLevel);
+            compare = Nullable.Compare(x.DetailLevel, y.DetailLevel);
             if (compare != 0)
             {
                 return compare;

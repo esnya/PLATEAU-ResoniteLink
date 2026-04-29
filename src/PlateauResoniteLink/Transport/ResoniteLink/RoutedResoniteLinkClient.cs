@@ -58,7 +58,7 @@ internal sealed class RoutedResoniteLinkClient : IResoniteLinkClient
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken)
     {
-        return RouteForBalanced("run_data_model_operation_batch").RunDataModelOperationBatchAsync(
+        return RouteForAuthoritative("run_data_model_operation_batch").RunDataModelOperationBatchAsync(
             operations,
             cancellationToken);
     }
@@ -75,12 +75,12 @@ internal sealed class RoutedResoniteLinkClient : IResoniteLinkClient
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
-        return RouteForBalanced("import_mesh").ImportMeshAsync(request, cancellationToken);
+        return RouteForAuthoritative("import_mesh").ImportMeshAsync(request, cancellationToken);
     }
 
     public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
     {
-        return RouteForBalanced("import_texture").ImportTextureAsync(textureImport, cancellationToken);
+        return RouteForAuthoritative("import_texture").ImportTextureAsync(textureImport, cancellationToken);
     }
 
     public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)

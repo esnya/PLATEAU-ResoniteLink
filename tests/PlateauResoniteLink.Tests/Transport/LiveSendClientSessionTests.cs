@@ -36,7 +36,7 @@ public sealed class LiveSendClientSessionTests
     }
 
     [Fact]
-    public async Task RoutedClientDistributesBatchCallsAcrossConnectedClients()
+    public async Task RoutedClientPinsMutationAndAssetCallsToPrimaryClient()
     {
         RecordingClientFactory clientFactory = new([new(true), new(true), new(true)]);
         using LiveSendClientSession session = new(
@@ -52,10 +52,34 @@ public sealed class LiveSendClientSessionTests
         for (int callIndex = 0; callIndex < 6; callIndex++)
         {
             await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+            await routedClient.ImportMeshAsync(
+                new ImportMeshRawData
+                {
+                    RawBinaryPayload = [1, 2, 3],
+                    VertexCount = 3,
+                },
+                CancellationToken.None);
+            await routedClient.ImportTextureAsync(
+                new ResoniteRawTextureImport(
+                    1,
+                    1,
+                    ResoniteTextureColorProfiles.Srgb,
+                    [255, 255, 255, 255]),
+                CancellationToken.None);
         }
 
         Assert.Equal(6, clientFactory.CreatedClients.Sum(static client => client.BatchCallCount));
-        Assert.All(clientFactory.CreatedClients, client => Assert.True(client.BatchCallCount > 0));
+        Assert.Equal(6, clientFactory.CreatedClients[0].BatchCallCount);
+        Assert.Equal(6, clientFactory.CreatedClients[0].ImportMeshCallCount);
+        Assert.Equal(6, clientFactory.CreatedClients[0].ImportTextureCallCount);
+        Assert.All(
+            clientFactory.CreatedClients.Skip(1),
+            client =>
+            {
+                Assert.Equal(0, client.BatchCallCount);
+                Assert.Equal(0, client.ImportMeshCallCount);
+                Assert.Equal(0, client.ImportTextureCallCount);
+            });
     }
 
     [Fact]
@@ -83,22 +107,24 @@ public sealed class LiveSendClientSessionTests
     }
 
     [Fact]
-    public async Task RoutedClientConnectAsyncConnectsAllRoutesBeforeBalancedCalls()
+    public async Task RoutedClientConnectAsyncConnectsAllRoutesBeforeAuthoritativeCalls()
     {
-        RecordingResoniteLinkClient firstClient = new(true, 0);
-        RecordingResoniteLinkClient secondClient = new(true, 0);
-        RecordingResoniteLinkClient thirdClient = new(true, 0);
+        using RecordingResoniteLinkClient firstClient = new(true, 0);
+        using RecordingResoniteLinkClient secondClient = new(true, 0);
+        using RecordingResoniteLinkClient thirdClient = new(true, 0);
         using RoutedResoniteLinkClient routedClient = new([firstClient, secondClient, thirdClient]);
 
         await routedClient.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
-        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
-        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
-        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+        await routedClient.GetSlotAsync(new TransportSlotLocator("slot-a"), 0, CancellationToken.None);
+        await routedClient.GetSlotAsync(new TransportSlotLocator("slot-b"), 0, CancellationToken.None);
+        await routedClient.GetSlotAsync(new TransportSlotLocator("slot-c"), 0, CancellationToken.None);
 
         Assert.Equal(1, firstClient.ConnectCallCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
         Assert.Equal(1, thirdClient.ConnectCallCount);
-        Assert.All(new[] { firstClient, secondClient, thirdClient }, client => Assert.True(client.BatchCallCount > 0));
+        Assert.Equal(3, firstClient.GetSlotCallCount);
+        Assert.Equal(0, secondClient.GetSlotCallCount);
+        Assert.Equal(0, thirdClient.GetSlotCallCount);
     }
 
     [Fact]
@@ -223,6 +249,12 @@ public sealed class LiveSendClientSessionTests
 
         public int BatchCallCount { get; private set; }
 
+        public int GetSlotCallCount { get; private set; }
+
+        public int ImportMeshCallCount { get; private set; }
+
+        public int ImportTextureCallCount { get; private set; }
+
         public Uri? LastConnectedEndpoint { get; private set; }
 
         public bool Disposed { get; private set; }
@@ -286,17 +318,26 @@ public sealed class LiveSendClientSessionTests
 
         public Task<Slot?> GetSlotAsync(TransportSlotLocator slot, int depth, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
+            cancellationToken.ThrowIfCancellationRequested();
+            GetSlotCallCount++;
+            return Task.FromResult<Slot?>(new Slot
+            {
+                ID = slot.Value,
+            });
         }
 
         public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
+            cancellationToken.ThrowIfCancellationRequested();
+            ImportMeshCallCount++;
+            return Task.FromResult(new Uri("resdb:///mesh"));
         }
 
         public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
+            cancellationToken.ThrowIfCancellationRequested();
+            ImportTextureCallCount++;
+            return Task.FromResult(new Uri("resdb:///texture"));
         }
 
         public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
@@ -305,7 +346,5 @@ public sealed class LiveSendClientSessionTests
         }
     }
 }
-
-
 
 

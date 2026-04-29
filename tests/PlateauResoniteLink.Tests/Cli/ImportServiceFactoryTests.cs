@@ -165,14 +165,14 @@ public sealed class ImportServiceFactoryTests
             yield return new ImportedObjectUnit(
                 "object-1.gml",
                 "bldg",
-                1,
+                new DetailLevel(1),
                 [
                     new ImportedCityObject(
                         "object-1",
                         "Object 1",
                         "bldg",
                         "53394525",
-                        1,
+                        new DetailLevel(1),
                         new Transform3D(new Float3(0, 0, 0)),
                         new TriangleMeshGeometry(new ImportedMesh(
                             [

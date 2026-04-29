@@ -301,4 +301,16 @@ internal sealed record PlannedBatchEmission(
     IReadOnlyList<PlannedBatchSlotEmission> SlotEmissions,
     IReadOnlyList<PlannedBatchComponentEmission> ComponentEmissions,
     IReadOnlyList<BatchPlanSlotLocator> SlotResolutionTargets,
-    IReadOnlyList<BatchPlanComponentLocator> ComponentResolutionTargets);
+    IReadOnlyList<BatchPlanComponentLocator> ComponentResolutionTargets,
+    BatchPlanComponentLocator MeshRendererComponentIdentity);
+
+internal sealed record PlannedBatchEmissionResult(
+    IReadOnlyDictionary<BatchPlanComponentLocator, CreatedComponent> ComponentsByPlanId)
+{
+    public CreatedComponent GetRequiredComponent(BatchPlanComponentLocator locator)
+    {
+        return ComponentsByPlanId.TryGetValue(locator, out CreatedComponent component)
+            ? component
+            : throw new InvalidOperationException($"Batch result did not resolve component plan locator '{locator.Value}'.");
+    }
+}

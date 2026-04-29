@@ -26,6 +26,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
     private const long MaxInFlightCityObjectWorkingSetBytesFloor = 512L * 1024L * 1024L;
     private const string DemPackageName = "dem";
+    private const string LodGroupComponentType = "[FrooxEngine]FrooxEngine.LODGroup";
+    private const int LodGroupUpdateOrder = 1000;
+    private const float LodGroupCullScreenRelativeTransitionHeight = 0.002f;
     private const string TerrainGridAssetSlotSuffix = "_terrain-grid";
     private readonly Uri endpoint;
     private readonly int connectionCount;
@@ -273,6 +276,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             Runtime = runtime,
             GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
             DemSourceUseCounts = new ConcurrentDictionary<string, int>(StringComparer.Ordinal),
+            LodGroupRenderersBySourceFileSlotId = new Dictionary<string, LodGroupRenderers>(StringComparer.Ordinal),
         };
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
         Diagnostics.StartSendWindow(connectionCount);
@@ -581,6 +585,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 $"Awaiting {runtime.ProcessingTaskCount} send lane task(s) to drain after queue close."));
         await runtime.AwaitCompletionAsync(cancellationToken);
         ReportProgress(PlateauLog.Info("live", "All send lanes drained and completion barrier passed."));
+        await CreateLodGroupsAsync(state, cancellationToken);
         Diagnostics.CompleteSendWindow();
         ReportProgress(
             PlateauLog.Info(
@@ -1270,13 +1275,18 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
         ReportBuildStep(cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
-        await batchEmitter.ExecuteAsync(
+        PlannedBatchEmissionResult batchResult = await batchEmitter.ExecuteAsync(
             routedClient,
             cityObject,
             batchEmission,
             progressReporter,
             cancellationToken);
         batchStopwatch.Stop();
+        RememberLodGroupRenderer(
+            state,
+            objectSlots,
+            cityObject,
+            batchResult.GetRequiredComponent(batchEmission.MeshRendererComponentIdentity).Locator);
 
         ReportBuildStep(cityObject, "Live build completed.");
         cityObjectStopwatch.Stop();
@@ -1296,6 +1306,175 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 $"[live] First city object built after {GetSceneElapsedSeconds(state):F3}s: "
                 + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
         }
+    }
+
+    private static void RememberLodGroupRenderer(
+        LiveSendRunState state,
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots,
+        ResoniteConstructionCityObject cityObject,
+        ResoniteComponentLocator meshRenderer)
+    {
+        string sourceFileSlotId = objectSlots.SourceFileSlot.Locator.Value;
+        lock (state.LodGroupGate)
+        {
+            if (!state.LodGroupRenderersBySourceFileSlotId.TryGetValue(sourceFileSlotId, out LodGroupRenderers? lodGroupRenderers))
+            {
+                lodGroupRenderers = new LodGroupRenderers
+                {
+                    SourceFileSlot = objectSlots.SourceFileSlot,
+                };
+                state.LodGroupRenderersBySourceFileSlotId.Add(sourceFileSlotId, lodGroupRenderers);
+            }
+
+            DetailLevel detailLevel = cityObject.DetailLevel ?? default;
+            if (!lodGroupRenderers.RenderersByDetailLevel.TryGetValue(detailLevel, out SortedDictionary<string, ResoniteComponentLocator>? renderersByObjectKey))
+            {
+                renderersByObjectKey = new SortedDictionary<string, ResoniteComponentLocator>(StringComparer.Ordinal);
+                lodGroupRenderers.RenderersByDetailLevel[detailLevel] = renderersByObjectKey;
+            }
+
+            renderersByObjectKey[cityObject.SlotKey] = meshRenderer;
+        }
+    }
+
+    private async Task CreateLodGroupsAsync(
+        LiveSendRunState state,
+        CancellationToken cancellationToken)
+    {
+        LodGroupRenderers[] lodGroups;
+        lock (state.LodGroupGate)
+        {
+            lodGroups = state.LodGroupRenderersBySourceFileSlotId.Values.ToArray();
+        }
+
+        if (lodGroups.Length == 0)
+        {
+            return;
+        }
+
+        IResoniteLinkClient routedClient = GetRoutedClient();
+        foreach (LodGroupRenderers lodGroup in lodGroups.OrderBy(static group => group.SourceFileSlot.SlotName, StringComparer.Ordinal))
+        {
+            await CreateLodGroupComponentAsync(
+                routedClient,
+                lodGroup.SourceFileSlot.Locator,
+                SnapshotLodGroupRenderers(lodGroup),
+                cancellationToken);
+        }
+    }
+
+    private static async Task<CreatedComponent> CreateLodGroupComponentAsync(
+        IResoniteLinkClient client,
+        ResoniteSlotLocator sourceFileSlot,
+        IReadOnlyDictionary<DetailLevel, ResoniteComponentLocator[]> renderersByDetailLevel,
+        CancellationToken cancellationToken)
+    {
+        ResoniteTransportComponentCreationResult result = await client.AddComponentAsync(
+            new AddComponent
+            {
+                ContainerSlotId = sourceFileSlot.Value,
+                Data = new Component
+                {
+                    ComponentType = LodGroupComponentType,
+                    Members = CreateLodGroupMembers(renderersByDetailLevel),
+                },
+            },
+            cancellationToken);
+        return new CreatedComponent(new ResoniteComponentLocator(result.Component.Value), LodGroupComponentType);
+    }
+
+    private static Dictionary<DetailLevel, ResoniteComponentLocator[]> SnapshotLodGroupRenderers(LodGroupRenderers lodGroupRenderers)
+    {
+        return lodGroupRenderers.RenderersByDetailLevel.ToDictionary(
+            static pair => pair.Key,
+            static pair => pair.Value.Values.ToArray());
+    }
+
+    private static Dictionary<string, Member> CreateLodGroupMembers(
+        IReadOnlyDictionary<DetailLevel, ResoniteComponentLocator[]> renderersByDetailLevel)
+    {
+        return new Dictionary<string, Member>(StringComparer.Ordinal)
+        {
+            ["UpdateOrder"] = new Field_int
+            {
+                Value = LodGroupUpdateOrder,
+            },
+            ["Enabled"] = new Field_bool
+            {
+                Value = true,
+            },
+            ["CrossFade"] = new Field_bool
+            {
+                Value = false,
+            },
+            ["AnimateCrossFading"] = new Field_bool
+            {
+                Value = false,
+            },
+            ["LODs"] = new SyncList
+            {
+                Elements = CreateLodGroupLods(renderersByDetailLevel),
+            },
+        };
+    }
+
+    private static List<Member> CreateLodGroupLods(
+        IReadOnlyDictionary<DetailLevel, ResoniteComponentLocator[]> renderersByDetailLevel)
+    {
+        KeyValuePair<DetailLevel, ResoniteComponentLocator[]>[] orderedLods = renderersByDetailLevel
+            .OrderBy(static pair => pair.Key)
+            .ToArray();
+        List<Member> lods = new(orderedLods.Length);
+        for (int index = 0; index < orderedLods.Length; index++)
+        {
+            (DetailLevel detailLevel, ResoniteComponentLocator[] renderers) = orderedLods[index];
+            bool isLastLod = index == orderedLods.Length - 1;
+            lods.Add(CreateLodGroupLod(index, renderers, isLastLod));
+        }
+
+        return lods;
+    }
+
+    private static SyncObject CreateLodGroupLod(
+        int detailIndex,
+        IReadOnlyList<ResoniteComponentLocator> renderers,
+        bool isLastLod)
+    {
+        return new SyncObject
+        {
+            Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+            {
+                ["ScreenRelativeTransitionHeight"] = new Field_float
+                {
+                    Value = isLastLod
+                        ? LodGroupCullScreenRelativeTransitionHeight
+                        : ResolveLodScreenRelativeTransitionHeight(detailIndex),
+                },
+                ["FadeTransitionWidth"] = new Field_float
+                {
+                    Value = 0.0f,
+                },
+                ["Renderers"] = new SyncList
+                {
+                    Elements = renderers
+                        .Select(static renderer => new Reference
+                        {
+                            TargetID = renderer.Value,
+                        })
+                        .ToList<Member>(),
+                },
+            },
+        };
+    }
+
+    private static float ResolveLodScreenRelativeTransitionHeight(int detailIndex)
+    {
+        return detailIndex switch
+        {
+            0 => 0.12f,
+            1 => 0.06f,
+            _ => 0.025f,
+        };
     }
 
     private static async Task<UploadedTextureAssetSet> AwaitMaterialPlanningPrerequisitesAsync(

@@ -1298,7 +1298,7 @@ internal static partial class LocalCityGmlObjectProjection
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
-            LodLevel: cityObject.LodLevel,
+            DetailLevel: ToDetailLevel(cityObject.LodLevel),
             Transform: new Transform3D(ToContractFloat3(slotPosition)),
             Mesh: new ImportedMesh(vertices.ToArray(), submeshes.ToArray()),
             Materials: materials,
@@ -2936,6 +2936,7 @@ internal static partial class LocalCityGmlObjectProjection
             global::PlateauResoniteLink.Application.Importing.DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
                 sourceFile.SourceFile,
                 sourceFile.CityObjects);
+        SourceDetailLevelMapEntry[] detailLevelMap = CreateSourceDetailLevelMap(projectedInputCityObjects);
 
         foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject parsedCityObject in projectedInputCityObjects)
         {
@@ -2957,7 +2958,7 @@ internal static partial class LocalCityGmlObjectProjection
                          progressReporter,
                          cancellationToken))
             {
-                yield return cityObject;
+                yield return NormalizeSourceDetailLevel(cityObject, detailLevelMap);
             }
         }
     }
@@ -3176,7 +3177,7 @@ internal static partial class LocalCityGmlObjectProjection
             cityObject.DisplayName,
             cityObject.PackageName,
             cityObject.ActualMeshCode,
-            cityObject.LodLevel,
+            ToDetailLevel(cityObject.LodLevel),
             new Transform3D(new Float3(0.0, 0.0, 0.0)),
             new TriangleMeshGeometry(new ImportedMesh([], [])),
             [],
@@ -3282,6 +3283,49 @@ internal static partial class LocalCityGmlObjectProjection
             _ => false,
         };
     }
+
+    private static DetailLevel? ToDetailLevel(int? sourceDetailLevel)
+    {
+        return sourceDetailLevel.HasValue
+            ? new DetailLevel(sourceDetailLevel.Value)
+            : null;
+    }
+
+    private static SourceDetailLevelMapEntry[] CreateSourceDetailLevelMap(
+        IEnumerable<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject> cityObjects)
+    {
+        return cityObjects
+            .Select(static cityObject => cityObject.LodLevel)
+            .Distinct()
+            .OrderBy(static sourceDetailLevel => sourceDetailLevel.HasValue ? 0 : 1)
+            .ThenByDescending(static sourceDetailLevel => sourceDetailLevel.GetValueOrDefault())
+            .Select(static (sourceDetailLevel, index) => new
+            {
+                Source = ToDetailLevel(sourceDetailLevel),
+                Detail = new DetailLevel(index),
+            })
+            .Select(static entry => new SourceDetailLevelMapEntry(entry.Source, entry.Detail))
+            .ToArray();
+    }
+
+    private static ImportedCityObject NormalizeSourceDetailLevel(
+        ImportedCityObject cityObject,
+        IReadOnlyList<SourceDetailLevelMapEntry> detailLevelMap)
+    {
+        foreach (SourceDetailLevelMapEntry entry in detailLevelMap)
+        {
+            if (entry.Source == cityObject.DetailLevel)
+            {
+                return cityObject with { DetailLevel = entry.Detail };
+            }
+        }
+
+        return cityObject;
+    }
+
+    private readonly record struct SourceDetailLevelMapEntry(
+        DetailLevel? Source,
+        DetailLevel Detail);
 
     private static MaterialBinding[] CreateCommonMaterialBindings(
         ParsedCityObject cityObject,
@@ -3724,7 +3768,7 @@ internal static partial class LocalCityGmlObjectProjection
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
-            LodLevel: cityObject.LodLevel,
+            DetailLevel: ToDetailLevel(cityObject.LodLevel),
             Transform: new Transform3D(
                 ToContractFloat3(adjustedSlotPosition),
                 ToContractQuaternion(GridMeshTerrainRotation)),
@@ -3897,7 +3941,7 @@ internal static partial class LocalCityGmlObjectProjection
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
-            LodLevel: cityObject.LodLevel,
+            DetailLevel: ToDetailLevel(cityObject.LodLevel),
             Transform: new Transform3D(
                 ToContractFloat3(adjustedSlotPosition),
                 ToContractQuaternion(GridMeshTerrainRotation)),

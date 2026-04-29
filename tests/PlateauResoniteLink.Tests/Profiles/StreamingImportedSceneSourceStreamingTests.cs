@@ -336,7 +336,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
                     cityObject.DisplayName,
                     cityObject.PackageName,
                     cityObject.ActualMeshCode,
-                    cityObject.LodLevel,
+                    cityObject.LodLevel.HasValue ? new DetailLevel(cityObject.LodLevel.Value) : null,
                     new Transform3D(new Float3(0.0, 0.0, 0.0)),
                     new TriangleMeshGeometry(
                         new ImportedMesh(

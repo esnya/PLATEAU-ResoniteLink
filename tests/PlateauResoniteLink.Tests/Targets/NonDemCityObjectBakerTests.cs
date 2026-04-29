@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
@@ -554,7 +555,7 @@ public sealed class NonDemCityObjectBakerTests
             CreatePayload("textures/lod1-roof.png", new Rgba32(255, 0, 0, 255), 4, 4),
             "unit-a") with
         {
-            LodLevel = 1,
+            DetailLevel = new DetailLevel(1),
             Materials =
             [
                 new ResoniteMaterialBinding(
@@ -662,6 +663,34 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncKeepsDifferentDetailEntriesInSeparateAtlasBatches()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building("building-detail-one", CreatePayload("textures/detail-one.png", new Rgba32(255, 0, 0, 255), 4, 4), 0, "unit-a") with
+            {
+                DetailLevel = new DetailLevel(1),
+                SourceFileRelativePath = "shared-detail.gml",
+            });
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building("building-detail-two", CreatePayload("textures/detail-two.png", new Rgba32(0, 255, 0, 255), 4, 4), 2, "unit-b") with
+            {
+                DetailLevel = new DetailLevel(2),
+                SourceFileRelativePath = "shared-detail.gml",
+            });
+
+        ResoniteConstructionCityObject[] baked = (await baker.FlushAllAsync()).ToArray();
+
+        Assert.Equal(2, baked.Length);
+        Assert.Contains(baked, static cityObject => cityObject.DetailLevel == new DetailLevel(1));
+        Assert.Contains(baked, static cityObject => cityObject.DetailLevel == new DetailLevel(2));
+        Assert.All(baked, static cityObject => Assert.Equal("shared-detail.gml", cityObject.SourceFileRelativePath));
+    }
+
+    [Fact]
     public async Task FlushAllAsyncPacksMixedSizeTexturesIntoSingleAtlasBatch()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 16, tilePaddingPixels: 0);
@@ -706,7 +735,7 @@ public sealed class NonDemCityObjectBakerTests
             new ResoniteFloat2(0.25, 0.75)) with
         {
             PackageName = "tran",
-            LodLevel = 1,
+            DetailLevel = new DetailLevel(1),
         };
 
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
@@ -733,7 +762,7 @@ public sealed class NonDemCityObjectBakerTests
             new ResoniteFloat2(0.25, 0.75)) with
         {
             PackageName = "dem",
-            LodLevel = null,
+            DetailLevel = null,
         };
 
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(demCityObject);
@@ -757,7 +786,7 @@ public sealed class NonDemCityObjectBakerTests
             "unit-a") with
         {
             PackageName = "frn",
-            LodLevel = null,
+            DetailLevel = null,
         };
 
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
@@ -765,7 +794,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.True(result.Buffered);
         Assert.Empty(result.ReadyCityObjects);
         ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
-        Assert.Null(baked.LodLevel);
+        Assert.Null(baked.DetailLevel);
         Assert.Equal("frn", baked.PackageName);
     }
 
@@ -898,7 +927,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            DetailLevel: new DetailLevel(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -936,7 +965,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            DetailLevel: new DetailLevel(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -985,7 +1014,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            DetailLevel: new DetailLevel(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -1060,7 +1089,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            DetailLevel: new DetailLevel(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -1104,7 +1133,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            DetailLevel: new DetailLevel(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -1154,7 +1183,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            DetailLevel: new DetailLevel(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -1222,7 +1251,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            DetailLevel: new DetailLevel(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [

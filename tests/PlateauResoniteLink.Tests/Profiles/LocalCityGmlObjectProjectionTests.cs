@@ -101,6 +101,123 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Contains("53394525", source.Metadata.SourceDataset.SelectedMeshCodes!);
         Assert.NotEmpty(source.Metadata.SourceDataset.SourceFiles);
     }
+
+    [Fact]
+    public void ProjectCityObjects_NormalizesSourceLodNumbersToDenseDetailEntries()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        BootstrapParsedSurface surface = CreateBootstrapParsedSurface(
+            "wall",
+            BootstrapParsedSurfaceSemantic.Wall,
+            [
+                origin,
+                new(origin.Latitude, origin.Longitude + 0.00001, origin.Altitude),
+                new(origin.Latitude, origin.Longitude + 0.00001, origin.Altitude + 3.0),
+                new(origin.Latitude, origin.Longitude, origin.Altitude + 3.0),
+                origin,
+            ],
+            texturePayload: null);
+        BootstrapParsedCityObject sourceLod1 = CreateBootstrapParsedCityObject(
+            "bldg",
+            [surface],
+            referenceSystem,
+            lodLevel: 1) with
+        {
+            SlotKey = "bldg-lod1",
+            DisplayName = "Building source detail A",
+        };
+        BootstrapParsedCityObject sourceLod3 = sourceLod1 with
+        {
+            SlotKey = "bldg-lod3",
+            DisplayName = "Building source detail B",
+            LodLevel = 3,
+        };
+        SourceFileDescriptor sourceFile = new(
+            "udx/bldg/53394525/53394525_bldg_6697.gml",
+            "bldg",
+            "53394525",
+            RequiresMeshAreaFilter: false);
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectCityObjects(
+                new CachedSourceFileDescriptor(sourceFile, [sourceLod1, sourceLod3]),
+                referenceSystem,
+                globalOriginPoint,
+                globalCartesian: null,
+                demTerrainTextureOverlays: [],
+                requestedMeshAreas: [],
+                new PlateauImportRequest(
+                    Dataset: "local",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: ".",
+                    ServerUri: null),
+                new DefaultMaterialResolver())
+            .OrderBy(static cityObject => cityObject.ObjectKey, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal([new DetailLevel(1), new DetailLevel(0)], projected.Select(static cityObject => cityObject.DetailLevel));
+    }
+
+    [Fact]
+    public void ProjectCityObjects_NormalizesMissingSourceLodAsOwnDetailEntry()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        BootstrapParsedSurface surface = CreateBootstrapParsedSurface(
+            "wall",
+            BootstrapParsedSurfaceSemantic.Wall,
+            [
+                origin,
+                new(origin.Latitude, origin.Longitude + 0.00001, origin.Altitude),
+                new(origin.Latitude, origin.Longitude + 0.00001, origin.Altitude + 3.0),
+                new(origin.Latitude, origin.Longitude, origin.Altitude + 3.0),
+                origin,
+            ],
+            texturePayload: null);
+        BootstrapParsedCityObject missingSourceLod = CreateBootstrapParsedCityObject(
+            "bldg",
+            [surface],
+            referenceSystem,
+            lodLevel: null) with
+        {
+            SlotKey = "bldg-missing",
+            DisplayName = "Building source detail without LOD",
+        };
+        BootstrapParsedCityObject sourceLod1 = missingSourceLod with
+        {
+            SlotKey = "bldg-lod1",
+            DisplayName = "Building source detail with LOD",
+            LodLevel = 1,
+        };
+        SourceFileDescriptor sourceFile = new(
+            "udx/bldg/53394525/53394525_bldg_6697.gml",
+            "bldg",
+            "53394525",
+            RequiresMeshAreaFilter: false);
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectCityObjects(
+                new CachedSourceFileDescriptor(sourceFile, [missingSourceLod, sourceLod1]),
+                referenceSystem,
+                globalOriginPoint,
+                globalCartesian: null,
+                demTerrainTextureOverlays: [],
+                requestedMeshAreas: [],
+                new PlateauImportRequest(
+                    Dataset: "local",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: ".",
+                    ServerUri: null),
+                new DefaultMaterialResolver())
+            .OrderBy(static cityObject => cityObject.ObjectKey, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal([new DetailLevel(0), new DetailLevel(1)], projected.Select(static cityObject => cityObject.DetailLevel));
+    }
+
     [Fact]
     public void GeneratedFacadeUvProjection_UsesFloorUnitsForBuildingWalls()
     {
@@ -1979,7 +2096,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             DisplayName: slotKey,
             PackageName: "dem",
             ActualMeshCode: "53394525",
-            LodLevel: 1,
+            DetailLevel: new DetailLevel(1),
             Transform: new Transform3D(position),
             Geometry: new TerrainGridGeometry(
                 Width: width,

@@ -27,6 +27,7 @@ public sealed class DemCityObjectAggregationTests
         Assert.Equal("dem_plateau_fukuoka_dem_503033_50303312", result.SlotKey);
         Assert.Equal("DEM 50303312", result.DisplayName);
         Assert.Equal("50303312", result.ActualMeshCode);
+        Assert.Null(result.LodLevel);
         Assert.Equal(sourceFile.RelativePath, result.SourceFileRelativePath);
         Assert.Equal(["polygon-a", "polygon-b"], result.Surfaces.Select(static surface => surface.PolygonId).ToArray());
     }

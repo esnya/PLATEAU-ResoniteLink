@@ -23,7 +23,7 @@ internal static class SceneImportContractMapper
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                cityObject.DetailLevel,
                 ToInternal(cityObject.Transform),
                 ToInternal(triangleMesh.Mesh),
                 cityObject.Materials.Select(ToInternal).ToArray(),
@@ -34,7 +34,7 @@ internal static class SceneImportContractMapper
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                cityObject.DetailLevel,
                 ToInternal(cityObject.Transform),
                 new ResoniteTerrainGridGeometry(
                     heightMap.Width,
@@ -53,7 +53,7 @@ internal static class SceneImportContractMapper
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                cityObject.DetailLevel,
                 ToInternal(cityObject.Transform),
                 new ResoniteDynamicTerrainGeometry(
                     new ResoniteTriangleMeshGeometry(ToInternal(dynamicTerrain.StaticMesh.Mesh)),

@@ -174,8 +174,9 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         }
 
         BatchPlanFieldLocator rendererMeshFieldId = CreateBatchPlanFieldLocator(ref nextFieldLocator);
+        BatchPlanComponentLocator meshRendererComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
         componentEmissions.Add(new PlannedBatchComponentEmission(
-            CreateBatchPlanComponentLocator(ref nextComponentLocator),
+            meshRendererComponentId,
             PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
             "[FrooxEngine]FrooxEngine.MeshRenderer",
             new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
@@ -191,6 +192,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                     emissionPlan.Renderer.MaterialBindings,
                     ref nextComponentLocator),
             }));
+        componentResolutionTargets.Add(meshRendererComponentId);
         if (dynamicTerrainMesh is not null)
         {
             AddDynamicMeshSwitchComponents(
@@ -236,7 +238,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             slotEmissions,
             componentEmissions,
             slotResolutionTargets,
-            componentResolutionTargets);
+            componentResolutionTargets,
+            meshRendererComponentId);
     }
 
     private static PlannedWorldElementReference ResolveInitialMeshTarget(

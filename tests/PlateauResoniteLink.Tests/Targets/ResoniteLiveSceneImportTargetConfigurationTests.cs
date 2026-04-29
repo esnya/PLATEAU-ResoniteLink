@@ -253,7 +253,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     sourceFileRelativePath: null) with
                 {
                     PackageName = "dem",
-                    LodLevel = null,
+                    DetailLevel = null,
                 }));
     }
 
@@ -382,7 +382,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 1,
+            DetailLevel: new DetailLevel(1),
             Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, z)),
             Mesh: new ResoniteImportedMesh(
                 vertices,

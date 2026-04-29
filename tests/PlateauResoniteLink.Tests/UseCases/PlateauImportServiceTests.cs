@@ -546,7 +546,7 @@ public sealed class PlateauImportServiceTests
             yield return new ImportedObjectUnit(
                 "test-source.gml",
                 "bldg",
-                1,
+                new DetailLevel(1),
                 cityObjects);
             await Task.CompletedTask;
         }
@@ -558,7 +558,7 @@ public sealed class PlateauImportServiceTests
                 DisplayName: "City Object",
                 PackageName: "bldg",
                 ActualMeshCode: "53394525",
-                LodLevel: 1,
+                DetailLevel: new DetailLevel(1),
                 Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
                 Geometry: new TriangleMeshGeometry(new ImportedMesh(
                     [
