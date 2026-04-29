@@ -253,7 +253,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     sourceFileRelativePath: null) with
                 {
                     PackageName = "dem",
-                    LodLevel = null,
+                    RenderStage = RenderStage.FromSourceRepresentationIndex(null),
+                    FinestRenderStageGroup = RenderStage.FromSourceRepresentationIndex(null),
                 }));
     }
 
@@ -382,7 +383,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 1,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(1), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(1),
             Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, z)),
             Mesh: new ResoniteImportedMesh(
                 vertices,

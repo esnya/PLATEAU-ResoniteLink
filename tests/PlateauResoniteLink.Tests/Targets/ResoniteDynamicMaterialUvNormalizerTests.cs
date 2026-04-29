@@ -76,7 +76,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             DisplayName: "Mixed Material CityObject",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -137,7 +137,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             DisplayName: "Mixed Triplanar CityObject",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -220,7 +220,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             DisplayName: "Dynamic UV CityObject",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [

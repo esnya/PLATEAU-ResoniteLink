@@ -826,7 +826,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
             new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector())
+            new CityGmlSourceRepresentationSelector())
             .ReadAsync(
             request,
             cancellationToken: default);
@@ -940,7 +940,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             yield return new ImportedObjectUnit(
                 sourceFileRelativePath,
                 importedCityObject.PackageName,
-                importedCityObject.LodLevel,
+                importedCityObject.DetailEntry,
+                importedCityObject.FinestDetailGroup,
                 [importedCityObject],
                 importedCityObject.ActualMeshCode);
         }
@@ -1075,7 +1076,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             DisplayName: $"CityObject {objectIdentity}",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("vertex-color-material"),
             Materials:
@@ -1102,7 +1103,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             DisplayName: $"CityObject {objectIdentity}",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: CreateTwoMaterialMesh(),
             Materials:

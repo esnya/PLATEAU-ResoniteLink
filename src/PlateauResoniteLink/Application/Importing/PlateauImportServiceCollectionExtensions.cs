@@ -18,7 +18,7 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<IDemTerrainGeoReferencedRasterCatalogFactory, DefaultDemTerrainGeoReferencedRasterCatalogFactory>();
         services.TryAddSingleton<IDemTextureSourcePolicy, DefaultDemTextureSourcePolicy>();
         services.TryAddSingleton<ICityGmlAppearanceStoreFactory, CityGmlAppearanceStoreFactory>();
-        services.TryAddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
+        services.TryAddSingleton<ICityGmlSourceRepresentationSelector, CityGmlSourceRepresentationSelector>();
         services.TryAddSingleton<IDefaultMaterialResolver, DefaultMaterialResolver>();
         services.TryAddSingleton<ICityGmlGeometryProjector, LocalCityGmlGeometryProjector>();
         services.TryAddSingleton<ImportedDynamicMaterialUvUnitOptimizer>();
@@ -35,7 +35,7 @@ internal static class PlateauImportServiceCollectionExtensions
             new LocalCityGmlDocumentReader(
                 provider.GetRequiredService<IPlateauDatasetContentSourceFactory>(),
                 provider.GetRequiredService<ICityGmlAppearanceStoreFactory>(),
-                provider.GetRequiredService<ICityGmlLodSelector>()));
+                provider.GetRequiredService<ICityGmlSourceRepresentationSelector>()));
         services.TryAddSingleton<IImportedSceneSourceFactory>(provider =>
             new DefaultImportedSceneSourceFactory(
                 provider.GetRequiredService<ICityGmlDocumentReader>(),

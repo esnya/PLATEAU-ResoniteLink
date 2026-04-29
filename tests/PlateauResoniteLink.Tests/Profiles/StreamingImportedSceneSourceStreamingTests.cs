@@ -28,7 +28,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
 
         SourceFilePipeline bldgPipeline = CreatePipeline(
             new SourceFileDescriptor("udx/bldg/53394525/building.gml", "bldg", "53394525", RequiresMeshAreaFilter: false),
-            [CreateParsedCityObject("bldg", "building", "Building", referenceSystem, lodLevel: 1)],
+            [CreateParsedCityObject("bldg", "building", "Building", referenceSystem, sourceRepresentationIndex: 1)],
             streamFactory: static (sourceFile, cityObjects, beforeYield, cancellationToken) =>
                 StreamSingleParsedCityObjectAsync(sourceFile, cityObjects, beforeYield, cancellationToken),
             parseTaskFactory: () =>
@@ -63,13 +63,13 @@ public sealed class StreamingImportedSceneSourceStreamingTests
 
         SourceFilePipeline bldgPipeline = CreatePipeline(
             new SourceFileDescriptor("udx/bldg/53394525/building.gml", "bldg", "53394525", RequiresMeshAreaFilter: false),
-            [CreateParsedCityObject("bldg", "building", "Building", referenceSystem, lodLevel: 1)]);
+            [CreateParsedCityObject("bldg", "building", "Building", referenceSystem, sourceRepresentationIndex: 1)]);
         SourceFilePipeline tranPipeline = CreatePipeline(
             new SourceFileDescriptor("udx/tran/53394525/road.gml", "tran", "53394525", RequiresMeshAreaFilter: false),
-            [CreateParsedCityObject("tran", "road", "Road", referenceSystem, lodLevel: 1)]);
+            [CreateParsedCityObject("tran", "road", "Road", referenceSystem, sourceRepresentationIndex: 1)]);
         SourceFilePipeline demPipeline = CreatePipeline(
             new SourceFileDescriptor("udx/dem/53394525/terrain.gml", "dem", "53394525", RequiresMeshAreaFilter: false),
-            [CreateParsedCityObject("dem", "terrain", "Terrain", referenceSystem, lodLevel: 1)],
+            [CreateParsedCityObject("dem", "terrain", "Terrain", referenceSystem, sourceRepresentationIndex: 1)],
             beforeYield: demReleaseSignal.Task);
 
         ImportedSceneSourceSnapshot readResult = new(
@@ -141,6 +141,44 @@ public sealed class StreamingImportedSceneSourceStreamingTests
         Assert.Contains(yieldedObjects, static cityObject => cityObject.PackageName == "dem");
     }
 
+    [Fact]
+    public async Task ReadObjectUnitsAsyncGroupsSourceRepresentationsBeforeProjection()
+    {
+        CoordinateReferenceSystem referenceSystem =
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
+        SourceFilePipeline bldgPipeline = CreatePipeline(
+            new SourceFileDescriptor("udx/bldg/53394525/building.gml", "bldg", "53394525", RequiresMeshAreaFilter: false),
+            [
+                CreateParsedCityObject("bldg", "shared-building", "Shared Building", referenceSystem, sourceRepresentationIndex: 3),
+                CreateParsedCityObject("bldg", "shared-building", "Shared Building", referenceSystem, sourceRepresentationIndex: 2),
+                CreateParsedCityObject("bldg", "shared-building", "Shared Building", referenceSystem, sourceRepresentationIndex: 1),
+            ]);
+        RecordingGeometryProjector geometryProjector = new();
+        StreamingImportedSceneSource source = CreateSource(
+            referenceSystem,
+            globalOriginPoint,
+            [bldgPipeline],
+            geometryProjector);
+
+        List<ImportedObjectUnit> objectUnits = [];
+        await foreach (ImportedObjectUnit objectUnit in source.ReadObjectUnitsAsync())
+        {
+            objectUnits.Add(objectUnit);
+        }
+
+        Assert.Equal([3], geometryProjector.ProjectedGroupSizes.ToArray());
+        DetailEntry finestDetailGroup = DetailEntry.FromSourceRepresentationIndex(3);
+        Assert.Equal(
+            [
+                DetailEntry.FromSourceRepresentationIndex(3),
+                DetailEntry.FromSourceRepresentationIndex(2),
+                DetailEntry.FromSourceRepresentationIndex(1),
+            ],
+            objectUnits.Select(static objectUnit => objectUnit.Descriptor.DetailEntry).ToArray());
+        Assert.All(objectUnits, objectUnit => Assert.Equal(finestDetailGroup, objectUnit.Descriptor.FinestDetailGroup));
+    }
+
     private static SourceFilePipeline CreatePipeline(
         SourceFileDescriptor sourceFile,
         ParsedCityObject[] cityObjects,
@@ -198,7 +236,8 @@ public sealed class StreamingImportedSceneSourceStreamingTests
     private static StreamingImportedSceneSource CreateSource(
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
-        IReadOnlyList<SourceFilePipeline> sourceFilePipelines)
+        IReadOnlyList<SourceFilePipeline> sourceFilePipelines,
+        ICityGmlGeometryProjector? geometryProjector = null)
     {
         string[] packageNames = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.PackageName)
@@ -236,7 +275,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             metadata,
             request,
             readResult,
-            new RecordingGeometryProjector(),
+            geometryProjector ?? new RecordingGeometryProjector(),
             new StubDemTextureSourcePolicy(),
             new PassthroughImportedObjectUnitOptimizer());
     }
@@ -266,7 +305,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
         string objectKey,
         string displayName,
         CoordinateReferenceSystem referenceSystem,
-        int? lodLevel)
+        int? sourceRepresentationIndex)
     {
         ParsedRing exteriorRing = new(
             $"{objectKey}-ring",
@@ -290,7 +329,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             DisplayName: displayName,
             PackageName: packageName,
             ActualMeshCode: "53394525",
-            LodLevel: lodLevel,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(sourceRepresentationIndex),
             Surfaces: [surface],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: $"udx/{packageName}/53394525/{objectKey}.gml",
@@ -300,8 +339,10 @@ public sealed class StreamingImportedSceneSourceStreamingTests
     private sealed class RecordingGeometryProjector : ICityGmlGeometryProjector
     {
         private readonly ConcurrentQueue<string> calls = [];
+        private readonly ConcurrentQueue<int> projectedGroupSizes = [];
 
         public IReadOnlyCollection<string> Calls => calls.ToArray();
+        public IReadOnlyCollection<int> ProjectedGroupSizes => projectedGroupSizes.ToArray();
 
         public IEnumerable<ImportedCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
@@ -323,6 +364,12 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             _ = request;
             _ = progressReporter;
             _ = cancellationToken;
+            DetailEntry finestDetailGroup = sourceFile.CityObjects
+                .Select(static cityObject => cityObject.DetailEntry)
+                .OrderBy(static detailEntry => detailEntry.Order)
+                .ThenBy(static detailEntry => detailEntry.Key, StringComparer.Ordinal)
+                .FirstOrDefault();
+            projectedGroupSizes.Enqueue(sourceFile.CityObjects.Length);
             foreach (ParsedCityObject cityObject in sourceFile.CityObjects)
             {
                 if (predicate is not null && !predicate(cityObject))
@@ -336,7 +383,8 @@ public sealed class StreamingImportedSceneSourceStreamingTests
                     cityObject.DisplayName,
                     cityObject.PackageName,
                     cityObject.ActualMeshCode,
-                    cityObject.LodLevel,
+                    cityObject.DetailEntry,
+                    finestDetailGroup,
                     new Transform3D(new Float3(0.0, 0.0, 0.0)),
                     new TriangleMeshGeometry(
                         new ImportedMesh(

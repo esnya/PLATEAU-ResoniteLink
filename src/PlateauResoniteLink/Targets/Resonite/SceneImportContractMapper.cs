@@ -23,7 +23,8 @@ internal static class SceneImportContractMapper
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                ToInternal(cityObject.DetailEntry),
+                ToInternal(cityObject.FinestDetailGroup),
                 ToInternal(cityObject.Transform),
                 ToInternal(triangleMesh.Mesh),
                 cityObject.Materials.Select(ToInternal).ToArray(),
@@ -34,7 +35,8 @@ internal static class SceneImportContractMapper
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                ToInternal(cityObject.DetailEntry),
+                ToInternal(cityObject.FinestDetailGroup),
                 ToInternal(cityObject.Transform),
                 new ResoniteTerrainGridGeometry(
                     heightMap.Width,
@@ -53,7 +55,8 @@ internal static class SceneImportContractMapper
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                ToInternal(cityObject.DetailEntry),
+                ToInternal(cityObject.FinestDetailGroup),
                 ToInternal(cityObject.Transform),
                 new ResoniteDynamicTerrainGeometry(
                     new ResoniteTriangleMeshGeometry(ToInternal(dynamicTerrain.StaticMesh.Mesh)),
@@ -81,6 +84,9 @@ internal static class SceneImportContractMapper
     }
 
     private static ResoniteFloat2 ToInternal(Float2 value) => new(value.X, value.Y);
+
+    private static RenderStage ToInternal(DetailEntry detailEntry) =>
+        new(detailEntry.Key, detailEntry.DisplayName, detailEntry.Order);
 
     private static ResoniteFloat3 ToInternal(Float3 value) => new(value.X, value.Y, value.Z);
 

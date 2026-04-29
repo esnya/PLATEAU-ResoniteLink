@@ -110,11 +110,11 @@ internal static class ResonitePlacementPolicy
             $"Source-file root '{sourceFileSlotName}' did not contain a concrete meshcode and actual mesh '{actualMeshCode}' was not concrete.");
     }
 
-    public static string FormatLodSlotName(int? lodLevel)
+    public static string FormatDetailSlotName(RenderStage renderStage)
     {
-        return lodLevel.HasValue
-            ? string.Create(CultureInfo.InvariantCulture, $"LOD{lodLevel.Value}")
-            : "LOD0";
+        return string.IsNullOrWhiteSpace(renderStage.DisplayName)
+            ? renderStage.Key
+            : renderStage.DisplayName;
     }
 
     public static ResoniteFloat3 ResolveCityObjectLocalPosition(

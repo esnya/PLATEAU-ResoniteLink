@@ -10,16 +10,16 @@ internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
 {
     private readonly IPlateauDatasetContentSourceFactory datasetContentSourceFactory;
     private readonly ICityGmlAppearanceStoreFactory appearanceStoreFactory;
-    private readonly ICityGmlLodSelector lodSelector;
+    private readonly ICityGmlSourceRepresentationSelector sourceRepresentationSelector;
 
     internal LocalCityGmlDocumentReader(
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
-        ICityGmlLodSelector lodSelector)
+        ICityGmlSourceRepresentationSelector sourceRepresentationSelector)
     {
         this.datasetContentSourceFactory = datasetContentSourceFactory;
         this.appearanceStoreFactory = appearanceStoreFactory;
-        this.lodSelector = lodSelector;
+        this.sourceRepresentationSelector = sourceRepresentationSelector;
     }
 
     public async Task<ImportedSceneSourceSnapshot> ReadAsync(
@@ -31,7 +31,7 @@ internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
             request,
             datasetContentSourceFactory,
             appearanceStoreFactory,
-            lodSelector,
+            sourceRepresentationSelector,
             progressReporter,
             cancellationToken);
     }

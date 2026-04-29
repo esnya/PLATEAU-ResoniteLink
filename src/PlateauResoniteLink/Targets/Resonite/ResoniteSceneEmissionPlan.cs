@@ -302,4 +302,8 @@ internal sealed record PlannedBatchEmission(
     IReadOnlyList<PlannedBatchSlotEmission> SlotEmissions,
     IReadOnlyList<PlannedBatchComponentEmission> ComponentEmissions,
     IReadOnlyList<BatchPlanSlotLocator> SlotResolutionTargets,
-    IReadOnlyList<BatchPlanComponentLocator> ComponentResolutionTargets);
+    IReadOnlyList<BatchPlanComponentLocator> ComponentResolutionTargets,
+    BatchPlanComponentLocator RendererComponentTarget);
+
+internal sealed record ExecutedBatchEmission(
+    CreatedComponent RendererComponent);

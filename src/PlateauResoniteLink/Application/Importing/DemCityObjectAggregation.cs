@@ -52,11 +52,7 @@ internal static class DemCityObjectAggregation
             SlotKey = CreateSlotKey(first.PackageName, key.SourceFileRelativePath, key.ThirdMeshCode),
             DisplayName = $"DEM {key.ThirdMeshCode}",
             ActualMeshCode = key.ThirdMeshCode,
-            LodLevel = orderedCityObjects
-                .Select(static cityObject => cityObject.LodLevel)
-                .Where(static lodLevel => lodLevel.HasValue)
-                .DefaultIfEmpty()
-                .Max(),
+            DetailEntry = DetailEntry.Default,
             Surfaces = surfaces,
             SourceFileRelativePath = key.SourceFileRelativePath,
             SharedAcrossMeshCodes = orderedCityObjects.Any(static cityObject => cityObject.SharedAcrossMeshCodes),

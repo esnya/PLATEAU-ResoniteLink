@@ -56,14 +56,14 @@ internal static partial class LocalCityGmlObjectProjection
 
 
 
-    private static ParsedCityObject? ParseCityObject(
+    private static ParsedCityObject[] ParseCityObjects(
         XElement cityObjectElement,
         string packageName,
         string relativeSourceFile,
         string actualMeshCode,
         bool sharedAcrossMeshCodes,
         ICityGmlAppearanceStore appearanceStore,
-        ICityGmlLodSelector lodSelector,
+        ICityGmlSourceRepresentationSelector sourceRepresentationSelector,
         CoordinateReferenceSystem coordinateReferenceSystem,
         IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
         LodFilteringStrategy lodFilteringStrategy)
@@ -87,25 +87,53 @@ internal static partial class LocalCityGmlObjectProjection
             || objectId.Contains("Marking", StringComparison.OrdinalIgnoreCase)
             || objectId.Contains("_road_marking", StringComparison.Ordinal);
 
-        CityGmlLodSelection lodSelection = lodSelector.SelectPreferredSurfaceElements(
+        CityGmlSourceRepresentationSelection[] sourceRepresentationSelections = sourceRepresentationSelector.SelectSurfaceRepresentations(
             cityObjectElement,
             packageName,
             isMarking,
             lodFilteringStrategy);
-        XElement[] preferredSurfaceElements = lodSelection.SurfaceElements;
-        int? lodLevel = lodSelection.LodLevel;
 
         if (!lodFilteringStrategy.ShouldIncludeByPattern(packageName, objectId, isMarking))
         {
-            return null;
+            return [];
         }
 
-        if (preferredSurfaceElements.Length == 0 && lodFilteringStrategy.ShouldExcludeLod(packageName, lodLevel, isMarking))
-        {
-            return null;
-        }
+        string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
+        string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
+        return sourceRepresentationSelections
+            .Select(sourceRepresentationSelection => CreateParsedCityObjectForSourceRepresentation(
+                sourceRepresentationSelection,
+                packageName,
+                displayName!,
+                resolvedActualMeshCode,
+                slotKey,
+                coordinateReferenceSystem,
+                relativeSourceFile,
+                sharedAcrossMeshCodes,
+                requestedMeshAreas,
+                floorsAboveGround,
+                measuredHeightMeters,
+                appearanceStore))
+            .Where(static cityObject => cityObject is not null)
+            .Select(static cityObject => cityObject!)
+            .ToArray();
+    }
 
-        ParsedSurface[] surfaces = preferredSurfaceElements
+    private static ParsedCityObject? CreateParsedCityObjectForSourceRepresentation(
+        CityGmlSourceRepresentationSelection sourceRepresentationSelection,
+        string packageName,
+        string displayName,
+        string resolvedActualMeshCode,
+        string slotKey,
+        CoordinateReferenceSystem coordinateReferenceSystem,
+        string relativeSourceFile,
+        bool sharedAcrossMeshCodes,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        int? floorsAboveGround,
+        double? measuredHeightMeters,
+        ICityGmlAppearanceStore appearanceStore)
+    {
+        ParsedSurface[] surfaces = sourceRepresentationSelection.SurfaceElements
             .Select(surfaceElement => ParseSurface(surfaceElement, appearanceStore))
             .Where(static surface => surface is not null)
             .Select(static surface => surface!)
@@ -132,14 +160,12 @@ internal static partial class LocalCityGmlObjectProjection
             }
         }
 
-        string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
-        string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
         return new ParsedCityObject(
             slotKey,
-            displayName!,
+            displayName,
             packageName,
             resolvedActualMeshCode,
-            lodLevel,
+            sourceRepresentationSelection.DetailEntry,
             surfaces,
             coordinateReferenceSystem,
             relativeSourceFile,
@@ -159,88 +185,12 @@ internal static partial class LocalCityGmlObjectProjection
             .ToArray();
     }
 
-    private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(
-        XElement cityObjectElement,
-        string packageName,
-        bool isMarking,
-        LodFilteringStrategy lodFilteringStrategy)
-    {
-        (XElement SurfaceElement, int? LodLevel)[] surfaces = cityObjectElement
-            .Descendants()
-            .Where(element => element.Name == Gml + "Polygon" || element.Name == Gml + "Triangle")
-            .Select(surfaceElement => (surfaceElement, GetSurfaceLodLevel(surfaceElement, cityObjectElement)))
-            .ToArray();
-
-        int[] explicitLodLevels = surfaces
-            .Where(static surface => surface.LodLevel.HasValue)
-            .Select(static surface => surface.LodLevel!.Value)
-            .ToArray();
-
-        // Filter out excluded LODs before finding the highest
-        int[] validLodLevels = explicitLodLevels
-            .Where(lod => !lodFilteringStrategy.ShouldExcludeLod(packageName, lod, isMarking))
-            .ToArray();
-
-        int? highestLod = validLodLevels.Length > 0
-            ? validLodLevels.Max()
-            : null;
-
-        XElement[] selectedSurfaces = highestLod.HasValue
-            ? surfaces
-                .Where(surface => surface.LodLevel == highestLod.Value)
-                .Select(static surface => surface.SurfaceElement)
-                .ToArray()
-            : surfaces
-                .Where(surface => !lodFilteringStrategy.ShouldExcludeLod(packageName, surface.LodLevel, isMarking))
-                .Select(static surface => surface.SurfaceElement)
-                .ToArray();
-
-        return (selectedSurfaces, highestLod);
-    }
-
     private static ParsedSurface ApplyPackageSurfaceDefaults(string packageName, ParsedSurface surface)
     {
         return string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
             && surface.TexturePayload is null
             ? surface with { UsesGeneratedDemTexture = true }
             : surface;
-    }
-
-    private static int? GetSurfaceLodLevel(XElement surfaceElement, XElement cityObjectElement)
-    {
-        for (XElement? ancestor = surfaceElement.Parent; ancestor is not null && ancestor != cityObjectElement; ancestor = ancestor.Parent)
-        {
-            if (TryParseLodLevel(ancestor.Name.LocalName, out int lodLevel))
-            {
-                return lodLevel;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool TryParseLodLevel(string localName, out int lodLevel)
-    {
-        lodLevel = 0;
-        if (!localName.StartsWith("lod", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        int digitStart = 3;
-        int digitLength = 0;
-        while (digitStart + digitLength < localName.Length
-            && char.IsDigit(localName[digitStart + digitLength]))
-        {
-            digitLength++;
-        }
-
-        return digitLength > 0
-            && int.TryParse(
-                localName.AsSpan(digitStart, digitLength),
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out lodLevel);
     }
 
     private static bool IntersectsMeshCodeBounds(
@@ -1030,7 +980,7 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static bool ShouldTerrainAlignCityObject(ParsedCityObject cityObject)
     {
-        return ShouldTerrainAlignCityObject(cityObject.PackageName, cityObject.LodLevel);
+        return ShouldTerrainAlignCityObject(cityObject.PackageName, cityObject.DetailEntry);
     }
 
     private static bool ShouldConformSurfaceToTerrain(
@@ -1313,7 +1263,8 @@ internal static partial class LocalCityGmlObjectProjection
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
-            LodLevel: cityObject.LodLevel,
+            DetailEntry: cityObject.DetailEntry,
+            FinestDetailGroup: cityObject.DetailEntry,
             Transform: new Transform3D(ToContractFloat3(slotPosition)),
             Mesh: new ImportedMesh(vertices.ToArray(), submeshes.ToArray()),
             Materials: materials,
@@ -3211,6 +3162,16 @@ internal static partial class LocalCityGmlObjectProjection
             global::PlateauResoniteLink.Application.Importing.DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
                 sourceFile.SourceFile,
                 sourceFile.CityObjects);
+        Dictionary<string, DetailEntry> finestDetailGroupsBySlotKey = projectedInputCityObjects
+            .GroupBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)
+            .ToDictionary(
+                static group => group.Key,
+                static group => group
+                    .Select(static cityObject => cityObject.DetailEntry)
+                    .OrderBy(static detailEntry => detailEntry.Order)
+                    .ThenBy(static detailEntry => detailEntry.Key, StringComparer.Ordinal)
+                    .FirstOrDefault(),
+                StringComparer.Ordinal);
 
         foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject parsedCityObject in projectedInputCityObjects)
         {
@@ -3232,7 +3193,12 @@ internal static partial class LocalCityGmlObjectProjection
                          progressReporter,
                          cancellationToken))
             {
-                yield return cityObject;
+                yield return cityObject with
+                {
+                    FinestDetailGroup = finestDetailGroupsBySlotKey.TryGetValue(parsedCityObject.SlotKey, out DetailEntry finestDetailGroup)
+                        ? finestDetailGroup
+                        : parsedCityObject.DetailEntry,
+                };
             }
         }
     }
@@ -3462,7 +3428,8 @@ internal static partial class LocalCityGmlObjectProjection
             cityObject.DisplayName,
             cityObject.PackageName,
             cityObject.ActualMeshCode,
-            cityObject.LodLevel,
+            cityObject.DetailEntry,
+            cityObject.DetailEntry,
             new Transform3D(new Float3(0.0, 0.0, 0.0)),
             new TriangleMeshGeometry(new ImportedMesh([], [])),
             [],
@@ -3539,27 +3506,27 @@ internal static partial class LocalCityGmlObjectProjection
     private static bool ShouldSubdivideTerrainAlignedCityObject(
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
-        return ShouldSubdivideTerrainAlignedCityObject(cityObject.PackageName, cityObject.LodLevel);
+        return ShouldSubdivideTerrainAlignedCityObject(cityObject.PackageName, cityObject.DetailEntry);
     }
 
     private static bool ShouldTerrainAlignCityObject(
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
-        return ShouldTerrainAlignCityObject(cityObject.PackageName, cityObject.LodLevel);
+        return ShouldTerrainAlignCityObject(cityObject.PackageName, cityObject.DetailEntry);
     }
 
-    private static bool ShouldSubdivideTerrainAlignedCityObject(string packageName, int? lodLevel)
+    private static bool ShouldSubdivideTerrainAlignedCityObject(string packageName, DetailEntry detailEntry)
     {
         return PlateauPackageCatalog.IsRoadPackage(packageName)
-            && (!lodLevel.HasValue || lodLevel.Value < 3);
+            && (detailEntry == DetailEntry.Default || detailEntry.Order > 1);
     }
 
-    private static bool ShouldTerrainAlignCityObject(string packageName, int? lodLevel)
+    private static bool ShouldTerrainAlignCityObject(string packageName, DetailEntry detailEntry)
     {
         packageName = packageName.ToLowerInvariant();
         if (PlateauPackageCatalog.IsRoadPackage(packageName))
         {
-            return !lodLevel.HasValue || lodLevel.Value < 3;
+            return detailEntry == DetailEntry.Default || detailEntry.Order > 1;
         }
 
         return packageName switch
@@ -4036,7 +4003,8 @@ internal static partial class LocalCityGmlObjectProjection
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
-            LodLevel: cityObject.LodLevel,
+            DetailEntry: cityObject.DetailEntry,
+            FinestDetailGroup: cityObject.DetailEntry,
             Transform: new Transform3D(
                 ToContractFloat3(adjustedSlotPosition),
                 ToContractQuaternion(GridMeshTerrainRotation)),
@@ -4210,7 +4178,8 @@ internal static partial class LocalCityGmlObjectProjection
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
-            LodLevel: cityObject.LodLevel,
+            DetailEntry: cityObject.DetailEntry,
+            FinestDetailGroup: cityObject.DetailEntry,
             Transform: new Transform3D(
                 ToContractFloat3(adjustedSlotPosition),
                 ToContractQuaternion(GridMeshTerrainRotation)),
@@ -5332,7 +5301,7 @@ internal static partial class LocalCityGmlObjectProjection
         string DisplayName,
         string PackageName,
         string ActualMeshCode,
-        int? LodLevel,
+        DetailEntry DetailEntry,
         ParsedSurface[] Surfaces,
         CoordinateReferenceSystem ReferenceSystem,
         string SourceFileRelativePath,

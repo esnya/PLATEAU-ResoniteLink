@@ -101,4 +101,21 @@ internal sealed class LiveSendRunState
     public required SemaphoreSlim GsiFallbackLicenseGate { get; init; }
 
     public required ConcurrentDictionary<string, int> DemSourceUseCounts { get; init; }
+
+    public object LodGroupGate { get; } = new();
+
+    public required Dictionary<LodGroupKey, LodGroupRendererSet> LodGroupRenderersByGroup { get; init; }
+}
+
+internal readonly record struct LodGroupKey(
+    string SourceFileSlotId,
+    RenderStage FinestRenderStageGroup);
+
+internal sealed class LodGroupRendererSet
+{
+    public required CreatedSlot SourceFileSlot { get; init; }
+
+    public required RenderStage FinestRenderStageGroup { get; init; }
+
+    public Dictionary<RenderStage, SortedDictionary<string, ResoniteComponentLocator>> RenderersByRenderStage { get; } = new();
 }

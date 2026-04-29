@@ -14,7 +14,7 @@ namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
 internal interface IResoniteSceneBatchEmitter
 {
-    Task ExecuteAsync(
+    Task<ExecutedBatchEmission> ExecuteAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
@@ -24,7 +24,7 @@ internal interface IResoniteSceneBatchEmitter
 
 internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitter
 {
-    public Task ExecuteAsync(
+    public Task<ExecutedBatchEmission> ExecuteAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
@@ -34,7 +34,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         return ExecuteCoreAsync(client, cityObject, batchEmission, reportProgress, cancellationToken);
     }
 
-    private static async Task ExecuteCoreAsync(
+    private static async Task<ExecutedBatchEmission> ExecuteCoreAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
@@ -105,6 +105,10 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         {
             _ = canonicalBatchEntityMap.ResolveComponent(pendingComponentsByPlanId[componentResolutionTarget]);
         }
+
+        CreatedComponent rendererComponent =
+            canonicalBatchEntityMap.ResolveComponent(pendingComponentsByPlanId[batchEmission.RendererComponentTarget]);
+        return new ExecutedBatchEmission(rendererComponent);
     }
 
     private static long EstimateBatchPayloadBytes(int operationCount)

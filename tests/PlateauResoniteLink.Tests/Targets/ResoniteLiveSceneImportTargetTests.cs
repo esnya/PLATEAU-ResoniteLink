@@ -53,7 +53,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "DEM Overlay Object",
             PackageName: "dem",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-overlay-material"),
             Materials:
@@ -138,6 +138,118 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal(occupiedOffsetY, importedMesh.AccessUV_2D(0)[1].y, 6);
         Assert.Equal(occupiedOffsetX, importedMesh.AccessUV_2D(0)[2].x, 6);
         Assert.Equal(occupiedOffsetY + ((float)layout.CropHeight / canvasHeight), importedMesh.AccessUV_2D(0)[2].y, 6);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncCreatesLodGroupEntriesByRenderStageWithNearestAvailableRendererFallback()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneSinkRecordingClient client = new();
+        string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles: [sourceFile]);
+        RenderStage finestGroup = RenderStage.FromSourceRepresentationIndex(3);
+        ResoniteConstructionCityObject fine = CreateSimpleCityObject(
+            "fine-only",
+            "Fine Only",
+            "fine-material",
+            sourceFile,
+            renderStage: finestGroup,
+            finestGroup);
+        RenderStage middleStage = RenderStage.FromSourceRepresentationIndex(2);
+        ResoniteConstructionCityObject middle = CreateSimpleCityObject(
+            "middle-only",
+            "Middle Only",
+            "middle-material",
+            sourceFile,
+            renderStage: middleStage,
+            finestGroup);
+        RenderStage coarseStage = new("synthetic-far-coarse", "Synthetic Far Coarse", 4);
+        ResoniteConstructionCityObject coarse = CreateSimpleCityObject(
+            "coarse-only",
+            "Coarse Only",
+            "coarse-material",
+            sourceFile,
+            renderStage: coarseStage,
+            finestGroup);
+        ResoniteConstructionCityObject sharedFine = CreateSimpleCityObject(
+            "shared-multi-stage",
+            "Shared Fine",
+            "shared-fine-material",
+            sourceFile,
+            renderStage: finestGroup,
+            finestGroup);
+        ResoniteConstructionCityObject sharedFarCoarse = CreateSimpleCityObject(
+            "shared-multi-stage",
+            "Shared Far Coarse",
+            "shared-coarse-material",
+            sourceFile,
+            renderStage: coarseStage,
+            finestGroup);
+
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            metadata,
+            [fine, middle, coarse, sharedFine, sharedFarCoarse],
+            client,
+            enableMeshBake: false);
+
+        Component lodGroup = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.LODGroup", StringComparison.Ordinal)).Data;
+        Assert.Equal(1000, Assert.IsType<Field_int>(lodGroup.Members["UpdateOrder"]).Value);
+        SyncObject[] entries = ReadLodGroupEntries(lodGroup);
+        Assert.Equal(3, entries.Length);
+        Assert.Equal(0.28f, Assert.IsType<Field_float>(entries[0].Members["ScreenRelativeTransitionHeight"]).Value);
+        Assert.Equal(0.09f, Assert.IsType<Field_float>(entries[1].Members["ScreenRelativeTransitionHeight"]).Value);
+        Assert.Equal(0.01f, Assert.IsType<Field_float>(entries[2].Members["ScreenRelativeTransitionHeight"]).Value);
+
+        string fineRendererId = FindMeshRendererId(client, "Fine Only");
+        string middleRendererId = FindMeshRendererId(client, "Middle Only");
+        string coarseRendererId = FindMeshRendererId(client, "Coarse Only");
+        string sharedFineRendererId = FindMeshRendererId(client, "Shared Fine");
+        string sharedFarCoarseRendererId = FindMeshRendererId(client, "Shared Far Coarse");
+        Assert.Equal(
+            new[] { coarseRendererId, fineRendererId, middleRendererId, sharedFineRendererId }.OrderBy(static rendererId => rendererId, StringComparer.Ordinal).ToArray(),
+            ReadRendererIds(entries[0]).OrderBy(static rendererId => rendererId, StringComparer.Ordinal).ToArray());
+        Assert.Equal(
+            new[] { coarseRendererId, fineRendererId, middleRendererId, sharedFineRendererId }.OrderBy(static rendererId => rendererId, StringComparer.Ordinal).ToArray(),
+            ReadRendererIds(entries[1]).OrderBy(static rendererId => rendererId, StringComparer.Ordinal).ToArray());
+        Assert.Equal(
+            new[] { coarseRendererId, fineRendererId, middleRendererId, sharedFarCoarseRendererId }.OrderBy(static rendererId => rendererId, StringComparer.Ordinal).ToArray(),
+            ReadRendererIds(entries[2]).OrderBy(static rendererId => rendererId, StringComparer.Ordinal).ToArray());
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncCreatesNonZeroCullThresholdForSingleDemLodGroupEntry()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneSinkRecordingClient client = new();
+        string sourceFile = $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml";
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles: [sourceFile]);
+
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            metadata,
+            [CreateTerrainGridCityObject("single-dem-grid", "Single DEM Grid")],
+            client,
+            enableMeshBake: false);
+
+        Component lodGroup = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.LODGroup", StringComparison.Ordinal)).Data;
+        SyncObject entry = Assert.Single(ReadLodGroupEntries(lodGroup));
+        Assert.Equal(0.005f, Assert.IsType<Field_float>(entry.Members["ScreenRelativeTransitionHeight"]).Value);
+        Assert.NotEmpty(ReadRendererIds(entry));
     }
 
     [Fact]
@@ -455,7 +567,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "DEM Overlay Current Object",
             PackageName: "dem",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-overlay-current-material"),
             Materials:
@@ -518,7 +630,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Terrain Grid Terrain",
             PackageName: "dem",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Geometry: new ResoniteTerrainGridGeometry(
                 Width: 2,
@@ -680,7 +792,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Dynamic Terrain",
             PackageName: "dem",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Geometry: new ResoniteDynamicTerrainGeometry(
                 new ResoniteTriangleMeshGeometry(ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dynamic-terrain-material")),
@@ -829,7 +941,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Terrain Grid Overlay Terrain",
             PackageName: "dem",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Geometry: new ResoniteTerrainGridGeometry(
                 Width: 2,
@@ -901,7 +1013,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "No Collision Object",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("wireframe-material"),
             Materials:
@@ -947,7 +1059,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "DEM Overlay Budget",
             PackageName: "dem",
             ActualMeshCode: "57403600",
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("terrain-material"),
             Materials:
@@ -1000,7 +1112,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "UV Bake Budget Baseline",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: sparseMesh,
             Materials:
@@ -1066,7 +1178,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Planned Id Check",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: CreateTwoSubmeshMesh(),
             Materials:
@@ -1101,7 +1213,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncPlacesObjectUnderLodHierarchy()
+    public async Task ExecuteAsyncPlacesObjectUnderDetailHierarchy()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1118,7 +1230,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Hierarchy Building",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("hierarchy-material"),
             Materials:
@@ -1141,10 +1253,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             client.AddedComponents,
             static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
         Slot objectSlot = client.SlotsById[meshRendererRequest.ContainerSlotId];
-        Slot lodSlot = client.SlotsById[objectSlot.Parent!.TargetID];
+        Slot detailSlot = client.SlotsById[objectSlot.Parent!.TargetID];
 
         Assert.Equal("Hierarchy Building", objectSlot.Name?.Value);
-        Assert.Equal("LOD2", lodSlot.Name?.Value);
+        Assert.Equal("Detail 2", detailSlot.Name?.Value);
     }
 
     [Fact]
@@ -1165,7 +1277,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Placeholder Check",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("placeholder-material"),
             Materials:
@@ -1219,7 +1331,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: originalName,
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 1,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(1), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(1),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("non-baked-material"),
             Materials:
@@ -1271,7 +1383,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Bundled Family Scale Check",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("bundled-family-scale-material"),
             Materials:
@@ -1358,7 +1470,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Bundled Family Transform Check",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("bundled-family-transform-material"),
             Materials:
@@ -1454,7 +1566,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Invalid Submesh Range",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("only-submesh"),
             Materials:
@@ -1498,7 +1610,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Invalid Dynamic Terrain Submesh Range",
             PackageName: "dem",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Geometry: new ResoniteDynamicTerrainGeometry(
                 new ResoniteTriangleMeshGeometry(ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("only-submesh")),
@@ -1550,7 +1662,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Invalid Submesh Duplicate",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: CreateTwoSubmeshMesh(),
             Materials:
@@ -1603,7 +1715,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Invalid Submesh Duplicate Dynamic",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: CreateTwoSubmeshMesh(),
             Materials:
@@ -1658,7 +1770,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Invalid Submesh Unassigned",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: CreateTwoSubmeshMesh(),
             Materials:
@@ -1702,7 +1814,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: "Invalid Empty Submesh",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 Vertices:
@@ -1768,7 +1880,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: displayName,
             PackageName: "dem",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Geometry: new ResoniteTerrainGridGeometry(
                 Width: 2,
@@ -1792,6 +1904,42 @@ public sealed class ResoniteLiveSceneImportTargetTests
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
     }
 
+    private static ResoniteConstructionCityObject CreateSimpleCityObject(
+        string slotKey,
+        string displayName,
+        string materialKey,
+        string sourceFile,
+        RenderStage renderStage,
+        RenderStage finestGroup)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: displayName,
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            RenderStage: renderStage,
+            FinestRenderStageGroup: finestGroup,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(materialKey),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: materialKey,
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    TextureScale: null,
+                    TextureOffset: null,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TerrainOverlay: null,
+                    TerrainMeshCode: null),
+            ],
+            SourceFileRelativePath: sourceFile);
+    }
+
     private static ResoniteConstructionCityObject CreateTerrainOverlayCityObject(
         string slotKey,
         string displayName,
@@ -1805,7 +1953,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             DisplayName: displayName,
             PackageName: packageName,
             ActualMeshCode: meshCode,
-            LodLevel: string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase) ? 0 : 1,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase) ? 0 : 1),
+            FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase) ? 0 : 1),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(materialKey),
             Materials:
@@ -1834,6 +1983,31 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Field_int2 value = Assert.IsType<Field_int2>(point.Members["Value"]);
         Assert.Equal(expectedX, value.Value.x);
         Assert.Equal(expectedY, value.Value.y);
+    }
+
+    private static SyncObject[] ReadLodGroupEntries(Component lodGroup)
+    {
+        return Assert.IsType<SyncList>(lodGroup.Members["LODs"]).Elements
+            .Select(static member => Assert.IsType<SyncObject>(member))
+            .ToArray();
+    }
+
+    private static string[] ReadRendererIds(SyncObject lodGroupEntry)
+    {
+        return Assert.IsType<SyncList>(lodGroupEntry.Members["Renderers"]).Elements
+            .Select(static member => Assert.IsType<Reference>(member).TargetID)
+            .Where(static targetId => targetId is not null)
+            .Select(static targetId => targetId!)
+            .ToArray();
+    }
+
+    private static string FindMeshRendererId(SceneSinkRecordingClient client, string slotName)
+    {
+        AddComponent renderer = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, slotName, StringComparison.Ordinal));
+        return renderer.Data.ID!;
     }
 
     private static void AssertNoPlannedIds(Slot slot)

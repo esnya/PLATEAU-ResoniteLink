@@ -37,6 +37,7 @@ internal sealed record CityGmlResolvedAppearance(
     CityGmlParameterizedTexture? ParameterizedTexture = null,
     CityGmlGeoreferencedTexture? GeoreferencedTexture = null);
 
-internal sealed record CityGmlLodSelection(
+internal sealed record CityGmlSourceRepresentationSelection(
     XElement[] SurfaceElements,
-    int? LodLevel);
+    DetailEntry DetailEntry,
+    int? SourceRepresentationIndex);

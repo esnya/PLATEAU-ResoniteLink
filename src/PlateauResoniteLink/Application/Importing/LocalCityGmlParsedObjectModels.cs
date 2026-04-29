@@ -81,7 +81,7 @@ internal sealed record ParsedCityObject(
     string DisplayName,
     string PackageName,
     string ActualMeshCode,
-    int? LodLevel,
+    DetailEntry DetailEntry,
     ParsedSurface[] Surfaces,
     CoordinateReferenceSystem ReferenceSystem,
     string SourceFileRelativePath,
@@ -91,6 +91,69 @@ internal sealed record ParsedCityObject(
     int? FloorsAboveGround = null,
     double? MeasuredHeightMeters = null)
 {
+    public ParsedCityObject(
+        string SlotKey,
+        string DisplayName,
+        string PackageName,
+        string ActualMeshCode,
+        DetailEntry DetailEntry,
+        DetailEntry FinestDetailGroup,
+        ParsedSurface[] Surfaces,
+        CoordinateReferenceSystem ReferenceSystem,
+        string SourceFileRelativePath,
+        bool SharedAcrossMeshCodes,
+        bool TerrainAligned = false,
+        GeodeticPoint? GeodeticOriginOverride = null,
+        int? FloorsAboveGround = null,
+        double? MeasuredHeightMeters = null)
+        : this(
+            SlotKey,
+            DisplayName,
+            PackageName,
+            ActualMeshCode,
+            DetailEntry,
+            Surfaces,
+            ReferenceSystem,
+            SourceFileRelativePath,
+            SharedAcrossMeshCodes,
+            TerrainAligned,
+            GeodeticOriginOverride,
+            FloorsAboveGround,
+            MeasuredHeightMeters)
+    {
+    }
+
+    public ParsedCityObject(
+        string SlotKey,
+        string DisplayName,
+        string PackageName,
+        string ActualMeshCode,
+        int? sourceRepresentationIndex,
+        ParsedSurface[] Surfaces,
+        CoordinateReferenceSystem ReferenceSystem,
+        string SourceFileRelativePath,
+        bool SharedAcrossMeshCodes,
+        bool TerrainAligned = false,
+        GeodeticPoint? GeodeticOriginOverride = null,
+        int? FloorsAboveGround = null,
+        double? MeasuredHeightMeters = null)
+        : this(
+            SlotKey,
+            DisplayName,
+            PackageName,
+            ActualMeshCode,
+            DetailEntry.FromSourceRepresentationIndex(sourceRepresentationIndex),
+            Surfaces,
+            ReferenceSystem,
+            SourceFileRelativePath,
+            SharedAcrossMeshCodes,
+            TerrainAligned,
+            GeodeticOriginOverride,
+            FloorsAboveGround,
+            MeasuredHeightMeters)
+    {
+    }
+
     internal LocalCityGmlObjectProjection.ParsedCityObject ToProjectionModel()
     {
         return new LocalCityGmlObjectProjection.ParsedCityObject(
@@ -98,7 +161,7 @@ internal sealed record ParsedCityObject(
             DisplayName,
             PackageName,
             ActualMeshCode,
-            LodLevel,
+            DetailEntry,
             Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray(),
             ReferenceSystem.ToProjectionModel(),
             SourceFileRelativePath,
@@ -116,7 +179,7 @@ internal sealed record ParsedCityObject(
             cityObject.DisplayName,
             cityObject.PackageName,
             cityObject.ActualMeshCode,
-            cityObject.LodLevel,
+            cityObject.DetailEntry,
             cityObject.Surfaces.Select(ParsedSurface.FromProjectionModel).ToArray(),
             CoordinateReferenceSystem.FromProjectionModel(cityObject.ReferenceSystem),
             cityObject.SourceFileRelativePath,

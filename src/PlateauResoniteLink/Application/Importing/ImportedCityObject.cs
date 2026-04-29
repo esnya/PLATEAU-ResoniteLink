@@ -8,7 +8,8 @@ public sealed record ImportedCityObject(
     string DisplayName,
     string PackageName,
     string ActualMeshCode,
-    int? LodLevel,
+    DetailEntry DetailEntry,
+    DetailEntry FinestDetailGroup,
     Transform3D Transform,
     ConstructionGeometry Geometry,
     IReadOnlyList<MaterialBinding> Materials,
@@ -20,7 +21,8 @@ public sealed record ImportedCityObject(
         string DisplayName,
         string PackageName,
         string ActualMeshCode,
-        int? LodLevel,
+        DetailEntry DetailEntry,
+        DetailEntry FinestDetailGroup,
         Transform3D Transform,
         ImportedMesh Mesh,
         IReadOnlyList<MaterialBinding> Materials,
@@ -31,9 +33,114 @@ public sealed record ImportedCityObject(
             DisplayName,
             PackageName,
             ActualMeshCode,
-            LodLevel,
+            DetailEntry,
+            FinestDetailGroup,
             Transform,
             new TriangleMeshGeometry(Mesh),
+            Materials,
+            CollisionEnabled,
+            SourceFileRelativePath)
+    {
+    }
+
+    public ImportedCityObject(
+        string ObjectKey,
+        string DisplayName,
+        string PackageName,
+        string ActualMeshCode,
+        DetailEntry DetailEntry,
+        Transform3D Transform,
+        ImportedMesh Mesh,
+        IReadOnlyList<MaterialBinding> Materials,
+        bool CollisionEnabled = true,
+        string? SourceFileRelativePath = null)
+        : this(
+            ObjectKey,
+            DisplayName,
+            PackageName,
+            ActualMeshCode,
+            DetailEntry,
+            DetailEntry,
+            Transform,
+            Mesh,
+            Materials,
+            CollisionEnabled,
+            SourceFileRelativePath)
+    {
+    }
+
+    public ImportedCityObject(
+        string ObjectKey,
+        string DisplayName,
+        string PackageName,
+        string ActualMeshCode,
+        DetailEntry DetailEntry,
+        Transform3D Transform,
+        ConstructionGeometry Geometry,
+        IReadOnlyList<MaterialBinding> Materials,
+        bool CollisionEnabled = true,
+        string? SourceFileRelativePath = null)
+        : this(
+            ObjectKey,
+            DisplayName,
+            PackageName,
+            ActualMeshCode,
+            DetailEntry,
+            DetailEntry,
+            Transform,
+            Geometry,
+            Materials,
+            CollisionEnabled,
+            SourceFileRelativePath)
+    {
+    }
+
+    public ImportedCityObject(
+        string ObjectKey,
+        string DisplayName,
+        string PackageName,
+        string ActualMeshCode,
+        int? sourceRepresentationIndex,
+        Transform3D Transform,
+        ImportedMesh Mesh,
+        IReadOnlyList<MaterialBinding> Materials,
+        bool CollisionEnabled = true,
+        string? SourceFileRelativePath = null)
+        : this(
+            ObjectKey,
+            DisplayName,
+            PackageName,
+            ActualMeshCode,
+            DetailEntry.FromSourceRepresentationIndex(sourceRepresentationIndex),
+            DetailEntry.FromSourceRepresentationIndex(sourceRepresentationIndex),
+            Transform,
+            Mesh,
+            Materials,
+            CollisionEnabled,
+            SourceFileRelativePath)
+    {
+    }
+
+    public ImportedCityObject(
+        string ObjectKey,
+        string DisplayName,
+        string PackageName,
+        string ActualMeshCode,
+        int? sourceRepresentationIndex,
+        Transform3D Transform,
+        ConstructionGeometry Geometry,
+        IReadOnlyList<MaterialBinding> Materials,
+        bool CollisionEnabled = true,
+        string? SourceFileRelativePath = null)
+        : this(
+            ObjectKey,
+            DisplayName,
+            PackageName,
+            ActualMeshCode,
+            DetailEntry.FromSourceRepresentationIndex(sourceRepresentationIndex),
+            DetailEntry.FromSourceRepresentationIndex(sourceRepresentationIndex),
+            Transform,
+            Geometry,
             Materials,
             CollisionEnabled,
             SourceFileRelativePath)

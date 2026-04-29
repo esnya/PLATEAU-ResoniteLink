@@ -109,11 +109,12 @@ public sealed class ResonitePlacementPolicyTests
     }
 
     [Fact]
-    public void FormatLodSlotName_UsesLod0ForNullLod()
+    public void FormatDetailSlotName_UsesRenderStageDisplayName()
     {
-        string slotName = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.FormatLodSlotName(null);
+        string slotName = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.FormatDetailSlotName(
+            PlateauResoniteLink.Targets.Resonite.RenderStage.Default);
 
-        Assert.Equal("LOD0", slotName);
+        Assert.Equal("Detail", slotName);
     }
 
     [Fact]
@@ -135,7 +136,8 @@ public sealed class ResonitePlacementPolicyTests
             DisplayName: "slot-a",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: PlateauResoniteLink.Targets.Resonite.RenderStage.FromSourceRepresentationIndex(2),
+            FinestRenderStageGroup: PlateauResoniteLink.Targets.Resonite.RenderStage.FromSourceRepresentationIndex(2),
             Transform: new PlateauResoniteLink.Targets.Resonite.ResoniteTransform(new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new PlateauResoniteLink.Targets.Resonite.ResoniteImportedMesh([], []),
             Materials: [],

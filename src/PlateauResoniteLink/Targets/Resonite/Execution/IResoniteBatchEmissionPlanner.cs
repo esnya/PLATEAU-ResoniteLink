@@ -46,7 +46,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         BatchPlanSlotLocator meshAssetSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
         slotEmissions.Add(new PlannedBatchSlotEmission(
             meshAssetSlotId,
-            PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
+            PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetDetailSlot.Locator),
             emissionPlan.GeometryAsset.MeshAssetSlotName,
             null,
             null));
@@ -152,7 +152,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         BatchPlanSlotLocator presentationSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
         slotEmissions.Add(new PlannedBatchSlotEmission(
             presentationSlotId,
-            PlannedSlotTargetReference.CanonicalSlot(objectSlots.LodSlot.Locator),
+            PlannedSlotTargetReference.CanonicalSlot(objectSlots.DetailSlot.Locator),
             objectSlots.CityObjectSlotName,
             objectSlots.CityObjectLocalPosition,
             objectSlots.CityObjectRotation));
@@ -174,8 +174,9 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         }
 
         BatchPlanFieldLocator rendererMeshFieldId = CreateBatchPlanFieldLocator(ref nextFieldLocator);
+        BatchPlanComponentLocator rendererComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
         componentEmissions.Add(new PlannedBatchComponentEmission(
-            CreateBatchPlanComponentLocator(ref nextComponentLocator),
+            rendererComponentId,
             PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
             "[FrooxEngine]FrooxEngine.MeshRenderer",
             new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
@@ -201,6 +202,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 ref nextComponentLocator,
                 ref nextFieldLocator);
         }
+        componentResolutionTargets.Add(rendererComponentId);
 
         BatchPlanFieldLocator colliderMeshFieldId = CreateBatchPlanFieldLocator(ref nextFieldLocator);
         componentEmissions.Add(new PlannedBatchComponentEmission(
@@ -236,7 +238,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             slotEmissions,
             componentEmissions,
             slotResolutionTargets,
-            componentResolutionTargets);
+            componentResolutionTargets,
+            rendererComponentId);
     }
 
     private static PlannedWorldElementReference ResolveInitialMeshTarget(
@@ -265,7 +268,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         BatchPlanComponentLocator heightTextureComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
         slotEmissions.Add(new PlannedBatchSlotEmission(
             heightMapAssetSlotId,
-            PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
+            PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetDetailSlot.Locator),
             terrainGridAssetSlotName,
             null,
             null));

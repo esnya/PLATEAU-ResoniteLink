@@ -86,7 +86,7 @@ public sealed class DemSourceDiscoverySupportTests
             DisplayName: "dem-sample",
             PackageName: "dem",
             ActualMeshCode: "53394525",
-            LodLevel: null,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(null),
             Surfaces:
             [
                 new ParsedSurface(

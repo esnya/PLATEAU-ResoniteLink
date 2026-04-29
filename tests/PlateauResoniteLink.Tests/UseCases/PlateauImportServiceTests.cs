@@ -558,7 +558,7 @@ public sealed class PlateauImportServiceTests
                 DisplayName: "City Object",
                 PackageName: "bldg",
                 ActualMeshCode: "53394525",
-                LodLevel: 1,
+                DetailEntry: DetailEntry.FromSourceRepresentationIndex(1), FinestDetailGroup: DetailEntry.FromSourceRepresentationIndex(1),
                 Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
                 Geometry: new TriangleMeshGeometry(new ImportedMesh(
                     [

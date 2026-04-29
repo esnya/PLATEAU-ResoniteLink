@@ -360,7 +360,7 @@ public sealed class DemTerrainOverlayAssignmentTests
             DisplayName: "DEM Object",
             PackageName: "dem",
             ActualMeshCode: "53394525",
-            LodLevel: 1,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(1),
             Surfaces: [surface],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",

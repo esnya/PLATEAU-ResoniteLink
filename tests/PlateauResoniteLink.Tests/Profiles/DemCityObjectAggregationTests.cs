@@ -81,7 +81,7 @@ public sealed class DemCityObjectAggregationTests
             slotKey,
             "dem",
             actualMeshCode,
-            LodLevel: 1,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(1),
             Surfaces: [surface],
             referenceSystem,
             sourceFileRelativePath,

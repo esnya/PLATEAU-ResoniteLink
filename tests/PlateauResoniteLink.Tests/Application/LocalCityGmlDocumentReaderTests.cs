@@ -21,7 +21,7 @@ public sealed class LocalCityGmlDocumentReaderTests
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector());
+            new CityGmlSourceRepresentationSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
             new PlateauImportRequest(
@@ -50,7 +50,7 @@ public sealed class LocalCityGmlDocumentReaderTests
         LocalCityGmlDocumentReader reader = new(
             new StubDatasetContentSourceFactory(datasetSource),
             new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector());
+            new CityGmlSourceRepresentationSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
             new PlateauImportRequest(

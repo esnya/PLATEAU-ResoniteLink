@@ -554,7 +554,8 @@ public sealed class NonDemCityObjectBakerTests
             CreatePayload("textures/lod1-roof.png", new Rgba32(255, 0, 0, 255), 4, 4),
             "unit-a") with
         {
-            LodLevel = 1,
+            RenderStage = RenderStage.FromSourceRepresentationIndex(1),
+            FinestRenderStageGroup = RenderStage.FromSourceRepresentationIndex(1),
             Materials =
             [
                 new ResoniteMaterialBinding(
@@ -706,7 +707,8 @@ public sealed class NonDemCityObjectBakerTests
             new ResoniteFloat2(0.25, 0.75)) with
         {
             PackageName = "tran",
-            LodLevel = 1,
+            RenderStage = RenderStage.FromSourceRepresentationIndex(1),
+            FinestRenderStageGroup = RenderStage.FromSourceRepresentationIndex(1),
         };
 
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
@@ -732,7 +734,8 @@ public sealed class NonDemCityObjectBakerTests
             0,
             "unit-a") with
         {
-            LodLevel = 1,
+            RenderStage = RenderStage.FromSourceRepresentationIndex(1),
+            FinestRenderStageGroup = RenderStage.FromSourceRepresentationIndex(1),
             Materials =
             [
                 new ResoniteMaterialBinding(
@@ -779,7 +782,8 @@ public sealed class NonDemCityObjectBakerTests
             new ResoniteFloat2(0.25, 0.75)) with
         {
             PackageName = "dem",
-            LodLevel = null,
+            RenderStage = RenderStage.FromSourceRepresentationIndex(null),
+            FinestRenderStageGroup = RenderStage.FromSourceRepresentationIndex(null),
         };
 
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(demCityObject);
@@ -803,7 +807,8 @@ public sealed class NonDemCityObjectBakerTests
             "unit-a") with
         {
             PackageName = "frn",
-            LodLevel = null,
+            RenderStage = RenderStage.FromSourceRepresentationIndex(null),
+            FinestRenderStageGroup = RenderStage.FromSourceRepresentationIndex(null),
         };
 
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
@@ -811,7 +816,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.True(result.Buffered);
         Assert.Empty(result.ReadyCityObjects);
         ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
-        Assert.Null(baked.LodLevel);
+        Assert.Equal(RenderStage.Default, baked.RenderStage);
         Assert.Equal("frn", baked.PackageName);
     }
 
@@ -944,7 +949,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -997,7 +1002,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -1046,7 +1051,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -1121,7 +1126,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -1165,7 +1170,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -1215,7 +1220,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
@@ -1283,7 +1288,7 @@ public sealed class NonDemCityObjectBakerTests
             DisplayName: slotKey,
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(2), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(2),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [

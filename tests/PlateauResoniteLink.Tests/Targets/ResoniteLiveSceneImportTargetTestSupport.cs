@@ -394,7 +394,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             yield return new ImportedObjectUnit(
                 sourceFileRelativePath,
                 importedCityObject.PackageName,
-                importedCityObject.LodLevel,
+                importedCityObject.DetailEntry,
+                importedCityObject.FinestDetailGroup,
                 [importedCityObject],
                 importedCityObject.ActualMeshCode);
         }
@@ -414,7 +415,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                new DetailEntry(cityObject.RenderStage.Key, cityObject.RenderStage.DisplayName, cityObject.RenderStage.Order),
+                new DetailEntry(cityObject.FinestRenderStageGroup.Key, cityObject.FinestRenderStageGroup.DisplayName, cityObject.FinestRenderStageGroup.Order),
                 ToContractTransform(cityObject.Transform),
                 ToContractMesh(triangleMesh.Mesh),
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
@@ -425,7 +427,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                new DetailEntry(cityObject.RenderStage.Key, cityObject.RenderStage.DisplayName, cityObject.RenderStage.Order),
+                new DetailEntry(cityObject.FinestRenderStageGroup.Key, cityObject.FinestRenderStageGroup.DisplayName, cityObject.FinestRenderStageGroup.Order),
                 ToContractTransform(cityObject.Transform),
                 new TerrainGridGeometry(
                     heightMap.Width,
@@ -444,7 +447,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
-                cityObject.LodLevel,
+                new DetailEntry(cityObject.RenderStage.Key, cityObject.RenderStage.DisplayName, cityObject.RenderStage.Order),
+                new DetailEntry(cityObject.FinestRenderStageGroup.Key, cityObject.FinestRenderStageGroup.DisplayName, cityObject.FinestRenderStageGroup.Order),
                 ToContractTransform(cityObject.Transform),
                 new DynamicTerrainGeometry(
                     new TriangleMeshGeometry(ToContractMesh(dynamicTerrain.StaticMesh.Mesh)),

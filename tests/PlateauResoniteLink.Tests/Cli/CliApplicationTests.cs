@@ -57,7 +57,7 @@ public sealed class CliApplicationTests
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector());
+            new CityGmlSourceRepresentationSelector());
     }
 
     private static DatasetInspectionService CreateDatasetInspectionService()

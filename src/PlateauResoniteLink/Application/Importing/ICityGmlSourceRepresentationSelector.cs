@@ -4,9 +4,9 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal interface ICityGmlLodSelector
+internal interface ICityGmlSourceRepresentationSelector
 {
-    CityGmlLodSelection SelectPreferredSurfaceElements(
+    CityGmlSourceRepresentationSelection[] SelectSurfaceRepresentations(
         XElement cityObjectElement,
         string packageName,
         bool isMarking,

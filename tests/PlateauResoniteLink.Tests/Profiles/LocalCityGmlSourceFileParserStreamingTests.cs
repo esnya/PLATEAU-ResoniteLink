@@ -83,7 +83,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             progressReporter: null,
             new LodFilteringStrategy(),
             new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector(),
+            new CityGmlSourceRepresentationSelector(),
             CancellationToken.None);
 
         await using IAsyncEnumerator<ParsedCityObject> enumerator =
@@ -154,7 +154,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             progressReporter: null,
             new LodFilteringStrategy(),
             new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector(),
+            new CityGmlSourceRepresentationSelector(),
             CancellationToken.None);
 
         ParsedCityObject? parsedCityObject = null;
@@ -221,7 +221,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             progressReporter: null,
             new LodFilteringStrategy(),
             new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector(),
+            new CityGmlSourceRepresentationSelector(),
             CancellationToken.None);
 
         ParsedCityObject? parsedCityObject = null;

@@ -645,7 +645,7 @@ internal sealed class NonDemCityObjectBaker(
         if (submeshes.Count == 0 || materials.Count == 0)
         {
             throw new InvalidOperationException(
-                $"Non-DEM bake batch '{sourceFileKey.PackageName}:{sourceFileKey.ActualMeshCode}:LOD{sourceFileKey.LodLevel}' produced no materialized submesh.");
+                $"Non-DEM bake batch '{sourceFileKey.PackageName}:{sourceFileKey.ActualMeshCode}:{sourceFileKey.FinestRenderStageGroup.Key}:{sourceFileKey.RenderStage.Key}' produced no materialized submesh.");
         }
 
         return new ResoniteConstructionCityObject(
@@ -653,7 +653,8 @@ internal sealed class NonDemCityObjectBaker(
             DisplayName: displayName,
             PackageName: firstCityObject.PackageName,
             ActualMeshCode: firstCityObject.ActualMeshCode,
-            LodLevel: firstCityObject.LodLevel,
+            RenderStage: firstCityObject.RenderStage,
+            FinestRenderStageGroup: firstCityObject.FinestRenderStageGroup,
             Transform: new ResoniteTransform(bakeOrigin),
             Mesh: new ResoniteImportedMesh(vertices, submeshes),
             Materials: materials,
@@ -1154,32 +1155,31 @@ internal sealed class NonDemCityObjectBaker(
         return new SourceFileBatchKey(
             cityObject.ActualMeshCode,
             cityObject.PackageName.ToLowerInvariant(),
-            cityObject.LodLevel,
+            cityObject.FinestRenderStageGroup,
+            cityObject.RenderStage,
             context,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
     private static string CreateBatchSlotKey(SourceFileBatchKey sourceFileKey, int batchIndex)
     {
-        string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.SourceFileRelativePath)}-{sourceFileKey.PackageName}-lod{lodToken}-{batchIndex + 1}");
+            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.SourceFileRelativePath)}-{sourceFileKey.PackageName}-{sourceFileKey.FinestRenderStageGroup.Key}-{sourceFileKey.RenderStage.Key}-{batchIndex + 1}");
     }
 
     private static string CreateBatchDisplayName(SourceFileBatchKey sourceFileKey, int batchIndex, string batchSlotKey)
     {
-        string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"AtlasBake {sourceFileKey.PackageName} LOD{lodToken} #{batchIndex + 1} [{batchSlotKey}]");
+            $"AtlasBake {sourceFileKey.PackageName} {sourceFileKey.FinestRenderStageGroup.DisplayName} {sourceFileKey.RenderStage.DisplayName} #{batchIndex + 1} [{batchSlotKey}]");
     }
 
     private static string CreateAtlasTextureIdentity(SourceFileBatchKey sourceFileKey, int batchIndex)
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlastex-{sourceFileKey.SourceFileRelativePath}-{batchIndex + 1}");
+            $"atlastex-{sourceFileKey.SourceFileRelativePath}-{sourceFileKey.FinestRenderStageGroup.Key}-{sourceFileKey.RenderStage.Key}-{batchIndex + 1}");
     }
 
     private static string CreateAtlasMaterialKey(SourceFileBatchKey sourceFileKey, int batchIndex, string slotKey)
@@ -1696,7 +1696,8 @@ internal sealed class NonDemCityObjectBaker(
     private readonly record struct SourceFileBatchKey(
         string ActualMeshCode,
         string PackageName,
-        int? LodLevel,
+        RenderStage FinestRenderStageGroup,
+        RenderStage RenderStage,
         string PolicyContext,
         string SourceFileRelativePath);
 
@@ -1731,7 +1732,25 @@ internal sealed class NonDemCityObjectBaker(
                 return compare;
             }
 
-            compare = Nullable.Compare(x.LodLevel, y.LodLevel);
+            compare = x.FinestRenderStageGroup.Order.CompareTo(y.FinestRenderStageGroup.Order);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = string.CompareOrdinal(x.FinestRenderStageGroup.Key, y.FinestRenderStageGroup.Key);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.RenderStage.Order.CompareTo(y.RenderStage.Order);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = string.CompareOrdinal(x.RenderStage.Key, y.RenderStage.Key);
             if (compare != 0)
             {
                 return compare;

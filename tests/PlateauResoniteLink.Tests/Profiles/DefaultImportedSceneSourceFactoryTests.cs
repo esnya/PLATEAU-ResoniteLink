@@ -326,7 +326,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             DisplayName: "dem-slot-000",
             PackageName: "dem",
             ActualMeshCode: "53394525",
-            LodLevel: 1,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(1),
             Surfaces:
             [
                 new ParsedSurface(

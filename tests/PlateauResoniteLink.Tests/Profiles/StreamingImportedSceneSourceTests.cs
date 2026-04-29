@@ -438,7 +438,7 @@ public sealed class StreamingImportedSceneSourceTests
             DisplayName: $"slot-{index:000}",
             PackageName: sourceFile.PackageName,
             ActualMeshCode: sourceFile.MatchedMeshCode,
-            LodLevel: 1,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(1),
             Surfaces: surfaces,
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
@@ -454,7 +454,7 @@ public sealed class StreamingImportedSceneSourceTests
             DisplayName: "slot-renderable",
             PackageName: sourceFile.PackageName,
             ActualMeshCode: sourceFile.MatchedMeshCode,
-            LodLevel: 1,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(1),
             Surfaces:
             [
                 new ParsedSurface(
@@ -545,7 +545,8 @@ public sealed class StreamingImportedSceneSourceTests
                     DisplayName: parsedCityObject.DisplayName,
                     PackageName: parsedCityObject.PackageName,
                     ActualMeshCode: parsedCityObject.ActualMeshCode,
-                    LodLevel: parsedCityObject.LodLevel,
+                    DetailEntry: parsedCityObject.DetailEntry,
+                    FinestDetailGroup: parsedCityObject.DetailEntry,
                     Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
                     Geometry: new TriangleMeshGeometry(new ImportedMesh([], [])),
                     Materials: [],
@@ -614,7 +615,8 @@ public sealed class StreamingImportedSceneSourceTests
                 DisplayName: parsedCityObject.DisplayName,
                 PackageName: parsedCityObject.PackageName,
                 ActualMeshCode: parsedCityObject.ActualMeshCode,
-                LodLevel: parsedCityObject.LodLevel,
+                DetailEntry: parsedCityObject.DetailEntry,
+                FinestDetailGroup: parsedCityObject.DetailEntry,
                 Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
                 Geometry: new TriangleMeshGeometry(new ImportedMesh([], [])),
                 Materials: [],

@@ -684,7 +684,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncReusesExistingLod0BranchForNullLodObjects()
+    public async Task ExecuteAsyncCreatesSeparateDefaultAndExplicitDetailBranches()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
@@ -694,19 +694,19 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             metadata,
             [
                 CreateBundledTriangleCityObject(
-                    "lod0-first",
+                    "explicit-detail-first",
                     actualMeshCode: SecondaryMeshCode,
                     sourceFileRelativePath: SecondarySourceFile,
                     worldPosition: new ResoniteFloat3(10.0, 0.0, 20.0),
-                    lodLevel: 0),
+                    sourceRepresentationIndex: 1),
             ],
             [
                 CreateBundledTriangleCityObject(
-                    "lod0-second",
+                    "default-detail-second",
                     actualMeshCode: SecondaryMeshCode,
                     sourceFileRelativePath: SecondarySourceFile,
                     worldPosition: new ResoniteFloat3(11.0, 0.0, 21.0),
-                    lodLevel: null),
+                    sourceRepresentationIndex: null),
             ],
             client);
 
@@ -716,19 +716,18 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             $"PLATEAU {DatasetName}/{sourceFileRootName}");
 
         Assert.Equal(2, datasetSourceFileRoots.Length);
-        Assert.All(
-            datasetSourceFileRoots,
-            datasetSourceFileRoot =>
-            {
-                Assert.Equal(
-                    1,
-                    client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "LOD0", StringComparison.Ordinal)
-                        && string.Equals(slot.Parent?.TargetID, datasetSourceFileRoot.ID, StringComparison.Ordinal)));
-                Assert.DoesNotContain(
-                    client.SlotsById.Values,
-                    slot => string.Equals(slot.Name?.Value, "LOD", StringComparison.Ordinal)
-                        && string.Equals(slot.Parent?.TargetID, datasetSourceFileRoot.ID, StringComparison.Ordinal));
-            });
+        string[] detailSlotNames = datasetSourceFileRoots
+            .SelectMany(datasetSourceFileRoot => client.SlotsById.Values
+                .Where(slot => string.Equals(slot.Parent?.TargetID, datasetSourceFileRoot.ID, StringComparison.Ordinal))
+                .Select(slot => slot.Name?.Value ?? string.Empty))
+            .OrderBy(static name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["Detail", "Detail 3"], detailSlotNames);
+        Assert.DoesNotContain(
+            client.SlotsById.Values,
+            slot => string.Equals(slot.Name?.Value, "LOD", StringComparison.Ordinal)
+                && datasetSourceFileRoots.Any(datasetSourceFileRoot => string.Equals(slot.Parent?.TargetID, datasetSourceFileRoot.ID, StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -954,7 +953,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncReusesSingleSourceFileRootAcrossConcurrentLodHierarchyCreation()
+    public async Task ExecuteAsyncReusesSingleSourceFileRootAcrossConcurrentDetailHierarchyCreation()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
@@ -972,13 +971,13 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     actualMeshCode: SecondaryMeshCode,
                     sourceFileRelativePath: SecondarySourceFile,
                     worldPosition: new ResoniteFloat3(10.0, 0.0, 20.0),
-                    lodLevel: 1),
+                    sourceRepresentationIndex: 1),
                 CreateBundledTriangleCityObject(
                     "concurrent-lod2",
                     actualMeshCode: SecondaryMeshCode,
                     sourceFileRelativePath: SecondarySourceFile,
                     worldPosition: new ResoniteFloat3(11.0, 0.0, 21.0),
-                    lodLevel: 2),
+                    sourceRepresentationIndex: 2),
             ]);
 
         string sourceFileRootName = Path.GetFileNameWithoutExtension(SecondarySourceFile);
@@ -997,13 +996,13 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Slot datasetSourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
             client,
             $"PLATEAU {DatasetName}/{sourceFileRootName}");
-        string[] lodChildren = client.SlotsById.Values
+        string[] detailChildren = client.SlotsById.Values
             .Where(slot => string.Equals(slot.Parent?.TargetID, datasetSourceFileRoot.ID, StringComparison.Ordinal))
             .Select(static slot => slot.Name?.Value ?? string.Empty)
             .OrderBy(static name => name, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(["LOD1", "LOD2"], lodChildren);
+        Assert.Equal(["Detail 2", "Detail 3"], detailChildren);
     }
 
     private static ImportedSceneMetadata CreateMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
@@ -1036,14 +1035,14 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         string actualMeshCode = MeshCode,
         string sourceFileRelativePath = PrimarySourceFile,
         ResoniteFloat3? worldPosition = null,
-        int? lodLevel = 0)
+        int? sourceRepresentationIndex = 0)
     {
         return new ResoniteConstructionCityObject(
             SlotKey: $"slot-{objectIdentity}",
             DisplayName: $"CityObject {objectIdentity}",
             PackageName: "bldg",
             ActualMeshCode: actualMeshCode,
-            LodLevel: lodLevel,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(sourceRepresentationIndex), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(sourceRepresentationIndex),
             Transform: new ResoniteTransform(worldPosition ?? new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("triangle-material"),
             Materials:
@@ -1077,7 +1076,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             DisplayName: $"CityObject {objectIdentity}",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("triangle-material"),
             Materials:
@@ -1110,7 +1109,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             DisplayName: $"CityObject {objectIdentity}",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: CreateTwoSubmeshMesh("shared-submesh-material"),
             Materials:
@@ -1152,7 +1151,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             DisplayName: $"DEM Terrain Grid {objectIdentity}",
             PackageName: "dem",
             ActualMeshCode: actualMeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(worldPosition ?? new ResoniteFloat3(0.0, 0.0, 0.0)),
             Geometry: new ResoniteTerrainGridGeometry(
                 Width: 2,
@@ -1185,7 +1184,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             DisplayName: $"CityObject {objectIdentity}",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("vertex-color-material"),
             Materials:
@@ -1214,7 +1213,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             DisplayName: $"CityObject {objectIdentity}",
             PackageName: "bldg",
             ActualMeshCode: MeshCode,
-            LodLevel: 0,
+            RenderStage: RenderStage.FromSourceRepresentationIndex(0), FinestRenderStageGroup: RenderStage.FromSourceRepresentationIndex(0),
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: CreateTwoSubmeshMesh(),
             Materials:

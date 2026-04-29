@@ -7,7 +7,8 @@ public sealed record ResoniteConstructionCityObject(
     string DisplayName,
     string PackageName,
     string ActualMeshCode,
-    int? LodLevel,
+    RenderStage RenderStage,
+    RenderStage FinestRenderStageGroup,
     ResoniteTransform Transform,
     ResoniteConstructionGeometry Geometry,
     IReadOnlyList<ResoniteMaterialBinding> Materials,
@@ -19,7 +20,8 @@ public sealed record ResoniteConstructionCityObject(
         string DisplayName,
         string PackageName,
         string ActualMeshCode,
-        int? LodLevel,
+        RenderStage RenderStage,
+        RenderStage FinestRenderStageGroup,
         ResoniteTransform Transform,
         ResoniteImportedMesh Mesh,
         IReadOnlyList<ResoniteMaterialBinding> Materials,
@@ -30,9 +32,62 @@ public sealed record ResoniteConstructionCityObject(
             DisplayName,
             PackageName,
             ActualMeshCode,
-            LodLevel,
+            RenderStage,
+            FinestRenderStageGroup,
             Transform,
             new ResoniteTriangleMeshGeometry(Mesh),
+            Materials,
+            CollisionEnabled,
+            SourceFileRelativePath)
+    {
+    }
+
+    public ResoniteConstructionCityObject(
+        string SlotKey,
+        string DisplayName,
+        string PackageName,
+        string ActualMeshCode,
+        int? sourceRepresentationIndex,
+        ResoniteTransform Transform,
+        ResoniteImportedMesh Mesh,
+        IReadOnlyList<ResoniteMaterialBinding> Materials,
+        bool CollisionEnabled = true,
+        string? SourceFileRelativePath = null)
+        : this(
+            SlotKey,
+            DisplayName,
+            PackageName,
+            ActualMeshCode,
+            RenderStage.FromSourceRepresentationIndex(sourceRepresentationIndex),
+            RenderStage.FromSourceRepresentationIndex(sourceRepresentationIndex),
+            Transform,
+            Mesh,
+            Materials,
+            CollisionEnabled,
+            SourceFileRelativePath)
+    {
+    }
+
+    public ResoniteConstructionCityObject(
+        string SlotKey,
+        string DisplayName,
+        string PackageName,
+        string ActualMeshCode,
+        int? sourceRepresentationIndex,
+        ResoniteTransform Transform,
+        ResoniteConstructionGeometry Geometry,
+        IReadOnlyList<ResoniteMaterialBinding> Materials,
+        bool CollisionEnabled = true,
+        string? SourceFileRelativePath = null)
+        : this(
+            SlotKey,
+            DisplayName,
+            PackageName,
+            ActualMeshCode,
+            RenderStage.FromSourceRepresentationIndex(sourceRepresentationIndex),
+            RenderStage.FromSourceRepresentationIndex(sourceRepresentationIndex),
+            Transform,
+            Geometry,
             Materials,
             CollisionEnabled,
             SourceFileRelativePath)

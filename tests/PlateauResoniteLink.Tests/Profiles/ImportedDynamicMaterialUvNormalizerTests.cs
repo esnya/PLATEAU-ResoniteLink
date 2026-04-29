@@ -68,7 +68,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             DisplayName: "Mixed Material CityObject",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(2),
             Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
             Mesh: new ImportedMesh(
                 [
@@ -126,7 +126,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             DisplayName: "Mixed Triplanar CityObject",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(2),
             Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
             Mesh: new ImportedMesh(
                 [
@@ -206,7 +206,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             DisplayName: "Dynamic UV CityObject",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
-            LodLevel: 2,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(2),
             Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
             Mesh: new ImportedMesh(
                 [

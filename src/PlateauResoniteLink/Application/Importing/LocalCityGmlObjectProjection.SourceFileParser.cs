@@ -28,7 +28,7 @@ internal static partial class LocalCityGmlObjectProjection
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
-        ICityGmlLodSelector lodSelector,
+        ICityGmlSourceRepresentationSelector sourceRepresentationSelector,
         CancellationToken cancellationToken)
     {
         return Task.FromResult(
@@ -43,7 +43,7 @@ internal static partial class LocalCityGmlObjectProjection
                             progressReporter,
                             lodFilteringStrategy,
                             appearanceStoreFactory,
-                            lodSelector,
+                            sourceRepresentationSelector,
                             cancellationToken),
                         streamFactory: cancellationToken => StreamParsedCityObjectsCoreAsync(
                             sourceFile,
@@ -51,7 +51,7 @@ internal static partial class LocalCityGmlObjectProjection
                             requestedMeshAreas,
                             lodFilteringStrategy,
                             appearanceStoreFactory,
-                            lodSelector,
+                            sourceRepresentationSelector,
                             cancellationToken)))
                 .ToArray());
     }
@@ -63,7 +63,7 @@ internal static partial class LocalCityGmlObjectProjection
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
-        ICityGmlLodSelector lodSelector,
+        ICityGmlSourceRepresentationSelector sourceRepresentationSelector,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -77,7 +77,7 @@ internal static partial class LocalCityGmlObjectProjection
                            requestedMeshAreas,
                            lodFilteringStrategy,
                            appearanceStoreFactory,
-                           lodSelector,
+                           sourceRepresentationSelector,
                            parsedReferenceSystem: parsedReferenceSystem => coordinateReferenceSystem ??= parsedReferenceSystem,
                            cancellationToken))
         {
@@ -118,7 +118,7 @@ internal static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
-        ICityGmlLodSelector lodSelector,
+        ICityGmlSourceRepresentationSelector sourceRepresentationSelector,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
@@ -127,7 +127,7 @@ internal static partial class LocalCityGmlObjectProjection
                            requestedMeshAreas,
                            lodFilteringStrategy,
                            appearanceStoreFactory,
-                           lodSelector,
+                           sourceRepresentationSelector,
                            parsedReferenceSystem: null,
                            cancellationToken))
         {
@@ -141,7 +141,7 @@ internal static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
-        ICityGmlLodSelector lodSelector,
+        ICityGmlSourceRepresentationSelector sourceRepresentationSelector,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -155,7 +155,7 @@ internal static partial class LocalCityGmlObjectProjection
                                requestedMeshAreas,
                                lodFilteringStrategy,
                                appearanceStoreFactory,
-                               lodSelector,
+                               sourceRepresentationSelector,
                                parsedReferenceSystem,
                                cancellationToken))
             {
@@ -173,7 +173,7 @@ internal static partial class LocalCityGmlObjectProjection
                            requestedMeshAreas,
                            lodFilteringStrategy,
             appearanceStoreFactory,
-            lodSelector,
+            sourceRepresentationSelector,
             parsedReferenceSystem,
             cancellationToken))
         {
@@ -240,7 +240,7 @@ internal static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
-        ICityGmlLodSelector lodSelector,
+        ICityGmlSourceRepresentationSelector sourceRepresentationSelector,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -316,23 +316,21 @@ internal static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            ParsedCityObject? cityObject = ParseCityObject(
+            ParsedCityObject[] cityObjects = ParseCityObjects(
                 cityObjectElement,
                 sourceFile.PackageName,
                 sourceFile.RelativePath,
                 sourceFile.MatchedMeshCode,
                 sourceFile.RequiresMeshAreaFilter,
                 appearanceStore,
-                lodSelector,
+                sourceRepresentationSelector,
                 coordinateReferenceSystem,
                 sourceFile.RequiresMeshAreaFilter ? requestedMeshAreas : null,
                 lodFilteringStrategy);
-            if (cityObject is null)
+            foreach (ParsedCityObject cityObject in cityObjects)
             {
-                continue;
+                yield return global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel(cityObject);
             }
-
-            yield return global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel(cityObject);
         }
     }
 
@@ -342,7 +340,7 @@ internal static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
-        ICityGmlLodSelector lodSelector,
+        ICityGmlSourceRepresentationSelector sourceRepresentationSelector,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -368,23 +366,21 @@ internal static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            ParsedCityObject? cityObject = ParseCityObject(
+            ParsedCityObject[] cityObjects = ParseCityObjects(
                 cityObjectElement,
                 sourceFile.PackageName,
                 sourceFile.RelativePath,
                 sourceFile.MatchedMeshCode,
                 sourceFile.RequiresMeshAreaFilter,
                 appearanceStore,
-                lodSelector,
+                sourceRepresentationSelector,
                 coordinateReferenceSystem,
                 sourceFile.RequiresMeshAreaFilter ? requestedMeshAreas : null,
                 lodFilteringStrategy);
-            if (cityObject is null)
+            foreach (ParsedCityObject cityObject in cityObjects)
             {
-                continue;
+                yield return global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel(cityObject);
             }
-
-            yield return global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel(cityObject);
         }
     }
 

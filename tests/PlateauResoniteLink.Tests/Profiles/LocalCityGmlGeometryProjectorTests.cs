@@ -25,7 +25,7 @@ public sealed class LocalCityGmlGeometryProjectorTests
                     DisplayName: "display",
                     PackageName: "bldg",
                     ActualMeshCode: "53394525",
-                    LodLevel: 1,
+                    DetailEntry: DetailEntry.FromSourceRepresentationIndex(1),
                     Surfaces: [],
                     ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:6697"),
                     SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",

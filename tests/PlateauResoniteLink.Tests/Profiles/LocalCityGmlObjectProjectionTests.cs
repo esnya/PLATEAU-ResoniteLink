@@ -62,7 +62,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector());
+            new CityGmlSourceRepresentationSelector());
     }
 
     [Fact]
@@ -319,7 +319,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             "bldg",
             [wallSurface],
             referenceSystem,
-            lodLevel: 1,
+            sourceRepresentationIndex: 1,
             measuredHeightMeters: 7.0);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -1298,7 +1298,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             "bldg",
             [wallSurface, bottomSurface, reversedBottomSurface, roofSurface],
             referenceSystem,
-            lodLevel: 1);
+            sourceRepresentationIndex: 1);
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
@@ -1383,7 +1383,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             "bldg",
             [onlySurface],
             referenceSystem,
-            lodLevel: 2);
+            sourceRepresentationIndex: 2);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
@@ -1469,7 +1469,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             "bldg",
             [wallSurface, bottomSurface, roofSurface],
             referenceSystem,
-            lodLevel: 1);
+            sourceRepresentationIndex: 1);
 
         MaterialBinding[] materialBindings = CreateCommonMaterialBindingsForTest(
             cityObject,
@@ -1894,6 +1894,67 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.True(
             landUse.Transform.Position.Y > 40.0,
             $"Land-use object was incorrectly snapped toward nearby DEM fallback height: y={landUse.Transform.Position.Y:F6}");
+    }
+
+    [Fact]
+    public void ProjectCityObjectsCarriesFinestDetailGroupAcrossSourceRepresentations()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", 0.0);
+        ParsedSurface surface = CreateParsedSurface(
+            "shared-building-surface",
+            ParsedSurfaceSemantic.Ground,
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 4.0, reverseWinding: false),
+            texturePayload: null);
+        ParsedCityObject sourceRepresentation3 = CreateParsedCityObject(
+            "bldg",
+            [surface with { PolygonId = "shared-building-surface-3" }],
+            referenceSystem,
+            sourceRepresentationIndex: 3);
+        ParsedCityObject sourceRepresentation2 = sourceRepresentation3 with
+        {
+            DetailEntry = DetailEntry.FromSourceRepresentationIndex(2),
+            Surfaces = [surface with { PolygonId = "shared-building-surface-2" }],
+        };
+        ParsedCityObject sourceRepresentation1 = sourceRepresentation3 with
+        {
+            DetailEntry = DetailEntry.FromSourceRepresentationIndex(1),
+            Surfaces = [surface with { PolygonId = "shared-building-surface-1" }],
+        };
+        CachedSourceFileDescriptor sourceFile = new(
+            new SourceFileDescriptor(
+                "udx/bldg/53394525/bldg.gml",
+                "bldg",
+                "53394525",
+                RequiresMeshAreaFilter: false),
+            [sourceRepresentation3, sourceRepresentation2, sourceRepresentation1]);
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectCityObjects(
+                sourceFile,
+                referenceSystem,
+                GeodeticPoint.FromProjectionModel(origin),
+                globalCartesian: null,
+                demTerrainTextureOverlays: [],
+                requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
+                new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    Source: DatasetLocation.Local("unused")),
+                new DefaultMaterialResolver())
+            .ToArray();
+
+        DetailEntry finestDetailGroup = DetailEntry.FromSourceRepresentationIndex(3);
+        Assert.Equal(
+            [DetailEntry.FromSourceRepresentationIndex(3), DetailEntry.FromSourceRepresentationIndex(2), DetailEntry.FromSourceRepresentationIndex(1)],
+            projected.Select(static cityObject => cityObject.DetailEntry).ToArray());
+        Assert.All(projected, cityObject => Assert.Equal(finestDetailGroup, cityObject.FinestDetailGroup));
+    }
+
+    [Fact]
+    public void TerrainAlignmentPolicyTreatsDefaultRoadDetailAsAlignable()
+    {
+        Assert.True(ShouldTerrainAlignCityObjectForTest("tran", DetailEntry.Default));
+        Assert.True(ShouldSubdivideTerrainAlignedCityObjectForTest("tran", DetailEntry.Default));
     }
 
     private static void CreateX3DMaterialOpticalFixture(string datasetRoot)
@@ -2608,7 +2669,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         string packageName,
         ParsedSurface[] surfaces,
         CoordinateReferenceSystem referenceSystem,
-        int? lodLevel = 1,
+        int? sourceRepresentationIndex = 1,
         int? floorsAboveGround = null,
         double? measuredHeightMeters = null)
     {
@@ -2617,7 +2678,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             DisplayName: $"{packageName}-display",
             PackageName: packageName,
             ActualMeshCode: "53394525",
-            LodLevel: lodLevel,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(sourceRepresentationIndex),
             Surfaces: surfaces,
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: $"udx/{packageName}/53394525/{packageName}.gml",
@@ -2823,6 +2884,30 @@ public sealed class LocalCityGmlObjectProjectionTests
             ])!;
     }
 
+    private static bool ShouldTerrainAlignCityObjectForTest(string packageName, DetailEntry detailEntry)
+    {
+        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
+                "ShouldTerrainAlignCityObject",
+                BindingFlags.NonPublic | BindingFlags.Static,
+                binder: null,
+                types: [typeof(string), typeof(DetailEntry)],
+                modifiers: null)
+            ?? throw new InvalidOperationException("Failed to resolve ShouldTerrainAlignCityObject.");
+        return (bool)method.Invoke(null, [packageName, detailEntry])!;
+    }
+
+    private static bool ShouldSubdivideTerrainAlignedCityObjectForTest(string packageName, DetailEntry detailEntry)
+    {
+        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
+                "ShouldSubdivideTerrainAlignedCityObject",
+                BindingFlags.NonPublic | BindingFlags.Static,
+                binder: null,
+                types: [typeof(string), typeof(DetailEntry)],
+                modifiers: null)
+            ?? throw new InvalidOperationException("Failed to resolve ShouldSubdivideTerrainAlignedCityObject.");
+        return (bool)method.Invoke(null, [packageName, detailEntry])!;
+    }
+
     private static ImportedCityObject CreateTerrainGridCityObject(
         string slotKey,
         Float3 position,
@@ -2846,7 +2931,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             DisplayName: slotKey,
             PackageName: "dem",
             ActualMeshCode: "53394525",
-            LodLevel: 1,
+            DetailEntry: DetailEntry.FromSourceRepresentationIndex(1),
             Transform: new Transform3D(position),
             Geometry: new TerrainGridGeometry(
                 Width: width,

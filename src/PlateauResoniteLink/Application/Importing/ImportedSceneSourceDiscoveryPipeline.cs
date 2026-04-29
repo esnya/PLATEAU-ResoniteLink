@@ -16,14 +16,14 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
-        ICityGmlLodSelector lodSelector,
+        ICityGmlSourceRepresentationSelector sourceRepresentationSelector,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
         ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
-        ArgumentNullException.ThrowIfNull(lodSelector);
+        ArgumentNullException.ThrowIfNull(sourceRepresentationSelector);
 
         if (request.Source is not LocalDatasetLocation localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
@@ -79,7 +79,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
                 progressReporter,
                 lodFilteringStrategy,
                 appearanceStoreFactory,
-                lodSelector,
+                sourceRepresentationSelector,
                 cancellationToken);
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)

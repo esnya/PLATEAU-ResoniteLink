@@ -275,6 +275,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             Runtime = runtime,
             GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
             DemSourceUseCounts = new ConcurrentDictionary<string, int>(StringComparer.Ordinal),
+            LodGroupRenderersByGroup = [],
         };
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
         Diagnostics.StartSendWindow(connectionCount);
@@ -585,6 +586,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 $"Awaiting {runtime.ProcessingTaskCount} send lane task(s) to drain after queue close."));
         await runtime.AwaitCompletionAsync(cancellationToken);
         ReportProgress(PlateauLog.Info("live", "All send lanes drained and completion barrier passed."));
+        await CreateLodGroupComponentsAsync(state, cancellationToken);
         Diagnostics.CompleteSendWindow();
         ReportProgress(
             PlateauLog.Info(
@@ -597,6 +599,168 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 $"Send summary: attempted={state.Progress.AttemptedCityObjectCount} sent={state.Progress.ProcessedCityObjectCount} failed={state.Progress.FailedCityObjectCount}."));
 
         return [$"{endpoint}#{state.Placement.SceneAnchor?.LocationSlot.Value ?? context.DatasetRootSlot.Locator.Value}"];
+    }
+
+    private static void RegisterLodGroupRenderer(
+        LiveSendRunState state,
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots,
+        ResoniteConstructionCityObject cityObject,
+        ResoniteComponentLocator meshRenderer)
+    {
+        LodGroupKey groupKey = new(
+            objectSlots.SourceFileSlot.Locator.Value,
+            cityObject.FinestRenderStageGroup);
+        lock (state.LodGroupGate)
+        {
+            if (!state.LodGroupRenderersByGroup.TryGetValue(groupKey, out LodGroupRendererSet? rendererSet))
+            {
+                rendererSet = new LodGroupRendererSet
+                {
+                    SourceFileSlot = objectSlots.SourceFileSlot,
+                    FinestRenderStageGroup = cityObject.FinestRenderStageGroup,
+                };
+                state.LodGroupRenderersByGroup.Add(groupKey, rendererSet);
+            }
+
+            if (!rendererSet.RenderersByRenderStage.TryGetValue(
+                cityObject.RenderStage,
+                out SortedDictionary<string, ResoniteComponentLocator>? renderersByObjectKey))
+            {
+                renderersByObjectKey = new SortedDictionary<string, ResoniteComponentLocator>(StringComparer.Ordinal);
+                rendererSet.RenderersByRenderStage.Add(cityObject.RenderStage, renderersByObjectKey);
+            }
+
+            renderersByObjectKey[cityObject.SlotKey] = meshRenderer;
+        }
+    }
+
+    private async Task CreateLodGroupComponentsAsync(
+        LiveSendRunState state,
+        CancellationToken cancellationToken)
+    {
+        LodGroupRendererSet[] rendererSets;
+        lock (state.LodGroupGate)
+        {
+            rendererSets = state.LodGroupRenderersByGroup.Values.ToArray();
+        }
+
+        if (rendererSets.Length == 0)
+        {
+            return;
+        }
+
+        IResoniteLinkClient routedClient = GetRoutedClient();
+        foreach (LodGroupRendererSet rendererSet in rendererSets
+            .OrderBy(static set => set.SourceFileSlot.SlotName, StringComparer.Ordinal)
+            .ThenBy(static set => set.FinestRenderStageGroup.Order)
+            .ThenBy(static set => set.FinestRenderStageGroup.Key, StringComparer.Ordinal))
+        {
+            await CreateLodGroupComponentAsync(routedClient, rendererSet, cancellationToken);
+        }
+    }
+
+    private static async Task CreateLodGroupComponentAsync(
+        IResoniteLinkClient client,
+        LodGroupRendererSet rendererSet,
+        CancellationToken cancellationToken)
+    {
+        RenderStage[] renderStages = rendererSet.RenderersByRenderStage.Keys
+            .OrderBy(static stage => stage.Order)
+            .ThenBy(static stage => stage.Key, StringComparer.Ordinal)
+            .ToArray();
+        if (renderStages.Length == 0)
+        {
+            return;
+        }
+
+        AddComponent addLodGroup = new()
+        {
+            ContainerSlotId = rendererSet.SourceFileSlot.Locator.Value,
+            Data = new Component
+            {
+                ComponentType = "[FrooxEngine]FrooxEngine.LODGroup",
+                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+                {
+                    ["UpdateOrder"] = new Field_int
+                    {
+                        Value = 1000,
+                    },
+                    ["LODs"] = new SyncList
+                    {
+                        Elements = CreateLodGroupEntries(rendererSet, renderStages),
+                    },
+                },
+            },
+        };
+        _ = await client.AddComponentAsync(addLodGroup, cancellationToken);
+    }
+
+    private static List<Member> CreateLodGroupEntries(
+        LodGroupRendererSet rendererSet,
+        RenderStage[] renderStages)
+    {
+        List<Member> entries = [];
+        float[] thresholds = ResolveLodGroupThresholds(renderStages.Length);
+        IReadOnlySet<string> objectKeys = rendererSet.RenderersByRenderStage.Values
+            .SelectMany(static renderersByObjectKey => renderersByObjectKey.Keys)
+            .ToHashSet(StringComparer.Ordinal);
+
+        for (int index = 0; index < renderStages.Length; index++)
+        {
+            RenderStage renderStage = renderStages[index];
+            List<Member> rendererReferences = objectKeys
+                .OrderBy(static objectKey => objectKey, StringComparer.Ordinal)
+                .Select(objectKey => TryResolveRendererForStage(rendererSet, renderStage, objectKey))
+                .Where(static renderer => renderer is not null)
+                .Select(static renderer => (Member)new Reference
+                {
+                    TargetID = renderer!.Value.Value,
+                })
+                .ToList();
+            entries.Add(new SyncObject
+            {
+                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+                {
+                    ["ScreenRelativeTransitionHeight"] = new Field_float
+                    {
+                        Value = thresholds[index],
+                    },
+                    ["Renderers"] = new SyncList
+                    {
+                        Elements = rendererReferences,
+                    },
+                },
+            });
+        }
+
+        return entries;
+    }
+
+    private static ResoniteComponentLocator? TryResolveRendererForStage(
+        LodGroupRendererSet rendererSet,
+        RenderStage renderStage,
+        string objectKey)
+    {
+        return rendererSet.RenderersByRenderStage
+            .OrderBy(pair => Math.Abs(pair.Key.Order - renderStage.Order))
+            .ThenBy(static pair => pair.Key.Order)
+            .ThenBy(static pair => pair.Key.Key, StringComparer.Ordinal)
+            .Select(pair => pair.Value.TryGetValue(objectKey, out ResoniteComponentLocator renderer)
+                ? renderer
+                : (ResoniteComponentLocator?)null)
+            .FirstOrDefault(static renderer => renderer is not null);
+    }
+
+    private static float[] ResolveLodGroupThresholds(int entryCount)
+    {
+        return entryCount switch
+        {
+            <= 1 => [0.005f],
+            2 => [0.18f, 0.01f],
+            3 => [0.28f, 0.09f, 0.01f],
+            4 => [0.35f, 0.16f, 0.06f, 0.01f],
+            _ => [.. Enumerable.Range(0, entryCount).Select(index => Math.Max(0.01f, 0.42f / (index + 1)))],
+        };
     }
 
     public async ValueTask DisposeAsync()
@@ -1281,12 +1445,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
         ReportImportStep(cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
-        await batchEmitter.ExecuteAsync(
+        ExecutedBatchEmission executedBatchEmission = await batchEmitter.ExecuteAsync(
             routedClient,
             cityObject,
             batchEmission,
             progressReporter,
             cancellationToken);
+        RegisterLodGroupRenderer(state, objectSlots, cityObject, executedBatchEmission.RendererComponent.Locator);
         batchStopwatch.Stop();
 
         ReportImportStep(cityObject, "Live import completed.");
