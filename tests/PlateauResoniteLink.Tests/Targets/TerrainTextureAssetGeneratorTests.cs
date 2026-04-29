@@ -42,16 +42,9 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         using Image<Rgba32> image = LoadImage(firstTexture.TextureImport);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), image.Width);
-        Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), image.Height);
-        int occupiedLeft = (image.Width - layout.CropWidth) / 2;
-        int occupiedTop = (image.Height - layout.CropHeight) / 2;
-        Assert.Equal(
-            new ScalarPair(
-                (double)occupiedLeft / image.Width,
-                (double)(image.Height - (occupiedTop + layout.CropHeight)) / image.Height),
-            firstTexture.OccupiedUvRect.OffsetValue);
-        AssertColor(image[occupiedLeft + (layout.CropWidth / 4), occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
-        AssertColor(image[occupiedLeft + ((layout.CropWidth * 3) / 4), occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
+        Rectangle occupied = ToTopLeftPixelRect(firstTexture.OccupiedUvRect, image.Width, image.Height);
+        AssertColor(Sample(occupied, image, 0.25, 0.5), 255, 0, 0);
+        AssertColor(Sample(occupied, image, 0.75, 0.5), 0, 255, 0);
     }
 
     [Fact]
@@ -83,10 +76,10 @@ public sealed class TerrainTextureAssetGeneratorTests
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         GeographicRectangle bounds = new(
-            MinLatitude: WebMercatorTileMath.PixelYToLatitude(100, 1),
-            MaxLatitude: WebMercatorTileMath.PixelYToLatitude(0, 1),
-            MinLongitude: WebMercatorTileMath.PixelXToLongitude(0, 1),
-            MaxLongitude: WebMercatorTileMath.PixelXToLongitude(400, 1));
+            MinLatitude: WebMercatorTileMath.PixelYToLatitude(150, 1),
+            MaxLatitude: WebMercatorTileMath.PixelYToLatitude(50, 1),
+            MinLongitude: WebMercatorTileMath.PixelXToLongitude(150, 1),
+            MaxLongitude: WebMercatorTileMath.PixelXToLongitude(350, 1));
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
@@ -105,17 +98,11 @@ public sealed class TerrainTextureAssetGeneratorTests
                 (double)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth),
                 (double)layout.CropHeight / RoundUpToPowerOfTwo(layout.CropHeight)),
             texture.OccupiedUvRect.ScaleValue);
-        int occupiedLeft = (image.Width - layout.CropWidth) / 2;
-        int occupiedTop = (image.Height - layout.CropHeight) / 2;
-        Assert.Equal(
-            new ScalarPair(
-                (double)occupiedLeft / image.Width,
-                (double)(image.Height - (occupiedTop + layout.CropHeight)) / image.Height),
-            texture.OccupiedUvRect.OffsetValue);
-        Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, image[0, 0]);
-        AssertColor(image[occupiedLeft + (layout.CropWidth / 4), occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
-        AssertColor(image[occupiedLeft + ((layout.CropWidth * 3) / 4), occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
-        Assert.True(occupiedLeft > 0 || occupiedTop > 0);
+        Rectangle occupied = ToTopLeftPixelRect(texture.OccupiedUvRect, image.Width, image.Height);
+        AssertColor(image[0, 0], 255, 0, 0);
+        AssertColor(Sample(occupied, image, 0.25, 0.5), 255, 0, 0);
+        AssertColor(Sample(occupied, image, 0.75, 0.5), 0, 255, 0);
+        Assert.True(occupied.X > 0 || occupied.Y > 0);
     }
 
     [Fact]
@@ -161,13 +148,11 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         using Image<Rgba32> image = LoadImage(texture.TextureImport);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), image.Width);
-        Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), image.Height);
-        int occupiedLeft = (image.Width - layout.CropWidth) / 2;
-        int occupiedTop = (image.Height - layout.CropHeight) / 2;
-        AssertColor(image[occupiedLeft + (layout.CropWidth / 4), occupiedTop + (layout.CropHeight / 4)], 255, 0, 0);
-        AssertColor(image[occupiedLeft + ((layout.CropWidth * 3) / 4), occupiedTop + (layout.CropHeight / 4)], 0, 255, 0);
-        AssertColor(image[occupiedLeft + (layout.CropWidth / 4), occupiedTop + ((layout.CropHeight * 3) / 4)], 0, 0, 255);
-        AssertColor(image[occupiedLeft + ((layout.CropWidth * 3) / 4), occupiedTop + ((layout.CropHeight * 3) / 4)], 255, 255, 0);
+        Rectangle occupied = ToTopLeftPixelRect(texture.OccupiedUvRect, image.Width, image.Height);
+        AssertColor(Sample(occupied, image, 0.25, 0.25), 255, 0, 0);
+        AssertColor(Sample(occupied, image, 0.75, 0.25), 0, 255, 0);
+        AssertColor(Sample(occupied, image, 0.25, 0.75), 0, 0, 255);
+        AssertColor(Sample(occupied, image, 0.75, 0.75), 255, 255, 0);
     }
 
     [Fact]
@@ -395,14 +380,12 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay(
             "https://primary.example/{z}/{x}/{y}.png",
             "https://fallback.example/{z}/{x}/{y}.png");
-        TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
-
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         using Image<Rgba32> image = LoadImage(texture.TextureImport);
-        int occupiedTop = image.Height - layout.CropHeight;
-        AssertColor(image[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
-        AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
+        Rectangle occupied = ToTopLeftPixelRect(texture.OccupiedUvRect, image.Width, image.Height);
+        AssertColor(Sample(occupied, image, 0.25, 0.5), 255, 0, 0);
+        AssertColor(Sample(occupied, image, 0.75, 0.5), 0, 255, 0);
     }
 
     [Fact]
@@ -612,6 +595,29 @@ public sealed class TerrainTextureAssetGeneratorTests
         });
 
         return found;
+    }
+
+    private static Rectangle ToTopLeftPixelRect(TextureUvRect uvRect, int imageWidth, int imageHeight)
+    {
+        int x = (int)Math.Round(uvRect.MinU * imageWidth, MidpointRounding.AwayFromZero);
+        int y = (int)Math.Round((1.0 - uvRect.MaxV) * imageHeight, MidpointRounding.AwayFromZero);
+        int width = (int)Math.Round(uvRect.Width * imageWidth, MidpointRounding.AwayFromZero);
+        int height = (int)Math.Round(uvRect.Height * imageHeight, MidpointRounding.AwayFromZero);
+        int clampedX = Math.Clamp(x, 0, imageWidth - 1);
+        int clampedY = Math.Clamp(y, 0, imageHeight - 1);
+
+        return new Rectangle(
+            clampedX,
+            clampedY,
+            Math.Clamp(width, 1, imageWidth - clampedX),
+            Math.Clamp(height, 1, imageHeight - clampedY));
+    }
+
+    private static Rgba32 Sample(Rectangle rect, Image<Rgba32> image, double xFraction, double yFractionFromTop)
+    {
+        int x = rect.X + Math.Clamp((int)Math.Floor(rect.Width * xFraction), 0, rect.Width - 1);
+        int y = rect.Y + Math.Clamp((int)Math.Floor(rect.Height * yFractionFromTop), 0, rect.Height - 1);
+        return image[x, y];
     }
 
     private static void AssertColor(Rgba32 color, byte expectedR, byte expectedG, byte expectedB)

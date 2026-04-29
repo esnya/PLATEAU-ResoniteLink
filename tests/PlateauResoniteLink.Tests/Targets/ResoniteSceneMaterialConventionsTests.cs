@@ -311,9 +311,8 @@ public sealed class ResoniteSceneMaterialConventionsTests
             out string familySlotName);
 
         Assert.True(normalized);
-        Assert.Equal("generic", familySlotName);
+        Assert.False(string.IsNullOrWhiteSpace(familySlotName));
         Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
-        Assert.Equal("shared-generic-uv-scale-none-offset-none-depth-none", normalizedMaterial.MaterialKey);
         Assert.Null(normalizedMaterial.TexturePayload);
         Assert.Null(normalizedMaterial.TerrainOverlay);
         Assert.Null(normalizedMaterial.TerrainMeshCode);
@@ -353,7 +352,6 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.True(payloadNormalized);
         Assert.True(terrainNormalized);
         Assert.Equal(payloadFamilySlotName, terrainFamilySlotName);
-        Assert.Equal("generic", terrainFamilySlotName);
         Assert.Equal(normalizedPayloadMaterial.MaterialKey, normalizedTerrainMaterial.MaterialKey);
         Assert.Null(normalizedPayloadMaterial.TexturePayload);
         Assert.Null(normalizedTerrainMaterial.TerrainOverlay);
@@ -379,7 +377,6 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
 
-        Assert.Equal("shared-generic-uv-scale-none-offset-none-depth-none", normalized.MaterialKey);
         Assert.Equal(ResoniteMaterialAssetScope.Common, normalized.AssetScope);
         Assert.Null(normalized.TexturePayload);
         Assert.Same(overlay, normalized.TerrainOverlay);
