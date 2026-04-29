@@ -1093,7 +1093,8 @@ internal static partial class LocalCityGmlObjectProjection
             InteriorRings: interiorRings,
             BaseColor: ToInternalColor(appearance.BaseColor),
             TexturePayload: appearance.TexturePayload,
-            OpticalProperties: CreateMaterialOpticalProperties(appearance.MaterialAttributes));
+            OpticalProperties: CreateMaterialOpticalProperties(appearance.MaterialAttributes),
+            TextureWrapMode: CreateTextureWrapMode(appearance.ParameterizedTexture));
     }
 
     private static ParsedRing? ParseRing(
@@ -1252,7 +1253,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset,
-                    resolvedSurface.Surface.OpticalProperties),
+                    resolvedSurface.Surface.OpticalProperties,
+                    resolvedSurface.Material.TextureWrapMode),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .ToArray();
@@ -1431,6 +1433,7 @@ internal static partial class LocalCityGmlObjectProjection
             preferUvProjection && IsBuildingPackage(cityObject.PackageName) ? BundledDefaultMaterialFamilies.Facade : null,
             $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}");
         resolvedMaterial = ApplySurfaceOpticalProperties(resolvedMaterial, surface.OpticalProperties);
+        resolvedMaterial = ApplySurfaceSamplerProperties(resolvedMaterial, surface.TextureWrapMode);
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
@@ -1520,6 +1523,7 @@ internal static partial class LocalCityGmlObjectProjection
             preferUvProjection && IsBuildingPackage(cityObject.PackageName) ? BundledDefaultMaterialFamilies.Facade : null,
             $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}");
         resolvedMaterial = ApplySurfaceOpticalProperties(resolvedMaterial, legacySurface.OpticalProperties);
+        resolvedMaterial = ApplySurfaceSamplerProperties(resolvedMaterial, legacySurface.TextureWrapMode);
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
@@ -1542,6 +1546,15 @@ internal static partial class LocalCityGmlObjectProjection
                 : material.ReuseScope,
             OpticalProperties = opticalProperties,
         };
+    }
+
+    private static ResolvedMaterial ApplySurfaceSamplerProperties(
+        ResolvedMaterial material,
+        TextureWrapMode? textureWrapMode)
+    {
+        return textureWrapMode is null
+            ? material
+            : material with { TextureWrapMode = textureWrapMode };
     }
 
     private static bool HasRepresentableOpticalProperties(MaterialOpticalProperties opticalProperties)
@@ -2521,14 +2534,15 @@ internal static partial class LocalCityGmlObjectProjection
         string? family,
         ColorRgba color,
         Float2? textureOffset = null,
-        MaterialOpticalProperties? opticalProperties = null)
+        MaterialOpticalProperties? opticalProperties = null,
+        TextureWrapMode? textureWrapMode = null)
     {
         string terrainToken = terrainOverlay is null ? "none" : CreateTerrainOverlayToken(terrainOverlay);
         string textureToken = texturePayload?.Identity ?? "none";
         string familyToken = string.IsNullOrWhiteSpace(family) ? "none" : family.ToLowerInvariant();
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"material-{MaterialTypeToken(materialType)}-{ProjectionToken(projection)}-terrain-{terrainToken}-texture-{textureToken}-source-{textureSourceKind.ToString().ToLowerInvariant()}-family-{familyToken}-depth-{FormatDepth(depthOffset)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-color-{FormatColor(color)}-optical-{FormatOpticalProperties(opticalProperties)}");
+            $"material-{MaterialTypeToken(materialType)}-{ProjectionToken(projection)}-terrain-{terrainToken}-texture-{textureToken}-source-{textureSourceKind.ToString().ToLowerInvariant()}-family-{familyToken}-depth-{FormatDepth(depthOffset)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-color-{FormatColor(color)}-optical-{FormatOpticalProperties(opticalProperties)}-wrap-{FormatTextureWrapMode(textureWrapMode)}");
     }
 
     private static string CreateBindingMaterialKey(
@@ -2537,7 +2551,8 @@ internal static partial class LocalCityGmlObjectProjection
         Float2? textureScale,
         ColorRgba color,
         Float2? textureOffset = null,
-        MaterialOpticalProperties? opticalProperties = null)
+        MaterialOpticalProperties? opticalProperties = null,
+        TextureWrapMode? textureWrapMode = null)
     {
         if (material.ReuseScope == MaterialReuseScope.Shared)
         {
@@ -2560,7 +2575,8 @@ internal static partial class LocalCityGmlObjectProjection
             material.Family,
             color,
             textureOffset,
-            opticalProperties);
+            opticalProperties,
+            textureWrapMode);
     }
 
     private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainOverlay)
@@ -2619,6 +2635,9 @@ internal static partial class LocalCityGmlObjectProjection
             CultureInfo.InvariantCulture,
             $"emissive-{emissive}-shininess-{shininess}");
     }
+
+    private static string FormatTextureWrapMode(TextureWrapMode? value) =>
+        value is null ? "default" : value.Value.ToString().ToLowerInvariant();
 
     private static string FormatBounds(GeographicRectangle bounds) =>
         string.Create(
@@ -3371,7 +3390,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset,
-                    resolvedSurface.Surface.OpticalProperties),
+                    resolvedSurface.Surface.OpticalProperties,
+                    resolvedSurface.Material.TextureWrapMode),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -3385,7 +3405,8 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor,
                         representativeSurface.Material.TextureOffset,
-                        representativeSurface.Surface.OpticalProperties),
+                        representativeSurface.Surface.OpticalProperties,
+                        representativeSurface.Material.TextureWrapMode),
                     materialIndex);
             })
             .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
@@ -3419,7 +3440,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset,
-                    resolvedSurface.Surface.OpticalProperties),
+                    resolvedSurface.Surface.OpticalProperties,
+                    resolvedSurface.Material.TextureWrapMode),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -3433,7 +3455,8 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor,
                         representativeSurface.Material.TextureOffset,
-                        representativeSurface.Surface.OpticalProperties),
+                        representativeSurface.Surface.OpticalProperties,
+                        representativeSurface.Material.TextureWrapMode),
                     materialIndex);
             })
             .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
@@ -4007,7 +4030,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset,
-                    resolvedSurface.Surface.OpticalProperties),
+                    resolvedSurface.Surface.OpticalProperties,
+                    resolvedSurface.Material.TextureWrapMode),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -4021,7 +4045,8 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor,
                         representativeSurface.Material.TextureOffset,
-                        representativeSurface.Surface.OpticalProperties),
+                        representativeSurface.Surface.OpticalProperties,
+                        representativeSurface.Material.TextureWrapMode),
                     materialIndex);
             })
             .ToArray();
@@ -4054,7 +4079,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset,
-                    resolvedSurface.Surface.OpticalProperties),
+                    resolvedSurface.Surface.OpticalProperties,
+                    resolvedSurface.Material.TextureWrapMode),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -4068,7 +4094,8 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor,
                         representativeSurface.Material.TextureOffset,
-                        representativeSurface.Surface.OpticalProperties),
+                        representativeSurface.Surface.OpticalProperties,
+                        representativeSurface.Material.TextureWrapMode),
                     materialIndex);
             })
             .ToArray();
@@ -4102,7 +4129,8 @@ internal static partial class LocalCityGmlObjectProjection
             ReuseScope: representativeSurface.Material.ReuseScope,
             TerrainOverlay: representativeSurface.Material.TerrainOverlay,
             BundledVariantIndex: representativeSurface.Material.BundledVariantIndex,
-            OpticalProperties: representativeSurface.Material.OpticalProperties);
+            OpticalProperties: representativeSurface.Material.OpticalProperties,
+            TextureWrapMode: representativeSurface.Material.TextureWrapMode);
     }
 
     private static Float2 ToContractFloat2(Float2 value) => new(value.X, value.Y);
@@ -4127,6 +4155,21 @@ internal static partial class LocalCityGmlObjectProjection
             SpecularColor: attributes.SpecularColor is null ? null : ToInternalColor(attributes.SpecularColor),
             Shininess: attributes.Shininess,
             Transparency: attributes.Transparency);
+    }
+
+    private static TextureWrapMode? CreateTextureWrapMode(CityGmlParameterizedTexture? texture)
+    {
+        if (string.IsNullOrWhiteSpace(texture?.WrapMode))
+        {
+            return null;
+        }
+
+        return texture.WrapMode.Trim().ToLowerInvariant() switch
+        {
+            "wrap" or "repeat" => TextureWrapMode.Repeat,
+            "none" or "clamp" or "border" => TextureWrapMode.Clamp,
+            _ => null,
+        };
     }
 
     private static Float3 ToContractFloat3(Float3 value) => new(value.X, value.Y, value.Z);
@@ -4945,7 +4988,8 @@ internal static partial class LocalCityGmlObjectProjection
         ColorRgba BaseColor,
         TexturePayload? TexturePayload,
         bool UsesGeneratedDemTexture = false,
-        MaterialOpticalProperties? OpticalProperties = null)
+        MaterialOpticalProperties? OpticalProperties = null,
+        TextureWrapMode? TextureWrapMode = null)
     {
         public IEnumerable<GeodeticPoint> Vertices =>
             ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));

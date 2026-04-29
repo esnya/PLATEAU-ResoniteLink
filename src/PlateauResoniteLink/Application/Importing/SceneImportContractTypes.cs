@@ -139,6 +139,12 @@ public enum TextureSourceKind
     Bundled = 1,
 }
 
+public enum TextureWrapMode
+{
+    Repeat = 0,
+    Clamp = 1,
+}
+
 public enum MaterialType
 {
     Standard = 0,
@@ -185,4 +191,5 @@ public sealed record MaterialBinding(
     MaterialReuseScope ReuseScope = MaterialReuseScope.PerObject,
     TerrainTextureOverlay? TerrainOverlay = null,
     int? BundledVariantIndex = null,
-    MaterialOpticalProperties? OpticalProperties = null);
+    MaterialOpticalProperties? OpticalProperties = null,
+    TextureWrapMode? TextureWrapMode = null);

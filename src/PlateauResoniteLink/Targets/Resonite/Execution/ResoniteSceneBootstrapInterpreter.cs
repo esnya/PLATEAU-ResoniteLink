@@ -589,7 +589,8 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 StaticTextureComponentType,
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     albedoTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo));
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
+                    plannedMaterial.Material.TextureWrapMode));
             materialMembers["AlbedoTexture"] = new Reference
             {
                 TargetID = albedoTexture.LocalId.Value,

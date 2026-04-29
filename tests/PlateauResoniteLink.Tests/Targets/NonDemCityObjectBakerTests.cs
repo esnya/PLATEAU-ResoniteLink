@@ -165,6 +165,30 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncClampsTextureContentWhenWrapModeRequestsClamp()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(baker, CreateUvScaledLod2Building(
+            "building-clamp",
+            CreateStripedPayload("textures/clamp.png", [new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255)]),
+            "unit-a",
+            new ResoniteFloat2(2.0, 1.0),
+            null,
+            ResoniteTextureWrapMode.Clamp));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+
+        Assert.Equal(4, atlasPayload.Width);
+        Assert.Equal(1, atlasPayload.Height);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 0, 0));
+        Assert.Equal(new Rgba32(0, 255, 0, 255), ReadPixel(atlasPayload, 1, 0));
+        Assert.Equal(new Rgba32(0, 255, 0, 255), ReadPixel(atlasPayload, 2, 0));
+        Assert.Equal(new Rgba32(0, 255, 0, 255), ReadPixel(atlasPayload, 3, 0));
+    }
+
+    [Fact]
     public async Task FlushAllAsyncNormalizesRepeatedSourceUvIntoAtlasSpace()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 0);
@@ -1030,7 +1054,8 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteTexturePayload payload,
         string sourceUnitKey,
         ResoniteFloat2 textureScale,
-        ResoniteFloat2? textureOffset)
+        ResoniteFloat2? textureOffset,
+        ResoniteTextureWrapMode? textureWrapMode = null)
     {
         return CreateLod2Building(slotKey, payload, 0.0, sourceUnitKey) with
         {
@@ -1046,7 +1071,8 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     TextureScale: textureScale,
-                    TextureOffset: textureOffset),
+                    TextureOffset: textureOffset,
+                    TextureWrapMode: textureWrapMode),
             ],
         };
     }

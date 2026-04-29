@@ -13,4 +13,5 @@ internal sealed record ResolvedMaterial(
     TerrainTextureOverlay? TerrainOverlay = null,
     int? BundledVariantIndex = null,
     Float2? TextureOffset = null,
-    MaterialOpticalProperties? OpticalProperties = null);
+    MaterialOpticalProperties? OpticalProperties = null,
+    TextureWrapMode? TextureWrapMode = null);

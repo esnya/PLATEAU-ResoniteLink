@@ -19,7 +19,14 @@ public sealed record ResoniteMaterialBinding(
     ResoniteMaterialAssetScope AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
     TerrainTextureOverlay? TerrainOverlay = null,
     int? BundledVariantIndex = null,
-    ResoniteMaterialOpticalProperties? OpticalProperties = null);
+    ResoniteMaterialOpticalProperties? OpticalProperties = null,
+    ResoniteTextureWrapMode? TextureWrapMode = null);
+
+public enum ResoniteTextureWrapMode
+{
+    Repeat = 0,
+    Clamp = 1,
+}
 
 public sealed record ResoniteMaterialOpticalProperties(
     ResoniteColor? DiffuseColor = null,

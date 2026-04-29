@@ -27,6 +27,18 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
+    public void CreateTextureMembers_ForAlbedoWithClampWrap_EmitsTextureWrapModes()
+    {
+        Dictionary<string, Member> members = ResoniteSceneMaterialConventions.CreateTextureMembers(
+            new Uri("resdb:///texture/albedo"),
+            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
+            ResoniteTextureWrapMode.Clamp);
+
+        Assert.Equal("Clamp", Assert.IsType<Field_Enum>(members["WrapModeU"]).Value);
+        Assert.Equal("Clamp", Assert.IsType<Field_Enum>(members["WrapModeV"]).Value);
+    }
+
+    [Fact]
     public void CreateTextureMembers_ForMetallic_PrefersLinearProfileWithoutExplicitWrap()
     {
         Dictionary<string, Member> members = ResoniteSceneMaterialConventions.CreateTextureMembers(

@@ -502,7 +502,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     albedoTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo)
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
+                    material.TextureWrapMode)
                     .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
             materialMembers["AlbedoTexture"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(albedoTextureId));
         }

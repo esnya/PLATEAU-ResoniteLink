@@ -126,7 +126,8 @@ internal static class SceneImportContractMapper
             binding.ReuseScope == MaterialReuseScope.Shared ? ResoniteMaterialAssetScope.Common : ResoniteMaterialAssetScope.PresentationSlotScoped,
             binding.TerrainOverlay,
             binding.BundledVariantIndex,
-            binding.OpticalProperties is null ? null : ToInternal(binding.OpticalProperties));
+            binding.OpticalProperties is null ? null : ToInternal(binding.OpticalProperties),
+            binding.TextureWrapMode is null ? null : (ResoniteTextureWrapMode)binding.TextureWrapMode.Value);
     }
 
     private static ResoniteMaterialOpticalProperties ToInternal(MaterialOpticalProperties properties)

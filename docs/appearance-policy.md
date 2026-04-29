@@ -19,7 +19,11 @@ This document defines the current supported scope for CityGML appearance handlin
 
 - #91 established the supported DEM georeferenced-raster path.
 - #128 covers `X3DMaterial` optical attributes such as `diffuseColor`, `ambientIntensity`, `emissiveColor`, `specularColor`, `shininess`, and `transparency`.
-- #129 covers remaining appearance semantics around sampler, wrap, border, and transparency behavior.
+- #129 defines the supported `ParameterizedTexture` sampler semantics:
+  - `wrapMode` values equivalent to repeat (`wrap`, `repeat`) use repeated sampling.
+  - `wrapMode` values equivalent to clamp (`none`, `clamp`, `border`) use edge-clamped sampling.
+  - `borderColor` is parsed for audit visibility but is not emitted as a Resonite border-color sampler; border-style sampling falls back to clamp.
+- Texture alpha is preserved in dataset and atlas payloads. `X3DMaterial` `transparency` multiplies the material base alpha; atlas preparation may fill transparent RGB channels to reduce edge bleed without changing alpha.
 - Neither #128 nor #129 imply support for non-DEM `GeoreferencedTexture` projection.
 
 ## Review Rule

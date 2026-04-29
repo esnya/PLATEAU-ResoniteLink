@@ -1875,7 +1875,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 "CreateBindingMaterialKey",
                 BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("Failed to resolve CreateBindingMaterialKey.");
-        return (string?)method.Invoke(null, [material, depthOffset, textureScale, color, textureOffset, opticalProperties])
+        return (string?)method.Invoke(null, [material, depthOffset, textureScale, color, textureOffset, opticalProperties, null])
             ?? throw new InvalidOperationException("CreateBindingMaterialKey returned null.");
     }
 

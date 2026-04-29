@@ -73,6 +73,7 @@ internal static class ResoniteSceneMaterialConventions
             : normalizedMaterial.Family!;
         string colorName = CreateCompactColorSuffix(normalizedMaterial.BaseColor);
         string opticalName = CreateOpticalSuffix(normalizedMaterial.OpticalProperties);
+        string wrapName = CreateWrapSuffix(normalizedMaterial.TextureWrapMode);
         string depthName = normalizedMaterial.DepthOffset is not null
             ? string.Create(
                 CultureInfo.InvariantCulture,
@@ -81,7 +82,7 @@ internal static class ResoniteSceneMaterialConventions
 
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{componentKind}_{projectionName}_{sourceName}_{familyName}_{depthName}_{colorName}_{opticalName}");
+            $"{componentKind}_{projectionName}_{sourceName}_{familyName}_{depthName}_{colorName}_{opticalName}_{wrapName}");
     }
 
     public static IReadOnlyList<string> CreateCommonMaterialSlotLookupNames(ResoniteMaterialBinding material)
@@ -349,10 +350,14 @@ internal static class ResoniteSceneMaterialConventions
         };
     }
 
-    public static Dictionary<string, Member> CreateTextureMembers(Uri assetUri, TextureMemberRole role)
+    public static Dictionary<string, Member> CreateTextureMembers(
+        Uri assetUri,
+        TextureMemberRole role,
+        ResoniteTextureWrapMode? textureWrapMode = null)
     {
         ArgumentNullException.ThrowIfNull(assetUri);
         TextureSamplingPolicy samplingPolicy = GetTextureSamplingPolicy(role);
+        string? wrapMode = textureWrapMode is null ? samplingPolicy.WrapMode : ToResoniteWrapMode(textureWrapMode.Value);
 
         Dictionary<string, Member> members = new(StringComparer.Ordinal)
         {
@@ -367,10 +372,10 @@ internal static class ResoniteSceneMaterialConventions
             members["PreferredProfile"] = CreateNullableEnumMember(samplingPolicy.PreferredProfile);
         }
 
-        if (samplingPolicy.WrapMode is not null)
+        if (wrapMode is not null)
         {
-            members["WrapModeU"] = CreateEnumMember(samplingPolicy.WrapMode);
-            members["WrapModeV"] = CreateEnumMember(samplingPolicy.WrapMode);
+            members["WrapModeU"] = CreateEnumMember(wrapMode);
+            members["WrapModeV"] = CreateEnumMember(wrapMode);
         }
 
         return members;
@@ -421,6 +426,17 @@ internal static class ResoniteSceneMaterialConventions
             : FormatRounded(opticalProperties.Shininess.Value);
         return string.Create(CultureInfo.InvariantCulture, $"optical-e-{emissive}-s-{shininess}");
     }
+
+    private static string CreateWrapSuffix(ResoniteTextureWrapMode? textureWrapMode) =>
+        textureWrapMode is null ? "wrap-default" : $"wrap-{textureWrapMode.Value.ToString().ToLowerInvariant()}";
+
+    private static string ToResoniteWrapMode(ResoniteTextureWrapMode textureWrapMode) =>
+        textureWrapMode switch
+        {
+            ResoniteTextureWrapMode.Repeat => "Repeat",
+            ResoniteTextureWrapMode.Clamp => "Clamp",
+            _ => throw new InvalidOperationException($"Unsupported texture wrap mode '{textureWrapMode}'."),
+        };
 
     private static string CreateCommonMaterialSlotName(ResoniteMaterialBinding material)
     {

@@ -185,7 +185,8 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     albedoTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
+                    plannedMaterial.Material.TextureWrapMode),
                 cancellationToken);
             materialMembers["AlbedoTexture"] = new Reference
             {

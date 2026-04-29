@@ -42,6 +42,8 @@ public sealed class CityGmlAppearanceStoreTests
                     <app:ParameterizedTexture>
                       <app:imageURI>appearance/roof.png</app:imageURI>
                       <app:mimeType>image/png</app:mimeType>
+                      <app:wrapMode>none</app:wrapMode>
+                      <app:borderColor>0.1 0.2 0.3 1.0</app:borderColor>
                       <app:target uri="#poly-1">
                         <app:TexCoordList>
                           <app:textureCoordinates ring="#ring-1">0 0 1 0 1 1 0 1</app:textureCoordinates>
@@ -73,6 +75,8 @@ public sealed class CityGmlAppearanceStoreTests
         Assert.NotNull(appearance.TexturePayload);
         Assert.NotNull(appearance.ParameterizedTexture);
         Assert.Equal("image/png", appearance.ParameterizedTexture!.MimeType);
+        Assert.Equal("none", appearance.ParameterizedTexture.WrapMode);
+        Assert.Equal(new ColorRgba(0.1, 0.2, 0.3, 1.0), appearance.ParameterizedTexture.BorderColor);
         Assert.NotNull(appearance.MaterialAttributes);
         Assert.Equal(0.25, appearance.MaterialAttributes!.AmbientIntensity!.Value, 6);
         Assert.Equal(0.5, appearance.MaterialAttributes.Shininess!.Value, 6);

@@ -367,7 +367,12 @@ internal sealed class NonDemCityObjectBaker(
         int maxTileHeight = EffectiveMaxAtlasTextureEdge;
         int targetWidth = Math.Max(1, Math.Min(maxTileWidth, (int)Math.Ceiling(sourceImage.Width * uvBounds.Width)));
         int targetHeight = Math.Max(1, Math.Min(maxTileHeight, (int)Math.Ceiling(sourceImage.Height * uvBounds.Height)));
-        using Image<Rgba32> bakedImage = BakeUsedUvRegion(preparedSourceImage, uvBounds, targetWidth, targetHeight);
+        using Image<Rgba32> bakedImage = BakeUsedUvRegion(
+            preparedSourceImage,
+            uvBounds,
+            targetWidth,
+            targetHeight,
+            material.TextureWrapMode ?? ResoniteTextureWrapMode.Repeat);
 
         ApplyBaseColor(bakedImage, material.BaseColor);
         return new AtlasOrPreservedEntry(
@@ -1232,7 +1237,8 @@ internal sealed class NonDemCityObjectBaker(
         Image<Rgba32> sourceImage,
         TextureUvRect uvBounds,
         int targetWidth,
-        int targetHeight)
+        int targetHeight,
+        ResoniteTextureWrapMode textureWrapMode)
     {
         Image<Rgba32> bakedImage = new(targetWidth, targetHeight);
         for (int y = 0; y < targetHeight; y++)
@@ -1242,7 +1248,7 @@ internal sealed class NonDemCityObjectBaker(
             {
                 double normalizedU = (x + 0.5) / targetWidth;
                 ScalarPair sourceUv = uvBounds.DenormalizeValue(normalizedU, normalizedV);
-                bakedImage[x, y] = SampleWrappedPixelBilinear(sourceImage, sourceUv.X, sourceUv.Y);
+                bakedImage[x, y] = SamplePixelBilinear(sourceImage, sourceUv.X, sourceUv.Y, textureWrapMode);
             }
         }
 
@@ -1465,12 +1471,16 @@ internal sealed class NonDemCityObjectBaker(
         atlasCoverage[(y * atlasWidth) + x] = true;
     }
 
-    private static Rgba32 SampleWrappedPixelBilinear(Image<Rgba32> sourceImage, double u, double v)
+    private static Rgba32 SamplePixelBilinear(
+        Image<Rgba32> sourceImage,
+        double u,
+        double v,
+        ResoniteTextureWrapMode textureWrapMode)
     {
-        double wrappedU = WrapUvCoordinate(u);
-        double wrappedV = WrapUvCoordinate(v);
-        double sourceX = (wrappedU * sourceImage.Width) - 0.5;
-        double sourceY = ((1.0 - wrappedV) * sourceImage.Height) - 0.5;
+        double sampledU = SampleUvCoordinate(u, textureWrapMode);
+        double sampledV = SampleUvCoordinate(v, textureWrapMode);
+        double sourceX = (sampledU * sourceImage.Width) - 0.5;
+        double sourceY = ((1.0 - sampledV) * sourceImage.Height) - 0.5;
         int x0 = (int)Math.Floor(sourceX);
         int y0 = (int)Math.Floor(sourceY);
         int x1 = x0 + 1;
@@ -1478,11 +1488,29 @@ internal sealed class NonDemCityObjectBaker(
         double tx = sourceX - x0;
         double ty = sourceY - y0;
 
-        Rgba32 topLeft = sourceImage[WrapPixelCoordinate(x0, sourceImage.Width), WrapPixelCoordinate(y0, sourceImage.Height)];
-        Rgba32 topRight = sourceImage[WrapPixelCoordinate(x1, sourceImage.Width), WrapPixelCoordinate(y0, sourceImage.Height)];
-        Rgba32 bottomLeft = sourceImage[WrapPixelCoordinate(x0, sourceImage.Width), WrapPixelCoordinate(y1, sourceImage.Height)];
-        Rgba32 bottomRight = sourceImage[WrapPixelCoordinate(x1, sourceImage.Width), WrapPixelCoordinate(y1, sourceImage.Height)];
+        Rgba32 topLeft = sourceImage[
+            SamplePixelCoordinate(x0, sourceImage.Width, textureWrapMode),
+            SamplePixelCoordinate(y0, sourceImage.Height, textureWrapMode)];
+        Rgba32 topRight = sourceImage[
+            SamplePixelCoordinate(x1, sourceImage.Width, textureWrapMode),
+            SamplePixelCoordinate(y0, sourceImage.Height, textureWrapMode)];
+        Rgba32 bottomLeft = sourceImage[
+            SamplePixelCoordinate(x0, sourceImage.Width, textureWrapMode),
+            SamplePixelCoordinate(y1, sourceImage.Height, textureWrapMode)];
+        Rgba32 bottomRight = sourceImage[
+            SamplePixelCoordinate(x1, sourceImage.Width, textureWrapMode),
+            SamplePixelCoordinate(y1, sourceImage.Height, textureWrapMode)];
         return LerpPixels(topLeft, topRight, bottomLeft, bottomRight, tx, ty);
+    }
+
+    private static double SampleUvCoordinate(double value, ResoniteTextureWrapMode textureWrapMode)
+    {
+        return textureWrapMode switch
+        {
+            ResoniteTextureWrapMode.Repeat => WrapUvCoordinate(value),
+            ResoniteTextureWrapMode.Clamp => Math.Clamp(value, 0.0, 1.0),
+            _ => throw new InvalidOperationException($"Unsupported texture wrap mode '{textureWrapMode}'."),
+        };
     }
 
     private static double WrapUvCoordinate(double value)
@@ -1495,6 +1523,16 @@ internal sealed class NonDemCityObjectBaker(
     {
         int wrapped = value % length;
         return wrapped < 0 ? wrapped + length : wrapped;
+    }
+
+    private static int SamplePixelCoordinate(int value, int length, ResoniteTextureWrapMode textureWrapMode)
+    {
+        return textureWrapMode switch
+        {
+            ResoniteTextureWrapMode.Repeat => WrapPixelCoordinate(value, length),
+            ResoniteTextureWrapMode.Clamp => Math.Clamp(value, 0, length - 1),
+            _ => throw new InvalidOperationException($"Unsupported texture wrap mode '{textureWrapMode}'."),
+        };
     }
 
     private static Rgba32 LerpPixels(
@@ -1541,7 +1579,8 @@ internal sealed class NonDemCityObjectBaker(
             normalizedMaterial.TextureScale,
             normalizedMaterial.TextureOffset,
             normalizedMaterial.AssetScope,
-            normalizedMaterial.OpticalProperties);
+            normalizedMaterial.OpticalProperties,
+            normalizedMaterial.TextureWrapMode);
     }
 
     private static ResoniteMaterialBinding NormalizePreservedMaterial(ResoniteMaterialBinding material)
@@ -1713,7 +1752,8 @@ internal sealed class NonDemCityObjectBaker(
         ResoniteFloat2? TextureScale,
         ResoniteFloat2? TextureOffset,
         ResoniteMaterialAssetScope AssetScope,
-        ResoniteMaterialOpticalProperties? OpticalProperties);
+        ResoniteMaterialOpticalProperties? OpticalProperties,
+        ResoniteTextureWrapMode? TextureWrapMode);
 
     private sealed class SourceFileBatchKeyComparer : IComparer<SourceFileBatchKey>
     {
@@ -1772,7 +1812,8 @@ internal sealed class NonDemCityObjectBaker(
                 && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureScale, y.TextureScale)
                 && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureOffset, y.TextureOffset)
                 && x.AssetScope == y.AssetScope
-                && EqualityComparer<ResoniteMaterialOpticalProperties?>.Default.Equals(x.OpticalProperties, y.OpticalProperties);
+                && EqualityComparer<ResoniteMaterialOpticalProperties?>.Default.Equals(x.OpticalProperties, y.OpticalProperties)
+                && x.TextureWrapMode == y.TextureWrapMode;
         }
 
         public int GetHashCode(PreservedMaterialGroupingKey obj)
@@ -1793,6 +1834,7 @@ internal sealed class NonDemCityObjectBaker(
             hash.Add(obj.TextureOffset);
             hash.Add(obj.AssetScope);
             hash.Add(obj.OpticalProperties);
+            hash.Add(obj.TextureWrapMode);
             return hash.ToHashCode();
         }
     }
