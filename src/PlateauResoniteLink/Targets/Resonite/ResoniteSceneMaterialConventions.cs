@@ -216,19 +216,17 @@ internal static class ResoniteSceneMaterialConventions
             return false;
         }
 
-        if (material.TerrainOverlay is not null
-            && !HasValidTerrainTextureMeshCode(material))
-        {
-            return false;
-        }
-
         if (!string.IsNullOrWhiteSpace(material.Family))
         {
             return false;
         }
 
-        if (HasEffectiveGenericTextureTransform(material)
-            && material.TerrainOverlay is null)
+        if (material.TerrainOverlay is not null)
+        {
+            return false;
+        }
+
+        if (HasEffectiveGenericTextureTransform(material))
         {
             return false;
         }

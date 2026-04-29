@@ -2034,15 +2034,42 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             bool preserveDedicatedMaterialSlot,
             CancellationToken ct)
         {
+            ResoniteMaterialBinding materialComponentSource = sourceMaterial.TerrainOverlay is null
+                ? sourceMaterial
+                : sourceMaterial with
+                {
+                    TerrainOverlay = null,
+                    TerrainMeshCode = null,
+                    TextureScale = null,
+                    TextureOffset = null,
+                };
             PlannedDedicatedMaterialAsset plannedMaterial = await materialPlanning.PlanDedicatedMaterialAssetAsync(
                 client,
-                sourceMaterial,
+                materialComponentSource,
                 materialIndex,
                 packageName,
                 preparedTextureUrisByPayload,
                 preparedTerrainTextureUrisByOverlay,
                 preserveDedicatedMaterialSlot,
                 ct);
+            if (sourceMaterial.TerrainOverlay is not null)
+            {
+                PlannedTextureAsset? mainTextureOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+                    sourceMaterial,
+                    preparedTextureUrisByPayload,
+                    preparedTerrainTextureUrisByOverlay);
+                if (mainTextureOverride is not null)
+                {
+                    return (
+                        plannedMaterial,
+                        CreateMainTextureOverrideRendererBinding(
+                            plannedMaterial.Identity,
+                            mainTextureOverride,
+                            preparedTerrainTextureComponentsByMeshCode,
+                            sourceMaterial));
+                }
+            }
+
             return (plannedMaterial, new PlannedDirectRendererMaterialBinding(plannedMaterial.Identity));
         }
     }

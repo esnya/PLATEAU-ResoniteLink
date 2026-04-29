@@ -1579,7 +1579,7 @@ internal static partial class LocalCityGmlObjectProjection
             MaterialProjection.Uv,
             Family: null,
             TextureScale: null,
-            ReuseScope: MaterialReuseScope.Shared,
+            ReuseScope: MaterialReuseScope.PerObject,
             TerrainOverlay: demTerrainTextureOverlay);
     }
 
@@ -2594,24 +2594,30 @@ internal static partial class LocalCityGmlObjectProjection
         ColorRgba color,
         Float2? textureOffset = null)
     {
-        if (material.ReuseScope == MaterialReuseScope.Shared)
+        if (material.TerrainOverlay is not null)
         {
-            if (material.TerrainOverlay is not null)
+            if (ResolveTerrainTextureMeshCode(actualMeshCode, material.TerrainOverlay) is null)
             {
-                if (ResolveTerrainTextureMeshCode(actualMeshCode, material.TerrainOverlay) is not null)
-                {
-                    Float2? normalizedTextureScale = IsIdentityTextureScale(textureScale) ? null : textureScale;
-                    Float2? normalizedTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
-                    return CommonMaterialCatalog.CreateCanonicalGenericSharedMaterialKey(
-                        material.Projection,
-                        normalizedTextureScale,
-                        normalizedTextureOffset,
-                        depthOffset);
-                }
-
                 throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
             }
 
+            Float2? normalizedTextureScale = IsIdentityTextureScale(textureScale) ? null : textureScale;
+            Float2? normalizedTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
+            return CreateMaterialKey(
+                material.MaterialType,
+                terrainOverlay: null,
+                material.TexturePayload,
+                material.TextureSourceKind,
+                material.Projection,
+                depthOffset,
+                normalizedTextureScale,
+                family: null,
+                new ColorRgba(1.0, 1.0, 1.0, 1.0),
+                normalizedTextureOffset);
+        }
+
+        if (material.ReuseScope == MaterialReuseScope.Shared)
+        {
             string family = material.Family ?? throw new InvalidOperationException("Common material must provide a family.");
             int variantIndex = material.BundledVariantIndex ?? 0;
             Float2? effectiveTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
@@ -2641,7 +2647,7 @@ internal static partial class LocalCityGmlObjectProjection
         ColorRgba color,
         Float2? textureOffset = null)
     {
-        if (material.ReuseScope == MaterialReuseScope.Shared && material.TerrainOverlay is not null)
+        if (material.TerrainOverlay is not null)
         {
             if (ResolveTerrainTextureMeshCode(actualMeshCode, material.TerrainOverlay) is null)
             {
@@ -2658,7 +2664,7 @@ internal static partial class LocalCityGmlObjectProjection
                 Family: null,
                 BaseColor: null,
                 IsZeroTextureOffset(textureOffset) ? null : textureOffset,
-                material.ReuseScope,
+                MaterialReuseScope.PerObject,
                 material.BundledVariantIndex,
                 TerrainOverlay: null);
         }
@@ -4291,9 +4297,12 @@ internal static partial class LocalCityGmlObjectProjection
             ? null
             : ResolveTerrainTextureMeshCode(actualMeshCode, representativeSurface.Material.TerrainOverlay)
                 ?? throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
+        ColorRgba baseColor = representativeSurface.Material.TerrainOverlay is null
+            ? ToContractColor(representativeSurface.Surface.BaseColor)
+            : new ColorRgba(1.0, 1.0, 1.0, 1.0);
         return new MaterialBinding(
             MaterialKey: materialKey,
-            BaseColor: ToContractColor(representativeSurface.Surface.BaseColor),
+            BaseColor: baseColor,
             MaterialType: representativeSurface.Material.MaterialType,
             TexturePayload: representativeSurface.Material.TexturePayload is null
                 ? null

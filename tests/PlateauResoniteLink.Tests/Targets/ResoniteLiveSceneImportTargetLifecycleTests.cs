@@ -389,7 +389,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_BootstrapsTerrainOverlaySharedCommonMaterialBeforeRuntimeEmission()
+    public async Task ExecuteAsync_DoesNotBootstrapTerrainOverlayAsSharedCommonMaterial()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -451,14 +451,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 CreateDemCityObject("dem-bootstrap-generic", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
         Assert.Equal(1, executionResult.ProcessedCityObjectCount);
-        Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            routedClient,
-            "PLATEAU Shared Assets/Common Materials");
-        Assert.Contains(
+        Assert.DoesNotContain(
             routedClient.SlotPaths.Values,
             path => string.Equals(
-                path,
-                $"{routedClient.SlotPaths[commonRoot.ID!]}/generic/shared_uv_generic",
+                path.Replace('\\', '/'),
+                "PLATEAU Shared Assets/Common Materials/generic/shared_uv_generic",
                 StringComparison.Ordinal));
     }
 
