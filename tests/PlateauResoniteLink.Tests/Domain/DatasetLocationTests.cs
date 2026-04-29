@@ -22,14 +22,12 @@ public sealed class DatasetLocationTests
     }
 
     [Fact]
-    public void CompatibilityConstructorMapsLocalSourceIntoTypedSource()
+    public void RequestStoresLocalSourceAsTypedSource()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/data/plateau",
-            ServerUri: null);
+            Source: DatasetLocation.Local("/data/plateau"));
 
         LocalDatasetLocation localSource = Assert.IsType<LocalDatasetLocation>(request.Source);
         Assert.Equal("/data/plateau", localSource.LocalSourcePath);

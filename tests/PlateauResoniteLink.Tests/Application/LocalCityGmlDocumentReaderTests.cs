@@ -27,10 +27,9 @@ public sealed class LocalCityGmlDocumentReaderTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                SourceKind: DatasetSourceKind.Local,
-                LocalSourcePath: fixturePath,
-                PackageNames: ["bldg"],
-                ServerUri: null));
+                Source: DatasetLocation.Local(fixturePath),
+                PackageNames: ["bldg"]
+));
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
 
         Assert.Equal(fixturePath, documentSet.DatasetSource.SourcePath);
@@ -57,10 +56,9 @@ public sealed class LocalCityGmlDocumentReaderTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                SourceKind: DatasetSourceKind.Local,
-                LocalSourcePath: datasetSource.SourcePath,
-                PackageNames: ["dem"],
-                ServerUri: null));
+                Source: DatasetLocation.Local(datasetSource.SourcePath),
+                PackageNames: ["dem"]
+));
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
 
         Assert.Equal(["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"], documentSet.RelativeSourceFiles);

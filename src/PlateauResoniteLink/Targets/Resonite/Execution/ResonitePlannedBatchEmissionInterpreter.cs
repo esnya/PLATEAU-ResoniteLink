@@ -71,8 +71,10 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
                 && displacementMember is Field_float displacement)
             {
                 reportProgress?.Invoke(
-                    $"[live] Terrain grid displacement texture ready. Creating GridMesh "
-                    + $"({points.Value.x}x{points.Value.y}, displacement={displacement.Value:F3}).");
+                    PlateauLog.Info(
+                        "live",
+                        "Terrain grid displacement texture ready. Creating GridMesh "
+                        + $"({points.Value.x}x{points.Value.y}, displacement={displacement.Value:F3})."));
             }
 
             ResoniteBatchOperations.PendingBatchComponent pendingComponent = batchBuilder.AddComponent(

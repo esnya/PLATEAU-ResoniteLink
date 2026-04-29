@@ -51,9 +51,7 @@ public sealed class ImportServiceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: meshCode,
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
-            ServerUri: null);
+            Source: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDataset")));
 
         return new ImportCommandOptions(
             request,
