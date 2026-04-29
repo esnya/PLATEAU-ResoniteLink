@@ -71,7 +71,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
                 && displacementMember is Field_float displacement)
             {
                 reportProgress?.Invoke(
-                    PlateauLog.Info(
+                    PlateauLog.Debug(
                         "live",
                         "Terrain grid displacement texture ready. Creating GridMesh "
                         + $"({points.Value.x}x{points.Value.y}, displacement={displacement.Value:F3})."));

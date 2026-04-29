@@ -565,7 +565,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             foreach ((string name, int inputCount, int outputCount) in cityObjectBaker.GetBakeSummaries().Where(static summary => summary.OutputCount > 0))
             {
                 ReportProgress(
-                    PlateauLog.Info(
+                    PlateauLog.Debug(
                         "live",
                         $"{name} batched {inputCount} input city objects "
                         + $"into {outputCount} baked batch objects."));
@@ -1304,7 +1304,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         if (Interlocked.CompareExchange(ref state.Progress.FirstImportedCityObjectLogged, 1, 0) == 0)
         {
             ReportProgress(
-                PlateauLog.Info(
+                PlateauLog.Debug(
                     "live",
                     $"First city object imported after {GetSceneElapsedSeconds(state):F3}s: "
                     + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})"));
