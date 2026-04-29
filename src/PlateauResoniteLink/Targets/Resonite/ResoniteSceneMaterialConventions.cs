@@ -263,6 +263,8 @@ internal static class ResoniteSceneMaterialConventions
             return normalizedSharedMaterial with
             {
                 SubmeshIndices = material.SubmeshIndices,
+                TerrainOverlay = material.TerrainOverlay,
+                TerrainMeshCode = material.TerrainMeshCode,
             };
         }
 

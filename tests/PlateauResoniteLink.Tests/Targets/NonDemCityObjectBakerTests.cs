@@ -722,7 +722,7 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncPreservesTerrainOverlayAlbedoOnlyAsSharedGenericCommonMaterial()
+    public async Task TryBufferAsyncPreservesTerrainOverlayAlbedoOnlyAsSharedGenericCommonMaterialWithProvider()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -764,8 +764,8 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal("shared-generic-uv-scale-none-offset-none-depth-none", material.MaterialKey);
         Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
         Assert.Null(material.TexturePayload);
-        Assert.Null(material.TerrainOverlay);
-        Assert.Null(material.TerrainMeshCode);
+        Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal("53394525", material.TerrainMeshCode);
     }
 
     [Fact]
