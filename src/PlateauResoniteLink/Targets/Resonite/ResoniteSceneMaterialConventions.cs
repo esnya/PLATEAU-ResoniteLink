@@ -221,7 +221,7 @@ internal static class ResoniteSceneMaterialConventions
             return false;
         }
 
-        if (material.TerrainOverlay is not null && !HasValidTerrainTextureMeshCode(material))
+        if (material.TerrainOverlay is not null)
         {
             return false;
         }
@@ -250,6 +250,15 @@ internal static class ResoniteSceneMaterialConventions
             && (!IsWhiteBaseColor(material.BaseColor)
                 || HasNonDefaultBundledTextureTransform(material)
                 || material.DepthOffset is not null))
+        {
+            return material with
+            {
+                AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
+            };
+        }
+
+        if (material.TerrainOverlay is not null
+            && material.AssetScope == ResoniteMaterialAssetScope.Common)
         {
             return material with
             {
@@ -393,8 +402,7 @@ internal static class ResoniteSceneMaterialConventions
             && ResoniteMaterialSharing.IsWhiteBaseColor(material.BaseColor)
             && string.IsNullOrWhiteSpace(material.Family)
             && material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
-            && (material.TerrainOverlay is null || HasValidTerrainTextureMeshCode(material))
-            && (material.TerrainOverlay is null || !HasEffectiveGenericTextureTransform(material));
+            && material.TerrainOverlay is null;
     }
 
     private static string CreateCompactColorSuffix(ResoniteColor color)
@@ -638,22 +646,6 @@ internal static class ResoniteSceneMaterialConventions
             BundledVariantIndex = null,
             TerrainMeshCode = null,
         };
-    }
-
-    private static bool HasValidTerrainTextureMeshCode(ResoniteMaterialBinding material)
-    {
-        if (material.TerrainMeshCode is not { Length: 8 } meshCode
-            || material.TerrainOverlay is null
-            || !PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
-        {
-            return false;
-        }
-
-        const double tolerance = 1e-8;
-        return Math.Abs(bounds.SouthLatitude - material.TerrainOverlay.GeographicBounds.MinLatitude) <= tolerance
-            && Math.Abs(bounds.NorthLatitude - material.TerrainOverlay.GeographicBounds.MaxLatitude) <= tolerance
-            && Math.Abs(bounds.WestLongitude - material.TerrainOverlay.GeographicBounds.MinLongitude) <= tolerance
-            && Math.Abs(bounds.EastLongitude - material.TerrainOverlay.GeographicBounds.MaxLongitude) <= tolerance;
     }
 
     private static ResoniteMaterialBinding NormalizeVertexColorSharedMaterialBinding(ResoniteMaterialBinding material)

@@ -368,7 +368,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
         Assert.Equal(MaterialProjection.Uv, material.Projection);
-        Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
+        Assert.Equal(MaterialReuseScope.PerObject, material.ReuseScope);
         Assert.Null(material.Family);
         Assert.Null(material.TexturePayload);
         Assert.Same(overlay, material.TerrainOverlay);
@@ -500,7 +500,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void EnumerateCommonMaterialsForParsedCityObjectSplitsParentMeshBuildingRoofsByThirdMeshOverlay()
+    public void EnumerateCommonMaterialsForParsedCityObjectExcludesTerrainOverlayBuildingRoofs()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay firstOverlay = CreateThirdMeshOverlay("53394525");
@@ -534,20 +534,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             request,
             new DefaultMaterialResolver()).ToArray();
 
-        Assert.Collection(
-            materialBindings.OrderBy(static material => material.TerrainMeshCode, StringComparer.Ordinal),
-            first =>
-            {
-                Assert.Same(firstOverlay, first.TerrainOverlay);
-                Assert.Equal("53394525", first.TerrainMeshCode);
-                Assert.Equal(TextureSourceKind.Dataset, first.TextureSourceKind);
-            },
-            second =>
-            {
-                Assert.Same(secondOverlay, second.TerrainOverlay);
-                Assert.Equal("53394526", second.TerrainMeshCode);
-                Assert.Equal(TextureSourceKind.Dataset, second.TextureSourceKind);
-            });
+        Assert.Empty(materialBindings);
     }
 
     [Fact]
@@ -638,7 +625,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectUsesSharedAlbedoOnlyMaterialForTexturelessDemTerrainRoofs()
+    public void ProjectCityObjectUsesPerObjectAlbedoOnlyMaterialForTexturelessDemTerrainRoofs()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -668,7 +655,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(new ColorRgba(1.0, 1.0, 1.0, 1.0), material.BaseColor);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
-        Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
+        Assert.Equal(MaterialReuseScope.PerObject, material.ReuseScope);
         Assert.Same(overlay, material.TerrainOverlay);
     }
 
@@ -864,7 +851,57 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
-        Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
+        Assert.Equal(MaterialReuseScope.PerObject, material.ReuseScope);
+        Assert.Null(material.Family);
+        Assert.Null(material.TexturePayload);
+        Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal("54372778", material.TerrainMeshCode);
+    }
+
+    [Fact]
+    public void ProjectParsedCityObjectAssignsDemTerrainMaterialToMatsumotoLod1SolidTopWinding()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("54372778");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(36.23163715441054, 137.97501759714283, 590.343);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "matsumoto-parsed-lod1-solid-bottom",
+            ParsedSurfaceSemantic.Unknown,
+            CreateMatsumotoLod1SolidHorizontalRing(altitudeMeters: 590.343),
+            texturePayload: null);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "matsumoto-parsed-lod1-solid-top",
+            ParsedSurfaceSemantic.Unknown,
+            CreateMatsumotoLod1SolidHorizontalRing(altitudeMeters: 595.009),
+            texturePayload: null);
+        ParsedCityObject cityObject =
+            CreateParsedCityObject(
+                "bldg",
+                [bottomSurface, topSurface],
+                referenceSystem) with
+            {
+                ActualMeshCode = "54372778",
+            };
+        PlateauImportRequest request = new(
+            Dataset: "plateau-20202-matsumoto-shi-2020",
+            MeshCode: "54372778",
+            Source: DatasetLocation.Local("/tmp/plateau"));
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: null,
+            demTerrainTextureOverlays: [overlay],
+            requestedMeshAreas: [MeshCodeBounds.TryParse("54372778")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver()).ToArray();
+
+        MaterialBinding material = Assert.Single(
+            projected.SelectMany(static cityObject => cityObject.Materials),
+            static material => material.TerrainOverlay is not null);
+        Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
+        Assert.Equal(MaterialReuseScope.PerObject, material.ReuseScope);
         Assert.Null(material.Family);
         Assert.Null(material.TexturePayload);
         Assert.Same(overlay, material.TerrainOverlay);
