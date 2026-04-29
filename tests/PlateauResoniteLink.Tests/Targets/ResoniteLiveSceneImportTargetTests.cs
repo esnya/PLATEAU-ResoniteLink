@@ -29,7 +29,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     private static readonly ResoniteLocalOrigin LocalOrigin = new(35.6875, 139.69375, 0.0);
 
     [Fact]
-    public async Task BuildAsyncImportsGeneratedDemTerrainTextureWithCanvasTransform()
+    public async Task ExecuteAsyncImportsGeneratedDemTerrainTextureWithCanvasTransform()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -73,7 +73,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
             [cityObject],
             client,
@@ -140,7 +140,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncReusesExistingTerrainOverlayGenericCommonMaterialComponent()
+    public async Task ExecuteAsyncReusesExistingTerrainOverlayGenericCommonMaterialComponent()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -197,7 +197,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
             [cityObject],
             client,
@@ -220,7 +220,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncSendsTerrainGridDisplacementAsHdrRawTextureAndCreatesGridMesh()
+    public async Task ExecuteAsyncSendsTerrainGridDisplacementAsHdrRawTextureAndCreatesGridMesh()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -262,7 +262,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client);
 
         ResoniteRawHdrTextureImport importedTexture = Assert.Single(client.ImportedRawHdrTextures);
         Assert.Equal(2, importedTexture.Width);
@@ -323,7 +323,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncCreatesDistinctTerrainGridPointsFieldIdsForMultipleDemGrids()
+    public async Task ExecuteAsyncCreatesDistinctTerrainGridPointsFieldIdsForMultipleDemGrids()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -340,7 +340,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         ResoniteConstructionCityObject first = CreateTerrainGridCityObject("terrain-grid-a", "Terrain Grid A");
         ResoniteConstructionCityObject second = CreateTerrainGridCityObject("terrain-grid-b", "Terrain Grid B");
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [first, second], client);
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [first, second], client);
 
         List<AddComponent> gridMeshRequests = client.AddedComponents
             .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal))
@@ -380,7 +380,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncCreatesDynamicTerrainStaticAndGridAssetsWithGridFallback()
+    public async Task ExecuteAsyncCreatesDynamicTerrainStaticAndGridAssetsWithGridFallback()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -521,7 +521,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncAppliesTerrainOverlayUvTransformToGridMeshInsteadOfMaterial()
+    public async Task ExecuteAsyncAppliesTerrainOverlayUvTransformToGridMeshInsteadOfMaterial()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -581,7 +581,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
             [cityObject],
             client,
@@ -605,7 +605,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncDisablesColliderForNoCollisionCityObjects()
+    public async Task ExecuteAsyncDisablesColliderForNoCollisionCityObjects()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -642,7 +642,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             CollisionEnabled: false,
             SourceFileRelativePath: $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml");
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client);
 
         Component collider = Assert.Single(
             client.AddedComponents.Where(request =>
@@ -771,7 +771,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncResolvesPlannedIdsBeforeBatchExecution()
+    public async Task ExecuteAsyncResolvesPlannedIdsBeforeBatchExecution()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -816,14 +816,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: sourceFile);
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false);
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false);
 
         Assert.All(client.SlotsById.Values, static slot => AssertNoPlannedIds(slot));
         Assert.All(client.ComponentsById.Values, static component => AssertNoPlannedReferences(component.Members.Values));
     }
 
     [Fact]
-    public async Task BuildAsyncPlacesObjectUnderLodHierarchy()
+    public async Task ExecuteAsyncPlacesObjectUnderLodHierarchy()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -857,7 +857,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: sourceFile);
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client);
 
         AddComponent meshRendererRequest = Assert.Single(
             client.AddedComponents,
@@ -870,7 +870,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncDoesNotCreateRedundantCompletionMeshCodePlaceholderSlot()
+    public async Task ExecuteAsyncDoesNotCreateRedundantCompletionMeshCodePlaceholderSlot()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -904,7 +904,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: sourceFile);
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client);
 
         Slot datasetRoot = Assert.Single(
             client.SlotsById.Values,
@@ -958,7 +958,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: sourceFile);
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
             [cityObject],
             client,
@@ -976,7 +976,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncBakesBundledFamilyUvScaleIntoMeshAndUsesDefaultCommonScale()
+    public async Task ExecuteAsyncBakesBundledFamilyUvScaleIntoMeshAndUsesDefaultCommonScale()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1014,7 +1014,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: sourceFile);
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
             [cityObject],
             client,
@@ -1063,7 +1063,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncBakesBundledFamilyUvTransformIntoMeshAndAvoidsDedicatedUvTransformEmission()
+    public async Task ExecuteAsyncBakesBundledFamilyUvTransformIntoMeshAndAvoidsDedicatedUvTransformEmission()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1102,7 +1102,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: sourceFile);
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
             [cityObject],
             client,
@@ -1157,7 +1157,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncFailsFastOnOutOfRangeMaterialSubmeshAssignment()
+    public async Task ExecuteAsyncFailsFastOnOutOfRangeMaterialSubmeshAssignment()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1194,14 +1194,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
         );
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("targeted missing submesh index 1", exception.Message, StringComparison.Ordinal);
         Assert.Contains("material_bindings=[only-submesh[1]]", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task BuildAsyncFailsFastOnDynamicTerrainOutOfRangeMaterialSubmeshAssignment()
+    public async Task ExecuteAsyncFailsFastOnDynamicTerrainOutOfRangeMaterialSubmeshAssignment()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1246,14 +1246,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("targeted missing submesh index 1", exception.Message, StringComparison.Ordinal);
         Assert.Contains("material_bindings=[only-submesh[1]]", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task BuildAsyncFailsFastOnDuplicateMaterialSubmeshAssignment()
+    public async Task ExecuteAsyncFailsFastOnDuplicateMaterialSubmeshAssignment()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1299,14 +1299,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
         );
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("assigned submesh index 0", exception.Message, StringComparison.Ordinal);
         Assert.Contains("materials=2", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task BuildAsyncFailsFastOnDuplicateMaterialSubmeshAssignmentBeforeDynamicUvNormalization()
+    public async Task ExecuteAsyncFailsFastOnDuplicateMaterialSubmeshAssignmentBeforeDynamicUvNormalization()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1354,14 +1354,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
         );
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("assigned submesh index 0", exception.Message, StringComparison.Ordinal);
         Assert.Contains("materials=2", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task BuildAsyncFailsFastOnUnassignedMeshSubmesh()
+    public async Task ExecuteAsyncFailsFastOnUnassignedMeshSubmesh()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1398,14 +1398,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
         );
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("left submesh index 1 without a material assignment", exception.Message, StringComparison.Ordinal);
         Assert.Contains("materials=1", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task BuildAsyncFailsFastOnTriangleMeshWithoutAnySubmesh()
+    public async Task ExecuteAsyncFailsFastOnTriangleMeshWithoutAnySubmesh()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1458,7 +1458,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         );
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("did not contain any submesh", exception.Message, StringComparison.Ordinal);
         Assert.Contains("submeshes=0", exception.Message, StringComparison.Ordinal);

@@ -5,7 +5,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
-public sealed class DemSourceBootstrapSupportTests
+public sealed class DemSourceDiscoverySupportTests
 {
     [Fact]
     public void AggregateDemParsedSourceFilesCombinesCachedFilesAndTriangles()
@@ -16,7 +16,7 @@ public sealed class DemSourceBootstrapSupportTests
             "53394525",
             RequiresMeshAreaFilter: false);
 
-        BootstrapParsedCityObject cityObject = CreateCityObject();
+        ParsedCityObject cityObject = CreateCityObject();
         ParsedSourceFileResult parsedWithCityObject = new(
             sourceFile,
             [cityObject],
@@ -30,7 +30,7 @@ public sealed class DemSourceBootstrapSupportTests
             [CreateTerrainTriangle(), CreateTerrainTriangle()],
             TimeSpan.FromSeconds(2.0));
 
-        DemBootstrapAggregation result = DemSourceBootstrapSupport.AggregateDemParsedSourceFiles(
+        DemDiscoveryAggregation result = DemSourceDiscoverySupport.AggregateDemParsedSourceFiles(
             [parsedWithCityObject, parsedWithoutCityObjects]);
 
         CachedSourceFileDescriptor cachedSourceFile = Assert.Single(result.CachedDemSourceFiles);
@@ -46,7 +46,7 @@ public sealed class DemSourceBootstrapSupportTests
             PlateauMeshCode.TryGetBounds(
                 "53394525",
                 out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) meshBounds));
-        DemTerrainOverlayRegion[] result = DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
+        DemTerrainOverlayRegion[] result = DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
             ["53394525"]);
 
         DemTerrainOverlayRegion region = Assert.Single(result);
@@ -61,7 +61,7 @@ public sealed class DemSourceBootstrapSupportTests
     public void CreateDemTerrainOverlayRegionsReturnsFallbackBoundsWhenRequestedMeshesDoNotIntersect()
     {
         DemTerrainOverlayRegion region = Assert.Single(
-            DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
+            DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
                 new DemTerrainBounds(35.0, 35.0001, 139.0, 139.0001),
                 ["99999999"]));
 
@@ -71,7 +71,7 @@ public sealed class DemSourceBootstrapSupportTests
             region.GeographicBounds);
     }
 
-    private static BootstrapParsedCityObject CreateCityObject()
+    private static ParsedCityObject CreateCityObject()
     {
         GeodeticPoint[] vertices =
         [
@@ -81,7 +81,7 @@ public sealed class DemSourceBootstrapSupportTests
             new(35.0, 139.003, 10.3),
         ];
 
-        return new BootstrapParsedCityObject(
+        return new ParsedCityObject(
             SlotKey: "dem-sample",
             DisplayName: "dem-sample",
             PackageName: "dem",
@@ -89,10 +89,10 @@ public sealed class DemSourceBootstrapSupportTests
             LodLevel: null,
             Surfaces:
             [
-                new BootstrapParsedSurface(
+                new ParsedSurface(
                     PolygonId: "surface",
-                    Semantic: BootstrapParsedSurfaceSemantic.Ground,
-                    ExteriorRing: new BootstrapParsedRing("ring", vertices, null),
+                    Semantic: ParsedSurfaceSemantic.Ground,
+                    ExteriorRing: new ParsedRing("ring", vertices, null),
                     InteriorRings: [],
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     TexturePayload: null,

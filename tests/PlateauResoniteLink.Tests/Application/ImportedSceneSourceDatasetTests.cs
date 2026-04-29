@@ -29,7 +29,7 @@ public sealed class ImportedSceneSourceDatasetTests
     }
 
     [Fact]
-    public void BootstrapSnapshotSeparatesBootstrapContextFromPureDocumentSet()
+    public void DiscoverySnapshotSeparatesDiscoveryContextFromPureDocumentSet()
     {
         ImportedSceneSourceDataset documentSet = new(
             new EmptyDatasetContentSource(),
@@ -39,12 +39,12 @@ public sealed class ImportedSceneSourceDatasetTests
             []);
         SourceFilePipeline[] sourceFilePipelines = [];
         GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
-        ImportedSceneSourceContext bootstrapContext = new(sourceFilePipelines, globalOriginPoint);
+        ImportedSceneSourceContext discoveryContext = new(sourceFilePipelines, globalOriginPoint);
 
-        ImportedSceneSourceSnapshot readResult = new(documentSet, bootstrapContext);
+        ImportedSceneSourceSnapshot readResult = new(documentSet, discoveryContext);
 
         Assert.Same(documentSet, readResult.DocumentSet);
-        Assert.Same(bootstrapContext, readResult.BootstrapContext);
+        Assert.Same(discoveryContext, readResult.DiscoveryContext);
     }
 
     private sealed class EmptyDatasetContentSource : IPlateauDatasetContentSource

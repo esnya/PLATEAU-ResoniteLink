@@ -33,7 +33,7 @@ internal sealed record SourceFileDescriptor(
 
 internal sealed record CachedSourceFileDescriptor(
     SourceFileDescriptor SourceFile,
-    BootstrapParsedCityObject[] CityObjects)
+    ParsedCityObject[] CityObjects)
 {
     public string RelativePath => SourceFile.RelativePath;
 
@@ -50,7 +50,7 @@ internal sealed record CachedSourceFileDescriptor(
     {
         return new CachedSourceFileDescriptor(
             SourceFileDescriptor.FromLegacy(sourceFile.SourceFile),
-            sourceFile.CityObjects.Select(BootstrapParsedCityObject.FromLegacy).ToArray());
+            sourceFile.CityObjects.Select(ParsedCityObject.FromLegacy).ToArray());
     }
 }
 
@@ -58,13 +58,13 @@ internal sealed class SourceFilePipeline
 {
     private readonly object parseTaskGate = new();
     private readonly Func<Task<ParsedSourceFileResult>> parseTaskFactory;
-    private readonly Func<CancellationToken, IAsyncEnumerable<BootstrapParsedCityObject>> streamFactory;
+    private readonly Func<CancellationToken, IAsyncEnumerable<ParsedCityObject>> streamFactory;
     private Task<ParsedSourceFileResult>? parseTask;
 
     internal SourceFilePipeline(
         SourceFileDescriptor sourceFile,
         Func<Task<ParsedSourceFileResult>> parseTaskFactory,
-        Func<CancellationToken, IAsyncEnumerable<BootstrapParsedCityObject>>? streamFactory = null)
+        Func<CancellationToken, IAsyncEnumerable<ParsedCityObject>>? streamFactory = null)
     {
         SourceFile = sourceFile;
         this.parseTaskFactory = parseTaskFactory;
@@ -82,17 +82,17 @@ internal sealed class SourceFilePipeline
         }
     }
 
-    public IAsyncEnumerable<BootstrapParsedCityObject> StreamParsedCityObjectsAsync(
+    public IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
         CancellationToken cancellationToken = default)
     {
         return streamFactory(cancellationToken);
     }
 
-    private async IAsyncEnumerable<BootstrapParsedCityObject> CreateParseTaskBackedStream(
+    private async IAsyncEnumerable<ParsedCityObject> CreateParseTaskBackedStream(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ParsedSourceFileResult parsedSourceFile = await GetParseTask().WaitAsync(cancellationToken);
-        foreach (BootstrapParsedCityObject cityObject in parsedSourceFile.CityObjects)
+        foreach (ParsedCityObject cityObject in parsedSourceFile.CityObjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
             yield return cityObject;
@@ -102,7 +102,7 @@ internal sealed class SourceFilePipeline
 
 internal sealed record ParsedSourceFileResult(
     SourceFileDescriptor SourceFile,
-    BootstrapParsedCityObject[] CityObjects,
+    ParsedCityObject[] CityObjects,
     CoordinateReferenceSystem? ReferenceSystem,
     TerrainHeightTriangle[] TerrainTriangles,
     TimeSpan Elapsed)
@@ -121,7 +121,7 @@ internal sealed record ParsedSourceFileResult(
     {
         return new ParsedSourceFileResult(
             SourceFileDescriptor.FromLegacy(sourceFile.SourceFile),
-            sourceFile.CityObjects.Select(BootstrapParsedCityObject.FromLegacy).ToArray(),
+            sourceFile.CityObjects.Select(ParsedCityObject.FromLegacy).ToArray(),
             sourceFile.ReferenceSystem is null ? null : CoordinateReferenceSystem.FromLegacy(sourceFile.ReferenceSystem),
             sourceFile.TerrainTriangles.Select(TerrainHeightTriangle.FromLegacy).ToArray(),
             sourceFile.Elapsed);

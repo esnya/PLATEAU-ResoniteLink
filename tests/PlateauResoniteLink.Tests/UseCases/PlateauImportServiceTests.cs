@@ -79,14 +79,14 @@ public sealed class PlateauImportServiceTests
         ];
         RecordingSceneSink sceneSink = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        StubConstructionSource source = new(
+        StubImportedSceneSource source = new(
             CreateMetadata(resolvedRequest, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
-        RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
+        RecordingImportedSceneSourceFactory importedSceneSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
             sceneSink,
             datasetSourceResolver,
-            constructionSourceFactory,
+            importedSceneSourceFactory,
             new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
@@ -98,11 +98,11 @@ public sealed class PlateauImportServiceTests
         Assert.Equal("53394525", sceneSink.ConnectedRequest.MeshCode);
         Assert.Equal(rawSourceUri, sceneSink.ConnectedRequest.ServerUri);
         Assert.Equal(["bldg"], sceneSink.ConnectedRequest.PackageNames);
-        Assert.NotNull(constructionSourceFactory.LastRequest);
-        Assert.Equal("tokyo23ku", constructionSourceFactory.LastRequest!.Dataset);
-        Assert.Equal("53394525", constructionSourceFactory.LastRequest.MeshCode);
-        Assert.Equal(resolvedSourcePath, constructionSourceFactory.LastRequest.LocalSourcePath);
-        Assert.Equal(["bldg"], constructionSourceFactory.LastRequest.PackageNames);
+        Assert.NotNull(importedSceneSourceFactory.LastRequest);
+        Assert.Equal("tokyo23ku", importedSceneSourceFactory.LastRequest!.Dataset);
+        Assert.Equal("53394525", importedSceneSourceFactory.LastRequest.MeshCode);
+        Assert.Equal(resolvedSourcePath, importedSceneSourceFactory.LastRequest.LocalSourcePath);
+        Assert.Equal(["bldg"], importedSceneSourceFactory.LastRequest.PackageNames);
         Assert.NotNull(sceneSink.BeginRequest);
         Assert.Equal(resolvedSourcePath, sceneSink.BeginRequest!.Metadata.Request.LocalSourcePath);
         Assert.Equal(resolvedSourcePath, sceneSink.BeginRequest.ResolvedSourcePath);
@@ -120,7 +120,7 @@ public sealed class PlateauImportServiceTests
         Assert.Single(sceneSink.ProcessedCityObjects);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(1, sceneSink.ExecuteCallCount);
-        Assert.Equal(1, constructionSourceFactory.CreateCallCount);
+        Assert.Equal(1, importedSceneSourceFactory.CreateCallCount);
         Assert.Equal(1, sceneSink.DisposeCount);
         Assert.Equal(source.Metadata.SceneName, result.Metadata.SceneName);
         Assert.Equal(source.Metadata.SourceDataset.PackageNames, result.Metadata.SourceDataset.PackageNames);
@@ -159,15 +159,15 @@ public sealed class PlateauImportServiceTests
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneSink sceneSink = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        StubConstructionSource source = new(
+        StubImportedSceneSource source = new(
             CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
             cityObjects: []);
-        RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
+        RecordingImportedSceneSourceFactory importedSceneSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
             sceneSink,
             datasetSourceResolver,
-            constructionSourceFactory,
+            importedSceneSourceFactory,
             new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
@@ -179,7 +179,7 @@ public sealed class PlateauImportServiceTests
             static error => error.Contains("No triangulated CityGML geometry", StringComparison.Ordinal));
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(0, sceneSink.ExecuteCallCount);
-        Assert.Equal(1, constructionSourceFactory.CreateCallCount);
+        Assert.Equal(1, importedSceneSourceFactory.CreateCallCount);
         Assert.Equal(1, sceneSink.DisposeCount);
     }
 
@@ -202,14 +202,14 @@ public sealed class PlateauImportServiceTests
             PackageNames: ["bldg"]);
         RecordingSceneSink sceneSink = new();
         ThrowingDatasetSourceResolver datasetSourceResolver = new();
-        RecordingConstructionSourceFactory constructionSourceFactory = new(
-            new StubConstructionSource(CreateMetadata(request, ["bldg"], ["udx/bldg/53394525/building.gml"])),
+        RecordingImportedSceneSourceFactory importedSceneSourceFactory = new(
+            new StubImportedSceneSource(CreateMetadata(request, ["bldg"], ["udx/bldg/53394525/building.gml"])),
             CreateReadResult(new RecordingDatasetSource(rawSourceRoot.Path), ["bldg"], ["udx/bldg/53394525/building.gml"]));
 
         PlateauImportService service = new(
             sceneSink,
             datasetSourceResolver,
-            constructionSourceFactory,
+            importedSceneSourceFactory,
             new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
@@ -218,7 +218,7 @@ public sealed class PlateauImportServiceTests
 
         Assert.Equal("resolver-failed", exception.Message);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
-        Assert.Equal(0, constructionSourceFactory.CreateCallCount);
+        Assert.Equal(0, importedSceneSourceFactory.CreateCallCount);
         Assert.Equal(0, sceneSink.ExecuteCallCount);
         Assert.Equal(1, sceneSink.DisposeCount);
     }
@@ -239,14 +239,14 @@ public sealed class PlateauImportServiceTests
             DisposeException = new InvalidOperationException("dispose-failed"),
         };
         ThrowingDatasetSourceResolver datasetSourceResolver = new();
-        RecordingConstructionSourceFactory constructionSourceFactory = new(
-            new StubConstructionSource(CreateMetadata(request, ["bldg"], ["udx/bldg/53394525/building.gml"])),
+        RecordingImportedSceneSourceFactory importedSceneSourceFactory = new(
+            new StubImportedSceneSource(CreateMetadata(request, ["bldg"], ["udx/bldg/53394525/building.gml"])),
             CreateReadResult(new RecordingDatasetSource(rawSourceRoot.Path), ["bldg"], ["udx/bldg/53394525/building.gml"]));
 
         PlateauImportService service = new(
             sceneSink,
             datasetSourceResolver,
-            constructionSourceFactory,
+            importedSceneSourceFactory,
             new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
@@ -281,14 +281,14 @@ public sealed class PlateauImportServiceTests
             DisposeException = new InvalidOperationException("dispose-failed"),
         };
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        StubConstructionSource source = new(
+        StubImportedSceneSource source = new(
             CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
-        RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
+        RecordingImportedSceneSourceFactory importedSceneSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
             sceneSink,
             datasetSourceResolver,
-            constructionSourceFactory,
+            importedSceneSourceFactory,
             new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
@@ -321,14 +321,14 @@ public sealed class PlateauImportServiceTests
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneSink sceneSink = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        StubConstructionSource source = new(
+        StubImportedSceneSource source = new(
             CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
-        RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
+        RecordingImportedSceneSourceFactory importedSceneSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
             sceneSink,
             datasetSourceResolver,
-            constructionSourceFactory,
+            importedSceneSourceFactory,
             new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
@@ -367,13 +367,13 @@ public sealed class PlateauImportServiceTests
                 FailedCityObjectCount: cityObjectCount),
         };
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        StubConstructionSource source = new(CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
-        RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
+        StubImportedSceneSource source = new(CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
+        RecordingImportedSceneSourceFactory importedSceneSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
             sceneSink,
             datasetSourceResolver,
-            constructionSourceFactory,
+            importedSceneSourceFactory,
             new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
@@ -505,7 +505,7 @@ public sealed class PlateauImportServiceTests
         }
     }
 
-    private sealed class RecordingConstructionSourceFactory(
+    private sealed class RecordingImportedSceneSourceFactory(
         IImportedSceneSource source,
         ImportedSceneSourceSnapshot readResult) : IImportedSceneSourceFactory
     {
@@ -525,7 +525,7 @@ public sealed class PlateauImportServiceTests
         }
     }
 
-    private sealed class StubConstructionSource(
+    private sealed class StubImportedSceneSource(
         ImportedSceneMetadata metadata,
         IReadOnlyList<ImportedCityObject>? cityObjects = null)
         : IImportedSceneSource

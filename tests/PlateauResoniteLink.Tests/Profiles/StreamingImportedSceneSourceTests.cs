@@ -51,7 +51,7 @@ public sealed class StreamingImportedSceneSourceTests
     }
 
     [Fact]
-    public async Task ReadCityObjectsAsyncPassesBootstrapDemOverlaysOnlyToDemSourceFiles()
+    public async Task ReadCityObjectsAsyncPassesSetupDemOverlaysOnlyToDemSourceFiles()
     {
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
@@ -185,7 +185,7 @@ public sealed class StreamingImportedSceneSourceTests
 
         Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
 
-        static async IAsyncEnumerable<BootstrapParsedCityObject> StreamParsedCityObjects(
+        static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjects(
             SourceFileDescriptor sourceFile,
             CoordinateReferenceSystem referenceSystem,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -366,18 +366,18 @@ public sealed class StreamingImportedSceneSourceTests
                 new GeodeticPoint(35.0, 139.0, 0.0)));
     }
 
-    private static BootstrapParsedCityObject CreateParsedCityObject(
+    private static ParsedCityObject CreateParsedCityObject(
         int index,
         SourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem)
     {
-        BootstrapParsedSurface[] surfaces = string.Equals(sourceFile.PackageName, "dem", StringComparison.Ordinal)
+        ParsedSurface[] surfaces = string.Equals(sourceFile.PackageName, "dem", StringComparison.Ordinal)
             ?
             [
-                new BootstrapParsedSurface(
+                new ParsedSurface(
                     PolygonId: $"dem-surface-{index:000}",
-                    Semantic: BootstrapParsedSurfaceSemantic.Ground,
-                    ExteriorRing: new BootstrapParsedRing(
+                    Semantic: ParsedSurfaceSemantic.Ground,
+                    ExteriorRing: new ParsedRing(
                         $"dem-ring-{index:000}",
                         [
                             new GeodeticPoint(35.01, 139.01, 0.0),
@@ -393,7 +393,7 @@ public sealed class StreamingImportedSceneSourceTests
             ]
             : [];
 
-        return new BootstrapParsedCityObject(
+        return new ParsedCityObject(
             SlotKey: $"slot-{index:000}",
             DisplayName: $"slot-{index:000}",
             PackageName: sourceFile.PackageName,
@@ -405,11 +405,11 @@ public sealed class StreamingImportedSceneSourceTests
             SharedAcrossMeshCodes: false);
     }
 
-    private static BootstrapParsedCityObject CreateRenderableParsedCityObject(
+    private static ParsedCityObject CreateRenderableParsedCityObject(
         SourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem)
     {
-        return new BootstrapParsedCityObject(
+        return new ParsedCityObject(
             SlotKey: "slot-renderable",
             DisplayName: "slot-renderable",
             PackageName: sourceFile.PackageName,
@@ -417,10 +417,10 @@ public sealed class StreamingImportedSceneSourceTests
             LodLevel: 1,
             Surfaces:
             [
-                new BootstrapParsedSurface(
+                new ParsedSurface(
                     PolygonId: "surface-renderable",
-                    Semantic: BootstrapParsedSurfaceSemantic.Wall,
-                    ExteriorRing: new BootstrapParsedRing(
+                    Semantic: ParsedSurfaceSemantic.Wall,
+                    ExteriorRing: new ParsedRing(
                         "ring-renderable",
                         [
                             new GeodeticPoint(35.01, 139.01, 0.0),
@@ -480,7 +480,7 @@ public sealed class StreamingImportedSceneSourceTests
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
             IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
             PlateauImportRequest request,
-            Func<BootstrapParsedCityObject, bool>? predicate = null,
+            Func<ParsedCityObject, bool>? predicate = null,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
@@ -499,7 +499,7 @@ public sealed class StreamingImportedSceneSourceTests
             try
             {
                 Thread.Sleep(20);
-                BootstrapParsedCityObject parsedCityObject = Assert.Single(sourceFile.CityObjects);
+                ParsedCityObject parsedCityObject = Assert.Single(sourceFile.CityObjects);
                 yield return new ImportedCityObject(
                     ObjectKey: parsedCityObject.SlotKey,
                     DisplayName: parsedCityObject.DisplayName,
@@ -548,7 +548,7 @@ public sealed class StreamingImportedSceneSourceTests
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
             IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
             PlateauImportRequest request,
-            Func<BootstrapParsedCityObject, bool>? predicate = null,
+            Func<ParsedCityObject, bool>? predicate = null,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
@@ -560,7 +560,7 @@ public sealed class StreamingImportedSceneSourceTests
             _ = progressReporter;
             _ = cancellationToken;
 
-            BootstrapParsedCityObject parsedCityObject = Assert.Single(sourceFile.CityObjects);
+            ParsedCityObject parsedCityObject = Assert.Single(sourceFile.CityObjects);
             if (predicate is not null && !predicate(parsedCityObject))
             {
                 yield break;

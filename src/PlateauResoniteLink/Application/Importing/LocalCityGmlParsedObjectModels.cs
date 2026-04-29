@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed record BootstrapParsedRing(
+internal sealed record ParsedRing(
     string RingId,
     GeodeticPoint[] Vertices,
     IReadOnlyList<Float2>? UVs)
@@ -16,16 +16,16 @@ internal sealed record BootstrapParsedRing(
             UVs);
     }
 
-    internal static BootstrapParsedRing FromLegacy(LocalCityGmlObjectProjection.ParsedRing ring)
+    internal static ParsedRing FromLegacy(LocalCityGmlObjectProjection.ParsedRing ring)
     {
-        return new BootstrapParsedRing(
+        return new ParsedRing(
             ring.RingId,
             ring.Vertices.Select(GeodeticPoint.FromLegacy).ToArray(),
             ring.UVs);
     }
 }
 
-internal enum BootstrapParsedSurfaceSemantic
+internal enum ParsedSurfaceSemantic
 {
     Unknown = 0,
     Wall = 1,
@@ -36,11 +36,11 @@ internal enum BootstrapParsedSurfaceSemantic
     OuterFloor = 6,
 }
 
-internal sealed record BootstrapParsedSurface(
+internal sealed record ParsedSurface(
     string PolygonId,
-    BootstrapParsedSurfaceSemantic Semantic,
-    BootstrapParsedRing ExteriorRing,
-    BootstrapParsedRing[] InteriorRings,
+    ParsedSurfaceSemantic Semantic,
+    ParsedRing ExteriorRing,
+    ParsedRing[] InteriorRings,
     ColorRgba BaseColor,
     TexturePayload? TexturePayload,
     bool UsesGeneratedDemTexture = false)
@@ -60,26 +60,26 @@ internal sealed record BootstrapParsedSurface(
             UsesGeneratedDemTexture);
     }
 
-    internal static BootstrapParsedSurface FromLegacy(LocalCityGmlObjectProjection.ParsedSurface surface)
+    internal static ParsedSurface FromLegacy(LocalCityGmlObjectProjection.ParsedSurface surface)
     {
-        return new BootstrapParsedSurface(
+        return new ParsedSurface(
             surface.PolygonId,
-            (BootstrapParsedSurfaceSemantic)surface.Semantic,
-            BootstrapParsedRing.FromLegacy(surface.ExteriorRing),
-            surface.InteriorRings.Select(BootstrapParsedRing.FromLegacy).ToArray(),
+            (ParsedSurfaceSemantic)surface.Semantic,
+            ParsedRing.FromLegacy(surface.ExteriorRing),
+            surface.InteriorRings.Select(ParsedRing.FromLegacy).ToArray(),
             new ColorRgba(surface.BaseColor.R, surface.BaseColor.G, surface.BaseColor.B, surface.BaseColor.A),
             surface.TexturePayload,
             surface.UsesGeneratedDemTexture);
     }
 }
 
-internal sealed record BootstrapParsedCityObject(
+internal sealed record ParsedCityObject(
     string SlotKey,
     string DisplayName,
     string PackageName,
     string ActualMeshCode,
     int? LodLevel,
-    BootstrapParsedSurface[] Surfaces,
+    ParsedSurface[] Surfaces,
     CoordinateReferenceSystem ReferenceSystem,
     string SourceFileRelativePath,
     bool SharedAcrossMeshCodes,
@@ -106,15 +106,15 @@ internal sealed record BootstrapParsedCityObject(
             MeasuredHeightMeters);
     }
 
-    internal static BootstrapParsedCityObject FromLegacy(LocalCityGmlObjectProjection.ParsedCityObject cityObject)
+    internal static ParsedCityObject FromLegacy(LocalCityGmlObjectProjection.ParsedCityObject cityObject)
     {
-        return new BootstrapParsedCityObject(
+        return new ParsedCityObject(
             cityObject.SlotKey,
             cityObject.DisplayName,
             cityObject.PackageName,
             cityObject.ActualMeshCode,
             cityObject.LodLevel,
-            cityObject.Surfaces.Select(BootstrapParsedSurface.FromLegacy).ToArray(),
+            cityObject.Surfaces.Select(ParsedSurface.FromLegacy).ToArray(),
             CoordinateReferenceSystem.FromLegacy(cityObject.ReferenceSystem),
             cityObject.SourceFileRelativePath,
             cityObject.SharedAcrossMeshCodes,

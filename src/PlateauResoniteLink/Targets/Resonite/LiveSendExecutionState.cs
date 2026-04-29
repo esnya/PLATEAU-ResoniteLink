@@ -49,11 +49,11 @@ internal sealed class CommonMaterialAssetCache
 
     public AsyncInFlightResultCache<string, CreatedMaterialAsset> CommonMaterialCreationTasks { get; } = new();
 
-    public required IReadOnlySet<string> BootstrapKnownMaterialKeys { get; init; }
+    public required IReadOnlySet<string> SetupKnownMaterialKeys { get; init; }
 }
 
 internal sealed record LiveSendRunPlan(
-    ResoniteSceneBootstrapInfo BootstrapInfo,
+    ResoniteSceneSetupInfo SetupInfo,
     string ResolvedWorkRoot,
     ResoniteLocalOrigin RequestLocalOrigin,
     IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath,

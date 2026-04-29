@@ -7,14 +7,14 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class DemCityObjectAggregation
 {
-    public static BootstrapParsedCityObject[] AggregateBySourceFileAndThirdMesh(
+    public static ParsedCityObject[] AggregateBySourceFileAndThirdMesh(
         SourceFileDescriptor sourceFile,
-        IEnumerable<BootstrapParsedCityObject> cityObjects)
+        IEnumerable<ParsedCityObject> cityObjects)
     {
         ArgumentNullException.ThrowIfNull(sourceFile);
         ArgumentNullException.ThrowIfNull(cityObjects);
 
-        BootstrapParsedCityObject[] objects = cityObjects.ToArray();
+        ParsedCityObject[] objects = cityObjects.ToArray();
         if (!string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
         {
             return objects;
@@ -32,16 +32,16 @@ internal static class DemCityObjectAggregation
             .ToArray();
     }
 
-    private static BootstrapParsedCityObject AggregateGroup(
+    private static ParsedCityObject AggregateGroup(
         DemCityObjectKey key,
-        IEnumerable<BootstrapParsedCityObject> cityObjects)
+        IEnumerable<ParsedCityObject> cityObjects)
     {
-        BootstrapParsedCityObject[] orderedCityObjects = cityObjects
+        ParsedCityObject[] orderedCityObjects = cityObjects
             .OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)
             .ThenBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
             .ToArray();
-        BootstrapParsedCityObject first = orderedCityObjects[0];
-        BootstrapParsedSurface[] surfaces = orderedCityObjects
+        ParsedCityObject first = orderedCityObjects[0];
+        ParsedSurface[] surfaces = orderedCityObjects
             .SelectMany(static cityObject => cityObject.Surfaces)
             .OrderBy(static surface => surface.PolygonId, StringComparer.Ordinal)
             .ThenBy(static surface => surface.ExteriorRing.RingId, StringComparer.Ordinal)
@@ -68,7 +68,7 @@ internal static class DemCityObjectAggregation
     }
 
     private static string ResolveThirdMeshCode(
-        BootstrapParsedCityObject cityObject,
+        ParsedCityObject cityObject,
         SourceFileDescriptor sourceFile)
     {
         if (TryNormalizeThirdMeshCode(cityObject.ActualMeshCode, out string? actualMeshCode))

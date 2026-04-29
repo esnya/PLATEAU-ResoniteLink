@@ -42,7 +42,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 #pragma warning restore CA1859
     private readonly Action<string>? progressReporter;
 #pragma warning disable CA1859
-    private readonly IResoniteSceneBootstrapInterpreter sceneBootstrapInterpreter;
+    private readonly IResoniteSceneSetupInterpreter sceneSetupInterpreter;
 #pragma warning restore CA1859
     private int executionClaimed;
 
@@ -63,7 +63,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         datasetLicenseWriter = dependencies.DatasetLicenseWriter;
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
-        sceneBootstrapInterpreter = dependencies.SceneBootstrapInterpreter;
+        sceneSetupInterpreter = dependencies.SceneSetupInterpreter;
         geometryAssetAssembler = dependencies.GeometryAssetAssembler;
         materialPlanning = dependencies.MaterialPlanning;
         batchEmissionPlanner = dependencies.BatchEmissionPlanner;
@@ -99,7 +99,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             SceneImportRequest request = plan.SceneImportRequest;
             state = await CreateRunStateAsync(
-                CreateSceneBootstrapInfo(request),
+                CreateSceneSetupInfo(request),
                 request.WorkRoot,
                 request.CommonMaterials,
                 plan.NormalizedRequest,
@@ -136,25 +136,25 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     }
 
     private async Task<LiveSendRunState> CreateRunStateAsync(
-        ResoniteSceneBootstrapInfo bootstrapInfo,
+        ResoniteSceneSetupInfo setupInfo,
         string workRoot,
         IReadOnlyList<MaterialBinding> commonMaterials,
         PlateauImportRequest normalizedRequest,
         ResoniteLocalOrigin requestLocalOrigin,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(bootstrapInfo);
+        ArgumentNullException.ThrowIfNull(setupInfo);
         ArgumentNullException.ThrowIfNull(commonMaterials);
         ArgumentNullException.ThrowIfNull(normalizedRequest);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
         string resolvedWorkRoot = Path.GetFullPath(workRoot);
-        LiveSendRunPlan runPlan = CreateRunPlan(bootstrapInfo, resolvedWorkRoot, requestLocalOrigin);
+        LiveSendRunPlan runPlan = CreateRunPlan(setupInfo, resolvedWorkRoot, requestLocalOrigin);
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                $"Initializing scene state for dataset '{bootstrapInfo.Dataset}' "
-                + $"mesh '{bootstrapInfo.MeshCode}' at '{resolvedWorkRoot}'."));
+                $"Initializing scene state for dataset '{setupInfo.Dataset}' "
+                + $"mesh '{setupInfo.MeshCode}' at '{resolvedWorkRoot}'."));
         Stopwatch connectionStopwatch = Stopwatch.StartNew();
         ReportProgress(
             PlateauLog.Info(
@@ -172,12 +172,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             PlateauLog.Info(
                 "live",
                 $"ResoniteLink connection pool ready in {connectionStopwatch.Elapsed.TotalSeconds:F2}s "
-                + $"(dataset='{bootstrapInfo.Dataset}', mesh='{bootstrapInfo.MeshCode}')."));
+                + $"(dataset='{setupInfo.Dataset}', mesh='{setupInfo.MeshCode}')."));
         IResoniteLinkClient routedClient = GetRoutedClient();
         LiveSendProgressSink progress = new();
         CommonMaterialAssetCache materials = new()
         {
-            BootstrapKnownMaterialKeys = CollectBootstrapKnownCommonMaterialKeys(internalCommonMaterials),
+            SetupKnownMaterialKeys = CollectSetupKnownCommonMaterialKeys(internalCommonMaterials),
         };
         ReportProgress(
             PlateauLog.Info(
@@ -189,64 +189,64 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                "Starting setup slot bootstrap: dataset root, assets root, common assets root, location slot, and source-file root reference."));
-        Stopwatch bootstrapStopwatch = Stopwatch.StartNew();
-        ResoniteSceneBootstrapState bootstrapState = await sceneBootstrapInterpreter.BootstrapAsync(
+                "Starting setup slot setup: dataset root, assets root, common assets root, location slot, and source-file root reference."));
+        Stopwatch setupStopwatch = Stopwatch.StartNew();
+        ResoniteSceneSetupState setupState = await sceneSetupInterpreter.SetupAsync(
             routedClient,
-            runPlan.BootstrapInfo,
+            runPlan.SetupInfo,
             internalCommonMaterials,
             cancellationToken);
-        bootstrapStopwatch.Stop();
+        setupStopwatch.Stop();
         ResoniteSharedSlotIndex placement = new(
-            bootstrapState.DatasetRootSlot,
-            bootstrapState.DatasetAssetsRootSlot,
+            setupState.DatasetRootSlot,
+            setupState.DatasetAssetsRootSlot,
             runPlan.RequestLocalOrigin,
             runPlan.SourceFileSlotNamesByRelativePath,
-            bootstrapState.SceneAnchor,
+            setupState.SceneAnchor,
             slotCreator.CreateAsync);
-        placement.IndexBootstrapHierarchy(bootstrapState);
+        placement.IndexSetupHierarchy(setupState);
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                $"Scene bootstrap complete in {bootstrapStopwatch.Elapsed.TotalSeconds:F2}s "
-                + $"(dataset_root={bootstrapState.DatasetRootSlot.SlotName}, assets_root={bootstrapState.DatasetAssetsRootSlot.SlotName}, "
-                + $"common_root={bootstrapState.CommonAssetsRootSlot.SlotName}, "
-                + $"dataset_root_existed={bootstrapState.DatasetRootExisted}, "
-                + $"location_slot='{bootstrapState.SceneAnchor.LocationSlot.Value}', "
-                + $"anchor_mesh='{bootstrapState.SceneAnchor.MeshCode}', "
-                + $"anchor_source_file_root='{bootstrapState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
-        foreach ((string materialKey, CreatedMaterialAsset materialAsset) in bootstrapState.CommonMaterialAssetsByKey)
+                $"Scene setup complete in {setupStopwatch.Elapsed.TotalSeconds:F2}s "
+                + $"(dataset_root={setupState.DatasetRootSlot.SlotName}, assets_root={setupState.DatasetAssetsRootSlot.SlotName}, "
+                + $"common_root={setupState.CommonAssetsRootSlot.SlotName}, "
+                + $"dataset_root_existed={setupState.DatasetRootExisted}, "
+                + $"location_slot='{setupState.SceneAnchor.LocationSlot.Value}', "
+                + $"anchor_mesh='{setupState.SceneAnchor.MeshCode}', "
+                + $"anchor_source_file_root='{setupState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
+        foreach ((string materialKey, CreatedMaterialAsset materialAsset) in setupState.CommonMaterialAssetsByKey)
         {
             materials.CommonMaterialCreationTasks.Remember(materialKey, materialAsset);
         }
 
-        foreach (string family in bootstrapState.CommonMaterialFamilies)
+        foreach (string family in setupState.CommonMaterialFamilies)
         {
             materials.CommonMaterialFamilyWarmupTasks[family] = Task.CompletedTask;
         }
 
-        if (bootstrapState.CommonMaterialAssetsByKey.Count > 0)
+        if (setupState.CommonMaterialAssetsByKey.Count > 0)
         {
-            progress.FirstCommonMaterialPrepLogged = bootstrapState.CommonMaterialAssetsByKey.Count;
+            progress.FirstCommonMaterialPrepLogged = setupState.CommonMaterialAssetsByKey.Count;
             ReportProgress(
                 PlateauLog.Info(
                     "live",
-                    $"Setup prepared {bootstrapState.CommonMaterialAssetsByKey.Count} common materials in bootstrap."));
+                    $"Setup prepared {setupState.CommonMaterialAssetsByKey.Count} common materials in setup."));
         }
         else
         {
-            ReportProgress(PlateauLog.Info("live", "No common materials needed setup creation during bootstrap."));
+            ReportProgress(PlateauLog.Info("live", "No common materials needed setup creation during setup."));
         }
 
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                "Bootstrap fixed dataset license metadata/component before city-object streaming starts."));
+                "Setup fixed dataset license metadata/component before city-object streaming starts."));
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                $"Dataset metadata/license phase complete during bootstrap. "
-                + $"Dataset root existed={bootstrapState.DatasetRootExisted}."));
+                $"Dataset metadata/license phase complete during setup. "
+                + $"Dataset root existed={setupState.DatasetRootExisted}."));
         LiveSendQueuePlan runtimePlan = runPlan.Queue;
         ReportProgress(
             PlateauLog.Info(
@@ -261,8 +261,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             resourceBudget);
         LiveSendRunContext context = new(
             runPlan,
-            bootstrapState.DatasetRootSlot,
-            bootstrapState.CommonAssetsRootSlot,
+            setupState.DatasetRootSlot,
+            setupState.CommonAssetsRootSlot,
             cityObjectBaker);
         LiveSendRunState state = new()
         {
@@ -298,16 +298,16 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     }
 
     private LiveSendRunPlan CreateRunPlan(
-        ResoniteSceneBootstrapInfo bootstrapInfo,
+        ResoniteSceneSetupInfo setupInfo,
         string resolvedWorkRoot,
         ResoniteLocalOrigin requestLocalOrigin)
     {
         ResoniteImportBudgetProfile resourceBudget = ResoniteImportBudgetProfiles.ForProfile(MemoryProfile);
         return new LiveSendRunPlan(
-            bootstrapInfo,
+            setupInfo,
             resolvedWorkRoot,
             requestLocalOrigin,
-            ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(bootstrapInfo.SourceFiles),
+            ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(setupInfo.SourceFiles),
             resourceBudget,
             new LiveSendQueuePlan(
                 connectionCount,
@@ -406,7 +406,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         CancellationToken cancellationToken)
     {
         Stopwatch laneClientStopwatch = Stopwatch.StartNew();
-        ResoniteSceneBootstrapInfo bootstrapInfo = state.Context.Plan.BootstrapInfo;
+        ResoniteSceneSetupInfo setupInfo = state.Context.Plan.SetupInfo;
         if (laneIndex == 0)
         {
             ReportProgress(
@@ -420,7 +420,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 PlateauLog.Info(
                     "live",
                     $"Preparing send worker {laneIndex + 1}/{connectionCount} "
-                    + $"against routed connections to {endpoint} for dataset '{bootstrapInfo.Dataset}' mesh '{bootstrapInfo.MeshCode}'."));
+                    + $"against routed connections to {endpoint} for dataset '{setupInfo.Dataset}' mesh '{setupInfo.MeshCode}'."));
         }
         laneClientStopwatch.Stop();
         try
@@ -638,7 +638,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             PreparedCityObject preparedCityObject = await AwaitWithSlowCityObjectWarningAsync(
                 CreatePreparationTask(state, queuedCityObject.CityObject, cancellationToken),
                 cancellationToken);
-            await BuildPreparedCityObjectAsync(state, queuedCityObject, preparedCityObject, cancellationToken);
+            await EmitPreparedCityObjectAsync(state, queuedCityObject, preparedCityObject, cancellationToken);
 
             int processedCount = Interlocked.Increment(ref state.Progress.ProcessedCityObjectCount);
             ReportProgress(
@@ -1184,7 +1184,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 TerrainOverlay: null));
     }
 
-    private async Task BuildPreparedCityObjectAsync(
+    private async Task EmitPreparedCityObjectAsync(
         LiveSendRunState state,
         QueuedCityObject queuedCityObject,
         PreparedCityObject preparedCityObject,
@@ -1193,7 +1193,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
         using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = Diagnostics.BeginCityObjectSend(cityObject.PackageName);
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-        ReportBuildStep(cityObject, "Creating object slot hierarchy.");
+        ReportImportStep(cityObject, "Creating object slot hierarchy.");
         Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
         ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = await AwaitWithSlowCityObjectWarningAsync(
             queuedCityObject.ObjectHierarchyTask,
@@ -1243,7 +1243,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             plannedMaterials = await materialPlanningTask;
             materialStopwatch.Stop();
 
-            ReportBuildStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
+            ReportImportStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
             plannedGeometryAsset = await geometryPlanningTask;
             geometryStopwatch.Stop();
         }
@@ -1268,7 +1268,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 cityObject.CollisionEnabled));
         PlannedBatchEmission batchEmission = batchEmissionPlanner.Create(objectSlots, emissionPlan);
 
-        ReportBuildStep(cityObject, "Creating object-scoped DataModel batch.");
+        ReportImportStep(cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
         await batchEmitter.ExecuteAsync(
             routedClient,
@@ -1278,7 +1278,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             cancellationToken);
         batchStopwatch.Stop();
 
-        ReportBuildStep(cityObject, "Live import completed.");
+        ReportImportStep(cityObject, "Live import completed.");
         cityObjectStopwatch.Stop();
         ReportProgress(
             PlateauLog.Debug(
@@ -1707,7 +1707,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 cityObject,
                 cityObject.Materials[materialIndex],
                 preparedTerrainTextureDataByOverlay);
-            ReportBuildStep(
+            ReportImportStep(
                 cityObject,
                 $"Creating material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
             if (TryCreateSharedCommonRendererMaterialPlanTask(
@@ -1793,7 +1793,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             if (!runState.Materials.CommonMaterialCreationTasks.TryGetCompleted(materialKey, out CreatedMaterialAsset existingMaterialAsset))
             {
                 throw new InvalidOperationException(
-                    $"Bootstrap did not resolve shared/common material ({ResoniteMaterialComponentPolicy.DescribeForDiagnostics(sourceMaterial)}) before runtime emission.");
+                    $"Setup did not resolve shared/common material ({ResoniteMaterialComponentPolicy.DescribeForDiagnostics(sourceMaterial)}) before runtime emission.");
             }
             PlannedReusableMaterialAsset sharedMaterialAsset = new(
                 new MaterialIdentity(materialKey),
@@ -1871,7 +1871,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 continue;
             }
 
-            if (state.Materials.BootstrapKnownMaterialKeys.Contains(materialKey))
+            if (state.Materials.SetupKnownMaterialKeys.Contains(materialKey))
             {
                 continue;
             }
@@ -2042,7 +2042,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             .ToArray();
     }
 
-    private static HashSet<string> CollectBootstrapKnownCommonMaterialKeys(
+    private static HashSet<string> CollectSetupKnownCommonMaterialKeys(
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
     {
         HashSet<string> keys = new(StringComparer.Ordinal);
@@ -2215,7 +2215,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return Math.Max(1L, operationCount) * 1024L;
     }
 
-    private void ReportBuildStep(ResoniteConstructionCityObject cityObject, string step)
+    private void ReportImportStep(ResoniteConstructionCityObject cityObject, string step)
     {
         ReportProgress(
             $"[live] Building '{cityObject.DisplayName}' ({cityObject.PackageName}/{cityObject.SlotKey}): {step}");
@@ -2261,11 +2261,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return string.Concat(CreateMeshAssetSlotName(cityObject), TerrainGridAssetSlotSuffix);
     }
 
-    private static ResoniteSceneBootstrapInfo CreateSceneBootstrapInfo(SceneImportRequest request)
+    private static ResoniteSceneSetupInfo CreateSceneSetupInfo(SceneImportRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return new ResoniteSceneBootstrapInfo(
+        return new ResoniteSceneSetupInfo(
             request.Metadata.Request.Dataset,
             request.Metadata.Request.MeshCode,
             request.Metadata.SourceDataset.SourceFiles,

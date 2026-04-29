@@ -28,7 +28,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
     private readonly object referenceSystemGate = new();
     private readonly ConcurrentDictionary<string, Task<TerrainTextureOverlay[]>> demTerrainTextureOverlayTasks = new(StringComparer.Ordinal);
     private readonly MeshCodeBounds[] requestedMeshAreas;
-    private readonly TerrainTextureOverlay[] bootstrapTerrainTextureOverlays;
+    private readonly TerrainTextureOverlay[] discoveryTerrainTextureOverlays;
     private CoordinateReferenceSystem? referenceSystem;
 
     public StreamingImportedSceneSource(
@@ -44,12 +44,12 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         ArgumentNullException.ThrowIfNull(readResult);
         ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
-        ImportedSceneSourceContext bootstrapContext = readResult.BootstrapContext;
+        ImportedSceneSourceContext discoveryContext = readResult.DiscoveryContext;
         Metadata = metadata;
         this.request = request;
-        sourceFiles = bootstrapContext.SourceFilePipelines.ToArray();
-        bootstrapTerrainTextureOverlays = documentSet.TerrainTextureOverlays.ToArray();
-        globalOriginPoint = bootstrapContext.GlobalOriginPoint;
+        sourceFiles = discoveryContext.SourceFilePipelines.ToArray();
+        discoveryTerrainTextureOverlays = documentSet.TerrainTextureOverlays.ToArray();
+        globalOriginPoint = discoveryContext.GlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.demTextureSourcePolicy = demTextureSourcePolicy;
         this.objectUnitOptimizer = objectUnitOptimizer;
@@ -130,7 +130,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         int yieldedCount = 0;
         int yieldedUnitCount = 0;
         await foreach (ImportedObjectUnit objectUnit in objectUnitOptimizer.OptimizeAsync(
-                           BuildObjectUnitsAsync(sourceFile, cancellationToken),
+                           PrepareObjectUnitsAsync(sourceFile, cancellationToken),
                            cancellationToken))
         {
             yieldedUnitCount++;
@@ -200,9 +200,9 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
             sourceFile,
             cancellationToken);
         bool isDemSourceFile = string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
-        List<BootstrapParsedCityObject> parsedDemCityObjects = [];
+        List<ParsedCityObject> parsedDemCityObjects = [];
 
-        await foreach (BootstrapParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync(cancellationToken))
+        await foreach (ParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
             parsedCount++;
@@ -234,7 +234,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
 
         if (isDemSourceFile && parsedDemCityObjects.Count > 0)
         {
-            BootstrapParsedCityObject[] aggregatedDemCityObjects =
+            ParsedCityObject[] aggregatedDemCityObjects =
                 DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
                     sourceFile.SourceFile,
                     parsedDemCityObjects);
@@ -266,7 +266,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
                 + $"(parsed_city_objects={parsedCount}, yielded={yieldedCount}, elapsed={fileStopwatch.Elapsed.TotalSeconds:F3}s)."));
     }
 
-    private async IAsyncEnumerable<ImportedObjectUnit> BuildObjectUnitsAsync(
+    private async IAsyncEnumerable<ImportedObjectUnit> PrepareObjectUnitsAsync(
         SourceFilePipeline sourceFile,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -333,19 +333,19 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
     private TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(string packageName)
     {
         if (!string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
-            || bootstrapTerrainTextureOverlays.Length == 0)
+            || discoveryTerrainTextureOverlays.Length == 0)
         {
             return [];
         }
 
-        return bootstrapTerrainTextureOverlays.ToArray();
+        return discoveryTerrainTextureOverlays.ToArray();
     }
 
     private bool HasOverlayCoverage(
         ParsedSourceFileResult parsedSourceFile,
         IReadOnlyList<TerrainTextureOverlay> overlays)
     {
-        foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
+        foreach (ParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
         {
             if (DemTerrainOverlayAssignment.HasOverlayCoverage(
                     parsedCityObject,
@@ -361,7 +361,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         return true;
     }
 
-    private static bool HasAnyVertices(IEnumerable<BootstrapParsedCityObject> cityObjects)
+    private static bool HasAnyVertices(IEnumerable<ParsedCityObject> cityObjects)
     {
         return cityObjects.Any(static cityObject => cityObject.Surfaces.Any(static surface => surface.Vertices.Any()));
     }
@@ -375,8 +375,8 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
             return [];
         }
 
-        TerrainTextureOverlay[] bootstrapOverlays = CreateDemTerrainTextureOverlays(parsedSourceFile.SourceFile.PackageName);
-        if (bootstrapOverlays.Length == 0)
+        TerrainTextureOverlay[] discoveryOverlays = CreateDemTerrainTextureOverlays(parsedSourceFile.SourceFile.PackageName);
+        if (discoveryOverlays.Length == 0)
         {
             return await CreateDemTerrainTextureOverlaysFromParsedSourceFileAsync(
                 parsedSourceFile,
@@ -384,9 +384,9 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
                 cancellationToken);
         }
 
-        if (HasOverlayCoverage(parsedSourceFile, bootstrapOverlays))
+        if (HasOverlayCoverage(parsedSourceFile, discoveryOverlays))
         {
-            return bootstrapOverlays;
+            return discoveryOverlays;
         }
 
         return await CreateDemTerrainTextureOverlaysFromParsedSourceFileAsync(
@@ -470,17 +470,17 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         {
             return fallbackBounds is null
                 ? []
-                : DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
+                : DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
                     fallbackBounds,
                     selectedMeshCodes);
         }
 
-        DemTerrainBounds? demBounds = DemSourceBootstrapSupport.ResolveDemTerrainBounds(
+        DemTerrainBounds? demBounds = DemSourceDiscoverySupport.ResolveDemTerrainBounds(
             [parsedSourceFile],
             fallbackBounds);
         return demBounds is null
             ? []
-            : DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
+            : DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
                 demBounds,
                 selectedMeshCodes);
     }

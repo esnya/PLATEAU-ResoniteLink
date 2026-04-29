@@ -46,7 +46,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
@@ -107,7 +107,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
@@ -129,7 +129,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_RejectsConcurrentRunsBeforeBootstrapCompletes()
+    public async Task ExecuteAsync_RejectsConcurrentRunsBeforeSetupCompletes()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory firstWorkDirectory = new();
@@ -159,7 +159,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
@@ -228,7 +228,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_FailsWhenBootstrapKnownCommonMaterialWasNotResolvedDuringSetup()
+    public async Task ExecuteAsync_FailsWhenSetupKnownCommonMaterialWasNotResolvedDuringSetup()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -248,7 +248,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
                 new TerrainTextureAssetGenerator(),
-                new MissingCommonMaterialBootstrapInterpreter(),
+                new MissingCommonMaterialSetupInterpreter(),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
@@ -272,10 +272,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => builder.ExecuteAsync(
                 plan,
-                CreateImportedObjectUnits(CreateBundledFacadeCityObject("bootstrap-common-missing"))));
+                CreateImportedObjectUnits(CreateBundledFacadeCityObject("setup-common-missing"))));
 
         Assert.Contains(
-            "Bootstrap did not resolve shared/common material",
+            "Setup did not resolve shared/common material",
             exception.Message,
             StringComparison.Ordinal);
         Assert.Contains("family=Facade", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -283,7 +283,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_PreparesSharedCommonMaterialDuringRuntimeWhenBootstrapSetupDoesNotMarkIt()
+    public async Task ExecuteAsync_PreparesSharedCommonMaterialDuringRuntimeWhenSetupDoesNotMarkIt()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -303,7 +303,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
                 new TerrainTextureAssetGenerator(),
-                new MissingCommonMaterialBootstrapInterpreter(),
+                new MissingCommonMaterialSetupInterpreter(),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
@@ -354,7 +354,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
                 new TerrainTextureAssetGenerator(),
-                new MissingCommonMaterialBootstrapInterpreter(),
+                new MissingCommonMaterialSetupInterpreter(),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
@@ -389,7 +389,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_BootstrapsTerrainOverlaySharedCommonMaterialBeforeRuntimeEmission()
+    public async Task ExecuteAsync_SetsUpTerrainOverlaySharedCommonMaterialBeforeRuntimeEmission()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -428,9 +428,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
             sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
-        MaterialBinding bootstrapTerrainOverlayMaterial = ResoniteLiveSceneImportTargetTestSupport.ToContractMaterial(
+        MaterialBinding setupTerrainOverlayMaterial = ResoniteLiveSceneImportTargetTestSupport.ToContractMaterial(
             new ResoniteMaterialBinding(
-                "dem-overlay-bootstrap",
+                "dem-overlay-setup",
                 new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 ResoniteMaterialType.Standard,
                 null,
@@ -445,9 +445,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
                 metadata,
                 workDirectory.Path,
-                commonMaterials: [bootstrapTerrainOverlayMaterial]),
+                commonMaterials: [setupTerrainOverlayMaterial]),
             CreateImportedObjectUnits(
-                CreateDemCityObject("dem-bootstrap-generic", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
+                CreateDemCityObject("dem-setup-generic", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
         Assert.Equal(1, executionResult.ProcessedCityObjectCount);
         Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
@@ -813,7 +813,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_BootstrapHandlesDatasetAttributionWithoutUsingUpdates()
+    public async Task ExecuteAsync_SetupHandlesDatasetAttributionWithoutUsingUpdates()
     {
         using TemporaryDirectory workDirectory = new();
         using SceneSinkRecordingClient routedClient = new();
@@ -1141,11 +1141,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ]);
     }
 
-    private sealed class MissingCommonMaterialBootstrapInterpreter : IResoniteSceneBootstrapInterpreter
+    private sealed class MissingCommonMaterialSetupInterpreter : IResoniteSceneSetupInterpreter
     {
-        public async Task<ResoniteSceneBootstrapState> BootstrapAsync(
+        public async Task<ResoniteSceneSetupState> SetupAsync(
             IResoniteLinkClient setupClient,
-            ResoniteSceneBootstrapInfo setupInfo,
+            ResoniteSceneSetupInfo setupInfo,
             IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
             CancellationToken cancellationToken)
         {
@@ -1193,7 +1193,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 },
                 cancellationToken)).Slot.Value;
 
-            return new ResoniteSceneBootstrapState(
+            return new ResoniteSceneSetupState(
                 new CreatedSlot(new ResoniteSlotLocator(datasetRootId), "PLATEAU tokyo23ku"),
                 new CreatedSlot(new ResoniteSlotLocator(assetsRootId), "Assets"),
                 new CreatedSlot(new ResoniteSlotLocator(commonMaterialsRootId), "Common Materials"),

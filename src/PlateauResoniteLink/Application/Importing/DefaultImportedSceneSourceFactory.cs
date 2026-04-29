@@ -62,7 +62,7 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
         }
 
         IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = await DemOverlayRegionResolver.ResolveAsync(
-            readResult.BootstrapContext,
+            readResult.DiscoveryContext,
             readResult.DocumentSet.SelectedMeshCodes,
             cancellationToken);
 

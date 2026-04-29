@@ -30,7 +30,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             new ImportedSceneSourceContext(
                 [],
                 new GeodeticPoint(35.0, 139.0, 0.0)));
-        StubConstructionSource expectedSource = new();
+        StubImportedSceneSource expectedSource = new();
         CustomCityGmlDocumentReader reader = new(expectedReadResult);
         RecordingConstructionComposer composer = new(expectedSource);
         ServiceProvider provider = new ServiceCollection()
@@ -73,9 +73,9 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddImportedSceneSourceServicesPreservesCustomConstructionSourceFactory()
+    public void AddImportedSceneSourceServicesPreservesCustomImportedSceneSourceFactory()
     {
-        CustomConstructionSourceFactory factory = new();
+        CustomImportedSceneSourceFactory factory = new();
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<IImportedSceneSourceFactory>(factory)
             .AddImportedSceneSourceServices()
@@ -120,7 +120,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class CustomConstructionSourceFactory : IImportedSceneSourceFactory
+    private sealed class CustomImportedSceneSourceFactory : IImportedSceneSourceFactory
     {
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
@@ -193,7 +193,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class StubConstructionSource : IImportedSceneSource
+    private sealed class StubImportedSceneSource : IImportedSceneSource
     {
         public ImportedSceneMetadata Metadata { get; } = new(
             "3.0",

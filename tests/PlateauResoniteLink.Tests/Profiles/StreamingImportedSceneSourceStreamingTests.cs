@@ -143,9 +143,9 @@ public sealed class StreamingImportedSceneSourceStreamingTests
 
     private static SourceFilePipeline CreatePipeline(
         SourceFileDescriptor sourceFile,
-        BootstrapParsedCityObject[] cityObjects,
+        ParsedCityObject[] cityObjects,
         Task? beforeYield = null,
-        Func<SourceFileDescriptor, BootstrapParsedCityObject[], Task?, CancellationToken, IAsyncEnumerable<BootstrapParsedCityObject>>? streamFactory = null,
+        Func<SourceFileDescriptor, ParsedCityObject[], Task?, CancellationToken, IAsyncEnumerable<ParsedCityObject>>? streamFactory = null,
         Func<Task<ParsedSourceFileResult>>? parseTaskFactory = null)
     {
         return new SourceFilePipeline(
@@ -158,7 +158,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
 
     private static async Task<ParsedSourceFileResult> CreateParsedSourceFileResultAsync(
         SourceFileDescriptor sourceFile,
-        BootstrapParsedCityObject[] cityObjects,
+        ParsedCityObject[] cityObjects,
         Task? beforeYield)
     {
         if (beforeYield is not null)
@@ -171,14 +171,14 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             cityObjects,
             cityObjects.Length == 0 ? null : cityObjects[0].ReferenceSystem,
             string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                ? DemSourceBootstrapSupport.CreateTerrainHeightTriangles(cityObjects)
+                ? DemSourceDiscoverySupport.CreateTerrainHeightTriangles(cityObjects)
                 : [],
             TimeSpan.Zero);
     }
 
-    private static async IAsyncEnumerable<BootstrapParsedCityObject> StreamSingleParsedCityObjectAsync(
+    private static async IAsyncEnumerable<ParsedCityObject> StreamSingleParsedCityObjectAsync(
         SourceFileDescriptor sourceFile,
-        IEnumerable<BootstrapParsedCityObject> cityObjects,
+        IEnumerable<ParsedCityObject> cityObjects,
         Task? beforeYield,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -188,7 +188,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             await beforeYield.WaitAsync(cancellationToken);
         }
 
-        foreach (BootstrapParsedCityObject cityObject in cityObjects)
+        foreach (ParsedCityObject cityObject in cityObjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
             yield return cityObject;
@@ -261,14 +261,14 @@ public sealed class StreamingImportedSceneSourceStreamingTests
         }
     }
 
-    private static BootstrapParsedCityObject CreateParsedCityObject(
+    private static ParsedCityObject CreateParsedCityObject(
         string packageName,
         string objectKey,
         string displayName,
         CoordinateReferenceSystem referenceSystem,
         int? lodLevel)
     {
-        BootstrapParsedRing exteriorRing = new(
+        ParsedRing exteriorRing = new(
             $"{objectKey}-ring",
             [
                 new GeodeticPoint(35.0000, 139.0000, 0.0),
@@ -277,15 +277,15 @@ public sealed class StreamingImportedSceneSourceStreamingTests
                 new GeodeticPoint(35.0000, 139.0000, 0.0),
             ],
             UVs: null);
-        BootstrapParsedSurface surface = new(
+        ParsedSurface surface = new(
             $"{objectKey}-polygon",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             exteriorRing,
             [],
             new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null);
 
-        return new BootstrapParsedCityObject(
+        return new ParsedCityObject(
             SlotKey: objectKey,
             DisplayName: displayName,
             PackageName: packageName,
@@ -311,7 +311,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
             IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
             PlateauImportRequest request,
-            Func<BootstrapParsedCityObject, bool>? predicate = null,
+            Func<ParsedCityObject, bool>? predicate = null,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
@@ -323,7 +323,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             _ = request;
             _ = progressReporter;
             _ = cancellationToken;
-            foreach (BootstrapParsedCityObject cityObject in sourceFile.CityObjects)
+            foreach (ParsedCityObject cityObject in sourceFile.CityObjects)
             {
                 if (predicate is not null && !predicate(cityObject))
                 {

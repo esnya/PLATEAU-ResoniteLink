@@ -14,7 +14,7 @@ Shipped:
 - import 前に、ローカルの dataset directory またはローカル ZIP/7z archive を組み込みの `search` / `stats` command で inspection できる。
 - `--resonitelink-connections` は shipped な live-send option として扱い、既定の live-send pool size は 4 とする。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
-- source bootstrap の完了後は、dataset / mesh-code branch を段階的に import し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
+- source discovery の完了後は、dataset / mesh-code branch を段階的に import し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
 - DEM terrain imagery tile は既定で local cache に永続化し、再実行時に PLATEAU Ortho や fallback の GSI tile を再利用できるようにする。
 
 Intentionally regressed:
@@ -38,7 +38,7 @@ dotnet build PlateauResoniteLink.sln --configuration Release --no-restore --disa
 dotnet test PlateauResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
-contributor workflow、環境 bootstrap、検証フローの ownership は [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md) を参照してください。
+contributor workflow、環境 setup、検証フローの ownership は [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md) を参照してください。
 
 ## Usage
 

@@ -17,7 +17,7 @@ internal static class CliTestData
         "veg",
     ];
 
-    public static string[] BuildLocalImportArgs(string fixturePath)
+    public static string[] CreateLocalImportArgs(string fixturePath)
     {
         return
         [

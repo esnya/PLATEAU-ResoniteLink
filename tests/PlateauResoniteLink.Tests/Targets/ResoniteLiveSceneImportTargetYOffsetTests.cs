@@ -16,7 +16,7 @@ public sealed class ResoniteLiveSceneImportTargetYOffsetTests
     private static readonly ResoniteLocalOrigin LocalOrigin = new(35.6875, 139.69375, 0.0);
 
     [Fact]
-    public async Task BeginAndBuildPreservesCityObjectHeightWithoutDatasetLift()
+    public async Task BeginAndExecutePreservesCityObjectHeightWithoutDatasetLift()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         ImportedSceneMetadata metadata = CreateMetadata(fixturePath, "53394525");
@@ -27,7 +27,7 @@ public sealed class ResoniteLiveSceneImportTargetYOffsetTests
             worldPosition: new ResoniteFloat3(1.0, 15.5, 2.5));
         using SceneSinkRecordingClient client = new();
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client);
 
         Slot datasetSlot = FindNonAssetSlotByName(client, $"PLATEAU {DatasetName}");
         Slot objectSlot = FindNonAssetSlotByName(client, "Height Test Building");

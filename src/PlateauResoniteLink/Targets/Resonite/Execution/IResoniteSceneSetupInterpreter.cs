@@ -6,11 +6,11 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
-internal interface IResoniteSceneBootstrapInterpreter
+internal interface IResoniteSceneSetupInterpreter
 {
-    Task<ResoniteSceneBootstrapState> BootstrapAsync(
+    Task<ResoniteSceneSetupState> SetupAsync(
         IResoniteLinkClient setupClient,
-        ResoniteSceneBootstrapInfo setupInfo,
+        ResoniteSceneSetupInfo setupInfo,
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         CancellationToken cancellationToken);
 }

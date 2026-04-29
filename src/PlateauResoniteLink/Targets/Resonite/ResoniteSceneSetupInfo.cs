@@ -8,7 +8,7 @@ internal sealed record ResoniteLicenseAttributionMetadata(
     string? LicenseName,
     string? LicenseUrl);
 
-internal sealed record ResoniteSceneBootstrapInfo(
+internal sealed record ResoniteSceneSetupInfo(
     string Dataset,
     string MeshCode,
     IReadOnlyList<string> SourceFiles,

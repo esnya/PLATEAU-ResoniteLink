@@ -77,7 +77,7 @@ internal interface ISceneSinkFactory
 internal sealed class DefaultImportServiceFactory(
     IPlateauDatasetSourceResolverFactory datasetSourceResolverFactory,
     ISceneSinkFactory sceneSinkFactory,
-    IImportedSceneSourceFactory constructionSourceFactory,
+    IImportedSceneSourceFactory importedSceneSourceFactory,
     CommonMaterialCatalog commonMaterialCatalog,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IImportServiceFactory
 {
@@ -92,7 +92,7 @@ internal sealed class DefaultImportServiceFactory(
         return new PlateauImportService(
             sceneSinkFactory.Create(options, progressReporter),
             datasetSourceResolverFactory.Create(),
-            constructionSourceFactory,
+            importedSceneSourceFactory,
             commonMaterialCatalog,
             archiveFileLayoutPolicy,
             progressReporter);

@@ -86,7 +86,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             new CityGmlLodSelector(),
             CancellationToken.None);
 
-        await using IAsyncEnumerator<BootstrapParsedCityObject> enumerator =
+        await using IAsyncEnumerator<ParsedCityObject> enumerator =
             pipelines.Single().StreamParsedCityObjectsAsync().GetAsyncEnumerator();
 
         Task<bool> firstMoveTask = enumerator.MoveNextAsync().AsTask();
@@ -157,8 +157,8 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             new CityGmlLodSelector(),
             CancellationToken.None);
 
-        BootstrapParsedCityObject? parsedCityObject = null;
-        await foreach (BootstrapParsedCityObject cityObject in pipelines.Single().StreamParsedCityObjectsAsync())
+        ParsedCityObject? parsedCityObject = null;
+        await foreach (ParsedCityObject cityObject in pipelines.Single().StreamParsedCityObjectsAsync())
         {
             parsedCityObject = cityObject;
             break;
@@ -224,8 +224,8 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             new CityGmlLodSelector(),
             CancellationToken.None);
 
-        BootstrapParsedCityObject? parsedCityObject = null;
-        await foreach (BootstrapParsedCityObject cityObject in pipelines.Single().StreamParsedCityObjectsAsync())
+        ParsedCityObject? parsedCityObject = null;
+        await foreach (ParsedCityObject cityObject in pipelines.Single().StreamParsedCityObjectsAsync())
         {
             parsedCityObject = cityObject;
             break;

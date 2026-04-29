@@ -22,7 +22,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 {
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
 
-    public static async Task BuildSceneAsync(
+    public static async Task ExecuteSceneAsync(
         ImportedSceneMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         SceneSinkRecordingClient client,
@@ -112,7 +112,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 localOrigin.Altitude));
     }
 
-    public static async Task BuildSceneTwiceAsync(
+    public static async Task ExecuteSceneTwiceAsync(
         ImportedSceneMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> firstRunCityObjects,
         IReadOnlyList<ResoniteConstructionCityObject> secondRunCityObjects,
@@ -170,7 +170,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             effectiveNormalizedRequest,
             metadata.Request,
             workDirectory);
-        PlateauImportRequest importRequest = CreateBuildRequest(effectiveNormalizedRequest, resolvedRequest);
+        PlateauImportRequest importRequest = CreateImportRequest(effectiveNormalizedRequest, resolvedRequest);
         ImportedSceneMetadata effectiveMetadata = metadata with
         {
             Request = importRequest,
@@ -185,7 +185,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             commonMaterials ?? new CommonMaterialCatalog().CreateForPackages(metadata.SourceDataset.PackageNames));
     }
 
-    private static PlateauImportRequest CreateBuildRequest(
+    private static PlateauImportRequest CreateImportRequest(
         PlateauImportRequest normalizedRequest,
         PlateauImportRequest resolvedRequest)
     {
@@ -369,7 +369,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,
                 terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
-                new ResoniteSceneBootstrapInterpreter(
+                new ResoniteSceneSetupInterpreter(
                     new ResoniteSceneSlotLocator(),
                     new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                     new ResoniteSceneAnchorResolver()),

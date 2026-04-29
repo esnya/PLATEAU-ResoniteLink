@@ -32,7 +32,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 SharedDatasetSourceResolverHttpClient,
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
-            constructionSourceFactory: new DefaultImportedSceneSourceFactory(
+            importedSceneSourceFactory: new DefaultImportedSceneSourceFactory(
                 documentReader,
                 new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
@@ -66,7 +66,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         "Performance",
         "CA1849:Call async methods when in an async method",
         Justification = "This test intentionally compares the sync wrapper against the async entrypoint.")]
-    public async Task ConstructionSourceFactoryComposesExpectedBootstrapMetadata()
+    public async Task ImportedSceneSourceFactoryComposesExpectedSetupMetadata()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
@@ -189,12 +189,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "floor-context-wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, widthMeters: 7.0, heightMeters: 7.0),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface],
             referenceSystem,
@@ -225,12 +225,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "suspicious-floor-context-wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, widthMeters: 7.0, heightMeters: 30.2),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface],
             referenceSystem,
@@ -261,12 +261,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "unknown-storey-wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, widthMeters: 7.0, heightMeters: 3.2),
             texturePayload: null);
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface],
             referenceSystem,
@@ -305,15 +305,15 @@ public sealed class LocalCityGmlObjectProjectionTests
             new(0.10, 0.80),
             new(0.10, 0.20),
         ];
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "textured-wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, 8.0, 7.0),
             CreateTexturePayload("wall-texture"),
             baseColor: null,
             uvs: sourceUvs);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface],
             referenceSystem,
@@ -341,12 +341,12 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Theory]
-    [InlineData((int)BootstrapParsedSurfaceSemantic.Wall)]
-    [InlineData((int)BootstrapParsedSurfaceSemantic.Unknown)]
+    [InlineData((int)ParsedSurfaceSemantic.Wall)]
+    [InlineData((int)ParsedSurfaceSemantic.Unknown)]
     public void CreateCommonMaterialBindingsGeneratesFacadeMappingForTexturelessVerticalBuildingSurfaces(
         int semanticValue)
     {
-        BootstrapParsedSurfaceSemantic semantic = (BootstrapParsedSurfaceSemantic)semanticValue;
+        ParsedSurfaceSemantic semantic = (ParsedSurfaceSemantic)semanticValue;
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
@@ -354,13 +354,13 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface surface = CreateBootstrapParsedSurface(
+        ParsedSurface surface = CreateParsedSurface(
             $"texturedless-{semantic}",
             semantic,
             CreateVerticalQuadVertices(origin, 8.0, 7.0),
             texturePayload: null);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [surface],
             referenceSystem,
@@ -381,12 +381,12 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Theory]
-    [InlineData((int)BootstrapParsedSurfaceSemantic.Roof)]
-    [InlineData((int)BootstrapParsedSurfaceSemantic.Ground)]
+    [InlineData((int)ParsedSurfaceSemantic.Roof)]
+    [InlineData((int)ParsedSurfaceSemantic.Ground)]
     public void CreateCommonMaterialBindingsDoesNotGenerateFacadeMaterialForRoofOrGround(
         int semanticValue)
     {
-        BootstrapParsedSurfaceSemantic semantic = (BootstrapParsedSurfaceSemantic)semanticValue;
+        ParsedSurfaceSemantic semantic = (ParsedSurfaceSemantic)semanticValue;
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
@@ -396,13 +396,13 @@ public sealed class LocalCityGmlObjectProjectionTests
             referenceSystem.Geocentric);
         IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> surfaceVertices =
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: true);
-        BootstrapParsedSurface surface = CreateBootstrapParsedSurface(
+        ParsedSurface surface = CreateParsedSurface(
             $"non-facade-{semantic}",
             semantic,
             surfaceVertices,
             texturePayload: null);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [surface],
             referenceSystem,
@@ -461,34 +461,34 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, 8.0, 6.0),
             CreateTexturePayload("wall"));
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("roof"));
-        BootstrapParsedSurface groundSurface = CreateBootstrapParsedSurface(
+        ParsedSurface groundSurface = CreateParsedSurface(
             "ground",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("ground"));
-        BootstrapParsedSurface reversedGroundSurface = CreateBootstrapParsedSurface(
+        ParsedSurface reversedGroundSurface = CreateParsedSurface(
             "ground-reversed",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 6.0, reverseWinding: true),
             CreateTexturePayload("ground-reversed"));
-        BootstrapParsedSurface outerFloorSurface = CreateBootstrapParsedSurface(
+        ParsedSurface outerFloorSurface = CreateParsedSurface(
             "outer-floor",
-            BootstrapParsedSurfaceSemantic.OuterFloor,
+            ParsedSurfaceSemantic.OuterFloor,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 4.0, reverseWinding: true),
             CreateTexturePayload("outer-floor"));
-        BootstrapParsedSurface highOuterFloorSurface = CreateBootstrapParsedSurface(
+        ParsedSurface highOuterFloorSurface = CreateParsedSurface(
             "high-outer-floor",
-            BootstrapParsedSurfaceSemantic.OuterFloor,
+            ParsedSurfaceSemantic.OuterFloor,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.5, sizeMeters: 4.0, reverseWinding: true),
             CreateTexturePayload("high-outer-floor"));
 
@@ -504,7 +504,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.DoesNotContain("high-outer-floor", culledSurfaceIds);
         Assert.DoesNotContain("roof", culledSurfaceIds);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface, roofSurface, groundSurface, reversedGroundSurface, outerFloorSurface, highOuterFloorSurface],
             referenceSystem);
@@ -533,9 +533,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface groundSurface = CreateBootstrapParsedSurface(
+        ParsedSurface groundSurface = CreateParsedSurface(
             "tran-ground",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("tran-ground"));
 
@@ -547,7 +547,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Empty(culledSurfaceIds);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("tran", [groundSurface], referenceSystem);
+        ParsedCityObject cityObject = CreateParsedCityObject("tran", [groundSurface], referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
@@ -571,27 +571,27 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "lod1-wall",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateVerticalQuadVertices(origin, 8.0, 6.0),
             CreateTexturePayload("lod1-wall"));
-        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface bottomSurface = CreateParsedSurface(
             "lod1-bottom",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("lod1-bottom"));
-        BootstrapParsedSurface reversedBottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface reversedBottomSurface = CreateParsedSurface(
             "lod1-bottom-reversed",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 6.0, reverseWinding: true),
             CreateTexturePayload("lod1-bottom-reversed"));
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "lod1-roof",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: true),
             CreateTexturePayload("lod1-roof"));
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface, bottomSurface, reversedBottomSurface, roofSurface],
             referenceSystem,
@@ -631,14 +631,14 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface bottomSurface = CreateParsedSurface(
             "bottom",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("bottom"));
-        BootstrapParsedSurface highDownwardRoofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface highDownwardRoofSurface = CreateParsedSurface(
             "high-roof",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("high-roof"));
 
@@ -662,9 +662,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface onlySurface = CreateBootstrapParsedSurface(
+        ParsedSurface onlySurface = CreateParsedSurface(
             "only-surface",
-            BootstrapParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Roof,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("only-surface"));
 
@@ -676,7 +676,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Empty(culledSurfaceIds);
 
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [onlySurface],
             referenceSystem,
@@ -703,24 +703,24 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, 8.0, 6.0),
             CreateTexturePayload("wall"));
-        BootstrapParsedSurface exactBoundaryBottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface exactBoundaryBottomSurface = CreateParsedSurface(
             "bottom-inside-threshold",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.099, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("bottom-inside-threshold"));
-        BootstrapParsedSurface aboveBoundaryBottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface aboveBoundaryBottomSurface = CreateParsedSurface(
             "bottom-outside-threshold",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.101, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("bottom-outside-threshold"));
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "roof",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: true),
             CreateTexturePayload("roof"));
 
@@ -745,24 +745,24 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "wall",
-            BootstrapParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, 8.0, 6.0),
             texturePayload: null);
-        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+        ParsedSurface bottomSurface = CreateParsedSurface(
             "bottom",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             texturePayload: null,
             baseColor: new ColorRgba(1.0, 0.0, 0.0, 1.0));
-        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+        ParsedSurface roofSurface = CreateParsedSurface(
             "roof",
-            BootstrapParsedSurfaceSemantic.Unknown,
+            ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: true),
             texturePayload: null,
             baseColor: new ColorRgba(0.0, 0.0, 1.0, 1.0));
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
             [wallSurface, bottomSurface, roofSurface],
             referenceSystem,
@@ -997,19 +997,19 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 10.0);
-        BootstrapParsedSurface validSurface = CreateBootstrapParsedSurface(
+        ParsedSurface validSurface = CreateParsedSurface(
             "valid-dem",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             CreateHorizontalQuadVertices(origin, origin.Altitude, 10.0, reverseWinding: false),
             texturePayload: null,
             baseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0));
-        BootstrapParsedSurface degenerateSurface = CreateBootstrapParsedSurface(
+        ParsedSurface degenerateSurface = CreateParsedSurface(
             "degenerate-dem",
-            BootstrapParsedSurfaceSemantic.Ground,
+            ParsedSurfaceSemantic.Ground,
             [origin, origin, origin, origin],
             texturePayload: null,
             baseColor: new ColorRgba(0.5, 0.5, 0.5, 1.0));
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "dem",
             [validSurface, degenerateSurface],
             referenceSystem);
@@ -1042,7 +1042,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void DemTerrainDynamicModeSkipsDemWhenGridCannotBeProjected()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+        ParsedCityObject cityObject = CreateParsedCityObject(
             "dem",
             [],
             referenceSystem);
@@ -1799,15 +1799,15 @@ public sealed class LocalCityGmlObjectProjectionTests
             TexturePayload: null);
     }
 
-    private static BootstrapParsedCityObject CreateBootstrapParsedCityObject(
+    private static ParsedCityObject CreateParsedCityObject(
         string packageName,
-        BootstrapParsedSurface[] surfaces,
+        ParsedSurface[] surfaces,
         CoordinateReferenceSystem referenceSystem,
         int? lodLevel = 1,
         int? floorsAboveGround = null,
         double? measuredHeightMeters = null)
     {
-        return new BootstrapParsedCityObject(
+        return new ParsedCityObject(
             SlotKey: $"{packageName}-slot",
             DisplayName: $"{packageName}-display",
             PackageName: packageName,
@@ -1821,18 +1821,18 @@ public sealed class LocalCityGmlObjectProjectionTests
             MeasuredHeightMeters: measuredHeightMeters);
     }
 
-    private static BootstrapParsedSurface CreateBootstrapParsedSurface(
+    private static ParsedSurface CreateParsedSurface(
         string polygonId,
-        BootstrapParsedSurfaceSemantic semantic,
+        ParsedSurfaceSemantic semantic,
         IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices,
         TexturePayload? texturePayload,
         ColorRgba? baseColor = null,
         IReadOnlyList<Float2>? uvs = null)
     {
-        return new BootstrapParsedSurface(
+        return new ParsedSurface(
             PolygonId: polygonId,
             Semantic: semantic,
-            ExteriorRing: new BootstrapParsedRing($"{polygonId}-ring", vertices.Select(GeodeticPoint.FromLegacy).ToArray(), UVs: uvs),
+            ExteriorRing: new ParsedRing($"{polygonId}-ring", vertices.Select(GeodeticPoint.FromLegacy).ToArray(), UVs: uvs),
             InteriorRings: [],
             BaseColor: baseColor ?? new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: texturePayload);
@@ -1903,7 +1903,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     private static MaterialBinding[] CreateCommonMaterialBindingsForTest(
-        BootstrapParsedCityObject cityObject,
+        ParsedCityObject cityObject,
         LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
         GeographicLib.LocalCartesian cartesian)
     {
@@ -1918,7 +1918,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
                 ParameterInfo[] parameters = candidate.GetParameters();
                 return parameters.Length == 5
-                    && parameters[0].ParameterType == typeof(BootstrapParsedCityObject);
+                    && parameters[0].ParameterType == typeof(ParsedCityObject);
             });
 
         return (MaterialBinding[])method.Invoke(
@@ -1933,7 +1933,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     private static ImportedCityObject ProjectTerrainMeshModeCityObjectForTest(
-        BootstrapParsedCityObject cityObject,
+        ParsedCityObject cityObject,
         GeodeticPoint globalOriginPoint,
         PlateauImportRequest request)
     {

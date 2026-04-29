@@ -14,7 +14,7 @@ Shipped:
 - Inspect local dataset directories or local ZIP/7z archives with built-in `search` and `stats` commands before import.
 - Treat `--resonitelink-connections` as a shipped live-send option, with a default live-send pool size of 4.
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
-- After source bootstrap completes, import dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
+- After source discovery completes, import dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
 - Persist terrain imagery tiles under a local cache by default so repeated DEM imports can reuse already downloaded PLATEAU Ortho or fallback GSI tiles.
 
 Intentionally regressed:
@@ -38,7 +38,7 @@ dotnet build PlateauResoniteLink.sln --configuration Release --no-restore --disa
 dotnet test PlateauResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
-For contributor workflow details, environment bootstrap guidance, and verification ownership, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For contributor workflow details, environment setup guidance, and verification ownership, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Usage
 

@@ -10,7 +10,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal static class ImportedSceneSourceBootstrapPipeline
+internal static class ImportedSceneSourceDiscoveryPipeline
 {
     internal static async Task<ImportedSceneSourceSnapshot> ReadDocumentSetCoreAsync(
         PlateauImportRequest request,
@@ -99,7 +99,7 @@ internal static class ImportedSceneSourceBootstrapPipeline
 
         totalStopwatch.Stop();
         progressReporter?.Invoke(
-            PlateauLog.Info("import", $"Construction source ready in {totalStopwatch.Elapsed.TotalSeconds:F3}s."));
+            PlateauLog.Info("import", $"Imported scene source ready in {totalStopwatch.Elapsed.TotalSeconds:F3}s."));
 
         ImportedSceneSourceDataset documentSet = new(
             datasetSource,
@@ -111,9 +111,9 @@ internal static class ImportedSceneSourceBootstrapPipeline
                 .ToArray(),
             [],
             discoveryResult.SelectedMeshCodes);
-        ImportedSceneSourceContext bootstrapContext = new(
+        ImportedSceneSourceContext discoveryContext = new(
             sourceFilePipelines,
             globalOriginPoint);
-        return new ImportedSceneSourceSnapshot(documentSet, bootstrapContext);
+        return new ImportedSceneSourceSnapshot(documentSet, discoveryContext);
     }
 }

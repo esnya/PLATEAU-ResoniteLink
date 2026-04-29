@@ -10,7 +10,7 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
     [Fact]
     public void ResolveCompletionMeshCodeUsesNonDemSourceFilenames()
     {
-        ResoniteSceneBootstrapInfo setupInfo = CreateSetupInfo(
+        ResoniteSceneSetupInfo setupInfo = CreateSetupInfo(
             [
                 "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
                 "udx/bldg/53394526/plateau_tokyo23ku_bldg_53394526.gml",
@@ -25,7 +25,7 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
     [Fact]
     public void ResolveCompletionMeshCodeFallsBackToDemFilenamesWhenNeeded()
     {
-        ResoniteSceneBootstrapInfo setupInfo = CreateSetupInfo(
+        ResoniteSceneSetupInfo setupInfo = CreateSetupInfo(
             ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml"]);
 
         string meshCode = ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(setupInfo);
@@ -36,7 +36,7 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
     [Fact]
     public void ResolveCompletionMeshCodeThrowsWhenSourceFilenamesDoNotContainAMeshCode()
     {
-        ResoniteSceneBootstrapInfo setupInfo = CreateSetupInfo(
+        ResoniteSceneSetupInfo setupInfo = CreateSetupInfo(
             ["udx/bldg/unknown/plateau_tokyo23ku_bldg_regex.gml"],
             []);
 
@@ -46,11 +46,11 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
         Assert.Contains("discovered source filenames", exception.Message, StringComparison.Ordinal);
     }
 
-    private static ResoniteSceneBootstrapInfo CreateSetupInfo(
+    private static ResoniteSceneSetupInfo CreateSetupInfo(
         IReadOnlyList<string> sourceFiles,
         IReadOnlyList<string>? selectedMeshCodes = null)
     {
-        return new ResoniteSceneBootstrapInfo(
+        return new ResoniteSceneSetupInfo(
             Dataset: "tokyo23ku",
             MeshCode: "5339452[56]",
             SourceFiles: sourceFiles,

@@ -27,19 +27,19 @@ internal sealed class ResoniteSharedSlotIndex(
     private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
     public SceneAnchor? SceneAnchor { get; private set; } = initialSceneAnchor;
 
-    public void IndexBootstrapHierarchy(ResoniteSceneBootstrapState bootstrapState)
+    public void IndexSetupHierarchy(ResoniteSceneSetupState setupState)
     {
-        if (bootstrapState.DatasetRootSnapshot is not null)
+        if (setupState.DatasetRootSnapshot is not null)
         {
             observedSlotSnapshotsById.Clear();
-            IndexObservedSlotSnapshot(bootstrapState.DatasetRootSnapshot);
+            IndexObservedSlotSnapshot(setupState.DatasetRootSnapshot);
         }
         else
         {
-            IndexCreatedSharedSlot(ResoniteSlotLocator.Root, bootstrapState.DatasetRootSlot);
+            IndexCreatedSharedSlot(ResoniteSlotLocator.Root, setupState.DatasetRootSlot);
         }
 
-        IndexCreatedSharedSlot(bootstrapState.DatasetRootSlot.Locator, bootstrapState.DatasetAssetsRootSlot);
+        IndexCreatedSharedSlot(setupState.DatasetRootSlot.Locator, setupState.DatasetAssetsRootSlot);
     }
 
     public Task<ObjectSlotHierarchy> CreateObjectHierarchyTask(

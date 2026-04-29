@@ -15,7 +15,7 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed class PlateauImportService(
     ISceneSink sceneSink,
     IPlateauDatasetSourceResolver datasetSourceResolver,
-    IImportedSceneSourceFactory constructionSourceFactory,
+    IImportedSceneSourceFactory importedSceneSourceFactory,
     CommonMaterialCatalog commonMaterialCatalog,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
@@ -25,8 +25,8 @@ internal sealed class PlateauImportService(
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
         datasetSourceResolver ?? throw new ArgumentNullException(nameof(datasetSourceResolver));
     private readonly Action<string>? progressReporter = progressReporter;
-    private readonly IImportedSceneSourceFactory constructionSourceFactory =
-        constructionSourceFactory ?? throw new ArgumentNullException(nameof(constructionSourceFactory));
+    private readonly IImportedSceneSourceFactory importedSceneSourceFactory =
+        importedSceneSourceFactory ?? throw new ArgumentNullException(nameof(importedSceneSourceFactory));
     private readonly CommonMaterialCatalog commonMaterialCatalog =
         commonMaterialCatalog ?? throw new ArgumentNullException(nameof(commonMaterialCatalog));
     private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
@@ -55,13 +55,13 @@ internal sealed class PlateauImportService(
                 PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
 
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
-            IImportedSceneSource source = await constructionSourceFactory.CreateAsync(
+            IImportedSceneSource source = await importedSceneSourceFactory.CreateAsync(
                 resolvedRequest,
                 progressReporter,
                 cancellationToken);
             sourceStopwatch.Stop();
             ReportProgress(
-                PlateauLog.Debug("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
+                PlateauLog.Debug("import", $"Prepared imported scene source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             ImportedSceneMetadata metadata = source.Metadata;
             IReadOnlyList<MaterialBinding> commonMaterials = commonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames);

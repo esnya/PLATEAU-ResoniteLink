@@ -122,7 +122,7 @@ public sealed class CliApplicationTests
             CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
-            BuildImportArgs(fixturePath));
+            CreateImportArgs(fixturePath));
 
         Assert.Equal(1, exitCode);
         Assert.Contains("Import failed: Unexpected transport failure.", standardError.ToString());
@@ -144,7 +144,7 @@ public sealed class CliApplicationTests
             CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
-            BuildImportArgs(fixturePath));
+            CreateImportArgs(fixturePath));
 
         Assert.Equal(0, exitCode);
         ImportCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
@@ -170,7 +170,7 @@ public sealed class CliApplicationTests
 
         int exitCode = await application.RunAsync(
             [
-                ..BuildImportArgs(fixturePath),
+                ..CreateImportArgs(fixturePath),
                 "--no-mesh-bake",
             ]);
 
@@ -195,7 +195,7 @@ public sealed class CliApplicationTests
 
         int exitCode = await application.RunAsync(
             [
-                ..BuildImportArgs(fixturePath),
+                ..CreateImportArgs(fixturePath),
                 "--resonitelink-connections",
                 "4",
             ]);
@@ -224,13 +224,13 @@ public sealed class CliApplicationTests
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => application.RunAsync(
-                BuildImportArgs(fixturePath),
+                CreateImportArgs(fixturePath),
                 cancellationTokenSource.Token));
     }
 
-    private static string[] BuildImportArgs(string fixturePath)
+    private static string[] CreateImportArgs(string fixturePath)
     {
-        return CliTestData.BuildLocalImportArgs(fixturePath);
+        return CliTestData.CreateLocalImportArgs(fixturePath);
     }
 
     private sealed class StubImportSink : ISceneSink

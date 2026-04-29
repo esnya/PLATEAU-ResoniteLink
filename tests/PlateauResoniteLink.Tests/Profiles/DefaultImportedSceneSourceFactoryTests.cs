@@ -16,7 +16,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
     [Fact]
     public async Task CreateAsyncUsesDocumentReaderAndComposer()
     {
-        StubConstructionSource expectedSource = new();
+        StubImportedSceneSource expectedSource = new();
         RecordingDocumentReader reader = new();
         RecordingComposer composer = new(expectedSource);
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
@@ -46,7 +46,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
     }
 
     [Fact]
-    public async Task CreateAsyncKeepsBootstrapReadResultDiscoveryOnlyWhenDemOverlaysAreNotPreResolved()
+    public async Task CreateAsyncKeepsSetupReadResultDiscoveryOnlyWhenDemOverlaysAreNotPreResolved()
     {
         TerrainTextureOverlay[] resolvedOverlays =
         [
@@ -70,7 +70,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
                 new ImportedSceneSourceContext(
                     [],
                     new GeodeticPoint(35.0, 139.0, 0.0))));
-        RecordingComposer composer = new(new StubConstructionSource());
+        RecordingComposer composer = new(new StubImportedSceneSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(resolvedOverlays);
         DefaultImportedSceneSourceFactory factory = new(
             reader,
@@ -111,7 +111,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
                 new ImportedSceneSourceContext(
                     [],
                     new GeodeticPoint(35.0, 139.0, 0.0))));
-        RecordingComposer composer = new(new StubConstructionSource());
+        RecordingComposer composer = new(new StubImportedSceneSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
         DefaultImportedSceneSourceFactory factory = new(
             reader,
@@ -171,7 +171,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
                 new ImportedSceneSourceContext(
                     [demPipeline],
                     new GeodeticPoint(35.0, 139.0, 0.0))));
-        RecordingComposer composer = new(new StubConstructionSource());
+        RecordingComposer composer = new(new StubImportedSceneSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
         DefaultImportedSceneSourceFactory factory = new(
             reader,
@@ -206,7 +206,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
                 new ImportedSceneSourceContext(
                     [],
                     new GeodeticPoint(35.0, 139.0, 0.0))));
-        RecordingComposer composer = new(new StubConstructionSource());
+        RecordingComposer composer = new(new StubImportedSceneSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(
             [],
             new PlateauImportValidationException(["invalid GeoTIFF source"]));
@@ -288,7 +288,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         }
     }
 
-    private sealed class StubConstructionSource : IImportedSceneSource
+    private sealed class StubImportedSceneSource : IImportedSceneSource
     {
         public ImportedSceneMetadata Metadata { get; } = new(
             SchemaVersion: "3.0",
@@ -317,7 +317,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         }
     }
 
-    private static BootstrapParsedCityObject CreateParsedDemCityObject(CoordinateReferenceSystem referenceSystem)
+    private static ParsedCityObject CreateParsedDemCityObject(CoordinateReferenceSystem referenceSystem)
     {
         _ = PlateauMeshCode.TryGetBounds(
             "53394525",
@@ -325,7 +325,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         double centerLatitude = (bounds.SouthLatitude + bounds.NorthLatitude) * 0.5;
         double centerLongitude = (bounds.WestLongitude + bounds.EastLongitude) * 0.5;
 
-        return new BootstrapParsedCityObject(
+        return new ParsedCityObject(
             SlotKey: "dem-slot-000",
             DisplayName: "dem-slot-000",
             PackageName: "dem",
@@ -333,10 +333,10 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             LodLevel: 1,
             Surfaces:
             [
-                new BootstrapParsedSurface(
+                new ParsedSurface(
                     PolygonId: "dem-surface-000",
-                    Semantic: BootstrapParsedSurfaceSemantic.Ground,
-                    ExteriorRing: new BootstrapParsedRing(
+                    Semantic: ParsedSurfaceSemantic.Ground,
+                    ExteriorRing: new ParsedRing(
                         "dem-ring-000",
                         [
                             new GeodeticPoint(bounds.SouthLatitude, bounds.WestLongitude, 0.0),
