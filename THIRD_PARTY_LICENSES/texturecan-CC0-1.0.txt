@@ -8,7 +8,9 @@ License information:
 TextureCan's terms also note that if brand names, logos, or copyrighted graphics
 appear in materials, avoiding third-party infringement remains the user's
 responsibility. The bundled assets listed here were selected as generic facade
-materials and are recorded with their source pages for review.
+materials and are recorded with their source pages for review. The selection
+strategy for collected bundled material candidates is documented in
+docs/material-selection-strategy.md.
 
 Bundled directory covered by this notice:
 - src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/

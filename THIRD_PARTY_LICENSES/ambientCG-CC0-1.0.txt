@@ -14,7 +14,7 @@ Ingest procedure:
 - The ingest tool keeps Color, NormalGL, Displacement-as-Height, and Emission maps when present.
 - The ingest tool generates `<asset-id>_2K-JPG_Metallic.png` as a packed material map. Red is upstream metalness when present or neutral 0, green is upstream ambient occlusion or neutral 255, blue preserves upstream roughness or neutral 255 for diagnostics, and alpha is Unity-style smoothness (`255 - roughness`) for linear data sampling.
 
-Runtime material families currently use only a curated subset of these files. Other collected files are bundled for later height-aware or package-aware material selection work.
+Runtime material families currently use only a curated subset of these files. Other collected files are bundled for later height-aware or package-aware material selection work. The selection strategy for those collected candidates is documented in docs/material-selection-strategy.md.
 
 Bundled ambientCG material sources:
 - src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade001_2K-JPG_* -> AmbientCG Facade001 -> https://ambientcg.com/view?id=Facade001
