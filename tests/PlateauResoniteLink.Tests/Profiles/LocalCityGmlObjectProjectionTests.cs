@@ -411,6 +411,44 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void ProjectParsedCityObjectChoosesOverlappingThirdMeshOverlayForParentMeshBuildingRoof()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay unrelatedFirstOverlay = CreateThirdMeshOverlay("53394525");
+        TerrainTextureOverlay expectedOverlay = CreateThirdMeshOverlay("53394526");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
+        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+            "textureless-parent-roof",
+            BootstrapParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject("bldg", [roofSurface], referenceSystem) with
+        {
+            ActualMeshCode = "533945",
+        };
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "533945",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/plateau",
+            ServerUri: null);
+
+        ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: null,
+            demTerrainTextureOverlays: [unrelatedFirstOverlay, expectedOverlay],
+            requestedMeshAreas: [MeshCodeBounds.TryParse("533945")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver()));
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Same(expectedOverlay, material.TerrainOverlay);
+        Assert.Equal("53394526", material.TerrainMeshCode);
+    }
+
+    [Fact]
     public void ProjectParsedCityObjectFailsExplicitlyForNonThirdMeshDemOverlay()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");

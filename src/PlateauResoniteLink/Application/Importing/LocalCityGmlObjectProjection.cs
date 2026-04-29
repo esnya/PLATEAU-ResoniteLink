@@ -2750,7 +2750,7 @@ internal static partial class LocalCityGmlObjectProjection
             }
         }
 
-        return TryResolveThirdMeshCodeFromBounds(terrainOverlay.GeographicBounds);
+        return null;
     }
 
     private static bool BoundsApproximatelyEqual(
@@ -4418,8 +4418,14 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        TerrainTextureOverlay? matchingOverlay = demTerrainTextureOverlays.FirstOrDefault(overlay =>
-            ResolveTerrainTextureMeshCode(cityObject.ActualMeshCode, overlay) is not null);
+        GeographicRectangle? cityObjectBounds = TryCreateCityObjectGeographicBounds(cityObject);
+        TerrainTextureOverlay? matchingOverlay = demTerrainTextureOverlays
+            .Where(overlay => ResolveTerrainTextureMeshCode(cityObject.ActualMeshCode, overlay) is not null)
+            .Where(overlay => cityObjectBounds is null || BoundsOverlap(cityObjectBounds, overlay.GeographicBounds))
+            .OrderByDescending(overlay => cityObjectBounds is null
+                ? 0.0
+                : CalculateOverlapArea(cityObjectBounds, overlay.GeographicBounds))
+            .FirstOrDefault(overlay => cityObjectBounds is null || CalculateOverlapArea(cityObjectBounds, overlay.GeographicBounds) > 0.0);
         if (matchingOverlay is not null)
         {
             return matchingOverlay;
@@ -4459,6 +4465,45 @@ internal static partial class LocalCityGmlObjectProjection
             && meshBounds.SouthLatitude <= geographicBounds.MaxLatitude
             && meshBounds.EastLongitude >= geographicBounds.MinLongitude
             && meshBounds.WestLongitude <= geographicBounds.MaxLongitude;
+    }
+
+    private static bool BoundsOverlap(GeographicRectangle left, GeographicRectangle right)
+    {
+        return left.MaxLatitude >= right.MinLatitude
+            && left.MinLatitude <= right.MaxLatitude
+            && left.MaxLongitude >= right.MinLongitude
+            && left.MinLongitude <= right.MaxLongitude;
+    }
+
+    private static double CalculateOverlapArea(GeographicRectangle left, GeographicRectangle right)
+    {
+        double latitudeOverlap = Math.Max(
+            0.0,
+            Math.Min(left.MaxLatitude, right.MaxLatitude) - Math.Max(left.MinLatitude, right.MinLatitude));
+        double longitudeOverlap = Math.Max(
+            0.0,
+            Math.Min(left.MaxLongitude, right.MaxLongitude) - Math.Max(left.MinLongitude, right.MinLongitude));
+        return latitudeOverlap * longitudeOverlap;
+    }
+
+    private static GeographicRectangle? TryCreateCityObjectGeographicBounds(
+        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject)
+    {
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] vertices =
+        [
+            .. cityObject.Surfaces
+                .SelectMany(static surface => surface.ExteriorRing.Vertices)
+        ];
+        if (vertices.Length == 0)
+        {
+            return null;
+        }
+
+        return new GeographicRectangle(
+            vertices.Min(static vertex => vertex.Latitude),
+            vertices.Max(static vertex => vertex.Latitude),
+            vertices.Min(static vertex => vertex.Longitude),
+            vertices.Max(static vertex => vertex.Longitude));
     }
 
     private static Float2 ToContractFloat2(Float2 value) => new(value.X, value.Y);

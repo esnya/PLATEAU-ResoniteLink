@@ -197,6 +197,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal(2, terrainTextureGenerator.RequestedOverlays.Count);
         Assert.Equal(2, propertyBlockTextureIds.Length);
         Assert.All(propertyBlockTextureIds, textureId => Assert.Equal(sharedTextureId, textureId));
+        Assert.Single(
+            client.AddedSlots,
+            request => client.SlotPaths[request.Data.ID!].EndsWith("/Assets/Terrain Textures", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -292,6 +295,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
                 && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
+        Uri originalTextureUri = Assert.IsType<Field_Uri>(sharedTexture.Data.Members["URL"]).Value;
         int addedComponentCountBeforeDedicatedRun = client.AddedComponents.Count;
         ResoniteConstructionCityObject dedicatedTerrain = sharedTerrain with
         {
@@ -317,6 +321,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
             client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
             static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
         Assert.Equal(sharedTexture.Data.ID, Assert.IsType<Reference>(propertyBlock.Data.Members["Texture"]).TargetID);
+        Assert.Equal(2, client.ImportedRawTextures.Count);
+        UpdateComponent textureRefresh = Assert.Single(
+            client.UpdatedComponents,
+            request => string.Equals(request.Data.ID, sharedTexture.Data.ID, StringComparison.Ordinal));
+        Field_Uri refreshedUrl = Assert.IsType<Field_Uri>(textureRefresh.Data.Members["URL"]);
+        Assert.StartsWith("resdb:///texture/", refreshedUrl.Value.ToString(), StringComparison.Ordinal);
+        Assert.NotEqual(originalTextureUri, refreshedUrl.Value);
         Assert.DoesNotContain(
             client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)

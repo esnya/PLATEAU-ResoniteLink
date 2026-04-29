@@ -1360,7 +1360,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return uploadedTextureAssets;
     }
 
-    private async Task<UploadedTextureAssetSet> UploadPreparedTexturesAsync(
+    private static async Task<UploadedTextureAssetSet> UploadPreparedTexturesAsync(
         LiveSendRunState state,
         IResoniteLinkClient importClient,
         PreparedCityObject preparedCityObject,
@@ -1428,7 +1428,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             preparedTerrainTextureDataByOverlay);
     }
 
-    private Task<SharedTerrainTextureAsset> EnsureSharedTerrainTextureAssetAsync(
+    private static Task<SharedTerrainTextureAsset> EnsureSharedTerrainTextureAssetAsync(
         LiveSendRunState state,
         IResoniteLinkClient importClient,
         string meshCode,
@@ -1437,23 +1437,23 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     {
         return state.TerrainTextures.AssetsByMeshCode.GetOrCreateAsync(
             meshCode,
-            () => EnsureSharedTerrainTextureAssetCoreAsync(importClient, state.Context.DatasetAssetsRootSlot, meshCode, textureImport, cancellationToken),
+            () => EnsureSharedTerrainTextureAssetCoreAsync(state, importClient, meshCode, textureImport, cancellationToken),
             cancellationToken);
     }
 
-    private async Task<SharedTerrainTextureAsset> EnsureSharedTerrainTextureAssetCoreAsync(
+    private static async Task<SharedTerrainTextureAsset> EnsureSharedTerrainTextureAssetCoreAsync(
+        LiveSendRunState state,
         IResoniteLinkClient importClient,
-        CreatedSlot datasetAssetsRootSlot,
         string meshCode,
         ResoniteTextureImport textureImport,
         CancellationToken cancellationToken)
     {
-        CreatedSlot terrainTexturesRoot = await EnsureTerrainTextureChildSlotAsync(
+        CreatedSlot terrainTexturesRoot = await state.Placement.GetOrCreateSharedChildSlotAsync(
             importClient,
-            datasetAssetsRootSlot.Locator,
+            state.Context.DatasetAssetsRootSlot.Locator,
             "Terrain Textures",
             cancellationToken);
-        CreatedSlot meshSlot = await EnsureTerrainTextureChildSlotAsync(
+        CreatedSlot meshSlot = await state.Placement.GetOrCreateSharedChildSlotAsync(
             importClient,
             terrainTexturesRoot.Locator,
             meshCode,
@@ -1464,7 +1464,20 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             cancellationToken);
         if (existingTexture is not null)
         {
-            return existingTexture;
+            Uri refreshedTextureUri = await importClient.ImportTextureAsync(textureImport, cancellationToken);
+            await importClient.UpdateComponentAsync(
+                new ResoniteComponentUpdate
+                {
+                    Component = new ResoniteTransportComponentLocator(existingTexture.TextureComponent.Locator.Value),
+                    Members = ResoniteSceneMaterialConventions.CreateTextureMembers(
+                        refreshedTextureUri,
+                        ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride),
+                },
+                cancellationToken);
+            return existingTexture with
+            {
+                TextureUri = refreshedTextureUri,
+            };
         }
 
         Uri importedTextureUri = await importClient.ImportTextureAsync(textureImport, cancellationToken);
@@ -1479,28 +1492,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return new SharedTerrainTextureAsset(
             importedTextureUri,
             textureComponent);
-    }
-
-    private async Task<CreatedSlot> EnsureTerrainTextureChildSlotAsync(
-        IResoniteLinkClient client,
-        ResoniteSlotLocator parentSlot,
-        string childSlotName,
-        CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(childSlotName);
-
-        Slot? parentSlotSnapshot = await client.GetSlotAsync(
-            new ResoniteTransportSlotLocator(parentSlot.Value),
-            depth: 1,
-            cancellationToken);
-        ResoniteSceneChildLookupResult childLookup = new ResoniteSceneSlotSnapshot(parentSlotSnapshot)
-            .GetUniqueChildLookupResult(childSlotName, parentSlot.Value);
-        if (childLookup.State == ResoniteSceneChildLookupState.FoundWithId)
-        {
-            return new CreatedSlot(new ResoniteSlotLocator(childLookup.Slot!.ID!), childSlotName);
-        }
-
-        return await slotCreator.CreateAsync(client, parentSlot, childSlotName, null, null, cancellationToken);
     }
 
     private static async Task<SharedTerrainTextureAsset?> TryFindSharedTerrainTextureAssetAsync(
