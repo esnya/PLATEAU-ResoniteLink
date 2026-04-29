@@ -22,7 +22,7 @@ public sealed class DatasetLocationTests
     }
 
     [Fact]
-    public void LegacyConstructorMapsLocalSourceIntoTypedSource()
+    public void CompatibilityConstructorMapsLocalSourceIntoTypedSource()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",

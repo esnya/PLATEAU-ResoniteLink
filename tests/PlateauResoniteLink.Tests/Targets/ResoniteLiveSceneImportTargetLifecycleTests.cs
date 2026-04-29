@@ -191,7 +191,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ClearsRunLocalStateBetweenSequentialRunsOnTheSameBuilder()
+    public async Task ExecuteAsync_ClearsRunLocalStateBetweenSequentialRunsOnTheSameTarget()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory firstWorkDirectory = new();

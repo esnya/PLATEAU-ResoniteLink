@@ -494,7 +494,7 @@ internal static partial class LocalCityGmlObjectProjection
             return [surface];
         }
 
-        List<ParsedSurface> strips = BuildTerrainAlignedTransportationStrips(surface, positions, edgePair, segmentLength);
+        List<ParsedSurface> strips = CreateTerrainAlignedTransportationStrips(surface, positions, edgePair, segmentLength);
         return strips.Count > 0 ? strips : [surface];
     }
 
@@ -531,7 +531,7 @@ internal static partial class LocalCityGmlObjectProjection
             return [surface];
         }
 
-        List<ParsedSurface> strips = BuildTerrainAlignedTransportationStrips(surface.ToProjectionModel(), positions, edgePair, segmentLength);
+        List<ParsedSurface> strips = CreateTerrainAlignedTransportationStrips(surface.ToProjectionModel(), positions, edgePair, segmentLength);
         return strips.Count > 0
             ? strips.Select(global::PlateauResoniteLink.Application.Importing.ParsedSurface.FromProjectionModel).ToList()
             : [surface];
@@ -546,7 +546,7 @@ internal static partial class LocalCityGmlObjectProjection
             DefaultTerrainAlignedTransportationSegmentLengthMeters);
     }
 
-    private static List<ParsedSurface> BuildTerrainAlignedTransportationStrips(
+    private static List<ParsedSurface> CreateTerrainAlignedTransportationStrips(
         ParsedSurface surface,
         Float3[] positions,
         EdgePairSelection edgePair,
@@ -1475,11 +1475,11 @@ internal static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedSurface legacySurface = surface.ToProjectionModel();
-        if (legacySurface.UsesGeneratedDemTexture)
+        ParsedSurface projectionSurface = surface.ToProjectionModel();
+        if (projectionSurface.UsesGeneratedDemTexture)
         {
             return new ResolvedSurfaceMaterial(
-                legacySurface,
+                projectionSurface,
                 new ResolvedMaterial(
                     MaterialType.Standard,
                     TexturePayload: null,
@@ -1495,7 +1495,7 @@ internal static partial class LocalCityGmlObjectProjection
         ResolvedMaterial? roofTerrainTextureMaterial = TryCreateRoofTerrainTextureMaterial(
             cityObject.ActualMeshCode,
             cityObject.PackageName,
-            legacySurface,
+            projectionSurface,
             cityObjectMinAltitude,
             demTerrainTextureOverlay,
             cityObjectOrigin.ToProjectionModel(),
@@ -1503,18 +1503,18 @@ internal static partial class LocalCityGmlObjectProjection
         if (roofTerrainTextureMaterial is not null)
         {
             return new ResolvedSurfaceMaterial(
-                legacySurface with { BaseColor = DefaultMaterialColor },
+                projectionSurface with { BaseColor = DefaultMaterialColor },
                 roofTerrainTextureMaterial,
                 DepthOffset: null);
         }
 
         if (string.Equals(cityObject.PackageName, "veg", StringComparison.OrdinalIgnoreCase)
-            && legacySurface.TexturePayload is null)
+            && projectionSurface.TexturePayload is null)
         {
-            if (HasExplicitMaterialColor(legacySurface.BaseColor))
+            if (HasExplicitMaterialColor(projectionSurface.BaseColor))
             {
                 return new ResolvedSurfaceMaterial(
-                    legacySurface,
+                    projectionSurface,
                     new ResolvedMaterial(
                         MaterialType.VertexColor,
                         TexturePayload: null,
@@ -1527,7 +1527,7 @@ internal static partial class LocalCityGmlObjectProjection
             }
 
             return new ResolvedSurfaceMaterial(
-                legacySurface with { BaseColor = DefaultVegetationMaterialColor },
+                projectionSurface with { BaseColor = DefaultVegetationMaterialColor },
                 new ResolvedMaterial(
                     MaterialType.Standard,
                     TexturePayload: null,
@@ -1539,10 +1539,10 @@ internal static partial class LocalCityGmlObjectProjection
                 DepthOffset: null);
         }
 
-        if (IsGeneratedRoadMarkingSurface(legacySurface))
+        if (IsGeneratedRoadMarkingSurface(projectionSurface))
         {
             return new ResolvedSurfaceMaterial(
-                legacySurface,
+                projectionSurface,
                 new ResolvedMaterial(
                     MaterialType.VertexColor,
                     TexturePayload: null,
@@ -1556,19 +1556,19 @@ internal static partial class LocalCityGmlObjectProjection
 
         bool preferUvProjection = ShouldPreferUvProjection(
             cityObject.PackageName,
-            legacySurface,
+            projectionSurface,
             cityObjectOrigin.ToProjectionModel(),
             cityObjectCartesian);
         ResolvedMaterial resolvedMaterial = materialResolver.ResolveMaterial(
             cityObject.PackageName,
-            legacySurface.TexturePayload,
+            projectionSurface.TexturePayload,
             preferUvProjection,
             preferUvProjection && IsBuildingPackage(cityObject.PackageName) ? BundledDefaultMaterialFamilies.Facade : null,
             $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}");
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
-        return new ResolvedSurfaceMaterial(legacySurface, resolvedMaterial, depthOffset);
+        return new ResolvedSurfaceMaterial(projectionSurface, resolvedMaterial, depthOffset);
     }
 
     private static ResolvedMaterial? TryCreateRoofTerrainTextureMaterial(
@@ -3202,10 +3202,10 @@ internal static partial class LocalCityGmlObjectProjection
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
-        CoordinateReferenceSystem legacyReferenceSystem = referenceSystem.ToProjectionModel();
+        CoordinateReferenceSystem projectionReferenceSystem = referenceSystem.ToProjectionModel();
         ValidateCompatibleReferenceSystem(
-            legacyReferenceSystem,
-            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem.ToProjectionModel() ?? legacyReferenceSystem);
+            projectionReferenceSystem,
+            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem.ToProjectionModel() ?? projectionReferenceSystem);
 
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject[] projectedInputCityObjects =
             global::PlateauResoniteLink.Application.Importing.DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
@@ -3634,13 +3634,13 @@ internal static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedSurface[] legacySurfaces = cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray();
+        ParsedSurface[] projectionSurfaces = cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray();
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
             cityObject.PackageName,
-            legacySurfaces,
+            projectionSurfaces,
             cityObjectOrigin.ToProjectionModel(),
             cityObjectCartesian);
-        double cityObjectMinAltitude = legacySurfaces
+        double cityObjectMinAltitude = projectionSurfaces
             .SelectMany(static surface => surface.Vertices)
             .Min(static vertex => vertex.Altitude);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
@@ -4298,13 +4298,13 @@ internal static partial class LocalCityGmlObjectProjection
         string requestedMeshCode,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedSurface[] legacySurfaces = cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray();
+        ParsedSurface[] projectionSurfaces = cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray();
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
             cityObject.PackageName,
-            legacySurfaces,
+            projectionSurfaces,
             cityObjectOrigin.ToProjectionModel(),
             cityObjectCartesian);
-        double cityObjectMinAltitude = legacySurfaces
+        double cityObjectMinAltitude = projectionSurfaces
             .SelectMany(static surface => surface.Vertices)
             .Min(static vertex => vertex.Altitude);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
@@ -5733,9 +5733,9 @@ internal static partial class LocalCityGmlObjectProjection
             double maxZ = points.Max(static point => point.Z);
             double cellSize = ComputeCellSize(minX, maxX, minZ, maxZ, triangles.Count);
 
-            Dictionary<TerrainGridCell, TerrainHeightPoint[]> pointsByCell = BuildPointIndex(points, minX, minZ, cellSize);
+            Dictionary<TerrainGridCell, TerrainHeightPoint[]> pointsByCell = CreatePointIndex(points, minX, minZ, cellSize);
             Dictionary<TerrainGridCell, ProjectedTerrainHeightTriangle[]> trianglesByCell =
-                BuildTriangleIndex(triangles, minX, minZ, cellSize);
+                CreateTriangleIndex(triangles, minX, minZ, cellSize);
 
             return new TerrainHeightSampler(
                 cartesian,
@@ -5933,7 +5933,7 @@ internal static partial class LocalCityGmlObjectProjection
             return Math.Max(1.0, Math.Sqrt(Math.Max(estimatedCellArea, 1e-6)));
         }
 
-        private static Dictionary<TerrainGridCell, TerrainHeightPoint[]> BuildPointIndex(
+        private static Dictionary<TerrainGridCell, TerrainHeightPoint[]> CreatePointIndex(
             IEnumerable<TerrainHeightPoint> points,
             double minX,
             double minZ,
@@ -5958,7 +5958,7 @@ internal static partial class LocalCityGmlObjectProjection
                 static pair => pair.Value.ToArray());
         }
 
-        private static Dictionary<TerrainGridCell, ProjectedTerrainHeightTriangle[]> BuildTriangleIndex(
+        private static Dictionary<TerrainGridCell, ProjectedTerrainHeightTriangle[]> CreateTriangleIndex(
             IEnumerable<ProjectedTerrainHeightTriangle> triangles,
             double minX,
             double minZ,

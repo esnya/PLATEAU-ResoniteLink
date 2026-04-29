@@ -684,7 +684,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncReusesLegacyLod0BranchForNullLodObjects()
+    public async Task ExecuteAsyncReusesExistingLod0BranchForNullLodObjects()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
