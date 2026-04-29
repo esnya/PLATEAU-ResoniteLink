@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
@@ -43,10 +44,12 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         CancellationToken cancellationToken)
     {
         progressReporter?.Invoke(
-            $"[live] Mesh '{displayName}' importing triangle mesh "
-            + $"(vertices={meshImport.VertexCount}, submeshes={meshImport.Submeshes.Count}).");
+            PlateauLog.Info(
+                "live",
+                $"Mesh '{displayName}' importing triangle mesh "
+                + $"(vertices={meshImport.VertexCount}, submeshes={meshImport.Submeshes.Count})."));
         Uri assetUri = await importClient.ImportMeshAsync(meshImport, cancellationToken);
-        progressReporter?.Invoke($"[live] Mesh '{displayName}' mesh import completed -> '{assetUri}'.");
+        progressReporter?.Invoke(PlateauLog.Info("live", $"Mesh '{displayName}' mesh import completed -> '{assetUri}'."));
         return new UploadedTriangleMeshAssetBatch(meshAssetSlotName, assetUri);
     }
 
@@ -63,9 +66,11 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         CancellationToken cancellationToken)
     {
         progressReporter?.Invoke(
-            $"[live] Terrain grid '{geometry.Width}x{geometry.Height}' importing displacement texture via raw payload.");
+            PlateauLog.Info(
+                "live",
+                $"Terrain grid '{geometry.Width}x{geometry.Height}' importing displacement texture via raw payload."));
         Uri textureUri = await importClient.ImportTextureAsync(heightTextureImport, cancellationToken);
-        progressReporter?.Invoke($"[live] Terrain grid '{displayName}' displacement texture import completed -> '{textureUri}'.");
+        progressReporter?.Invoke(PlateauLog.Info("live", $"Terrain grid '{displayName}' displacement texture import completed -> '{textureUri}'."));
         return new UploadedTerrainGridAssetBatch(
             meshAssetSlotName,
             heightMapAssetSlotName,

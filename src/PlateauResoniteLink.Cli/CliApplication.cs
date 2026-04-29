@@ -264,17 +264,18 @@ public sealed class CliApplication
         string message,
         PlateauLogLevel minimumLogLevel)
     {
-        string normalizedMessage = PlateauLog.NormalizeLegacyMessage(message, PlateauLog.InferLegacyDefaultLevel(message));
+        PlateauLogEntry entry = PlateauLogEntry.TryParse(message, out PlateauLogEntry parsedEntry)
+            ? parsedEntry
+            : new PlateauLogEntry("app", PlateauLogLevel.Info, message);
 
-        if (PlateauLogEntry.TryParse(normalizedMessage, out PlateauLogEntry filteredEntry)
-            && filteredEntry.Level < minimumLogLevel)
+        if (entry.Level < minimumLogLevel)
         {
             return;
         }
 
         if (ReferenceEquals(writer, Console.Out)
             && !Console.IsOutputRedirected
-            && PlateauLogEntry.TryParse(normalizedMessage, out PlateauLogEntry entry))
+            && PlateauLogEntry.TryParse(message, out _))
         {
             ConsoleColor originalForeground = Console.ForegroundColor;
             Console.Write($"[{timestamp}] ");
@@ -286,7 +287,7 @@ public sealed class CliApplication
             return;
         }
 
-        writer.WriteLine($"[{timestamp}] {normalizedMessage}");
+        writer.WriteLine($"[{timestamp}] {entry}");
     }
 
     private static ConsoleColor GetLogLevelColor(PlateauLogLevel level)

@@ -35,9 +35,7 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             new PlateauImportRequest(
                 Dataset: dataset,
                 MeshCode: meshCode,
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: new Uri(serverUri, UriKind.Absolute)));
+                Source: DatasetLocation.Remote(new Uri(serverUri, UriKind.Absolute))));
     }
 
     [Fact]
@@ -481,4 +479,3 @@ public sealed class CkanPlateauDatasetSourceResolverTests
         }
     }
 }
-

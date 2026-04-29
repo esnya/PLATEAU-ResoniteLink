@@ -23,9 +23,7 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/source.zip",
-            ServerUri: null);
+            Source: DatasetLocation.Local("/tmp/source.zip"));
         StreamingImportedSceneSource source = new(
             CreateMetadata(request),
             request,
@@ -56,9 +54,8 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/source.zip",
-            ServerUri: null,
+            Source: DatasetLocation.Local("/tmp/source.zip"),
+
             PackageNames: ["bldg", "dem"]);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
@@ -98,9 +95,8 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/source.zip",
-            ServerUri: null,
+            Source: DatasetLocation.Local("/tmp/source.zip"),
+
             PackageNames: ["bldg", "dem"]);
         TerrainTextureOverlay fallbackOverlay = new(
             PackageName: "dem",
@@ -144,9 +140,8 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/source.zip",
-            ServerUri: null,
+            Source: DatasetLocation.Local("/tmp/source.zip"),
+
             PackageNames: ["dem"]);
         TerrainTextureOverlay fallbackOverlay = new(
             PackageName: "dem",
@@ -189,9 +184,8 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/source.zip",
-            ServerUri: null,
+            Source: DatasetLocation.Local("/tmp/source.zip"),
+
             PackageNames: ["dem"]);
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false);
@@ -299,9 +293,8 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/source.zip",
-            ServerUri: null,
+            Source: DatasetLocation.Local("/tmp/source.zip"),
+
             PackageNames: ["dem"]);
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false);

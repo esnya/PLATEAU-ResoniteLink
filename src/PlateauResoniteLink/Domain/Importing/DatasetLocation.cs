@@ -14,18 +14,6 @@ public abstract record DatasetLocation(DatasetSourceKind SourceKind)
         return new RemoteDatasetLocation(serverUri);
     }
 
-    public static DatasetLocation FromLegacy(
-        DatasetSourceKind sourceKind,
-        string? localSourcePath,
-        Uri? serverUri)
-    {
-        return sourceKind switch
-        {
-            DatasetSourceKind.Local => Local(localSourcePath),
-            DatasetSourceKind.Remote => Remote(serverUri),
-            _ => throw new InvalidOperationException($"Unsupported dataset source kind '{sourceKind}'."),
-        };
-    }
 }
 
 public sealed record LocalDatasetLocation(string? LocalSourcePath)

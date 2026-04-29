@@ -820,10 +820,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
-            PackageNames: ["dem"],
-            ServerUri: null);
+            Source: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages")),
+            PackageNames: ["dem"]
+);
         ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
             new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),
@@ -908,9 +907,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         return new PlateauImportRequest(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: datasetRoot,
-            ServerUri: null,
+            Source: DatasetLocation.Local(datasetRoot),
+
             PackageNames: ["bldg"]);
     }
 

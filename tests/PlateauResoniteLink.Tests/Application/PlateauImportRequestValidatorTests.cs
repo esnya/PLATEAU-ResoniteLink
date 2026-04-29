@@ -15,9 +15,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Remote,
-            LocalSourcePath: null,
-            ServerUri: null);
+            Source: DatasetLocation.Remote(null));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
@@ -30,9 +28,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Remote,
-            LocalSourcePath: null,
-            ServerUri: new Uri("https://example.invalid/dataset"));
+            Source: DatasetLocation.Remote(new Uri("https://example.invalid/dataset")));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
