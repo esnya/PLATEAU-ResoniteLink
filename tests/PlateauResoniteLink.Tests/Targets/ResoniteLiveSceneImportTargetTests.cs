@@ -95,13 +95,12 @@ public sealed class ResoniteLiveSceneImportTargetTests
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)).Data;
 
-        AddComponent sharedMaterialOperation = Assert.Single(
+        Assert.DoesNotContain(
             client.AddedComponents,
             request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal)
                 && client.SlotPaths[request.ContainerSlotId].Replace('\\', '/').Contains(
-                    "PLATEAU Shared Assets/Common Materials/generic/shared_uv_generic",
+                    "PLATEAU Shared Assets/Common Materials/",
                     StringComparison.Ordinal));
-        Assert.DoesNotContain("AlbedoTexture", sharedMaterialOperation.Data.Members.Keys);
         Assert.Equal("[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", propertyBlock.ComponentType);
         string propertyBlockReferenceId = Assert.IsType<Reference>(Assert.Single(propertyBlocks.Elements)).TargetID;
         AddComponent plannedPropertyBlock = Assert.Single(
@@ -421,7 +420,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncReusesExistingGenericCommonMaterialForTerrainOverlayAlbedoOnlyMaterial()
+    public async Task ExecuteAsyncDoesNotReuseExistingGenericCommonMaterialForTerrainOverlayMaterial()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -487,7 +486,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
             .Data;
         string materialId = Assert.IsType<Reference>(Assert.Single(Assert.IsType<SyncList>(meshRenderer.Members["Materials"]).Elements)).TargetID;
 
-        Assert.Equal(seededCommonMaterial.ComponentId, materialId);
+        Assert.NotEqual(seededCommonMaterial.ComponentId, materialId);
+        Assert.DoesNotContain(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal));
         AddComponent propertyBlock = Assert.Single(
             client.AddedComponents,
             static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));

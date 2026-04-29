@@ -1382,7 +1382,7 @@ internal static partial class LocalCityGmlObjectProjection
                     MaterialProjection.Uv,
                     Family: null,
                     TextureScale: null,
-                    ReuseScope: MaterialReuseScope.Shared,
+                    ReuseScope: MaterialReuseScope.PerObject,
                     TerrainOverlay: demTerrainTextureOverlay),
                 DepthOffset: null);
         }
@@ -1487,7 +1487,7 @@ internal static partial class LocalCityGmlObjectProjection
                     MaterialProjection.Uv,
                     Family: null,
                     TextureScale: null,
-                    ReuseScope: MaterialReuseScope.Shared,
+                    ReuseScope: MaterialReuseScope.PerObject,
                     TerrainOverlay: demTerrainTextureOverlay),
                 DepthOffset: null);
         }
@@ -1596,7 +1596,7 @@ internal static partial class LocalCityGmlObjectProjection
             MaterialProjection.Uv,
             Family: null,
             TextureScale: null,
-            ReuseScope: MaterialReuseScope.Shared,
+            ReuseScope: MaterialReuseScope.PerObject,
             TerrainOverlay: demTerrainTextureOverlay);
     }
 
@@ -4550,7 +4550,7 @@ internal static partial class LocalCityGmlObjectProjection
                 yield return (
                     cityObject with
                     {
-                        Surfaces = terrainGroups[0].Select(static entry => entry.Surface).ToArray(),
+                        Surfaces = terrainGroups[0].Select(static entry => MarkUsesGeneratedDemTexture(entry.Surface)).ToArray(),
                         GeodeticOriginOverride = cityObjectOrigin,
                     },
                     terrainGroups[0].Key);
@@ -4578,7 +4578,7 @@ internal static partial class LocalCityGmlObjectProjection
                 {
                     SlotKey = $"{cityObject.SlotKey}_terrain_{terrainMeshCode}",
                     DisplayName = $"{cityObject.DisplayName} ({splitIndex + 1})",
-                    Surfaces = group.Select(static entry => entry.Surface).ToArray(),
+                    Surfaces = group.Select(static entry => MarkUsesGeneratedDemTexture(entry.Surface)).ToArray(),
                     GeodeticOriginOverride = cityObjectOrigin,
                 },
                 group.Key);
@@ -4597,6 +4597,12 @@ internal static partial class LocalCityGmlObjectProjection
                 },
                 null);
         }
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.ParsedSurface MarkUsesGeneratedDemTexture(
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface)
+    {
+        return surface with { UsesGeneratedDemTexture = true };
     }
 
     private static bool IsNonDemTerrainTextureSurface(

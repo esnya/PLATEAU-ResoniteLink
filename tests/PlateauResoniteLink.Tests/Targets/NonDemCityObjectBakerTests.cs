@@ -722,7 +722,7 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncPreservesTerrainOverlayAlbedoOnlyCommonMaterialWithProvider()
+    public async Task TryBufferAsyncPreservesTerrainOverlayAlbedoOnlyMaterialAsPresentationScoped()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -761,7 +761,7 @@ public sealed class NonDemCityObjectBakerTests
 
         ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
         ResoniteMaterialBinding material = Assert.Single(baked.Materials);
-        Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
+        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope);
         Assert.Null(material.TexturePayload);
         Assert.Same(overlay, material.TerrainOverlay);
         Assert.Equal("53394525", material.TerrainMeshCode);
