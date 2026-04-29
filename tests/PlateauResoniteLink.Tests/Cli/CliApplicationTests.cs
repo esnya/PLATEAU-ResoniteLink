@@ -399,9 +399,64 @@ public sealed class CliApplicationTests
         Assert.DoesNotContain("ResoniteLink discovery unavailable", standardError.ToString(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GuidedImportFallsBackToManualValuesWhenDatasetInspectionFails()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        string lockedFilePath = WriteDatasetFile(
+            datasetRoot.Path,
+            "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+            "<bldg:CityModel xmlns:bldg=\"http://www.opengis.net/citygml/building/2.0\"><bldg:lod1Solid /></bldg:CityModel>");
+        await using FileStream lockedFile = new(
+            lockedFilePath,
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None);
+        CliParseResult parseResult = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--guided",
+                "--citygml-source",
+                datasetRoot.Path,
+            ]);
+        using StringReader standardInput = new(
+            string.Join(
+                Environment.NewLine,
+                "tokyo23ku",
+                "53394525",
+                "12345"));
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        GuidedImportOptionsResolver resolver = new(
+            standardInput,
+            standardOutput,
+            standardError,
+            CreateDatasetInspectionService(),
+            new StubResoniteLinkTargetDiscovery([]));
+
+        ImportCommandOptions resolvedOptions = await resolver.ResolveAsync(parseResult.Options!);
+
+        Assert.Equal("tokyo23ku", resolvedOptions.Request.Dataset);
+        Assert.Equal("53394525", resolvedOptions.Request.MeshCode);
+        Assert.Equal(new Uri("ws://localhost:12345/"), resolvedOptions.ResoniteLinkUri);
+        Assert.Contains("Dataset inspection unavailable", standardError.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Dataset inspection:", standardOutput.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Search preview:", standardOutput.ToString(), StringComparison.Ordinal);
+    }
+
     private static string[] BuildImportArgs(string fixturePath)
     {
         return CliTestData.BuildLocalImportArgs(fixturePath);
+    }
+
+    private static string WriteDatasetFile(string datasetRoot, string relativePath, string content)
+    {
+        string absolutePath = Path.Combine(
+            datasetRoot,
+            relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
+        File.WriteAllText(absolutePath, content);
+        return absolutePath;
     }
 
     private sealed class StubImportSink : ISceneSink

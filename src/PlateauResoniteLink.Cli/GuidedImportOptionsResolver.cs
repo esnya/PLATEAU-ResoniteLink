@@ -135,6 +135,13 @@ internal sealed class GuidedImportOptionsResolver(
                 $"Dataset inspection unavailable: {string.Join(" ", exception.Errors)}");
             return null;
         }
+#pragma warning disable CA1031
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            await standardError.WriteLineAsync($"Dataset inspection unavailable: {exception.Message}");
+            return null;
+        }
+#pragma warning restore CA1031
     }
 
     private async Task<IReadOnlyList<string>> ResolvePackageNamesAsync(
