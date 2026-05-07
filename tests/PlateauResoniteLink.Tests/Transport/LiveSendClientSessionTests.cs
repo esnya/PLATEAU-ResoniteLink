@@ -128,6 +128,24 @@ public sealed class LiveSendClientSessionTests
     }
 
     [Fact]
+    public async Task LoadBalancingClientIgnoresProgressReporterExceptions()
+    {
+        using RecordingResoniteLinkClient firstClient = new(true, 0);
+        using RecordingResoniteLinkClient secondClient = new(true, 0);
+        using LoadBalancingResoniteLinkClient loadBalancedClient = new(
+            [firstClient, secondClient],
+            _ => throw new InvalidOperationException("Progress sink failed."));
+
+        await loadBalancedClient.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+        await loadBalancedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+        await loadBalancedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+
+        Assert.Equal(1, firstClient.ConnectCallCount);
+        Assert.Equal(1, secondClient.ConnectCallCount);
+        Assert.Equal(2, firstClient.BatchCallCount + secondClient.BatchCallCount);
+    }
+
+    [Fact]
     public async Task EnsureConnectedAsyncDisposesAllClientsOnConnectFailure()
     {
         RecordingClientFactory clientFactory = new([new(true), new(false)]);

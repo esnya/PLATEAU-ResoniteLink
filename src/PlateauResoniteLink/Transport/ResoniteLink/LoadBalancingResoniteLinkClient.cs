@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -148,7 +149,11 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
 
             activeOperationCounts[selectedRouteIndex]++;
             routeCursor = (selectedRouteIndex + 1) % clients.Length;
-            ReportRoute(operationName, selectedRouteIndex, activeOperationCounts[selectedRouteIndex]);
+            Report(
+                PlateauLog.Debug(
+                    "live",
+                    $"Routing '{operationName}' RPC to live connection {selectedRouteIndex + 1}/{clients.Length} "
+                    + $"with {activeOperationCounts[selectedRouteIndex]} active operation(s) on that connection."));
             return new RouteLease(selectedRouteIndex);
         }
     }
@@ -161,15 +166,6 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
         }
     }
 
-    private void ReportRoute(string operationName, int routeIndex, int activeOperationCount)
-    {
-        reportProgress?.Invoke(
-            PlateauLog.Debug(
-                "live",
-                $"Routing '{operationName}' RPC to live connection {routeIndex + 1}/{clients.Length} "
-                + $"with {activeOperationCount} active operation(s) on that connection."));
-    }
-
     private async Task ConnectAllRoutesAsync(Uri endpoint, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
@@ -177,11 +173,26 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
         for (int routeIndex = 0; routeIndex < clients.Length; routeIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            reportProgress?.Invoke(
+            Report(
                 PlateauLog.Debug(
                     "live",
                     $"Connecting live connection {routeIndex + 1}/{clients.Length}."));
             await clients[routeIndex].ConnectAsync(endpoint, cancellationToken);
+        }
+    }
+
+    [SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "Progress reporting is diagnostic output and must not affect load-balancer route ownership or RPC results.")]
+    private void Report(string message)
+    {
+        try
+        {
+            reportProgress?.Invoke(message);
+        }
+        catch
+        {
         }
     }
 
