@@ -205,6 +205,29 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         Assert.InRange(attributes.EaveHeight.Value!.Value, 9.699999, 9.700001);
     }
 
+    [Theory]
+    [InlineData("7", (int)CityGmlRoofShape.Irimoya)]
+    [InlineData("9", (int)CityGmlRoofShape.Mansard)]
+    [InlineData("14", (int)CityGmlRoofShape.Sawtooth)]
+    [InlineData("21", (int)CityGmlRoofShape.Gambrel)]
+    [InlineData("23", (int)CityGmlRoofShape.Arch)]
+    [InlineData("24", (int)CityGmlRoofShape.Dome)]
+    [InlineData("28", (int)CityGmlRoofShape.Other)]
+    [InlineData("9020", (int)CityGmlRoofShape.Unknown)]
+    public async Task SourceFilePipeline_StreamParsedCityObjectsAsync_MapsPlateauRoofTypeCodes(
+        string roofTypeCode,
+        int expectedShapeValue)
+    {
+        CityGmlRoofShape expectedShape = (CityGmlRoofShape)expectedShapeValue;
+        ParsedCityObject parsedCityObject = await ParseSingleBuildingWithRoofTypeAsync(roofTypeCode);
+
+        Assert.NotNull(parsedCityObject.BuildingAttributes);
+        BuildingCodeValue<CityGmlRoofShape>? roofShape = parsedCityObject.BuildingAttributes!.RoofShape;
+        Assert.NotNull(roofShape);
+        Assert.Equal(expectedShape, roofShape!.Value);
+        Assert.Equal(roofTypeCode, roofShape.Code);
+    }
+
     [Fact]
     public async Task SourceFilePipeline_StreamParsedCityObjectsAsync_IgnoresMeasuredHeightWithNonMeterUnit()
     {
@@ -269,6 +292,65 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         Assert.NotNull(parsedCityObject);
         Assert.Equal(4, parsedCityObject!.FloorsAboveGround);
         Assert.Null(parsedCityObject.MeasuredHeightMeters);
+    }
+
+    private static async Task<ParsedCityObject> ParseSingleBuildingWithRoofTypeAsync(string roofTypeCode)
+    {
+        string xml =
+            $$"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0100 139.0100 12</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-1">
+                  <bldg:roofType>{{roofTypeCode}}</bldg:roofType>
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <bldg:WallSurface>
+                          <gml:Polygon gml:id="poly-1">
+                            <gml:exterior>
+                              <gml:LinearRing gml:id="ring-1">
+                                <gml:posList>35.0000 139.0000 0 35.0000 139.0010 0 35.0000 139.0010 12 35.0000 139.0000 12 35.0000 139.0000 0</gml:posList>
+                              </gml:LinearRing>
+                            </gml:exterior>
+                          </gml:Polygon>
+                        </bldg:WallSurface>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+        InMemoryDatasetContentSource datasetSource = new(Encoding.UTF8.GetBytes(xml));
+        SourceFileDescriptor sourceFile = new(
+            "udx/bldg/53394525/metadata.gml",
+            "bldg",
+            "53394525",
+            RequiresMeshAreaFilter: false);
+
+        SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
+            [sourceFile],
+            datasetSource,
+            [],
+            progressReporter: null,
+            new LodFilteringStrategy(),
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector(),
+            CancellationToken.None);
+
+        await foreach (ParsedCityObject cityObject in pipelines.Single().StreamParsedCityObjectsAsync())
+        {
+            return cityObject;
+        }
+
+        throw new InvalidOperationException("No city object was parsed.");
     }
 
     private sealed class GateableDatasetContentSource(byte[] payload, int gateOffset) : IPlateauDatasetContentSource

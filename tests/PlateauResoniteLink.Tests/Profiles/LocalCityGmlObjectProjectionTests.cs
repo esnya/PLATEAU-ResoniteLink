@@ -508,6 +508,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     [InlineData((int)CityGmlRoofShape.Shed)]
     [InlineData((int)CityGmlRoofShape.Gable)]
     [InlineData((int)CityGmlRoofShape.Hip)]
+    [InlineData((int)CityGmlRoofShape.Irimoya)]
     public void ProjectCityObjectGeneratesLod1RoofFacesUpward(int roofShapeValue)
     {
         CityGmlRoofShape roofShape = (CityGmlRoofShape)roofShapeValue;
