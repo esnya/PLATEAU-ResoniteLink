@@ -3006,9 +3006,63 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         return BuildingAttributeContext.Empty with
         {
-            RoofShape = new BuildingCodeValue<CityGmlRoofShape>(roofShape, ((int)roofShape).ToString(CultureInfo.InvariantCulture)),
-            Uses = use == PlateauBuildingUse.Unknown ? [] : [new BuildingCodeValue<PlateauBuildingUse>(use, ((int)use).ToString(CultureInfo.InvariantCulture))],
-            Structures = structure == PlateauBuildingStructure.Unknown ? [] : [new BuildingCodeValue<PlateauBuildingStructure>(structure, ((int)structure).ToString(CultureInfo.InvariantCulture))],
+            RoofShape = new BuildingCodeValue<CityGmlRoofShape>(roofShape, CreateRoofTypeCode(roofShape)),
+            Uses = use == PlateauBuildingUse.Unknown ? [] : [new BuildingCodeValue<PlateauBuildingUse>(use, CreateUsageCode(use))],
+            Structures = structure == PlateauBuildingStructure.Unknown ? [] : [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
+        };
+    }
+
+    private static string CreateRoofTypeCode(CityGmlRoofShape roofShape)
+    {
+        return roofShape switch
+        {
+            CityGmlRoofShape.Gable => "1",
+            CityGmlRoofShape.Hip => "2",
+            CityGmlRoofShape.Pyramid => "3",
+            CityGmlRoofShape.Flat => "4",
+            CityGmlRoofShape.Shed => "5",
+            CityGmlRoofShape.HalfHip => "6",
+            CityGmlRoofShape.Irimoya => "7",
+            CityGmlRoofShape.Mansard => "9",
+            CityGmlRoofShape.Sawtooth => "14",
+            CityGmlRoofShape.Gambrel => "21",
+            CityGmlRoofShape.Arch => "23",
+            CityGmlRoofShape.Dome => "24",
+            CityGmlRoofShape.Other => "28",
+            _ => "9999",
+        };
+    }
+
+    private static string CreateUsageCode(PlateauBuildingUse use)
+    {
+        return use switch
+        {
+            PlateauBuildingUse.DetachedResidential => "411",
+            PlateauBuildingUse.Apartment => "412",
+            PlateauBuildingUse.MixedResidential => "413",
+            PlateauBuildingUse.Office => "401",
+            PlateauBuildingUse.Commercial => "402",
+            PlateauBuildingUse.Warehouse => "431",
+            PlateauBuildingUse.Factory => "441",
+            PlateauBuildingUse.Public => "421",
+            PlateauBuildingUse.Education => "451",
+            PlateauBuildingUse.Other => "461",
+            _ => "9999",
+        };
+    }
+
+    private static string CreateStructureTypeCode(PlateauBuildingStructure structure)
+    {
+        return structure switch
+        {
+            PlateauBuildingStructure.Wood => "601",
+            PlateauBuildingStructure.Steel => "603",
+            PlateauBuildingStructure.LightweightSteel => "604",
+            PlateauBuildingStructure.ReinforcedConcrete => "605",
+            PlateauBuildingStructure.SteelReinforcedConcrete => "606",
+            PlateauBuildingStructure.ConcreteBlock => "607",
+            PlateauBuildingStructure.NonWood => "610",
+            _ => "9999",
         };
     }
 

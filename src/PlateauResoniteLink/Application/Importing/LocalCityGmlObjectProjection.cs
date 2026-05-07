@@ -1501,7 +1501,8 @@ internal static partial class LocalCityGmlObjectProjection
     {
         if (!IsBuildingPackage(cityObject.PackageName)
             || cityObject.LodLevel != 1
-            || !cityObject.ReferenceSystem.IsGeographic)
+            || !cityObject.ReferenceSystem.IsGeographic
+            || cityObject.Surfaces.Any(static surface => IsGeneratedLod1RoofSurface(surface.ToProjectionModel())))
         {
             return cityObject;
         }
