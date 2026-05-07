@@ -103,6 +103,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Contains("53394525", source.Metadata.SourceDataset.SelectedMeshCodes!);
         Assert.NotEmpty(source.Metadata.SourceDataset.SourceFiles);
     }
+
     [Fact]
     public void GeneratedFacadeUvProjection_UsesFloorUnitsForBuildingWalls()
     {
@@ -375,6 +376,338 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.All(projected.Mesh.Vertices, vertex => Assert.DoesNotContain(sourceUvs, sourceUv => ApproximatelyEqualFloat2(vertex.UV0, sourceUv, 1e-9)));
         Assert.Contains(projected.Mesh.Vertices, vertex => vertex.UV0.X is > 0.45 and < 0.55);
         Assert.Contains(projected.Mesh.Vertices, vertex => vertex.UV0.Y is > 0.45 and < 0.55);
+    }
+
+    [Fact]
+    public void ProjectCityObjectGeneratesGableRoofFromLod1RectangularTopAndKeepsHorizontalDemUv()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "lod1-top",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "lod1-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, topSurface],
+            referenceSystem,
+            buildingAttributes: CreateBuildingAttributes(CityGmlRoofShape.Gable));
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        Assert.Contains(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
+        Assert.Contains(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Facade);
+        Assert.DoesNotContain(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Roof);
+        Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
+        Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) > 8.25);
+        Assert.Contains(projected.Mesh.Vertices, vertex => vertex.UV0.X is > 0.45 and < 0.55);
+        Assert.Contains(projected.Mesh.Vertices, vertex => vertex.UV0.Y is > 0.45 and < 0.55);
+    }
+
+    [Fact]
+    public void ProjectCityObjectGeneratesShedRoofWallExtensionsAsFacadeWithoutStretchingOriginalWallUv()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "shed-lod1-top",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "shed-lod1-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        ParsedSurface wallSurface = CreateParsedSurface(
+            "shed-wall",
+            ParsedSurfaceSemantic.Wall,
+            CreateMeshEdgeWallVertices("53394525", altitudeMeters: 0.0, heightMeters: 8.0, ratio: 0.45),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, wallSurface, topSurface],
+            referenceSystem,
+            buildingAttributes: CreateBuildingAttributes(CityGmlRoofShape.Shed));
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Facade);
+        Assert.Contains(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
+        Assert.DoesNotContain(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Roof);
+        Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
+
+        int facadeSubmeshIndex = facadeMaterial.SubmeshIndices.Single();
+        MeshSubmesh facadeSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == facadeSubmeshIndex);
+        double maxFacadeVAtOriginalTop = facadeSubmesh.TriangleVertexIndices
+            .Select(index => projected.Mesh.Vertices[index])
+            .Where(vertex => Math.Abs(vertex.Position.Y - 8.0) < 0.05)
+            .Select(static vertex => vertex.UV0.Y)
+            .DefaultIfEmpty(double.NaN)
+            .Max();
+        double expectedOriginalWallTopV = Math.Ceiling(8.0 / FacadeFloorMetrics.DefaultFloorUnitMeters);
+        Assert.InRange(maxFacadeVAtOriginalTop, expectedOriginalWallTopV - 0.05, expectedOriginalWallTopV + 0.05);
+    }
+
+    [Theory]
+    [InlineData((int)CityGmlRoofShape.Shed)]
+    [InlineData((int)CityGmlRoofShape.Gable)]
+    public void ProjectCityObjectGeneratesLod1RoofWallFacesOutward(int roofShapeValue)
+    {
+        CityGmlRoofShape roofShape = (CityGmlRoofShape)roofShapeValue;
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "roof-wall-facing-lod1-top",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "roof-wall-facing-lod1-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, topSurface],
+            referenceSystem,
+            buildingAttributes: CreateBuildingAttributes(roofShape));
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Facade);
+        MeshSubmesh facadeSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == facadeMaterial.SubmeshIndices.Single());
+        AssertGeneratedUpperFacadeTrianglesFaceOutward(projected.Mesh, facadeSubmesh, baseHeight: 8.0);
+    }
+
+    [Theory]
+    [InlineData((int)CityGmlRoofShape.Shed)]
+    [InlineData((int)CityGmlRoofShape.Gable)]
+    [InlineData((int)CityGmlRoofShape.Hip)]
+    public void ProjectCityObjectGeneratesLod1RoofFacesUpward(int roofShapeValue)
+    {
+        CityGmlRoofShape roofShape = (CityGmlRoofShape)roofShapeValue;
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "roof-facing-lod1-top",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "roof-facing-lod1-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, topSurface],
+            referenceSystem,
+            buildingAttributes: CreateBuildingAttributes(roofShape));
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding roofMaterial = Assert.Single(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
+        MeshSubmesh roofSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == roofMaterial.SubmeshIndices.Single());
+        AssertGeneratedUpperRoofTrianglesFaceUpward(projected.Mesh, roofSubmesh, baseHeight: 8.0);
+    }
+
+    [Fact]
+    public void ProjectCityObjectDoesNotGenerateRoofForLod2RectangularTop()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "lod2-top",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "lod2-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, topSurface],
+            referenceSystem,
+            lodLevel: 2,
+            buildingAttributes: CreateBuildingAttributes(CityGmlRoofShape.Gable));
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) < 8.25);
+    }
+
+    [Theory]
+    [InlineData((int)ParsedSurfaceSemantic.Ground)]
+    [InlineData((int)ParsedSurfaceSemantic.OuterCeiling)]
+    [InlineData((int)ParsedSurfaceSemantic.OuterFloor)]
+    public void ProjectCityObjectAssignsDemTerrainMaterialToFlatTopHorizontalBuildingSurface(
+        int topSemanticValue)
+    {
+        ParsedSurfaceSemantic topSemantic = (ParsedSurfaceSemantic)topSemanticValue;
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "flat-top",
+            topSemantic,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "flat-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, topSurface],
+            referenceSystem,
+            buildingAttributes: CreateBuildingAttributes(CityGmlRoofShape.Flat));
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal(MaterialProjection.Uv, material.Projection);
+        Assert.Null(material.Family);
+    }
+
+    [Fact]
+    public void ProjectParsedCityObjectKeepsFlatLod1TopAsTerrainAfterOverlaySplit()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "flat-lod1-top",
+            ParsedSurfaceSemantic.OuterCeiling,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "flat-lod1-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        ParsedSurface wallSurface = CreateParsedSurface(
+            "flat-lod1-wall",
+            ParsedSurfaceSemantic.Wall,
+            CreateMeshEdgeWallVertices("53394525", altitudeMeters: 0.0, heightMeters: 8.0, ratio: 0.45),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, wallSurface, topSurface],
+            referenceSystem,
+            buildingAttributes: CreateBuildingAttributes(CityGmlRoofShape.Flat));
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local("/tmp/plateau"));
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlays: [overlay],
+            requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver()).ToArray();
+
+        Assert.Contains(projected, cityObject => cityObject.Materials.Any(material => ReferenceEquals(overlay, material.TerrainOverlay)));
+        Assert.DoesNotContain(projected.SelectMany(static cityObject => cityObject.Materials), static material => material.Family == BundledDefaultMaterialFamilies.Roof);
+        Assert.DoesNotContain(projected.SelectMany(static cityObject => cityObject.Materials), static material => material.Projection == MaterialProjection.Triplanar);
+    }
+
+    [Fact]
+    public void ProjectParsedCityObjectKeepsGeneratedShedHighWallAsFacadeAfterOverlaySplit()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "parsed-shed-lod1-top",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "parsed-shed-lod1-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        ParsedSurface wallSurface = CreateParsedSurface(
+            "parsed-shed-wall",
+            ParsedSurfaceSemantic.Wall,
+            CreateMeshEdgeWallVertices("53394525", altitudeMeters: 0.0, heightMeters: 8.0, ratio: 0.45),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, wallSurface, topSurface],
+            referenceSystem,
+            buildingAttributes: CreateBuildingAttributes(CityGmlRoofShape.Shed));
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local("/tmp/plateau"));
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlays: [overlay],
+            requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver()).ToArray();
+
+        ImportedCityObject facadeObject = Assert.Single(projected, static cityObject =>
+            cityObject.Materials.Any(static material => material.Family == BundledDefaultMaterialFamilies.Facade));
+        Assert.True(facadeObject.Mesh.Vertices.Max(static vertex => vertex.Position.Y) > 8.25);
+        Assert.Contains(projected, cityObject => cityObject.Materials.Any(material => ReferenceEquals(overlay, material.TerrainOverlay)));
+        Assert.DoesNotContain(projected.SelectMany(static cityObject => cityObject.Materials), static material => material.Family == BundledDefaultMaterialFamilies.Roof);
+        Assert.DoesNotContain(projected.SelectMany(static cityObject => cityObject.Materials), static material => material.Projection == MaterialProjection.Triplanar);
     }
 
     [Fact]
@@ -2647,7 +2980,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         CoordinateReferenceSystem referenceSystem,
         int? lodLevel = 1,
         int? floorsAboveGround = null,
-        double? measuredHeightMeters = null)
+        double? measuredHeightMeters = null,
+        BuildingAttributeContext? buildingAttributes = null)
     {
         return new ParsedCityObject(
             SlotKey: $"{packageName}-slot",
@@ -2660,7 +2994,21 @@ public sealed class LocalCityGmlObjectProjectionTests
             SourceFileRelativePath: $"udx/{packageName}/53394525/{packageName}.gml",
             SharedAcrossMeshCodes: false,
             FloorsAboveGround: floorsAboveGround,
-            MeasuredHeightMeters: measuredHeightMeters);
+            MeasuredHeightMeters: measuredHeightMeters,
+            BuildingAttributes: buildingAttributes);
+    }
+
+    private static BuildingAttributeContext CreateBuildingAttributes(
+        CityGmlRoofShape roofShape,
+        PlateauBuildingUse use = PlateauBuildingUse.Unknown,
+        PlateauBuildingStructure structure = PlateauBuildingStructure.Unknown)
+    {
+        return BuildingAttributeContext.Empty with
+        {
+            RoofShape = new BuildingCodeValue<CityGmlRoofShape>(roofShape, ((int)roofShape).ToString(CultureInfo.InvariantCulture)),
+            Uses = use == PlateauBuildingUse.Unknown ? [] : [new BuildingCodeValue<PlateauBuildingUse>(use, ((int)use).ToString(CultureInfo.InvariantCulture))],
+            Structures = structure == PlateauBuildingStructure.Unknown ? [] : [new BuildingCodeValue<PlateauBuildingStructure>(structure, ((int)structure).ToString(CultureInfo.InvariantCulture))],
+        };
     }
 
     private static ParsedSurface CreateParsedSurface(
@@ -2733,6 +3081,21 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         vertices.Add(vertices[0]);
         return vertices;
+    }
+
+    private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateMeshEdgeWallVertices(
+        string meshCode,
+        double altitudeMeters,
+        double heightMeters,
+        double ratio)
+    {
+        (double south, double north, double west, double east) = GetMeshBounds(meshCode);
+        double latitude = south + ((north - south) * ratio);
+        LocalCityGmlObjectProjection.GeodeticPoint bottom0 = new(latitude, west + ((east - west) * 0.45), altitudeMeters);
+        LocalCityGmlObjectProjection.GeodeticPoint bottom1 = new(latitude, west + ((east - west) * 0.55), altitudeMeters);
+        LocalCityGmlObjectProjection.GeodeticPoint top1 = bottom1 with { Altitude = altitudeMeters + heightMeters };
+        LocalCityGmlObjectProjection.GeodeticPoint top0 = bottom0 with { Altitude = altitudeMeters + heightMeters };
+        return [bottom0, bottom1, top1, top0, bottom0];
     }
 
     private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateMatsumotoLod1SolidHorizontalRing(
@@ -2895,6 +3258,94 @@ public sealed class LocalCityGmlObjectProjectionTests
             Materials: [material],
             SourceFileRelativePath: $"udx/dem/53394525/{slotKey}.gml");
     }
+
+    private static void AssertGeneratedUpperFacadeTrianglesFaceOutward(
+        ImportedMesh mesh,
+        MeshSubmesh submesh,
+        double baseHeight)
+    {
+        int checkedTriangleCount = 0;
+        for (int index = 0; index + 2 < submesh.TriangleVertexIndices.Count; index += 3)
+        {
+            MeshVertex first = mesh.Vertices[submesh.TriangleVertexIndices[index]];
+            MeshVertex second = mesh.Vertices[submesh.TriangleVertexIndices[index + 1]];
+            MeshVertex third = mesh.Vertices[submesh.TriangleVertexIndices[index + 2]];
+            if (new[] { first, second, third }.Max(static vertex => vertex.Position.Y) <= baseHeight + 0.1)
+            {
+                continue;
+            }
+
+            Float3 normal = Normalize(Cross(
+                Subtract(second.Position, first.Position),
+                Subtract(third.Position, first.Position)));
+            Float3 centroid = new(
+                (first.Position.X + second.Position.X + third.Position.X) / 3.0,
+                (first.Position.Y + second.Position.Y + third.Position.Y) / 3.0,
+                (first.Position.Z + second.Position.Z + third.Position.Z) / 3.0);
+            Float3 outward = new(centroid.X, 0.0, centroid.Z);
+            if (Magnitude(outward) < 1e-6)
+            {
+                continue;
+            }
+
+            checkedTriangleCount++;
+            Assert.True(
+                Dot(new Float3(normal.X, 0.0, normal.Z), outward) > 0.0,
+                $"Expected generated upper facade triangle to face outward. normal=({normal.X:F3},{normal.Y:F3},{normal.Z:F3}), centroid=({centroid.X:F3},{centroid.Y:F3},{centroid.Z:F3}).");
+        }
+
+        Assert.True(checkedTriangleCount > 0, "Expected at least one generated upper facade triangle to check.");
+    }
+
+    private static void AssertGeneratedUpperRoofTrianglesFaceUpward(
+        ImportedMesh mesh,
+        MeshSubmesh submesh,
+        double baseHeight)
+    {
+        int checkedTriangleCount = 0;
+        for (int index = 0; index + 2 < submesh.TriangleVertexIndices.Count; index += 3)
+        {
+            MeshVertex first = mesh.Vertices[submesh.TriangleVertexIndices[index]];
+            MeshVertex second = mesh.Vertices[submesh.TriangleVertexIndices[index + 1]];
+            MeshVertex third = mesh.Vertices[submesh.TriangleVertexIndices[index + 2]];
+            if (new[] { first, second, third }.Max(static vertex => vertex.Position.Y) <= baseHeight + 0.1)
+            {
+                continue;
+            }
+
+            Float3 normal = Normalize(Cross(
+                Subtract(second.Position, first.Position),
+                Subtract(third.Position, first.Position)));
+            checkedTriangleCount++;
+            Assert.True(
+                normal.Y > 0.0,
+                $"Expected generated roof triangle to face upward. normal=({normal.X:F3},{normal.Y:F3},{normal.Z:F3}).");
+        }
+
+        Assert.True(checkedTriangleCount > 0, "Expected at least one generated upper roof triangle to check.");
+    }
+
+    private static Float3 Subtract(Float3 left, Float3 right)
+        => new(left.X - right.X, left.Y - right.Y, left.Z - right.Z);
+
+    private static Float3 Cross(Float3 left, Float3 right)
+        => new(
+            (left.Y * right.Z) - (left.Z * right.Y),
+            (left.Z * right.X) - (left.X * right.Z),
+            (left.X * right.Y) - (left.Y * right.X));
+
+    private static double Dot(Float3 left, Float3 right)
+        => (left.X * right.X) + (left.Y * right.Y) + (left.Z * right.Z);
+
+    private static double Magnitude(Float3 vector)
+        => Math.Sqrt(Dot(vector, vector));
+
+    private static Float3 Normalize(Float3 vector)
+    {
+        double magnitude = Magnitude(vector);
+        return new Float3(vector.X / magnitude, vector.Y / magnitude, vector.Z / magnitude);
+    }
+
     private sealed class StubSceneSink : ISceneSink
     {
         public List<ImportedCityObject> CityObjects { get; } = [];

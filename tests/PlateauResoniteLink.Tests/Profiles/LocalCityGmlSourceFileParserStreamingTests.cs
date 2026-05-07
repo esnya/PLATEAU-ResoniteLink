@@ -109,7 +109,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         string xml =
             """
             <?xml version="1.0" encoding="UTF-8"?>
-            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0" xmlns:uro="https://www.geospatial.jp/iur/uro/3.0">
               <gml:boundedBy>
                 <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
                   <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
@@ -119,8 +119,23 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
               <core:cityObjectMember>
                 <bldg:Building gml:id="bldg-1">
                   <gml:name>Building One</gml:name>
+                  <bldg:class>3001</bldg:class>
+                  <bldg:function>401</bldg:function>
+                  <bldg:usage>411</bldg:usage>
+                  <bldg:roofType>5</bldg:roofType>
                   <bldg:measuredHeight uom="m">11.8</bldg:measuredHeight>
                   <bldg:storeysAboveGround>4</bldg:storeysAboveGround>
+                  <bldg:storeysBelowGround>9999</bldg:storeysBelowGround>
+                  <uro:buildingDetailAttribute>
+                    <uro:BuildingDetailAttribute>
+                      <uro:buildingStructureType>601</uro:buildingStructureType>
+                      <uro:buildingFootprintArea>120.5</uro:buildingFootprintArea>
+                      <uro:buildingRoofEdgeArea>-9999</uro:buildingRoofEdgeArea>
+                      <uro:buildingHeight>11.8</uro:buildingHeight>
+                      <uro:eaveHeight>9.7</uro:eaveHeight>
+                      <uro:detailedUsage>1110</uro:detailedUsage>
+                    </uro:BuildingDetailAttribute>
+                  </uro:buildingDetailAttribute>
                   <bldg:lod2MultiSurface>
                     <gml:MultiSurface>
                       <gml:surfaceMember>
@@ -168,6 +183,26 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         Assert.Equal(4, parsedCityObject.FloorsAboveGround);
         Assert.NotNull(parsedCityObject.MeasuredHeightMeters);
         Assert.InRange(parsedCityObject.MeasuredHeightMeters!.Value, 11.799999, 11.800001);
+
+        Assert.NotNull(parsedCityObject.BuildingAttributes);
+        BuildingAttributeContext attributes = parsedCityObject.BuildingAttributes!;
+        Assert.NotNull(attributes.RoofShape);
+        Assert.Equal(CityGmlRoofShape.Shed, attributes.RoofShape!.Value);
+        Assert.Equal("5", attributes.RoofShape.Code);
+        Assert.Contains(attributes.Uses, value => value.Value == PlateauBuildingUse.DetachedResidential && value.Code == "411");
+        Assert.Contains(attributes.DetailedUses, value => value.Value == PlateauBuildingUse.DetachedResidential && value.Code == "1110");
+        Assert.Contains(attributes.Structures, value => value.Value == PlateauBuildingStructure.Wood && value.Code == "601");
+        Assert.Equal(["3001"], attributes.CityGmlClassCodes);
+        Assert.Equal(["401"], attributes.CityGmlFunctionCodes);
+        Assert.Equal(BuildingMetricValueKind.Known, attributes.MeasuredHeightMeters.Kind);
+        Assert.Equal(BuildingMetricValueKind.Known, attributes.StoreysAboveGround.Kind);
+        Assert.Equal(BuildingMetricValueKind.Missing, attributes.StoreysBelowGround.Kind);
+        Assert.Equal(BuildingMetricValueKind.Known, attributes.BuildingFootprintArea.Kind);
+        Assert.Equal(BuildingMetricValueKind.Missing, attributes.BuildingRoofEdgeArea.Kind);
+        Assert.Equal(BuildingMetricValueKind.Known, attributes.BuildingHeight.Kind);
+        Assert.Equal(BuildingMetricValueKind.Known, attributes.EaveHeight.Kind);
+        Assert.InRange(attributes.BuildingFootprintArea.Value!.Value, 120.499999, 120.500001);
+        Assert.InRange(attributes.EaveHeight.Value!.Value, 9.699999, 9.700001);
     }
 
     [Fact]

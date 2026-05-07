@@ -80,8 +80,9 @@ internal static partial class LocalCityGmlObjectProjection
             sharedAcrossMeshCodes && string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? ResolveConcreteActualMeshCode(displayName!, objectId, actualMeshCode)
                 : actualMeshCode;
-        int? floorsAboveGround = TryParseStoreysAboveGround(cityObjectElement);
-        double? measuredHeightMeters = TryParseMeasuredHeightMeters(cityObjectElement);
+        BuildingAttributeContext buildingAttributes = ParseBuildingAttributes(cityObjectElement);
+        int? floorsAboveGround = TryGetKnownPositiveInteger(buildingAttributes.StoreysAboveGround);
+        double? measuredHeightMeters = TryGetKnownPositiveMetric(buildingAttributes.MeasuredHeightMeters);
 
         bool isMarking = displayName.Contains("Marking", StringComparison.OrdinalIgnoreCase)
             || objectId.Contains("Marking", StringComparison.OrdinalIgnoreCase)
@@ -145,7 +146,8 @@ internal static partial class LocalCityGmlObjectProjection
             relativeSourceFile,
             SharedAcrossMeshCodes: sharedAcrossMeshCodes,
             FloorsAboveGround: floorsAboveGround,
-            MeasuredHeightMeters: measuredHeightMeters);
+            MeasuredHeightMeters: measuredHeightMeters,
+            BuildingAttributes: buildingAttributes);
     }
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
@@ -337,39 +339,208 @@ internal static partial class LocalCityGmlObjectProjection
         return meshCodeArea is not null;
     }
 
-    private static int? TryParseStoreysAboveGround(XElement cityObjectElement)
+    private static BuildingAttributeContext ParseBuildingAttributes(XElement cityObjectElement)
     {
-        XElement? element = cityObjectElement.Elements()
-            .FirstOrDefault(static child => string.Equals(child.Name.LocalName, "storeysAboveGround", StringComparison.Ordinal));
-        if (element is null)
+        return new BuildingAttributeContext(
+            RoofShape: ParseOptionalRoofShape(GetFirstDirectElementValue(cityObjectElement, "roofType")),
+            Uses: ParseBuildingUses(GetDirectElementValues(cityObjectElement, "usage")),
+            DetailedUses: ParseBuildingUses(GetDescendantElementValues(cityObjectElement, "detailedUsage")),
+            Structures: ParseBuildingStructures(GetDescendantElementValues(cityObjectElement, "buildingStructureType")),
+            CityGmlClassCodes: GetDirectElementValues(cityObjectElement, "class"),
+            CityGmlFunctionCodes: GetDirectElementValues(cityObjectElement, "function"),
+            MeasuredHeightMeters: ParseMetricValue(GetFirstDirectElement(cityObjectElement, "measuredHeight"), requireMeters: true),
+            StoreysAboveGround: ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysAboveGround")),
+            StoreysBelowGround: ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysBelowGround")),
+            BuildingFootprintArea: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingFootprintArea"), requireMeters: false),
+            BuildingRoofEdgeArea: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingRoofEdgeArea"), requireMeters: false),
+            BuildingHeight: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingHeight"), requireMeters: true),
+            EaveHeight: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "eaveHeight"), requireMeters: true));
+    }
+
+    private static XElement? GetFirstDirectElement(XElement element, string localName)
+    {
+        return element.Elements()
+            .FirstOrDefault(child => string.Equals(child.Name.LocalName, localName, StringComparison.Ordinal));
+    }
+
+    private static XElement? GetFirstDescendantElement(XElement element, string localName)
+    {
+        return element.Descendants()
+            .FirstOrDefault(child => string.Equals(child.Name.LocalName, localName, StringComparison.Ordinal));
+    }
+
+    private static string? GetFirstDirectElementValue(XElement element, string localName)
+    {
+        return GetFirstDirectElement(element, localName)?.Value.Trim();
+    }
+
+    private static string[] GetDirectElementValues(XElement element, string localName)
+    {
+        return element.Elements()
+            .Where(child => string.Equals(child.Name.LocalName, localName, StringComparison.Ordinal))
+            .Select(static child => child.Value.Trim())
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+    }
+
+    private static string[] GetDescendantElementValues(XElement element, string localName)
+    {
+        return element.Descendants()
+            .Where(child => string.Equals(child.Name.LocalName, localName, StringComparison.Ordinal))
+            .Select(static child => child.Value.Trim())
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+    }
+
+    private static BuildingCodeValue<CityGmlRoofShape>? ParseOptionalRoofShape(string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
         {
             return null;
         }
 
-        return int.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out int value)
-            && (value == 0 || FacadeFloorMetrics.IsUsableFloorCount(value))
-            ? value
-            : null;
+        string code = rawValue.Trim();
+        CityGmlRoofShape shape = code switch
+        {
+            "1" => CityGmlRoofShape.Gable,
+            "2" => CityGmlRoofShape.Hip,
+            "3" => CityGmlRoofShape.Pyramid,
+            "4" => CityGmlRoofShape.Flat,
+            "5" => CityGmlRoofShape.Shed,
+            "6" => CityGmlRoofShape.HalfHip,
+            "7" => CityGmlRoofShape.Gambrel,
+            "8" => CityGmlRoofShape.Mansard,
+            "9" => CityGmlRoofShape.Sawtooth,
+            "10" => CityGmlRoofShape.Arch,
+            "11" => CityGmlRoofShape.Dome,
+            "12" => CityGmlRoofShape.Irimoya,
+            "99" => CityGmlRoofShape.Other,
+            "9999" => CityGmlRoofShape.Unknown,
+            _ => CityGmlRoofShape.Unknown,
+        };
+        return new BuildingCodeValue<CityGmlRoofShape>(shape, code);
     }
 
-    private static double? TryParseMeasuredHeightMeters(XElement cityObjectElement)
+    private static BuildingCodeValue<PlateauBuildingUse>[] ParseBuildingUses(IEnumerable<string> rawValues)
     {
-        XElement? element = cityObjectElement.Elements()
-            .FirstOrDefault(static child => string.Equals(child.Name.LocalName, "measuredHeight", StringComparison.Ordinal));
+        return rawValues
+            .Select(static rawValue => new BuildingCodeValue<PlateauBuildingUse>(MapBuildingUse(rawValue), rawValue))
+            .ToArray();
+    }
+
+    private static PlateauBuildingUse MapBuildingUse(string code)
+    {
+        return code switch
+        {
+            "411" or "1110" => PlateauBuildingUse.DetachedResidential,
+            "412" or "1120" or "1130" => PlateauBuildingUse.Apartment,
+            "413" or "414" or "415" or "1140" or "1150" or "1160" => PlateauBuildingUse.MixedResidential,
+            "401" or "1310" => PlateauBuildingUse.Office,
+            "402" or "422" or "1510" or "1520" => PlateauBuildingUse.Commercial,
+            "431" or "1710" or "1720" => PlateauBuildingUse.Warehouse,
+            "441" or "1740" => PlateauBuildingUse.Factory,
+            "451" or "1810" => PlateauBuildingUse.Education,
+            "421" or "452" or "453" or "454" or "1910" or "1920" or "1930" => PlateauBuildingUse.Public,
+            "461" => PlateauBuildingUse.Other,
+            "9999" => PlateauBuildingUse.Unknown,
+            _ => PlateauBuildingUse.Unknown,
+        };
+    }
+
+    private static BuildingCodeValue<PlateauBuildingStructure>[] ParseBuildingStructures(IEnumerable<string> rawValues)
+    {
+        return rawValues
+            .Select(static rawValue => new BuildingCodeValue<PlateauBuildingStructure>(MapBuildingStructure(rawValue), rawValue))
+            .ToArray();
+    }
+
+    private static PlateauBuildingStructure MapBuildingStructure(string code)
+    {
+        return code switch
+        {
+            "601" or "602" => PlateauBuildingStructure.Wood,
+            "603" => PlateauBuildingStructure.Steel,
+            "604" => PlateauBuildingStructure.LightweightSteel,
+            "605" => PlateauBuildingStructure.ReinforcedConcrete,
+            "606" => PlateauBuildingStructure.SteelReinforcedConcrete,
+            "607" => PlateauBuildingStructure.ConcreteBlock,
+            "610" or "611" or "612" or "613" => PlateauBuildingStructure.NonWood,
+            "9999" => PlateauBuildingStructure.Unknown,
+            _ => PlateauBuildingStructure.Unknown,
+        };
+    }
+
+    private static BuildingMetricValue ParseIntegerMetricValue(XElement? element)
+    {
         if (element is null)
         {
-            return null;
+            return BuildingMetricValue.Missing;
+        }
+
+        string rawValue = element.Value.Trim();
+        if (IsPlateauMissingMetricToken(rawValue))
+        {
+            return BuildingMetricValue.Missing;
+        }
+
+        return int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
+            && value >= 0
+                ? BuildingMetricValue.Known(value)
+                : BuildingMetricValue.Invalid(rawValue);
+    }
+
+    private static BuildingMetricValue ParseMetricValue(XElement? element, bool requireMeters)
+    {
+        if (element is null)
+        {
+            return BuildingMetricValue.Missing;
+        }
+
+        string rawValue = element.Value.Trim();
+        if (IsPlateauMissingMetricToken(rawValue))
+        {
+            return BuildingMetricValue.Missing;
         }
 
         string? unitOfMeasure = element.Attribute("uom")?.Value.Trim();
-        if (!string.IsNullOrWhiteSpace(unitOfMeasure)
+        if (requireMeters
+            && !string.IsNullOrWhiteSpace(unitOfMeasure)
             && !string.Equals(unitOfMeasure, "m", StringComparison.OrdinalIgnoreCase))
+        {
+            return BuildingMetricValue.Invalid(rawValue);
+        }
+
+        return double.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+            && value > 0.0
+                ? BuildingMetricValue.Known(value)
+                : BuildingMetricValue.Invalid(rawValue);
+    }
+
+    private static bool IsPlateauMissingMetricToken(string rawValue)
+    {
+        return string.Equals(rawValue, "-9999", StringComparison.Ordinal)
+            || string.Equals(rawValue, "9999", StringComparison.Ordinal)
+            || string.Equals(rawValue, "0001", StringComparison.Ordinal);
+    }
+
+    private static int? TryGetKnownPositiveInteger(BuildingMetricValue metric)
+    {
+        if (metric.Kind != BuildingMetricValueKind.Known || !metric.Value.HasValue)
         {
             return null;
         }
 
-        return double.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out double value) && value > 0.0
-            ? value
+        int value = (int)Math.Round(metric.Value.Value, MidpointRounding.AwayFromZero);
+        return Math.Abs(metric.Value.Value - value) < 1e-9
+            && (value == 0 || FacadeFloorMetrics.IsUsableFloorCount(value))
+                ? value
+                : null;
+    }
+
+    private static double? TryGetKnownPositiveMetric(BuildingMetricValue metric)
+    {
+        return metric.Kind == BuildingMetricValueKind.Known && metric.Value is > 0.0
+            ? metric.Value
             : null;
     }
 
@@ -1211,6 +1382,7 @@ internal static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
+        cityObject = ApplyGeneratedLod1Roof(cityObject);
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
 
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
@@ -1318,6 +1490,521 @@ internal static partial class LocalCityGmlObjectProjection
             Mesh: new ImportedMesh(vertices.ToArray(), submeshes.ToArray()),
             Materials: materials,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.ParsedCityObject ApplyGeneratedLod1Roof(
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
+    {
+        if (!IsBuildingPackage(cityObject.PackageName)
+            || cityObject.LodLevel != 1
+            || !cityObject.ReferenceSystem.IsGeographic)
+        {
+            return cityObject;
+        }
+
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
+        LocalCartesian cityObjectCartesian = new(
+            cityObjectOrigin.Latitude,
+            cityObjectOrigin.Longitude,
+            cityObjectOrigin.Altitude,
+            cityObject.ReferenceSystem.Geocentric);
+        if (!TryCreateLod1RoofFootprint(cityObject, cityObjectOrigin, cityObjectCartesian, out Lod1RoofFootprint? footprint))
+        {
+            return cityObject;
+        }
+
+        Lod1RoofFootprint resolvedFootprint = footprint!;
+        GeneratedLod1RoofShape roofShape = SelectGeneratedLod1RoofShape(cityObject, resolvedFootprint);
+        if (roofShape == GeneratedLod1RoofShape.Flat)
+        {
+            return cityObject;
+        }
+
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface[] generatedSurfaces =
+            CreateGeneratedLod1RoofSurfaces(resolvedFootprint, roofShape);
+        if (generatedSurfaces.Length == 0)
+        {
+            return cityObject;
+        }
+
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface[] surfaces =
+        [
+            .. cityObject.Surfaces.Where(surface => !string.Equals(surface.PolygonId, resolvedFootprint.TopSurface.PolygonId, StringComparison.Ordinal)),
+            .. generatedSurfaces,
+        ];
+        return cityObject with { Surfaces = surfaces };
+    }
+
+    private static bool TryCreateLod1RoofFootprint(
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
+        LocalCartesian cityObjectCartesian,
+        out Lod1RoofFootprint? footprint)
+    {
+        footprint = null;
+        SurfaceProjectionInfo[] surfaceInfos = cityObject.Surfaces
+            .Select(surface => CreateSurfaceProjectionInfo(surface.ToProjectionModel(), cityObjectOrigin.ToProjectionModel(), cityObjectCartesian))
+            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
+            .ToArray();
+        if (surfaceInfos.Length == 0)
+        {
+            return false;
+        }
+
+        double objectMinimumY = surfaceInfos.Min(static info => info.MinimumY!.Value);
+        double objectMaximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
+        double geometryHeight = objectMaximumY - objectMinimumY;
+        SurfaceProjectionInfo[] topCandidates = surfaceInfos
+            .Where(static info => info.IsNearHorizontal)
+            .Where(info => info.MaximumY!.Value >= objectMaximumY - 0.1)
+            .Where(info => info.MinimumY!.Value > objectMinimumY + BuildingBottomCullBandMeters)
+            .ToArray();
+        if (topCandidates.Length != 1)
+        {
+            return false;
+        }
+
+        ParsedSurface topProjectionSurface = topCandidates[0].Surface;
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface? topSurface = cityObject.Surfaces
+            .FirstOrDefault(surface => string.Equals(surface.PolygonId, topProjectionSurface.PolygonId, StringComparison.Ordinal));
+        if (topSurface is null
+            || topSurface.TexturePayload is not null
+            || topSurface.InteriorRings.Length != 0)
+        {
+            return false;
+        }
+
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] ring = RemoveClosingPoint(topSurface.ExteriorRing.Vertices);
+        if (ring.Length != 4)
+        {
+            return false;
+        }
+
+        Float3[] positions = ring
+            .Select(point => CreateScenePosition(point.ToProjectionModel(), cityObjectOrigin.ToProjectionModel(), cityObjectCartesian))
+            .ToArray();
+        if (!TryClassifyRectangle(positions, out bool firstEdgeIsLongAxis, out double length, out double width))
+        {
+            return false;
+        }
+
+        footprint = new Lod1RoofFootprint(
+            topSurface,
+            ring,
+            length,
+            width,
+            geometryHeight,
+            cityObject.BuildingAttributes ?? BuildingAttributeContext.Empty,
+            firstEdgeIsLongAxis);
+        return true;
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] RemoveClosingPoint(
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] vertices)
+    {
+        if (vertices.Length > 1 && AreSamePoint(vertices[0].ToProjectionModel(), vertices[^1].ToProjectionModel()))
+        {
+            return vertices.Take(vertices.Length - 1).ToArray();
+        }
+
+        return vertices.ToArray();
+    }
+
+    private static bool TryClassifyRectangle(
+        Float3[] positions,
+        out bool firstEdgeIsLongAxis,
+        out double length,
+        out double width)
+    {
+        firstEdgeIsLongAxis = false;
+        length = 0.0;
+        width = 0.0;
+        if (positions.Length != 4)
+        {
+            return false;
+        }
+
+        double[] edges =
+        [
+            HorizontalDistance(positions[0], positions[1]),
+            HorizontalDistance(positions[1], positions[2]),
+            HorizontalDistance(positions[2], positions[3]),
+            HorizontalDistance(positions[3], positions[0]),
+        ];
+        if (edges.Any(static edge => edge < 1.0))
+        {
+            return false;
+        }
+
+        if (!ApproximatelyEqual(edges[0], edges[2], 0.15)
+            || !ApproximatelyEqual(edges[1], edges[3], 0.15))
+        {
+            return false;
+        }
+
+        Float3 edge0 = NormalizeHorizontal(Subtract(positions[1], positions[0]));
+        Float3 edge1 = NormalizeHorizontal(Subtract(positions[2], positions[1]));
+        if (Math.Abs(Dot(edge0, edge1)) > 0.15)
+        {
+            return false;
+        }
+
+        firstEdgeIsLongAxis = edges[0] >= edges[1];
+        length = Math.Max(edges[0], edges[1]);
+        width = Math.Min(edges[0], edges[1]);
+        return true;
+    }
+
+    private static double HorizontalDistance(Float3 left, Float3 right)
+    {
+        double deltaX = left.X - right.X;
+        double deltaZ = left.Z - right.Z;
+        return Math.Sqrt((deltaX * deltaX) + (deltaZ * deltaZ));
+    }
+
+    private static bool ApproximatelyEqual(double left, double right, double relativeTolerance)
+    {
+        double scale = Math.Max(Math.Max(Math.Abs(left), Math.Abs(right)), 1.0);
+        return Math.Abs(left - right) <= scale * relativeTolerance;
+    }
+
+    private static GeneratedLod1RoofShape SelectGeneratedLod1RoofShape(
+        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
+        Lod1RoofFootprint footprint)
+    {
+        CityGmlRoofShape? explicitRoofShape = footprint.Attributes.RoofShape?.Value;
+        if (explicitRoofShape is not null and not CityGmlRoofShape.Unknown)
+        {
+            return explicitRoofShape switch
+            {
+                CityGmlRoofShape.Flat => GeneratedLod1RoofShape.Flat,
+                CityGmlRoofShape.Shed => GeneratedLod1RoofShape.Shed,
+                CityGmlRoofShape.Gable => GeneratedLod1RoofShape.Gable,
+                CityGmlRoofShape.Hip or CityGmlRoofShape.Pyramid or CityGmlRoofShape.HalfHip or CityGmlRoofShape.Irimoya => GeneratedLod1RoofShape.Hip,
+                _ => GeneratedLod1RoofShape.Flat,
+            };
+        }
+
+        double heightMeters = TryGetKnownPositiveMetric(footprint.Attributes.MeasuredHeightMeters)
+            ?? TryGetKnownPositiveMetric(footprint.Attributes.BuildingHeight)
+            ?? footprint.GeometryHeightMeters;
+        int? floorCount = TryGetKnownPositiveInteger(footprint.Attributes.StoreysAboveGround);
+        double footprintArea = TryGetKnownPositiveMetric(footprint.Attributes.BuildingFootprintArea)
+            ?? footprint.LengthMeters * footprint.WidthMeters;
+        bool residential = HasUse(footprint.Attributes, PlateauBuildingUse.DetachedResidential)
+            || HasUse(footprint.Attributes, PlateauBuildingUse.MixedResidential);
+        bool apartmentOrUrban = HasUse(footprint.Attributes, PlateauBuildingUse.Apartment)
+            || HasUse(footprint.Attributes, PlateauBuildingUse.Office)
+            || HasUse(footprint.Attributes, PlateauBuildingUse.Commercial)
+            || HasUse(footprint.Attributes, PlateauBuildingUse.Public);
+        bool industrial = HasUse(footprint.Attributes, PlateauBuildingUse.Warehouse)
+            || HasUse(footprint.Attributes, PlateauBuildingUse.Factory);
+        bool wood = footprint.Attributes.Structures.Any(static structure => structure.Value == PlateauBuildingStructure.Wood);
+        bool nonWood = footprint.Attributes.Structures.Any(static structure => structure.Value is PlateauBuildingStructure.NonWood
+            or PlateauBuildingStructure.ReinforcedConcrete
+            or PlateauBuildingStructure.SteelReinforcedConcrete);
+
+        if ((floorCount >= 4 || heightMeters > 12.0 || (apartmentOrUrban && nonWood))
+            && !industrial)
+        {
+            return GeneratedLod1RoofShape.Flat;
+        }
+
+        if (industrial)
+        {
+            return heightMeters <= 12.0 ? GeneratedLod1RoofShape.Gable : GeneratedLod1RoofShape.Flat;
+        }
+
+        double aspectRatio = footprint.LengthMeters / Math.Max(footprint.WidthMeters, 1e-6);
+        if (aspectRatio >= 1.8)
+        {
+            return GeneratedLod1RoofShape.Shed;
+        }
+
+        if ((residential || wood) && footprintArea <= 250.0)
+        {
+            return aspectRatio <= 1.2 ? GeneratedLod1RoofShape.Hip : GeneratedLod1RoofShape.Gable;
+        }
+
+        if (footprintArea >= 350.0)
+        {
+            return GeneratedLod1RoofShape.Hip;
+        }
+
+        return StableModulo(cityObject.SlotKey, divisor: 3) == 0
+            ? GeneratedLod1RoofShape.Shed
+            : GeneratedLod1RoofShape.Gable;
+    }
+
+    private static int StableModulo(string value, int divisor)
+    {
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return BitConverter.ToUInt16(hash, startIndex: 0) % divisor;
+    }
+
+    private static bool HasUse(BuildingAttributeContext attributes, PlateauBuildingUse use)
+    {
+        return attributes.Uses.Any(value => value.Value == use)
+            || attributes.DetailedUses.Any(value => value.Value == use);
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.ParsedSurface[] CreateGeneratedLod1RoofSurfaces(
+        Lod1RoofFootprint footprint,
+        GeneratedLod1RoofShape shape)
+    {
+        double rise = ComputeGeneratedRoofRiseMeters(footprint);
+        return shape switch
+        {
+            GeneratedLod1RoofShape.Shed => CreateShedRoofSurfaces(footprint, rise),
+            GeneratedLod1RoofShape.Gable => CreateGableRoofSurfaces(footprint, rise),
+            GeneratedLod1RoofShape.Hip => CreateHipRoofSurfaces(footprint, rise),
+            _ => [],
+        };
+    }
+
+    private static double ComputeGeneratedRoofRiseMeters(Lod1RoofFootprint footprint)
+    {
+        double contextualLimit = Math.Max(0.6, footprint.GeometryHeightMeters * 0.18);
+        return Math.Clamp(Math.Min(footprint.WidthMeters * 0.28, contextualLimit), 0.4, 2.2);
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.ParsedSurface[] CreateShedRoofSurfaces(
+        Lod1RoofFootprint footprint,
+        double rise)
+    {
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] c = footprint.Corners;
+        bool firstLong = footprint.FirstEdgeIsLongAxis;
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] highEdge = firstLong ? [Elevate(c[2], rise), Elevate(c[3], rise)] : [Elevate(c[1], rise), Elevate(c[2], rise)];
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] roof = firstLong
+            ? [c[0], c[1], highEdge[0], highEdge[1]]
+            : [c[0], highEdge[0], highEdge[1], c[3]];
+
+        List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> surfaces =
+        [
+            CreateGeneratedRoofSurface(footprint, "shed-roof", ParsedSurfaceSemantic.Roof, roof),
+        ];
+        if (firstLong)
+        {
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-high-wall", ParsedSurfaceSemantic.Wall, [c[3], c[2], highEdge[0], highEdge[1]]));
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-side-wall-a", ParsedSurfaceSemantic.Wall, [c[1], c[2], highEdge[0]]));
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-side-wall-b", ParsedSurfaceSemantic.Wall, [c[0], highEdge[1], c[3]]));
+        }
+        else
+        {
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-high-wall", ParsedSurfaceSemantic.Wall, [c[1], c[2], highEdge[1], highEdge[0]]));
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-side-wall-a", ParsedSurfaceSemantic.Wall, [c[0], c[1], highEdge[0]]));
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-side-wall-b", ParsedSurfaceSemantic.Wall, [c[3], highEdge[1], c[2]]));
+        }
+
+        return surfaces.ToArray();
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.ParsedSurface[] CreateGableRoofSurfaces(
+        Lod1RoofFootprint footprint,
+        double rise)
+    {
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] c = footprint.Corners;
+        bool firstLong = footprint.FirstEdgeIsLongAxis;
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint ridge0;
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint ridge1;
+        if (firstLong)
+        {
+            ridge0 = Elevate(Lerp(c[0], c[3], 0.5), rise);
+            ridge1 = Elevate(Lerp(c[1], c[2], 0.5), rise);
+            return
+            [
+                CreateGeneratedRoofSurface(footprint, "gable-roof-a", ParsedSurfaceSemantic.Roof, [c[0], c[1], ridge1, ridge0]),
+                CreateGeneratedRoofSurface(footprint, "gable-roof-b", ParsedSurfaceSemantic.Roof, [c[3], ridge0, ridge1, c[2]]),
+                CreateGeneratedRoofSurface(footprint, "gable-wall-a", ParsedSurfaceSemantic.Wall, [c[0], ridge0, c[3]]),
+                CreateGeneratedRoofSurface(footprint, "gable-wall-b", ParsedSurfaceSemantic.Wall, [c[1], c[2], ridge1]),
+            ];
+        }
+
+        ridge0 = Elevate(Lerp(c[0], c[1], 0.5), rise);
+        ridge1 = Elevate(Lerp(c[3], c[2], 0.5), rise);
+        return
+        [
+            CreateGeneratedRoofSurface(footprint, "gable-roof-a", ParsedSurfaceSemantic.Roof, [c[0], ridge0, ridge1, c[3]]),
+            CreateGeneratedRoofSurface(footprint, "gable-roof-b", ParsedSurfaceSemantic.Roof, [ridge0, c[1], c[2], ridge1]),
+            CreateGeneratedRoofSurface(footprint, "gable-wall-a", ParsedSurfaceSemantic.Wall, [c[0], c[1], ridge0]),
+            CreateGeneratedRoofSurface(footprint, "gable-wall-b", ParsedSurfaceSemantic.Wall, [c[3], ridge1, c[2]]),
+        ];
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.ParsedSurface[] CreateHipRoofSurfaces(
+        Lod1RoofFootprint footprint,
+        double rise)
+    {
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] c = footprint.Corners;
+        if (footprint.FirstEdgeIsLongAxis)
+        {
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint leftMid = Lerp(c[0], c[3], 0.5);
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint rightMid = Lerp(c[1], c[2], 0.5);
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint longRidge0 = Elevate(Lerp(leftMid, rightMid, 0.25), rise);
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint longRidge1 = Elevate(Lerp(leftMid, rightMid, 0.75), rise);
+            return
+            [
+                CreateGeneratedRoofSurface(footprint, "hip-roof-a", ParsedSurfaceSemantic.Roof, [c[0], c[1], longRidge1, longRidge0]),
+                CreateGeneratedRoofSurface(footprint, "hip-roof-b", ParsedSurfaceSemantic.Roof, [c[3], longRidge0, longRidge1, c[2]]),
+                CreateGeneratedRoofSurface(footprint, "hip-roof-c", ParsedSurfaceSemantic.Roof, [c[0], longRidge0, c[3]]),
+                CreateGeneratedRoofSurface(footprint, "hip-roof-d", ParsedSurfaceSemantic.Roof, [c[1], c[2], longRidge1]),
+            ];
+        }
+
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint bottomMid = Lerp(c[0], c[1], 0.5);
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint topMid = Lerp(c[3], c[2], 0.5);
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint shortRidge0 = Elevate(Lerp(bottomMid, topMid, 0.25), rise);
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint shortRidge1 = Elevate(Lerp(bottomMid, topMid, 0.75), rise);
+        return
+        [
+            CreateGeneratedRoofSurface(footprint, "hip-roof-a", ParsedSurfaceSemantic.Roof, [c[0], shortRidge0, shortRidge1, c[3]]),
+            CreateGeneratedRoofSurface(footprint, "hip-roof-b", ParsedSurfaceSemantic.Roof, [shortRidge0, c[1], c[2], shortRidge1]),
+            CreateGeneratedRoofSurface(footprint, "hip-roof-c", ParsedSurfaceSemantic.Roof, [c[0], c[1], shortRidge0]),
+            CreateGeneratedRoofSurface(footprint, "hip-roof-d", ParsedSurfaceSemantic.Roof, [c[3], shortRidge1, c[2]]),
+        ];
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.ParsedSurface CreateGeneratedRoofSurface(
+        Lod1RoofFootprint footprint,
+        string suffix,
+        ParsedSurfaceSemantic semantic,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] vertices)
+    {
+        string polygonId = $"{footprint.TopSurface.PolygonId}_generated_{suffix}";
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] orientedVertices =
+            semantic == ParsedSurfaceSemantic.Wall
+                ? OrientGeneratedWallVerticesForOutwardMeshFaces(footprint, vertices)
+                : semantic == ParsedSurfaceSemantic.Roof
+                ? OrientGeneratedRoofVerticesForUpwardMeshFaces(footprint, vertices)
+                : vertices;
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] closedVertices = [.. orientedVertices, orientedVertices[0]];
+        return new global::PlateauResoniteLink.Application.Importing.ParsedSurface(
+            polygonId,
+            (global::PlateauResoniteLink.Application.Importing.ParsedSurfaceSemantic)semantic,
+            new global::PlateauResoniteLink.Application.Importing.ParsedRing(
+                $"{polygonId}-ring",
+                closedVertices,
+                UVs: null),
+            InteriorRings: [],
+            footprint.TopSurface.BaseColor,
+            TexturePayload: null,
+            UsesGeneratedDemTexture: false,
+            footprint.TopSurface.OpticalProperties);
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] OrientGeneratedWallVerticesForOutwardMeshFaces(
+        Lod1RoofFootprint footprint,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] vertices)
+    {
+        if (vertices.Length < 3)
+        {
+            return vertices;
+        }
+
+        double referenceLatitude = footprint.Corners.Average(static point => point.Latitude);
+        double referenceLongitude = footprint.Corners.Average(static point => point.Longitude);
+        Float3[] footprintPositions = footprint.Corners
+            .Select(point => CreateApproximateHorizontalPosition(point, referenceLatitude, referenceLongitude))
+            .ToArray();
+        Float3[] wallPositions = vertices
+            .Select(point => CreateApproximateHorizontalPosition(point, referenceLatitude, referenceLongitude))
+            .ToArray();
+        Float3? normal = ComputePolygonNormal(wallPositions);
+        if (normal is null)
+        {
+            return vertices;
+        }
+
+        Float3 footprintCenter = AveragePosition(footprintPositions);
+        Float3 wallCenter = AveragePosition(wallPositions);
+        Float3 outwardDirection = new(wallCenter.X - footprintCenter.X, 0.0, wallCenter.Z - footprintCenter.Z);
+        Float3 horizontalNormal = new(normal.X, 0.0, normal.Z);
+        // Surface tessellation emits Resonite triangle winding opposite to the parsed polygon normal.
+        // Generated walls therefore need an inward parsed normal so the emitted mesh face points outward.
+        if (Dot(horizontalNormal, outwardDirection) <= 0.0)
+        {
+            return vertices;
+        }
+
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] reversed = vertices.ToArray();
+        Array.Reverse(reversed);
+        return reversed;
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] OrientGeneratedRoofVerticesForUpwardMeshFaces(
+        Lod1RoofFootprint footprint,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] vertices)
+    {
+        if (vertices.Length < 3)
+        {
+            return vertices;
+        }
+
+        double referenceLatitude = footprint.Corners.Average(static point => point.Latitude);
+        double referenceLongitude = footprint.Corners.Average(static point => point.Longitude);
+        Float3[] roofPositions = vertices
+            .Select(point => CreateApproximateHorizontalPosition(point, referenceLatitude, referenceLongitude))
+            .ToArray();
+        Float3? normal = ComputePolygonNormal(roofPositions);
+        if (normal is null)
+        {
+            return vertices;
+        }
+
+        // Surface tessellation emits Resonite triangle winding opposite to the parsed polygon normal.
+        // Generated roofs therefore need a downward parsed normal so the emitted mesh face points upward.
+        if (normal.Y <= 0.0)
+        {
+            return vertices;
+        }
+
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] reversed = vertices.ToArray();
+        Array.Reverse(reversed);
+        return reversed;
+    }
+
+    private static Float3 CreateApproximateHorizontalPosition(
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint point,
+        double referenceLatitude,
+        double referenceLongitude)
+    {
+        const double metersPerLatitudeDegree = 111_320.0;
+        double metersPerLongitudeDegree = metersPerLatitudeDegree * Math.Cos(referenceLatitude * (Math.PI / 180.0));
+        return new Float3(
+            (point.Longitude - referenceLongitude) * metersPerLongitudeDegree,
+            point.Altitude,
+            (point.Latitude - referenceLatitude) * metersPerLatitudeDegree);
+    }
+
+    private static Float3 AveragePosition(IReadOnlyList<Float3> positions)
+    {
+        return new Float3(
+            positions.Average(static position => position.X),
+            positions.Average(static position => position.Y),
+            positions.Average(static position => position.Z));
+    }
+
+    private static GeodeticPoint Elevate(GeodeticPoint point, double rise)
+    {
+        return point with { Altitude = point.Altitude + rise };
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.GeodeticPoint Elevate(
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint point,
+        double rise)
+    {
+        return point with { Altitude = point.Altitude + rise };
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.GeodeticPoint Lerp(
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint source,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint target,
+        double ratio)
+    {
+        return new global::PlateauResoniteLink.Application.Importing.GeodeticPoint(
+            source.Latitude + ((target.Latitude - source.Latitude) * ratio),
+            source.Longitude + ((target.Longitude - source.Longitude) * ratio),
+            source.Altitude + ((target.Altitude - source.Altitude) * ratio));
     }
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)
@@ -1611,7 +2298,10 @@ internal static partial class LocalCityGmlObjectProjection
             return true;
         }
 
-        if (surface.Semantic != ParsedSurfaceSemantic.Unknown)
+        if (surface.Semantic is not (ParsedSurfaceSemantic.Unknown
+            or ParsedSurfaceSemantic.Ground
+            or ParsedSurfaceSemantic.OuterCeiling
+            or ParsedSurfaceSemantic.OuterFloor))
         {
             return false;
         }
@@ -3064,8 +3754,16 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        double minimumY = surfaceInfos.Min(static info => info.MinimumY!.Value);
-        double maximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
+        SurfaceProjectionInfo[] contextSurfaceInfos = surfaceInfos
+            .Where(static info => !IsGeneratedLod1RoofSurface(info.Surface))
+            .ToArray();
+        if (contextSurfaceInfos.Length == 0)
+        {
+            contextSurfaceInfos = surfaceInfos;
+        }
+
+        double minimumY = contextSurfaceInfos.Min(static info => info.MinimumY!.Value);
+        double maximumY = contextSurfaceInfos.Max(static info => info.MaximumY!.Value);
         double geometryHeightMeters = Math.Max(maximumY - minimumY, 0.0);
         int floorCount = Math.Max(
             1,
@@ -3079,6 +3777,13 @@ internal static partial class LocalCityGmlObjectProjection
             maximumY,
             floorHeightMeters,
             floorCount);
+    }
+
+    private static bool IsGeneratedLod1RoofSurface(ParsedSurface surface)
+    {
+        return surface.PolygonId.Contains("_generated_shed-", StringComparison.Ordinal)
+            || surface.PolygonId.Contains("_generated_gable-", StringComparison.Ordinal)
+            || surface.PolygonId.Contains("_generated_hip-", StringComparison.Ordinal);
     }
 
     private readonly record struct SurfaceProjectionInfo(
@@ -3255,7 +3960,7 @@ internal static partial class LocalCityGmlObjectProjection
         ArgumentNullException.ThrowIfNull(materialResolver);
 
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject terrainAlignedParsedCityObject =
-            ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
+            ApplyGeneratedLod1Roof(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler));
         List<ImportedCityObject> projectedCityObjects = [];
         List<ImportedCityObject> generatedRoadMarkings = [];
 
@@ -3355,7 +4060,7 @@ internal static partial class LocalCityGmlObjectProjection
         ArgumentNullException.ThrowIfNull(materialResolver);
 
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject terrainAlignedParsedCityObject =
-            ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
+            ApplyGeneratedLod1Roof(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler));
 
         foreach ((global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
                  in SplitParsedCityObjectForTerrainProjection(
@@ -4485,6 +5190,9 @@ internal static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
+            global::PlateauResoniteLink.Application.Importing.ParsedSurface terrainProjectionSurface =
+                NormalizeNonDemTerrainTextureSurface(surface);
+
             TerrainTextureOverlay[] candidateOverlays = demTerrainTextureOverlays
                 .Where(overlay => ResolveTerrainTextureMeshCode(cityObject.ActualMeshCode, overlay) is not null)
                 .Where(overlay => BoundsOverlap(surfaceBounds, overlay.GeographicBounds))
@@ -4504,7 +5212,7 @@ internal static partial class LocalCityGmlObjectProjection
 
             if (candidateOverlays.Length == 1)
             {
-                terrainOverlaySurfaces.Add((surface, candidateOverlays[0]));
+                terrainOverlaySurfaces.Add((terrainProjectionSurface, candidateOverlays[0]));
                 continue;
             }
 
@@ -4512,13 +5220,13 @@ internal static partial class LocalCityGmlObjectProjection
                 ContainsBounds(overlay.GeographicBounds, surfaceBounds));
             if (containingOverlay is not null)
             {
-                terrainOverlaySurfaces.Add((surface, containingOverlay));
+                terrainOverlaySurfaces.Add((terrainProjectionSurface, containingOverlay));
                 continue;
             }
 
             IReadOnlyList<(global::PlateauResoniteLink.Application.Importing.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
                 DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
-                    surface,
+                    terrainProjectionSurface,
                     candidateOverlays,
                     progressReporter,
                     cancellationToken);
@@ -4603,6 +5311,14 @@ internal static partial class LocalCityGmlObjectProjection
         global::PlateauResoniteLink.Application.Importing.ParsedSurface surface)
     {
         return surface with { UsesGeneratedDemTexture = true };
+    }
+
+    private static global::PlateauResoniteLink.Application.Importing.ParsedSurface NormalizeNonDemTerrainTextureSurface(
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface)
+    {
+        return surface.Semantic == global::PlateauResoniteLink.Application.Importing.ParsedSurfaceSemantic.Roof
+            ? surface
+            : surface with { Semantic = global::PlateauResoniteLink.Application.Importing.ParsedSurfaceSemantic.Roof };
     }
 
     private static bool IsNonDemTerrainTextureSurface(
@@ -5346,7 +6062,8 @@ internal static partial class LocalCityGmlObjectProjection
         bool TerrainAligned = false,
         GeodeticPoint? GeodeticOriginOverride = null,
         int? FloorsAboveGround = null,
-        double? MeasuredHeightMeters = null);
+        double? MeasuredHeightMeters = null,
+        BuildingAttributeContext? BuildingAttributes = null);
 
     internal sealed record SourceFileDescriptor(
         string RelativePath,
@@ -5553,6 +6270,23 @@ internal static partial class LocalCityGmlObjectProjection
         ParsedSurface Surface,
         ResolvedMaterial Material,
         MaterialDepthOffset? DepthOffset);
+
+    private enum GeneratedLod1RoofShape
+    {
+        Flat = 0,
+        Shed,
+        Gable,
+        Hip,
+    }
+
+    private sealed record Lod1RoofFootprint(
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface TopSurface,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] Corners,
+        double LengthMeters,
+        double WidthMeters,
+        double GeometryHeightMeters,
+        BuildingAttributeContext Attributes,
+        bool FirstEdgeIsLongAxis);
 
     private sealed record MaterialGroupingKey(
         MaterialType MaterialType,
