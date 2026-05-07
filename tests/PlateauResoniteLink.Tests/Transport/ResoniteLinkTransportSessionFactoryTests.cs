@@ -33,8 +33,8 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
         {
             diagnostics.StartSendWindow(connectionCount: 1);
             await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
-            IResoniteLinkClient routedClient = session.GetRequiredClient();
-            ResoniteTransportSlotCreationResult slot = await routedClient.AddSlotAsync(
+            IResoniteLinkClient client = session.GetRequiredClient();
+            ResoniteTransportSlotCreationResult slot = await client.AddSlotAsync(
                 new AddSlot
                 {
                     Data = new Slot
@@ -79,7 +79,7 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
     {
         public List<RecordingResoniteLinkClient> CreatedClients { get; } = [];
 
-        public RecordingResoniteLinkClient Create()
+        public RecordingResoniteLinkClient Create(Action<string>? progressReporter)
         {
             RecordingResoniteLinkClient client = new();
             CreatedClients.Add(client);
@@ -150,7 +150,5 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
         }
     }
 }
-
-
 
 

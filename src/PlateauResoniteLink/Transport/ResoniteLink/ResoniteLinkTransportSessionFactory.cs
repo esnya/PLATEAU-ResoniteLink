@@ -9,7 +9,7 @@ internal static class ResoniteLinkTransportSessionFactory
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
         Action<string>? progressReporter,
-        Func<IResoniteLinkClient> baseClientFactory)
+        Func<Action<string>?, IResoniteLinkClient> baseClientFactory)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentNullException.ThrowIfNull(diagnostics);
@@ -17,7 +17,9 @@ internal static class ResoniteLinkTransportSessionFactory
 
         IResoniteLinkClient CreateConfiguredClient()
         {
-            IResoniteLinkClient client = new RetryingResoniteLinkClient(baseClientFactory, progressReporter);
+            IResoniteLinkClient client = new RetryingResoniteLinkClient(
+                () => baseClientFactory(progressReporter),
+                progressReporter);
             return diagnostics.Enabled ? new MetricsResoniteLinkClient(client, diagnostics) : client;
         }
 

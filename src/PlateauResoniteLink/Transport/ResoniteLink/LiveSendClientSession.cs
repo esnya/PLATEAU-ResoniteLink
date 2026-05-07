@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Logging;
+
 namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposable
@@ -15,7 +16,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
     private readonly Action<string>? reportProgress;
     private readonly SemaphoreSlim initializationGate = new(1, 1);
     private int disposed;
-    private IResoniteLinkClient? routedClient;
+    private IResoniteLinkClient? loadBalancedClient;
 
     public LiveSendClientSession(
         Func<IResoniteLinkClient> createConfiguredClient,
@@ -38,8 +39,8 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
     public IResoniteLinkClient GetRequiredClient()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
-        return routedClient
-            ?? throw new InvalidOperationException("Routed ResoniteLink client is not connected.");
+        return loadBalancedClient
+            ?? throw new InvalidOperationException("Load-balanced ResoniteLink client is not connected.");
     }
 
     public async Task EnsureConnectedAsync(
@@ -52,10 +53,10 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         await initializationGate.WaitAsync(cancellationToken);
         try
         {
-            if (routedClient is not null)
+            if (loadBalancedClient is not null)
             {
                 reportProgress?.Invoke(
-                    PlateauLog.Info("live", "Reusing existing routed ResoniteLink session."));
+                    PlateauLog.Info("live", "Reusing existing load-balanced ResoniteLink session."));
                 return;
             }
 
@@ -81,12 +82,12 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
                     newClients[routeIndex] = client;
                 }
 
-                IResoniteLinkClient newRoutedClient = new RoutedResoniteLinkClient(
+                IResoniteLinkClient newLoadBalancedClient = new LoadBalancingResoniteLinkClient(
                     newClients,
                     reportProgress);
 
                 ConnectedClients = newClients;
-                routedClient = newRoutedClient;
+                loadBalancedClient = newLoadBalancedClient;
 
                 setupSessionStopwatch.Stop();
                 reportProgress?.Invoke(
@@ -103,7 +104,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
                 }
 
                 ConnectedClients = null;
-                routedClient = null;
+                loadBalancedClient = null;
                 throw;
             }
         }
@@ -153,8 +154,8 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
 
     private void DisposeConnectedClients()
     {
-        routedClient?.Dispose();
-        routedClient = null;
+        loadBalancedClient?.Dispose();
+        loadBalancedClient = null;
         if (ConnectedClients is not null)
         {
             foreach (IResoniteLinkClient client in ConnectedClients)
@@ -169,21 +170,21 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
     private async Task ConnectClientAsync(
         IResoniteLinkClient client,
         LiveSendConnectionRequest request,
-        int routeIndex,
+        int connectionIndex,
         CancellationToken cancellationToken)
     {
         Stopwatch connectionStopwatch = Stopwatch.StartNew();
-        string routeDescription = $"route {routeIndex + 1}/{connectionCount}";
+        string connectionDescription = $"connection {connectionIndex + 1}/{connectionCount}";
         reportProgress?.Invoke(
             PlateauLog.Info(
                 "live",
-                $"Connecting {routeDescription} ResoniteLink session to {endpoint} for dataset '{request.Dataset}' mesh '{request.MeshCode}'."));
+                $"Connecting {connectionDescription} ResoniteLink session to {endpoint} for dataset '{request.Dataset}' mesh '{request.MeshCode}'."));
         await client.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
         connectionStopwatch.Stop();
         reportProgress?.Invoke(
             PlateauLog.Info(
                 "live",
-                $"Connected {routeDescription} ResoniteLink session to {endpoint} in "
+                $"Connected {connectionDescription} ResoniteLink session to {endpoint} in "
                 + $"{connectionStopwatch.Elapsed.TotalSeconds:F2}s."));
     }
 }

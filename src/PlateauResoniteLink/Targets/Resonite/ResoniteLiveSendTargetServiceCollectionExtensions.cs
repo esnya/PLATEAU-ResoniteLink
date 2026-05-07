@@ -15,7 +15,8 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddScoped<Func<IResoniteLinkClient>>(_ => static () => new ResoniteLinkClient());
+        services.TryAddScoped<Func<Action<string>?, IResoniteLinkClient>>(
+            _ => static progressReporter => new ResoniteLinkClient(progressReporter));
         services.TryAddScoped<BundledDefaultMaterialAssetStore>();
         services.TryAddScoped<IResoniteBatchEmissionPlanner, ResoniteBatchEmissionPlanner>();
         services.TryAddScoped<IResoniteBufferedCityObjectBakerFactory, ResoniteBufferedCityObjectBakerFactory>();
@@ -76,7 +77,7 @@ internal interface IResoniteClientSessionFactory
 }
 
 internal sealed class ResoniteLinkClientSessionFactory(
-    Func<IResoniteLinkClient> baseClientFactory) : IResoniteClientSessionFactory
+    Func<Action<string>?, IResoniteLinkClient> baseClientFactory) : IResoniteClientSessionFactory
 {
     public ILiveSendClientSession Create(
         ResoniteLiveSceneImportTargetOptions options,

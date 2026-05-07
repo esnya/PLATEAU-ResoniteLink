@@ -36,7 +36,7 @@ public sealed class LiveSendClientSessionTests
     }
 
     [Fact]
-    public async Task RoutedClientDistributesBatchCallsAcrossConnectedClients()
+    public async Task LoadBalancingClientDistributesBatchCallsAcrossConnectedClients()
     {
         RecordingClientFactory clientFactory = new([new(true), new(true), new(true)]);
         using LiveSendClientSession session = new(
@@ -47,11 +47,11 @@ public sealed class LiveSendClientSessionTests
             progressReporter: null);
 
         await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
-        IResoniteLinkClient routedClient = session.GetRequiredClient();
+        IResoniteLinkClient client = session.GetRequiredClient();
 
         for (int callIndex = 0; callIndex < 6; callIndex++)
         {
-            await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+            await client.RunDataModelOperationBatchAsync([], CancellationToken.None);
         }
 
         Assert.Equal(6, clientFactory.CreatedClients.Sum(static client => client.BatchCallCount));
@@ -59,7 +59,7 @@ public sealed class LiveSendClientSessionTests
     }
 
     [Fact]
-    public async Task RoutedClientPinsAuthoritativeCallsToPrimaryClient()
+    public async Task LoadBalancingClientDistributesMutationCallsAcrossConnectedClients()
     {
         RecordingClientFactory clientFactory = new([new(true), new(true), new(true)]);
         using LiveSendClientSession session = new(
@@ -70,30 +70,56 @@ public sealed class LiveSendClientSessionTests
             progressReporter: null);
 
         await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
-        IResoniteLinkClient routedClient = session.GetRequiredClient();
+        IResoniteLinkClient client = session.GetRequiredClient();
 
         for (int callIndex = 0; callIndex < 6; callIndex++)
         {
-            await ((IResoniteLinkClient)routedClient).AddSlotAsync(CreateSlotRequest(), CancellationToken.None);
+            await ((IResoniteLinkClient)client).AddSlotAsync(CreateSlotRequest(), CancellationToken.None);
         }
 
         Assert.Equal(6, clientFactory.CreatedClients.Sum(static client => client.AddSlotCallCount));
-        Assert.Equal(6, clientFactory.CreatedClients[0].AddSlotCallCount);
-        Assert.All(clientFactory.CreatedClients.Skip(1), client => Assert.Equal(0, client.AddSlotCallCount));
+        Assert.All(clientFactory.CreatedClients, client => Assert.True(client.AddSlotCallCount > 0));
     }
 
     [Fact]
-    public async Task RoutedClientConnectAsyncConnectsAllRoutesBeforeBalancedCalls()
+    public async Task LoadBalancingClientPrefersLeastBusyRoutesAndAllowsParallelRoutes()
+    {
+        RecordingClientFactory clientFactory = new([new(true), new(true), new(true)]);
+        using LiveSendClientSession session = new(
+            clientFactory.Create,
+            new Uri("ws://localhost:12345/"),
+            connectionCount: 3,
+            ResoniteLinkSendDiagnostics.Disabled,
+            progressReporter: null);
+
+        await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
+        IResoniteLinkClient client = session.GetRequiredClient();
+
+        Task<Uri>[] imports = Enumerable.Range(0, 6)
+            .Select(_ => client.ImportTextureAsync(
+                new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
+                CancellationToken.None))
+            .ToArray();
+
+        await Task.WhenAll(imports);
+
+        Assert.Equal(6, clientFactory.CreatedClients.Sum(static client => client.TextureImportCallCount));
+        Assert.True(clientFactory.MaxConcurrentTextureImports > 1);
+        Assert.All(clientFactory.CreatedClients, client => Assert.Equal(2, client.TextureImportCallCount));
+    }
+
+    [Fact]
+    public async Task LoadBalancingClientConnectAsyncConnectsAllConnectionsBeforeCalls()
     {
         RecordingResoniteLinkClient firstClient = new(true, 0);
         RecordingResoniteLinkClient secondClient = new(true, 0);
         RecordingResoniteLinkClient thirdClient = new(true, 0);
-        using RoutedResoniteLinkClient routedClient = new([firstClient, secondClient, thirdClient]);
+        using LoadBalancingResoniteLinkClient loadBalancedClient = new([firstClient, secondClient, thirdClient]);
 
-        await routedClient.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
-        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
-        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
-        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+        await loadBalancedClient.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+        await loadBalancedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+        await loadBalancedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+        await loadBalancedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
 
         Assert.Equal(1, firstClient.ConnectCallCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
@@ -198,6 +224,10 @@ public sealed class LiveSendClientSessionTests
 
         public List<RecordingResoniteLinkClient> CreatedClients { get; } = [];
 
+        public int MaxConcurrentTextureImports { get; private set; }
+
+        private int activeTextureImports;
+
         public RecordingResoniteLinkClient Create()
         {
             ConnectOutcome outcome = nextConnectOutcomeIndex < connectOutcomes.Count
@@ -205,15 +235,29 @@ public sealed class LiveSendClientSessionTests
                 : new ConnectOutcome(true, 0);
             nextConnectOutcomeIndex++;
 
-            RecordingResoniteLinkClient client = new(outcome.ConnectSucceeds, outcome.ConnectDelayMilliseconds);
+            RecordingResoniteLinkClient client = new(outcome.ConnectSucceeds, outcome.ConnectDelayMilliseconds, this);
             CreatedClients.Add(client);
             return client;
+        }
+
+        public void RecordTextureImportStarted()
+        {
+            int active = Interlocked.Increment(ref activeTextureImports);
+            MaxConcurrentTextureImports = Math.Max(MaxConcurrentTextureImports, active);
+        }
+
+        public void RecordTextureImportCompleted()
+        {
+            Interlocked.Decrement(ref activeTextureImports);
         }
     }
 
     private readonly record struct ConnectOutcome(bool ConnectSucceeds = true, int ConnectDelayMilliseconds = 0);
 
-    private sealed class RecordingResoniteLinkClient(bool connectSucceeds, int connectDelayMilliseconds) : IResoniteLinkClient
+    private sealed class RecordingResoniteLinkClient(
+        bool connectSucceeds,
+        int connectDelayMilliseconds,
+        RecordingClientFactory? owner = null) : IResoniteLinkClient
     {
         private int nextSlotId;
 
@@ -223,9 +267,16 @@ public sealed class LiveSendClientSessionTests
 
         public int BatchCallCount { get; private set; }
 
+        public int TextureImportCallCount { get; private set; }
+
+        public int MaxConcurrentTextureImports { get; private set; }
+
         public Uri? LastConnectedEndpoint { get; private set; }
 
         public bool Disposed { get; private set; }
+
+        private int activeTextureImports;
+        private int nextTextureId;
 
         public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
         {
@@ -294,9 +345,24 @@ public sealed class LiveSendClientSessionTests
             throw new NotSupportedException();
         }
 
-        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        public async Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
+            cancellationToken.ThrowIfCancellationRequested();
+            TextureImportCallCount++;
+            int active = Interlocked.Increment(ref activeTextureImports);
+            MaxConcurrentTextureImports = Math.Max(MaxConcurrentTextureImports, active);
+            owner?.RecordTextureImportStarted();
+            try
+            {
+                await Task.Delay(25, cancellationToken);
+                int textureId = Interlocked.Increment(ref nextTextureId) - 1;
+                return new Uri($"resdb:///texture/{textureId}", UriKind.Absolute);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref activeTextureImports);
+                owner?.RecordTextureImportCompleted();
+            }
         }
 
         public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
@@ -305,7 +371,3 @@ public sealed class LiveSendClientSessionTests
         }
     }
 }
-
-
-
-
