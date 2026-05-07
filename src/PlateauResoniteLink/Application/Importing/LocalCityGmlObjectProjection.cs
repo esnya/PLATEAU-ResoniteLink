@@ -434,21 +434,38 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static PlateauBuildingUse MapBuildingUse(string code)
     {
-        return code switch
+        string broadCode = code.Length >= 3 ? code[..3] : code;
+        PlateauBuildingUse broadUse = broadCode switch
         {
-            "411" or "1110" => PlateauBuildingUse.DetachedResidential,
-            "412" or "1120" or "1130" => PlateauBuildingUse.Apartment,
-            "413" or "414" or "415" or "1140" or "1150" or "1160" => PlateauBuildingUse.MixedResidential,
-            "401" or "1310" => PlateauBuildingUse.Office,
-            "402" or "422" or "1510" or "1520" => PlateauBuildingUse.Commercial,
-            "431" or "1710" or "1720" => PlateauBuildingUse.Warehouse,
-            "441" or "1740" => PlateauBuildingUse.Factory,
-            "451" or "1810" => PlateauBuildingUse.Education,
-            "421" or "452" or "453" or "454" or "1910" or "1920" or "1930" => PlateauBuildingUse.Public,
-            "461" => PlateauBuildingUse.Other,
-            "9999" => PlateauBuildingUse.Unknown,
+            "411" => PlateauBuildingUse.DetachedResidential,
+            "412" => PlateauBuildingUse.Apartment,
+            "413" or "414" or "415" => PlateauBuildingUse.MixedResidential,
+            "401" => PlateauBuildingUse.Office,
+            "402" or "403" or "404" => PlateauBuildingUse.Commercial,
+            "431" => PlateauBuildingUse.Warehouse,
+            "441" => PlateauBuildingUse.Factory,
+            "422" => PlateauBuildingUse.Education,
+            "421" or "452" or "453" => PlateauBuildingUse.Public,
+            "454" or "451" or "471" => PlateauBuildingUse.Other,
+            "461" or "999" => PlateauBuildingUse.Unknown,
             _ => PlateauBuildingUse.Unknown,
         };
+
+        return broadUse is not PlateauBuildingUse.Unknown
+            ? broadUse
+            : code switch
+            {
+                "1110" => PlateauBuildingUse.DetachedResidential,
+                "1120" or "1130" => PlateauBuildingUse.Apartment,
+                "1140" or "1150" or "1160" => PlateauBuildingUse.MixedResidential,
+                "1310" => PlateauBuildingUse.Office,
+                "1510" or "1520" => PlateauBuildingUse.Commercial,
+                "1710" or "1720" => PlateauBuildingUse.Warehouse,
+                "1740" => PlateauBuildingUse.Factory,
+                "1810" => PlateauBuildingUse.Education,
+                "1910" or "1920" or "1930" => PlateauBuildingUse.Public,
+                _ => PlateauBuildingUse.Unknown,
+            };
     }
 
     private static BuildingCodeValue<PlateauBuildingStructure>[] ParseBuildingStructures(IEnumerable<string> rawValues)
@@ -462,11 +479,12 @@ internal static partial class LocalCityGmlObjectProjection
     {
         return code switch
         {
-            "601" or "602" => PlateauBuildingStructure.Wood,
-            "603" => PlateauBuildingStructure.Steel,
-            "604" => PlateauBuildingStructure.LightweightSteel,
-            "605" => PlateauBuildingStructure.ReinforcedConcrete,
-            "606" => PlateauBuildingStructure.SteelReinforcedConcrete,
+            "601" => PlateauBuildingStructure.Wood,
+            "602" => PlateauBuildingStructure.SteelReinforcedConcrete,
+            "603" => PlateauBuildingStructure.ReinforcedConcrete,
+            "604" => PlateauBuildingStructure.Steel,
+            "605" => PlateauBuildingStructure.LightweightSteel,
+            "606" => PlateauBuildingStructure.ConcreteBlock,
             "607" => PlateauBuildingStructure.ConcreteBlock,
             "610" or "611" or "612" or "613" => PlateauBuildingStructure.NonWood,
             "9999" => PlateauBuildingStructure.Unknown,

@@ -3086,7 +3086,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             PlateauBuildingUse.Warehouse => "431",
             PlateauBuildingUse.Factory => "441",
             PlateauBuildingUse.Public => "421",
-            PlateauBuildingUse.Education => "451",
+            PlateauBuildingUse.Education => "422",
             PlateauBuildingUse.Other => "461",
             _ => "9999",
         };
@@ -3097,11 +3097,11 @@ public sealed class LocalCityGmlObjectProjectionTests
         return structure switch
         {
             PlateauBuildingStructure.Wood => "601",
-            PlateauBuildingStructure.Steel => "603",
-            PlateauBuildingStructure.LightweightSteel => "604",
-            PlateauBuildingStructure.ReinforcedConcrete => "605",
-            PlateauBuildingStructure.SteelReinforcedConcrete => "606",
-            PlateauBuildingStructure.ConcreteBlock => "607",
+            PlateauBuildingStructure.SteelReinforcedConcrete => "602",
+            PlateauBuildingStructure.ReinforcedConcrete => "603",
+            PlateauBuildingStructure.Steel => "604",
+            PlateauBuildingStructure.LightweightSteel => "605",
+            PlateauBuildingStructure.ConcreteBlock => "606",
             PlateauBuildingStructure.NonWood => "610",
             _ => "9999",
         };
