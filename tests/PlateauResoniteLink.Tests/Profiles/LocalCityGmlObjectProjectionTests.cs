@@ -417,6 +417,47 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void ProjectCityObjectInfersUrbanFlatRoofFromCityGmlFunctionCodeAndStructure()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "function-code-lod1-top",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "function-code-lod1-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, topSurface],
+            referenceSystem,
+            buildingAttributes: BuildingAttributeContext.Empty with
+            {
+                CityGmlFunctionCodes = ["401"],
+                Structures = [new BuildingCodeValue<PlateauBuildingStructure>(PlateauBuildingStructure.NonWood, "610")],
+                MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
+                BuildingFootprintArea = BuildingMetricValue.Known(100.0),
+            });
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding roofMaterial = Assert.Single(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
+        Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) < 8.25);
+        Assert.DoesNotContain(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Roof);
+        Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
+    }
+
+    [Fact]
     public void ProjectCityObjectGeneratesShedRoofWallExtensionsAsFacadeWithoutStretchingOriginalWallUv()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");

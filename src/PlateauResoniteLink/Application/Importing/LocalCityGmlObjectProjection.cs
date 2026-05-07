@@ -1750,7 +1750,8 @@ internal static partial class LocalCityGmlObjectProjection
     private static bool HasUse(BuildingAttributeContext attributes, PlateauBuildingUse use)
     {
         return attributes.Uses.Any(value => value.Value == use)
-            || attributes.DetailedUses.Any(value => value.Value == use);
+            || attributes.DetailedUses.Any(value => value.Value == use)
+            || attributes.CityGmlFunctionCodes.Any(code => MapBuildingUse(code) == use);
     }
 
     private static global::PlateauResoniteLink.Application.Importing.ParsedSurface[] CreateGeneratedLod1RoofSurfaces(
