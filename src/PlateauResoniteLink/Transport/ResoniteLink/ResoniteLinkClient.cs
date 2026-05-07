@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -37,7 +38,7 @@ internal interface IResoniteLinkClient : IDisposable
 
 internal sealed class ResoniteLinkClient : IResoniteLinkClient
 {
-    private const double WaitLogThresholdSeconds = 1.0;
+    private static readonly TimeSpan DefaultGateWaitLogThreshold = TimeSpan.FromSeconds(1);
 
     static ResoniteLinkClient()
     {
@@ -46,6 +47,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
 
     private readonly IResoniteLinkTransport link;
     private readonly Action<string>? reporter;
+    private readonly TimeSpan gateWaitLogThreshold;
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private int disposed;
 
@@ -56,10 +58,12 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
 
     internal ResoniteLinkClient(
         IResoniteLinkTransport link,
-        Action<string>? reporter = null)
+        Action<string>? reporter = null,
+        TimeSpan? gateWaitLogThreshold = null)
     {
         this.link = link ?? throw new ArgumentNullException(nameof(link));
         this.reporter = reporter;
+        this.gateWaitLogThreshold = gateWaitLogThreshold ?? DefaultGateWaitLogThreshold;
     }
 
     public void Dispose()
@@ -277,18 +281,24 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     {
         Stopwatch waitStopwatch = Stopwatch.StartNew();
         await operationGate.WaitAsync(cancellationToken);
-        waitStopwatch.Stop();
-        ReportGateWait(operationName, waitStopwatch.Elapsed);
-
-        Stopwatch operationStopwatch = Stopwatch.StartNew();
         try
         {
-            return await operation(cancellationToken);
+            waitStopwatch.Stop();
+            ReportGateWait(operationName, waitStopwatch.Elapsed);
+
+            Stopwatch operationStopwatch = Stopwatch.StartNew();
+            try
+            {
+                return await operation(cancellationToken);
+            }
+            finally
+            {
+                operationStopwatch.Stop();
+                ReportRpcCompleted(operationName, operationStopwatch.Elapsed);
+            }
         }
         finally
         {
-            operationStopwatch.Stop();
-            ReportRpcCompleted(operationName, operationStopwatch.Elapsed);
             operationGate.Release();
         }
     }
@@ -300,30 +310,36 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     {
         Stopwatch waitStopwatch = Stopwatch.StartNew();
         await operationGate.WaitAsync(cancellationToken);
-        waitStopwatch.Stop();
-        ReportGateWait(operationName, waitStopwatch.Elapsed);
-
-        Stopwatch operationStopwatch = Stopwatch.StartNew();
         try
         {
-            await operation(cancellationToken);
+            waitStopwatch.Stop();
+            ReportGateWait(operationName, waitStopwatch.Elapsed);
+
+            Stopwatch operationStopwatch = Stopwatch.StartNew();
+            try
+            {
+                await operation(cancellationToken);
+            }
+            finally
+            {
+                operationStopwatch.Stop();
+                ReportRpcCompleted(operationName, operationStopwatch.Elapsed);
+            }
         }
         finally
         {
-            operationStopwatch.Stop();
-            ReportRpcCompleted(operationName, operationStopwatch.Elapsed);
             operationGate.Release();
         }
     }
 
     private void ReportGateWait(string operationName, TimeSpan elapsed)
     {
-        if (reporter is null || elapsed.TotalSeconds < WaitLogThresholdSeconds)
+        if (reporter is null || elapsed < gateWaitLogThreshold)
         {
             return;
         }
 
-        reporter.Invoke(
+        Report(
             PlateauLog.Debug(
                 "live",
                 $"ResoniteLink '{operationName}' RPC waited {elapsed.TotalSeconds:F3}s for the per-link request gate."));
@@ -331,10 +347,25 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
 
     private void ReportRpcCompleted(string operationName, TimeSpan elapsed)
     {
-        reporter?.Invoke(
+        Report(
             PlateauLog.Debug(
                 "live",
                 $"ResoniteLink '{operationName}' RPC execution completed in {elapsed.TotalSeconds:F3}s."));
+    }
+
+    [SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "Progress reporting is diagnostic output and must not affect ResoniteLink gate ownership or RPC results.")]
+    private void Report(string message)
+    {
+        try
+        {
+            reporter?.Invoke(message);
+        }
+        catch
+        {
+        }
     }
 
     private void ThrowIfUnavailable()

@@ -24,7 +24,7 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
         this.reportProgress = reportProgress;
         if (this.clients.Length == 0)
         {
-            throw new ArgumentException("At least one client must be configured for routing.", nameof(clients));
+            throw new ArgumentException("At least one client must be configured for load balancing.", nameof(clients));
         }
 
         activeOperationCounts = new int[this.clients.Length];

@@ -221,10 +221,11 @@ public sealed class LiveSendClientSessionTests
     private sealed class RecordingClientFactory(IReadOnlyList<ConnectOutcome> connectOutcomes)
     {
         private int nextConnectOutcomeIndex;
+        private int maxConcurrentTextureImports;
 
         public List<RecordingResoniteLinkClient> CreatedClients { get; } = [];
 
-        public int MaxConcurrentTextureImports { get; private set; }
+        public int MaxConcurrentTextureImports => Volatile.Read(ref maxConcurrentTextureImports);
 
         private int activeTextureImports;
 
@@ -243,7 +244,7 @@ public sealed class LiveSendClientSessionTests
         public void RecordTextureImportStarted()
         {
             int active = Interlocked.Increment(ref activeTextureImports);
-            MaxConcurrentTextureImports = Math.Max(MaxConcurrentTextureImports, active);
+            RecordMax(ref maxConcurrentTextureImports, active);
         }
 
         public void RecordTextureImportCompleted()
@@ -260,6 +261,7 @@ public sealed class LiveSendClientSessionTests
         RecordingClientFactory? owner = null) : IResoniteLinkClient
     {
         private int nextSlotId;
+        private int maxConcurrentTextureImports;
 
         public int ConnectCallCount { get; private set; }
 
@@ -269,7 +271,7 @@ public sealed class LiveSendClientSessionTests
 
         public int TextureImportCallCount { get; private set; }
 
-        public int MaxConcurrentTextureImports { get; private set; }
+        public int MaxConcurrentTextureImports => Volatile.Read(ref maxConcurrentTextureImports);
 
         public Uri? LastConnectedEndpoint { get; private set; }
 
@@ -350,7 +352,7 @@ public sealed class LiveSendClientSessionTests
             cancellationToken.ThrowIfCancellationRequested();
             TextureImportCallCount++;
             int active = Interlocked.Increment(ref activeTextureImports);
-            MaxConcurrentTextureImports = Math.Max(MaxConcurrentTextureImports, active);
+            RecordMax(ref maxConcurrentTextureImports, active);
             owner?.RecordTextureImportStarted();
             try
             {
@@ -369,5 +371,19 @@ public sealed class LiveSendClientSessionTests
         {
             throw new NotSupportedException();
         }
+    }
+
+    private static void RecordMax(ref int target, int value)
+    {
+        int observed;
+        do
+        {
+            observed = Volatile.Read(ref target);
+            if (value <= observed)
+            {
+                return;
+            }
+        }
+        while (Interlocked.CompareExchange(ref target, value, observed) != observed);
     }
 }
