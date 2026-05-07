@@ -36,7 +36,7 @@ public sealed class LiveSendClientSessionTests
     }
 
     [Fact]
-    public async Task LoadBalancingClientDistributesBatchCallsAcrossConnectedClients()
+    public async Task LoadBalancingClientPinsBatchCallsToSessionStateConnection()
     {
         RecordingClientFactory clientFactory = new([new(true), new(true), new(true)]);
         using LiveSendClientSession session = new(
@@ -55,11 +55,12 @@ public sealed class LiveSendClientSessionTests
         }
 
         Assert.Equal(6, clientFactory.CreatedClients.Sum(static client => client.BatchCallCount));
-        Assert.All(clientFactory.CreatedClients, client => Assert.True(client.BatchCallCount > 0));
+        Assert.Equal(6, clientFactory.CreatedClients[0].BatchCallCount);
+        Assert.All(clientFactory.CreatedClients.Skip(1), client => Assert.Equal(0, client.BatchCallCount));
     }
 
     [Fact]
-    public async Task LoadBalancingClientDistributesMutationCallsAcrossConnectedClients()
+    public async Task LoadBalancingClientPinsMutationCallsToSessionStateConnection()
     {
         RecordingClientFactory clientFactory = new([new(true), new(true), new(true)]);
         using LiveSendClientSession session = new(
@@ -78,7 +79,8 @@ public sealed class LiveSendClientSessionTests
         }
 
         Assert.Equal(6, clientFactory.CreatedClients.Sum(static client => client.AddSlotCallCount));
-        Assert.All(clientFactory.CreatedClients, client => Assert.True(client.AddSlotCallCount > 0));
+        Assert.Equal(6, clientFactory.CreatedClients[0].AddSlotCallCount);
+        Assert.All(clientFactory.CreatedClients.Skip(1), client => Assert.Equal(0, client.AddSlotCallCount));
     }
 
     [Fact]
@@ -111,9 +113,9 @@ public sealed class LiveSendClientSessionTests
     [Fact]
     public async Task LoadBalancingClientConnectAsyncConnectsAllConnectionsBeforeCalls()
     {
-        RecordingResoniteLinkClient firstClient = new(true, 0);
-        RecordingResoniteLinkClient secondClient = new(true, 0);
-        RecordingResoniteLinkClient thirdClient = new(true, 0);
+        using RecordingResoniteLinkClient firstClient = new(true, 0);
+        using RecordingResoniteLinkClient secondClient = new(true, 0);
+        using RecordingResoniteLinkClient thirdClient = new(true, 0);
         using LoadBalancingResoniteLinkClient loadBalancedClient = new([firstClient, secondClient, thirdClient]);
 
         await loadBalancedClient.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
@@ -124,7 +126,9 @@ public sealed class LiveSendClientSessionTests
         Assert.Equal(1, firstClient.ConnectCallCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
         Assert.Equal(1, thirdClient.ConnectCallCount);
-        Assert.All(new[] { firstClient, secondClient, thirdClient }, client => Assert.True(client.BatchCallCount > 0));
+        Assert.Equal(3, firstClient.BatchCallCount);
+        Assert.Equal(0, secondClient.BatchCallCount);
+        Assert.Equal(0, thirdClient.BatchCallCount);
     }
 
     [Fact]
@@ -142,7 +146,8 @@ public sealed class LiveSendClientSessionTests
 
         Assert.Equal(1, firstClient.ConnectCallCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
-        Assert.Equal(2, firstClient.BatchCallCount + secondClient.BatchCallCount);
+        Assert.Equal(2, firstClient.BatchCallCount);
+        Assert.Equal(0, secondClient.BatchCallCount);
     }
 
     [Fact]

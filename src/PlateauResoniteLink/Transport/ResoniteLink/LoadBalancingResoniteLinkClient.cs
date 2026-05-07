@@ -12,6 +12,8 @@ namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
 {
+    private const int SessionStateRouteIndex = 0;
+
     private readonly object routeLock = new();
     private readonly IResoniteLinkClient[] clients;
     private readonly int[] activeOperationCounts;
@@ -48,19 +50,19 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
 
     public Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
-        return ExecuteOnLeastBusyRouteAsync("add_component", (client, ct) => client.AddComponentAsync(request, ct), cancellationToken);
+        return ExecuteOnSessionStateRouteAsync("add_component", (client, ct) => client.AddComponentAsync(request, ct), cancellationToken);
     }
 
     public Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
-        return ExecuteOnLeastBusyRouteAsync("add_slot", (client, ct) => client.AddSlotAsync(request, ct), cancellationToken);
+        return ExecuteOnSessionStateRouteAsync("add_slot", (client, ct) => client.AddSlotAsync(request, ct), cancellationToken);
     }
 
     public Task<BatchResponse> RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken)
     {
-        return ExecuteOnLeastBusyRouteAsync(
+        return ExecuteOnSessionStateRouteAsync(
             "run_data_model_operation_batch",
             (client, ct) => client.RunDataModelOperationBatchAsync(operations, ct),
             cancellationToken);
@@ -68,12 +70,12 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
 
     public Task<Slot?> GetSlotAsync(ResoniteTransportSlotLocator slot, int depth, CancellationToken cancellationToken)
     {
-        return ExecuteOnLeastBusyRouteAsync("get_slot", (client, ct) => client.GetSlotAsync(slot, depth, ct), cancellationToken);
+        return ExecuteOnSessionStateRouteAsync("get_slot", (client, ct) => client.GetSlotAsync(slot, depth, ct), cancellationToken);
     }
 
     public Task<Component?> GetComponentAsync(ResoniteTransportComponentLocator component, CancellationToken cancellationToken)
     {
-        return ExecuteOnLeastBusyRouteAsync(
+        return ExecuteOnSessionStateRouteAsync(
             "get_component",
             (client, ct) => client.GetComponentAsync(component, ct),
             cancellationToken);
@@ -94,7 +96,23 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
 
     public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
     {
-        return ExecuteOnLeastBusyRouteAsync("update_component", (client, ct) => client.UpdateComponentAsync(request, ct), cancellationToken);
+        return ExecuteOnSessionStateRouteAsync("update_component", (client, ct) => client.UpdateComponentAsync(request, ct), cancellationToken);
+    }
+
+    private Task ExecuteOnSessionStateRouteAsync(
+        string operationName,
+        Func<IResoniteLinkClient, CancellationToken, Task> operation,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteOnRouteAsync(operationName, SessionStateRouteIndex, operation, cancellationToken);
+    }
+
+    private Task<TResult> ExecuteOnSessionStateRouteAsync<TResult>(
+        string operationName,
+        Func<IResoniteLinkClient, CancellationToken, Task<TResult>> operation,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteOnRouteAsync(operationName, SessionStateRouteIndex, operation, cancellationToken);
     }
 
     private async Task ExecuteOnLeastBusyRouteAsync(
@@ -106,6 +124,40 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
         try
         {
             await operation(clients[routeLease.RouteIndex], cancellationToken);
+        }
+        finally
+        {
+            ReleaseRoute(routeLease);
+        }
+    }
+
+    private async Task ExecuteOnRouteAsync(
+        string operationName,
+        int routeIndex,
+        Func<IResoniteLinkClient, CancellationToken, Task> operation,
+        CancellationToken cancellationToken)
+    {
+        RouteLease routeLease = AcquireRoute(operationName, routeIndex);
+        try
+        {
+            await operation(clients[routeLease.RouteIndex], cancellationToken);
+        }
+        finally
+        {
+            ReleaseRoute(routeLease);
+        }
+    }
+
+    private async Task<TResult> ExecuteOnRouteAsync<TResult>(
+        string operationName,
+        int routeIndex,
+        Func<IResoniteLinkClient, CancellationToken, Task<TResult>> operation,
+        CancellationToken cancellationToken)
+    {
+        RouteLease routeLease = AcquireRoute(operationName, routeIndex);
+        try
+        {
+            return await operation(clients[routeLease.RouteIndex], cancellationToken);
         }
         finally
         {
@@ -155,6 +207,20 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
                     $"Routing '{operationName}' RPC to live connection {selectedRouteIndex + 1}/{clients.Length} "
                     + $"with {activeOperationCounts[selectedRouteIndex]} active operation(s) on that connection."));
             return new RouteLease(selectedRouteIndex);
+        }
+    }
+
+    private RouteLease AcquireRoute(string operationName, int routeIndex)
+    {
+        lock (routeLock)
+        {
+            activeOperationCounts[routeIndex]++;
+            Report(
+                PlateauLog.Debug(
+                    "live",
+                    $"Routing session-scoped '{operationName}' RPC to live connection {routeIndex + 1}/{clients.Length} "
+                    + $"with {activeOperationCounts[routeIndex]} active operation(s) on that connection."));
+            return new RouteLease(routeIndex);
         }
     }
 
