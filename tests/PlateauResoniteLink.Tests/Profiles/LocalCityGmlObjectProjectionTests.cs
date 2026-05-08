@@ -416,12 +416,16 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Contains(projected.Mesh.Vertices, vertex => vertex.UV0.Y is > 0.45 and < 0.55);
     }
 
-    [Fact]
-    public void ProjectCityObjectInfersUrbanFlatRoofFromCityGmlFunctionCodeAndStructure()
+    [Theory]
+    [InlineData((int)PlateauBuildingStructure.NonWood)]
+    [InlineData((int)PlateauBuildingStructure.ReinforcedConcrete)]
+    [InlineData((int)PlateauBuildingStructure.SteelReinforcedConcrete)]
+    public void ProjectCityObjectInfersUrbanFlatRoofFromCityGmlFunctionCodeAndFlatRoofStructures(int structureValue)
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        PlateauBuildingStructure structure = (PlateauBuildingStructure)structureValue;
         ParsedSurface topSurface = CreateParsedSurface(
             "function-code-lod1-top",
             ParsedSurfaceSemantic.Roof,
@@ -439,7 +443,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             buildingAttributes: BuildingAttributeContext.Empty with
             {
                 CityGmlFunctionCodes = ["401"],
-                Structures = [new BuildingCodeValue<PlateauBuildingStructure>(PlateauBuildingStructure.NonWood, "610")],
+                Structures = [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
                 MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
                 BuildingFootprintArea = BuildingMetricValue.Known(100.0),
             });
@@ -454,6 +458,64 @@ public sealed class LocalCityGmlObjectProjectionTests
         MaterialBinding roofMaterial = Assert.Single(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
         Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) < 8.25);
         Assert.DoesNotContain(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Roof);
+        Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
+    }
+
+    [Theory]
+    [InlineData((int)PlateauBuildingStructure.Steel)]
+    [InlineData((int)PlateauBuildingStructure.LightweightSteel)]
+    [InlineData((int)PlateauBuildingStructure.ConcreteBlock)]
+    public void ProjectCityObjectDoesNotForceUrbanFlatRoofFromGeneralNonWoodStructures(int structureValue)
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        PlateauBuildingStructure structure = (PlateauBuildingStructure)structureValue;
+        ParsedSurface topSurface = CreateParsedSurface(
+            "general-non-wood-lod1-top",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeRectangleVertices(
+                "53394525",
+                altitudeMeters: 8.0,
+                minLatitudeRatio: 0.47,
+                maxLatitudeRatio: 0.53,
+                minLongitudeRatio: 0.35,
+                maxLongitudeRatio: 0.65,
+                reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "general-non-wood-lod1-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeRectangleVertices(
+                "53394525",
+                altitudeMeters: 0.0,
+                minLatitudeRatio: 0.47,
+                maxLatitudeRatio: 0.53,
+                minLongitudeRatio: 0.35,
+                maxLongitudeRatio: 0.65,
+                reverseWinding: false),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, topSurface],
+            referenceSystem,
+            buildingAttributes: BuildingAttributeContext.Empty with
+            {
+                CityGmlFunctionCodes = ["401"],
+                Structures = [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
+                MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
+                BuildingFootprintArea = BuildingMetricValue.Known(100.0),
+            });
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) > 8.25);
+        Assert.Contains(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Facade);
         Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
     }
 
@@ -3168,6 +3230,33 @@ public sealed class LocalCityGmlObjectProjectionTests
             new(south + ((north - south) * minRatio), west + ((east - west) * maxRatio), altitudeMeters),
             new(south + ((north - south) * maxRatio), west + ((east - west) * maxRatio), altitudeMeters),
             new(south + ((north - south) * maxRatio), west + ((east - west) * minRatio), altitudeMeters),
+        ];
+
+        if (reverseWinding)
+        {
+            vertices.Reverse();
+        }
+
+        vertices.Add(vertices[0]);
+        return vertices;
+    }
+
+    private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateMeshRelativeRectangleVertices(
+        string meshCode,
+        double altitudeMeters,
+        double minLatitudeRatio,
+        double maxLatitudeRatio,
+        double minLongitudeRatio,
+        double maxLongitudeRatio,
+        bool reverseWinding)
+    {
+        (double south, double north, double west, double east) = GetMeshBounds(meshCode);
+        List<LocalCityGmlObjectProjection.GeodeticPoint> vertices =
+        [
+            new(south + ((north - south) * minLatitudeRatio), west + ((east - west) * minLongitudeRatio), altitudeMeters),
+            new(south + ((north - south) * minLatitudeRatio), west + ((east - west) * maxLongitudeRatio), altitudeMeters),
+            new(south + ((north - south) * maxLatitudeRatio), west + ((east - west) * maxLongitudeRatio), altitudeMeters),
+            new(south + ((north - south) * maxLatitudeRatio), west + ((east - west) * minLongitudeRatio), altitudeMeters),
         ];
 
         if (reverseWinding)
