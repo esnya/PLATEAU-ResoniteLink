@@ -1696,7 +1696,7 @@ internal static partial class LocalCityGmlObjectProjection
         Lod1RoofFootprint footprint)
     {
         CityGmlRoofShape? explicitRoofShape = footprint.Attributes.RoofShape?.Value;
-        if (explicitRoofShape is not null and not CityGmlRoofShape.Unknown)
+        if (explicitRoofShape is not null and not CityGmlRoofShape.Unknown and not CityGmlRoofShape.Other)
         {
             return explicitRoofShape switch
             {
