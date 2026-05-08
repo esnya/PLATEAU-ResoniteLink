@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+
+using PlateauResoniteLink.Application.Logging;
 
 using ResoniteLink;
 
@@ -34,24 +38,32 @@ internal interface IResoniteLinkClient : IDisposable
 
 internal sealed class ResoniteLinkClient : IResoniteLinkClient
 {
+    private static readonly TimeSpan DefaultGateWaitLogThreshold = TimeSpan.FromSeconds(1);
+
     static ResoniteLinkClient()
     {
         LinkInterface.SerializationOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
     }
 
     private readonly IResoniteLinkTransport link;
+    private readonly Action<string>? reporter;
+    private readonly TimeSpan gateWaitLogThreshold;
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private int disposed;
 
-    public ResoniteLinkClient()
-        : this(new LinkInterfaceResoniteLinkTransport(new LinkInterface()))
+    public ResoniteLinkClient(Action<string>? reporter = null)
+        : this(new LinkInterfaceResoniteLinkTransport(new LinkInterface()), reporter)
     {
     }
 
     internal ResoniteLinkClient(
-        IResoniteLinkTransport link)
+        IResoniteLinkTransport link,
+        Action<string>? reporter = null,
+        TimeSpan? gateWaitLogThreshold = null)
     {
         this.link = link ?? throw new ArgumentNullException(nameof(link));
+        this.reporter = reporter;
+        this.gateWaitLogThreshold = gateWaitLogThreshold ?? DefaultGateWaitLogThreshold;
     }
 
     public void Dispose()
@@ -69,6 +81,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     {
         ThrowIfUnavailable();
         await ExecuteSerializedAsync(
+            "connect",
             ct => link.ConnectAsync(endpoint, ct),
             cancellationToken);
     }
@@ -90,6 +103,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         }
 
         BatchResponse response = await ExecuteSerializedAsync(
+            "run_data_model_operation_batch",
             _ => link.RunDataModelOperationBatchAsync(operations.ToList()),
             cancellationToken);
         if (!response.Success)
@@ -108,6 +122,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
         SlotData response = await ExecuteSerializedAsync(
+            "get_slot",
             _ => link.GetSlotDataAsync(
                 new GetSlot
                 {
@@ -129,6 +144,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
         AssetData result = await ExecuteSerializedAsync(
+            "import_mesh",
             _ => link.ImportMeshAsync(request),
             cancellationToken);
         EnsureSuccess(result, "import mesh");
@@ -157,6 +173,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         Response response = await ExecuteSerializedAsync(
+            "update_component",
             _ => link.UpdateComponentAsync(
                 new UpdateComponent
                 {
@@ -181,6 +198,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             request.Data.ComponentType,
             request.ContainerSlotId);
         NewEntityId response = await ExecuteSerializedAsync(
+            "add_component",
             _ => link.AddComponentAsync(request),
             cancellationToken);
         EnsureSuccess(response, operationName);
@@ -199,6 +217,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             request.Data.Name?.Value,
             request.Data.Parent?.TargetID);
         NewEntityId response = await ExecuteSerializedAsync(
+            "add_slot",
             _ => link.AddSlotAsync(request),
             cancellationToken);
         EnsureSuccess(response, operationName);
@@ -211,6 +230,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
         ComponentData response = await ExecuteSerializedAsync(
+            "get_component",
             _ => link.GetComponentDataAsync(
                 new GetComponent
                 {
@@ -228,6 +248,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     private Task<AssetData> ImportRawTextureAsync(ResoniteRawTextureImport rawImport, CancellationToken cancellationToken)
     {
         return ExecuteSerializedAsync(
+            "import_texture",
             _ => link.ImportTextureRawAsync(
                 new ImportTexture2DRawData
                 {
@@ -242,6 +263,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     private Task<AssetData> ImportRawHdrTextureAsync(ResoniteRawHdrTextureImport rawHdrImport, CancellationToken cancellationToken)
     {
         return ExecuteSerializedAsync(
+            "import_texture",
             _ => link.ImportTextureRawHdrAsync(
                 new ImportTexture2DRawDataHDR
                 {
@@ -253,13 +275,27 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     }
 
     private async Task<TResult> ExecuteSerializedAsync<TResult>(
+        string operationName,
         Func<CancellationToken, Task<TResult>> operation,
         CancellationToken cancellationToken)
     {
+        Stopwatch waitStopwatch = Stopwatch.StartNew();
         await operationGate.WaitAsync(cancellationToken);
         try
         {
-            return await operation(cancellationToken);
+            waitStopwatch.Stop();
+            ReportGateWait(operationName, waitStopwatch.Elapsed);
+
+            Stopwatch operationStopwatch = Stopwatch.StartNew();
+            try
+            {
+                return await operation(cancellationToken);
+            }
+            finally
+            {
+                operationStopwatch.Stop();
+                ReportRpcCompleted(operationName, operationStopwatch.Elapsed);
+            }
         }
         finally
         {
@@ -268,17 +304,67 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     }
 
     private async Task ExecuteSerializedAsync(
+        string operationName,
         Func<CancellationToken, Task> operation,
         CancellationToken cancellationToken)
     {
+        Stopwatch waitStopwatch = Stopwatch.StartNew();
         await operationGate.WaitAsync(cancellationToken);
         try
         {
-            await operation(cancellationToken);
+            waitStopwatch.Stop();
+            ReportGateWait(operationName, waitStopwatch.Elapsed);
+
+            Stopwatch operationStopwatch = Stopwatch.StartNew();
+            try
+            {
+                await operation(cancellationToken);
+            }
+            finally
+            {
+                operationStopwatch.Stop();
+                ReportRpcCompleted(operationName, operationStopwatch.Elapsed);
+            }
         }
         finally
         {
             operationGate.Release();
+        }
+    }
+
+    private void ReportGateWait(string operationName, TimeSpan elapsed)
+    {
+        if (reporter is null || elapsed < gateWaitLogThreshold)
+        {
+            return;
+        }
+
+        Report(
+            PlateauLog.Debug(
+                "live",
+                $"ResoniteLink '{operationName}' RPC waited {elapsed.TotalSeconds:F3}s for the per-link request gate."));
+    }
+
+    private void ReportRpcCompleted(string operationName, TimeSpan elapsed)
+    {
+        Report(
+            PlateauLog.Debug(
+                "live",
+                $"ResoniteLink '{operationName}' RPC execution completed in {elapsed.TotalSeconds:F3}s."));
+    }
+
+    [SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "Progress reporting is diagnostic output and must not affect ResoniteLink gate ownership or RPC results.")]
+    private void Report(string message)
+    {
+        try
+        {
+            reporter?.Invoke(message);
+        }
+        catch
+        {
         }
     }
 

@@ -107,7 +107,11 @@ public sealed class ResoniteLinkClientTests
     public async Task ImportTextureAsyncSerializesOtherOperationsOnSameLink()
     {
         using BlockingResoniteLinkTransport transport = new();
-        using IResoniteLinkClient client = new ResoniteLinkClient(transport);
+        List<string> messages = [];
+        using IResoniteLinkClient client = new ResoniteLinkClient(
+            transport,
+            messages.Add,
+            gateWaitLogThreshold: TimeSpan.Zero);
 
         Task<Uri> importTask = client.ImportTextureAsync(
             new ResoniteRawTextureImport(
@@ -136,7 +140,7 @@ public sealed class ResoniteLinkClientTests
             },
             CancellationToken.None);
 
-        await Task.Delay(100);
+        await Task.Delay(25);
         Assert.False(addSlotTask.IsCompleted);
         Assert.Equal(0, transport.AddSlotCallCount);
 
@@ -145,6 +149,51 @@ public sealed class ResoniteLinkClientTests
         await importTask;
         ResoniteTransportSlotCreationResult slot = await addSlotTask;
 
+        Assert.Equal(new ResoniteTransportSlotLocator("srv_slot_1"), slot.Slot);
+        Assert.Equal(1, transport.ImportTextureRawCallCount);
+        Assert.Equal(1, transport.AddSlotCallCount);
+        Assert.Contains(messages, static message => message.Contains("'add_slot' RPC waited", StringComparison.Ordinal));
+        Assert.Contains(messages, static message => message.Contains("'import_texture' RPC execution completed", StringComparison.Ordinal));
+        Assert.Contains(messages, static message => message.Contains("'add_slot' RPC execution completed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ProgressReporterExceptionsDoNotHoldPerLinkGate()
+    {
+        using BlockingResoniteLinkTransport transport = new()
+        {
+            CompleteImportTextureImmediately = true,
+        };
+        using IResoniteLinkClient client = new ResoniteLinkClient(
+            transport,
+            _ => throw new InvalidOperationException("Progress sink failed."));
+
+        Uri texture = await client.ImportTextureAsync(
+            new ResoniteRawTextureImport(
+                Width: 1,
+                Height: 1,
+                RawRgba32Bytes: [255, 0, 0, 255],
+                ColorProfile: ResoniteTextureColorProfiles.Srgb),
+            CancellationToken.None);
+
+        ResoniteTransportSlotCreationResult slot = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference
+                    {
+                        TargetID = "Root",
+                    },
+                    Name = new Field_string
+                    {
+                        Value = "After reporter failure",
+                    },
+                },
+            },
+            CancellationToken.None);
+
+        Assert.Equal(new Uri("resdb:///texture/serialized", UriKind.Absolute), texture);
         Assert.Equal(new ResoniteTransportSlotLocator("srv_slot_1"), slot.Slot);
         Assert.Equal(1, transport.ImportTextureRawCallCount);
         Assert.Equal(1, transport.AddSlotCallCount);
@@ -200,6 +249,8 @@ public sealed class ResoniteLinkClientTests
 
         public TaskCompletionSource AllowImportTextureCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        public bool CompleteImportTextureImmediately { get; init; }
+
         public void Dispose()
         {
         }
@@ -228,7 +279,11 @@ public sealed class ResoniteLinkClientTests
         {
             ImportTextureRawCallCount++;
             ImportTextureStarted.TrySetResult();
-            await AllowImportTextureCompletion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if (!CompleteImportTextureImmediately)
+            {
+                await AllowImportTextureCompletion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+
             return new AssetData
             {
                 Success = true,
