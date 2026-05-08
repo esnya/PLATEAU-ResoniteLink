@@ -3786,8 +3786,7 @@ internal static partial class LocalCityGmlObjectProjection
             contextSurfaceInfos = surfaceInfos;
         }
 
-        double minimumY = contextSurfaceInfos.Min(static info => info.MinimumY!.Value);
-        double maximumY = contextSurfaceInfos.Max(static info => info.MaximumY!.Value);
+        (double minimumY, double maximumY) = ResolveFacadeUvVerticalRange(contextSurfaceInfos, surfaceInfos);
         double geometryHeightMeters = Math.Max(maximumY - minimumY, 0.0);
         int floorCount = Math.Max(
             1,
@@ -3801,6 +3800,24 @@ internal static partial class LocalCityGmlObjectProjection
             maximumY,
             floorHeightMeters,
             floorCount);
+    }
+
+    private static (double MinimumY, double MaximumY) ResolveFacadeUvVerticalRange(
+        IReadOnlyList<SurfaceProjectionInfo> contextSurfaceInfos,
+        IReadOnlyList<SurfaceProjectionInfo> allSurfaceInfos)
+    {
+        double minimumY = contextSurfaceInfos.Min(static info => info.MinimumY!.Value);
+        double maximumY = contextSurfaceInfos.Max(static info => info.MaximumY!.Value);
+        if (maximumY - minimumY > 1e-6 || contextSurfaceInfos.Count == allSurfaceInfos.Count)
+        {
+            return (minimumY, maximumY);
+        }
+
+        double fallbackMinimumY = allSurfaceInfos.Min(static info => info.MinimumY!.Value);
+        double fallbackMaximumY = allSurfaceInfos.Max(static info => info.MaximumY!.Value);
+        return fallbackMaximumY - fallbackMinimumY > maximumY - minimumY
+            ? (fallbackMinimumY, fallbackMaximumY)
+            : (minimumY, maximumY);
     }
 
     private static bool IsGeneratedLod1RoofSurface(ParsedSurface surface)

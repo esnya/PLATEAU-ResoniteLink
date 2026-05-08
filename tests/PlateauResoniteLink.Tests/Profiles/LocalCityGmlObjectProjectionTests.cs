@@ -570,6 +570,44 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.InRange(maxFacadeVAtOriginalTop, expectedOriginalWallTopV - 0.05, expectedOriginalWallTopV + 0.05);
     }
 
+    [Fact]
+    public void ProjectCityObjectUsesGeneratedRoofWallsForFacadeUvWhenNoOriginalWallHeightExists()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        ParsedSurface topSurface = CreateParsedSurface(
+            "shed-generated-only-lod1-top",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedSurface bottomSurface = CreateParsedSurface(
+            "shed-generated-only-lod1-bottom",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 0.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [bottomSurface, topSurface],
+            referenceSystem,
+            buildingAttributes: CreateBuildingAttributes(CityGmlRoofShape.Shed));
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            demTerrainTextureOverlay: overlay,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Facade);
+        MeshSubmesh facadeSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == facadeMaterial.SubmeshIndices.Single());
+        double maxFacadeV = facadeSubmesh.TriangleVertexIndices
+            .Select(index => projected.Mesh.Vertices[index].UV0.Y)
+            .Max();
+
+        Assert.InRange(maxFacadeV, 0.1, 10.0);
+    }
+
     [Theory]
     [InlineData((int)CityGmlRoofShape.Shed)]
     [InlineData((int)CityGmlRoofShape.Gable)]
