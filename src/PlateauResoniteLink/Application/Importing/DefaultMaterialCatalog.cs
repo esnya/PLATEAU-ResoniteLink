@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -334,7 +335,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
     {
         byte[] keyBytes = Encoding.UTF8.GetBytes(variantSelectionKey);
         byte[] hashBytes = SHA256.HashData(keyBytes);
-        int hashCode = BitConverter.ToInt32(hashBytes, 0) & int.MaxValue;
+        int hashCode = BinaryPrimitives.ReadInt32LittleEndian(hashBytes) & int.MaxValue;
         return hashCode % bucketCount;
     }
 

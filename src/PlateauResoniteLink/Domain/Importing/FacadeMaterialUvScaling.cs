@@ -64,15 +64,15 @@ public static class FacadeMaterialUvScaling
         double offsetRows = 0.0)
     {
         return new BundledDefaultMaterialProfile(
-            CreateFloorUnitScaleValue(rowsPerTexture, textureAspect: 1.0),
+            CreateSquareTextureFloorUnitScaleValue(rowsPerTexture),
             CreateTextureOffsetValue(columnsPerTexture, rowsPerTexture, offsetColumns, offsetRows),
             ScaleSemantic: BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits);
     }
 
-    private static ScalarPair CreateFloorUnitScaleValue(double rowsPerTexture, double textureAspect)
+    private static ScalarPair CreateSquareTextureFloorUnitScaleValue(double rowsPerTexture)
     {
         return new ScalarPair(
-            1.0 / (rowsPerTexture * textureAspect),
+            1.0 / rowsPerTexture,
             1.0 / rowsPerTexture);
     }
 
