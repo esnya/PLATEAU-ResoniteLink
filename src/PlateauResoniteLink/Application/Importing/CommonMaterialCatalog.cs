@@ -26,6 +26,16 @@ public sealed class CommonMaterialCatalog
             {
                 families.Add(BundledDefaultMaterialFamilies.Facade);
                 families.Add(BundledDefaultMaterialFamilies.Roof);
+                foreach (string family in BundledDefaultMaterialFamilies.BuildingWallSkinFamilies)
+                {
+                    families.Add(family);
+                }
+
+                foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFallbackFamilies)
+                {
+                    families.Add(family);
+                }
+
                 continue;
             }
 
@@ -58,8 +68,10 @@ public sealed class CommonMaterialCatalog
         {
             for (int variantIndex = 0; variantIndex < BundledDefaultMaterialFamilies.GetVariants(family).Count; variantIndex++)
             {
-                materials.Add(CreateBinding(family, variantIndex, MaterialProjection.Uv));
-                materials.Add(CreateBinding(family, variantIndex, MaterialProjection.Triplanar));
+                foreach (MaterialProjection projection in GetCommonProjections(family))
+                {
+                    materials.Add(CreateBinding(family, variantIndex, projection));
+                }
             }
         }
 
@@ -67,6 +79,22 @@ public sealed class CommonMaterialCatalog
         materials.Add(CreateSharedVertexColorCommonMaterialBinding());
 
         return materials;
+    }
+
+    private static IReadOnlyList<MaterialProjection> GetCommonProjections(string family)
+    {
+        if (string.Equals(family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal))
+        {
+            return [MaterialProjection.Triplanar];
+        }
+
+        if (BundledDefaultMaterialFamilies.BuildingWallSkinFamilies.Contains(family, StringComparer.Ordinal)
+            || BundledDefaultMaterialFamilies.BuildingFacadeFallbackFamilies.Contains(family, StringComparer.Ordinal))
+        {
+            return [MaterialProjection.Uv];
+        }
+
+        return [MaterialProjection.Uv, MaterialProjection.Triplanar];
     }
 
     private static MaterialBinding CreateBinding(

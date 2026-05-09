@@ -75,6 +75,10 @@ public sealed class CommonMaterialCatalogTests
         Assert.Equal(
             new Float2(BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.X, BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.Y),
             roofMaterial.TextureScale);
+        Assert.DoesNotContain(
+            materials,
+            material => material.Family == BundledDefaultMaterialFamilies.Roof
+                && material.Projection == MaterialProjection.Uv);
     }
 
     [Fact]
@@ -87,6 +91,55 @@ public sealed class CommonMaterialCatalogTests
 
         Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, facadeProfile.ScaleSemantic);
         Assert.Equal(BundledDefaultMaterialUvScaleSemantic.WorldMeters, roofProfile.ScaleSemantic);
+    }
+
+    [Fact]
+    public void CreateForPackages_PrecreatesReachableBuildingWallSkinFallbackFamilies()
+    {
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingWallSkinFamilies)
+        {
+            Assert.Equal(
+                BundledDefaultMaterialFamilies.GetVariants(family).Count,
+                materials.Count(material => material.Family == family && material.Projection == MaterialProjection.Uv));
+            Assert.DoesNotContain(
+                materials,
+                material => material.Family == family && material.Projection == MaterialProjection.Triplanar);
+        }
+    }
+
+    [Fact]
+    public void CreateForPackages_PrecreatesReachableBuildingFacadeFallbackFamilies()
+    {
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFallbackFamilies)
+        {
+            Assert.Equal(
+                BundledDefaultMaterialFamilies.GetVariants(family).Count,
+                materials.Count(material => material.Family == family && material.Projection == MaterialProjection.Uv));
+            Assert.DoesNotContain(
+                materials,
+                material => material.Family == family && material.Projection == MaterialProjection.Triplanar);
+        }
+    }
+
+    [Fact]
+    public void WallSkinProfiles_UseFacadeFloorUnitUvSemantic()
+    {
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingWallSkinFamilies)
+        {
+            foreach (string variant in BundledDefaultMaterialFamilies.GetVariants(family))
+            {
+                BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(variant);
+
+                Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, profile.ScaleSemantic);
+                Assert.True(profile.TextureScale.X > 0.0);
+                Assert.Equal(profile.TextureScale.X, profile.TextureScale.Y, 6);
+                Assert.Null(profile.TextureOffset);
+            }
+        }
     }
 
     private static Float2 ExpectedFacadeScale(int variantIndex)

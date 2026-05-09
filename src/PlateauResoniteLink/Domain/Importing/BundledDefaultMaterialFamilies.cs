@@ -6,6 +6,18 @@ namespace PlateauResoniteLink.Domain.Importing;
 public static class BundledDefaultMaterialFamilies
 {
     public const string Facade = "facade";
+    public const string WallResidentialPlasterLow = "wall-res-plaster-low";
+    public const string WallResidentialTileLow = "wall-res-tile-low";
+    public const string WallApartmentTileMid = "wall-apartment-tile-mid";
+    public const string WallRcPaintedMid = "wall-rc-painted-mid";
+    public const string WallFactoryMetal = "wall-factory-metal";
+    public const string WallCommercialPanel = "wall-commercial-panel";
+    public const string WallSchoolPublicBand = "wall-school-public-band";
+    public const string WallBrickRetro = "wall-brick-retro";
+    public const string WallWoodRural = "wall-wood-rural";
+    public const string FacadeHighriseGlass = "facade-highrise-glass";
+    public const string FacadeHighriseNightLow = "facade-highrise-night-low";
+    public const string FacadeMidriseGrid = "facade-midrise-grid";
     public const string Roof = "roof";
     public const string Road = "road";
     public const string Vegetation = "vegetation";
@@ -17,6 +29,99 @@ public static class BundledDefaultMaterialFamilies
         "default-materials/ambientcg/facade/Facade018A_2K-JPG_Color.jpg",
         "default-materials/ambientcg/facade/Facade019A_2K-JPG_Color.jpg",
         "default-materials/ambientcg/facade/Facade020A_2K-JPG_Color.jpg",
+    ];
+
+    public static readonly IReadOnlyList<string> WallResidentialPlasterLowVariants =
+    [
+        "default-materials/wallskins/wall_res_plaster_low/basecolor.png",
+        "default-materials/wallskins/wall_res_plaster_dark/basecolor.png",
+    ];
+
+    public static readonly IReadOnlyList<string> WallResidentialTileLowVariants =
+    [
+        "default-materials/wallskins/wall_res_tile_low/basecolor.png",
+        "default-materials/wallskins/wall_res_tile_dark/basecolor.png",
+        "default-materials/wallskins/wall_res_tile_dark_irregular/basecolor.png",
+        "default-materials/wallskins/wall_res_siding_brick_gray/basecolor.png",
+    ];
+
+    public static readonly IReadOnlyList<string> WallApartmentTileMidVariants =
+    [
+        "default-materials/wallskins/wall_apartment_tile_mid/basecolor.png",
+        "default-materials/wallskins/wall_apartment_tile_dark/basecolor.png",
+    ];
+
+    public static readonly IReadOnlyList<string> WallRcPaintedMidVariants =
+    [
+        "default-materials/wallskins/wall_rc_painted_mid/basecolor.png",
+        "default-materials/wallskins/wall_rc_painted_dark/basecolor.png",
+    ];
+
+    public static readonly IReadOnlyList<string> WallFactoryMetalVariants =
+    [
+        "default-materials/wallskins/wall_factory_metal/basecolor.png",
+    ];
+
+    public static readonly IReadOnlyList<string> WallCommercialPanelVariants =
+    [
+        "default-materials/wallskins/wall_commercial_panel/basecolor.png",
+        "default-materials/wallskins/wall_commercial_panel_dark/basecolor.png",
+    ];
+
+    public static readonly IReadOnlyList<string> WallSchoolPublicBandVariants =
+    [
+        "default-materials/wallskins/wall_school_public_band/basecolor.png",
+        "default-materials/wallskins/wall_school_public_dark/basecolor.png",
+    ];
+
+    public static readonly IReadOnlyList<string> WallBrickRetroVariants =
+    [
+        "default-materials/wallskins/wall_brick_retro/basecolor.png",
+        "default-materials/wallskins/wall_brick_dark/basecolor.png",
+    ];
+
+    public static readonly IReadOnlyList<string> WallWoodRuralVariants =
+    [
+        "default-materials/wallskins/wall_wood_rural_light/basecolor.png",
+    ];
+
+    public static readonly IReadOnlyList<string> FacadeHighriseGlassVariants =
+    [
+        "default-materials/ambientcg/facade/Facade001_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/facade/Facade005_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/facade/Facade006_2K-JPG_Color.jpg",
+    ];
+
+    public static readonly IReadOnlyList<string> FacadeHighriseNightLowVariants =
+    [
+        "default-materials/ambientcg/facade/Facade002_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/facade/Facade011_2K-JPG_Color.jpg",
+    ];
+
+    public static readonly IReadOnlyList<string> FacadeMidriseGridVariants =
+    [
+        "default-materials/ambientcg/facade/Facade014_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/facade/Facade015_2K-JPG_Color.jpg",
+    ];
+
+    public static readonly IReadOnlyList<string> BuildingWallSkinFamilies =
+    [
+        WallResidentialPlasterLow,
+        WallResidentialTileLow,
+        WallApartmentTileMid,
+        WallRcPaintedMid,
+        WallFactoryMetal,
+        WallCommercialPanel,
+        WallSchoolPublicBand,
+        WallBrickRetro,
+        WallWoodRural,
+    ];
+
+    public static readonly IReadOnlyList<string> BuildingFacadeFallbackFamilies =
+    [
+        FacadeHighriseGlass,
+        FacadeHighriseNightLow,
+        FacadeMidriseGrid,
     ];
 
     public static readonly IReadOnlyList<string> RoofVariants =
@@ -69,6 +174,18 @@ public static class BundledDefaultMaterialFamilies
         return family switch
         {
             Facade => FacadeVariants,
+            WallResidentialPlasterLow => WallResidentialPlasterLowVariants,
+            WallResidentialTileLow => WallResidentialTileLowVariants,
+            WallApartmentTileMid => WallApartmentTileMidVariants,
+            WallRcPaintedMid => WallRcPaintedMidVariants,
+            WallFactoryMetal => WallFactoryMetalVariants,
+            WallCommercialPanel => WallCommercialPanelVariants,
+            WallSchoolPublicBand => WallSchoolPublicBandVariants,
+            WallBrickRetro => WallBrickRetroVariants,
+            WallWoodRural => WallWoodRuralVariants,
+            FacadeHighriseGlass => FacadeHighriseGlassVariants,
+            FacadeHighriseNightLow => FacadeHighriseNightLowVariants,
+            FacadeMidriseGrid => FacadeMidriseGridVariants,
             Roof => RoofVariants,
             Road => RoadVariants,
             Vegetation => VegetationVariants,

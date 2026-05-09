@@ -90,7 +90,8 @@ internal sealed record ParsedCityObject(
     GeodeticPoint? GeodeticOriginOverride = null,
     int? FloorsAboveGround = null,
     double? MeasuredHeightMeters = null,
-    BuildingAttributeContext? BuildingAttributes = null)
+    BuildingAttributeContext? BuildingAttributes = null,
+    double? GeometryHeightMeters = null)
 {
     internal LocalCityGmlObjectProjection.ParsedCityObject ToProjectionModel()
     {
@@ -108,7 +109,8 @@ internal sealed record ParsedCityObject(
             GeodeticOriginOverride?.ToProjectionModel(),
             FloorsAboveGround,
             MeasuredHeightMeters,
-            BuildingAttributes);
+            BuildingAttributes,
+            GeometryHeightMeters);
     }
 
     internal static ParsedCityObject FromProjectionModel(LocalCityGmlObjectProjection.ParsedCityObject cityObject)
@@ -127,6 +129,7 @@ internal sealed record ParsedCityObject(
             cityObject.GeodeticOriginOverride is null ? null : GeodeticPoint.FromProjectionModel(cityObject.GeodeticOriginOverride),
             cityObject.FloorsAboveGround,
             cityObject.MeasuredHeightMeters,
-            cityObject.BuildingAttributes);
+            cityObject.BuildingAttributes,
+            cityObject.GeometryHeightMeters);
     }
 }
