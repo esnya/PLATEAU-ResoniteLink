@@ -18,8 +18,12 @@ Runtime material families currently use only a curated subset of these files. Ot
 
 Bundled ambientCG material sources:
 - src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade001_2K-JPG_* -> AmbientCG Facade001 -> https://ambientcg.com/view?id=Facade001
+- src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade002_2K-JPG_* -> AmbientCG Facade002 -> https://ambientcg.com/view?id=Facade002
 - src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade005_2K-JPG_* -> AmbientCG Facade005 -> https://ambientcg.com/view?id=Facade005
 - src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade006_2K-JPG_* -> AmbientCG Facade006 -> https://ambientcg.com/view?id=Facade006
+- src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade011_2K-JPG_* -> AmbientCG Facade011 -> https://ambientcg.com/view?id=Facade011
+- src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade014_2K-JPG_* -> AmbientCG Facade014 -> https://ambientcg.com/view?id=Facade014
+- src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade015_2K-JPG_* -> AmbientCG Facade015 -> https://ambientcg.com/view?id=Facade015
 - src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade018A_2K-JPG_* -> AmbientCG Facade018A -> https://ambientcg.com/view?id=Facade018A
 - src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade019A_2K-JPG_* -> AmbientCG Facade019A -> https://ambientcg.com/view?id=Facade019A
 - src/PlateauResoniteLink/Assets/DefaultMaterials/ambientcg/facade/Facade020A_2K-JPG_* -> AmbientCG Facade020A -> https://ambientcg.com/view?id=Facade020A

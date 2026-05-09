@@ -1,0 +1,9 @@
+WallSkin Generated Textures Notice
+
+This notice covers bundled texture assets under:
+
+- src/PlateauResoniteLink/Assets/DefaultMaterials/wallskins/
+
+These texture assets were generated for this project as local fallback wall
+materials. They are not ambientCG source files and are tracked separately from
+the ambientCG CC0 asset notice.

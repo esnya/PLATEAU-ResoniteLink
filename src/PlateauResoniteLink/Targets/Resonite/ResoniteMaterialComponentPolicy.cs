@@ -185,6 +185,18 @@ internal static class ResoniteMaterialComponentPolicy
 
         string albedoLogicalPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
         string stem = Path.GetFileNameWithoutExtension(albedoLogicalPath);
+        if (string.Equals(stem, "basecolor", StringComparison.Ordinal))
+        {
+            string wallSkinDirectory = Path.GetDirectoryName(albedoLogicalPath)?.Replace('\\', '/')
+                ?? throw new InvalidOperationException($"Could not determine bundled texture directory for '{albedoLogicalPath}'.");
+            textureSet = new BundledDefaultMaterialTextureSet(
+                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "emission", ".png", ".jpg"),
+                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "height", ".png", ".jpg"),
+                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "metallic_ao_smoothness", ".png", ".jpg"),
+                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "normalGL", ".png", ".jpg"));
+            return true;
+        }
+
         if (!stem.EndsWith("_Color", StringComparison.Ordinal))
         {
             return false;

@@ -130,6 +130,37 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     }
 
     [Fact]
+    public void Normalize_BakesWallSkinScaleLikeFacadeFallback()
+    {
+        ResoniteConstructionCityObject cityObject = CreateTriangleCityObject(
+            textureScale: new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0),
+            textureOffset: null) with
+        {
+            Materials =
+            [
+                CreateDynamicUvMaterial(null, null) with
+                {
+                    MaterialKey = "wallskin",
+                    TexturePayload = null,
+                    TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+                    Family = BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
+                    BundledVariantIndex = 0,
+                    TextureScale = new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0),
+                    AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
+                },
+            ],
+        };
+
+        ResoniteConstructionCityObject normalized = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+        ResoniteMaterialBinding material = Assert.Single(normalized.Materials);
+
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+        Assert.Equal(1.0f, normalized.Mesh.Vertices[1].UV0.X, 6);
+        Assert.Equal(1.0f, normalized.Mesh.Vertices[2].UV0.Y, 6);
+    }
+
+    [Fact]
     public void Normalize_PreservesExplicitIdentityScaleForUnrelatedTriplanarMaterial()
     {
         ResoniteConstructionCityObject cityObject = new(

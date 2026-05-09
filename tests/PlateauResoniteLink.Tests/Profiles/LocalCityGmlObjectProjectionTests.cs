@@ -344,6 +344,59 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void ProjectCityObjectPreservesDatasetTextureForTexturedBuildingRoof()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+        Float2[] sourceUvs =
+        [
+            new(0.00, 0.00),
+            new(1.00, 0.00),
+            new(1.00, 1.00),
+            new(0.00, 1.00),
+            new(0.00, 0.00),
+        ];
+        ParsedSurface roofSurface = CreateParsedSurface(
+            "textured-roof",
+            ParsedSurfaceSemantic.Roof,
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 8.0, sizeMeters: 6.0, reverseWinding: true),
+            CreateTexturePayload("roof-texture"),
+            baseColor: null,
+            uvs: sourceUvs);
+        ParsedCityObject cityObject = CreateParsedCityObject(
+            "bldg",
+            [roofSurface],
+            referenceSystem,
+            lodLevel: 2,
+            measuredHeightMeters: 8.0);
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: CreateThirdMeshOverlay("53394525"),
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
+        Assert.Null(material.Family);
+        Assert.Equal(MaterialProjection.Uv, material.Projection);
+        Assert.NotNull(material.TexturePayload);
+        Assert.Null(material.TerrainOverlay);
+
+        Float2[] projectedUvs = projected.Mesh.Vertices.Select(static vertex => vertex.UV0).ToArray();
+        foreach (Float2 sourceUv in sourceUvs.SkipLast(1))
+        {
+            Assert.Contains(projectedUvs, actualUv => ApproximatelyEqualFloat2(actualUv, sourceUv, 1e-9));
+        }
+    }
+
+    [Fact]
     public void ProjectCityObjectAssignsDemTerrainMaterialAndHorizontalUvToTexturelessRoofSurface()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
@@ -408,7 +461,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver());
 
         Assert.Contains(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
-        Assert.Contains(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Facade);
+        Assert.Contains(projected.Materials, IsBuildingWallSkinMaterial);
         Assert.DoesNotContain(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Roof);
         Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
         Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) > 8.25);
@@ -515,12 +568,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver());
 
         Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) > 8.25);
-        Assert.Contains(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Facade);
+        Assert.Contains(projected.Materials, IsBuildingWallSkinMaterial);
         Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
     }
 
     [Fact]
-    public void ProjectCityObjectGeneratesShedRoofWallExtensionsAsFacadeWithoutStretchingOriginalWallUv()
+    public void ProjectCityObjectGeneratesShedRoofWallExtensionsAsWallSkinWithoutStretchingOriginalWallUv()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -553,7 +606,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
 
-        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Facade);
+        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingWallSkinMaterial);
         Assert.Contains(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
         Assert.DoesNotContain(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Roof);
         Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
@@ -571,7 +624,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectUsesGeneratedRoofWallsForFacadeUvWhenNoOriginalWallHeightExists()
+    public void ProjectCityObjectUsesGeneratedRoofWallsForWallSkinUvWhenNoOriginalWallHeightExists()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -599,7 +652,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
 
-        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Facade);
+        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingWallSkinMaterial);
         MeshSubmesh facadeSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == facadeMaterial.SubmeshIndices.Single());
         double maxFacadeV = facadeSubmesh.TriangleVertexIndices
             .Select(index => projected.Mesh.Vertices[index].UV0.Y)
@@ -640,7 +693,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
 
-        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Facade);
+        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingWallSkinMaterial);
         MeshSubmesh facadeSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == facadeMaterial.SubmeshIndices.Single());
         AssertGeneratedUpperFacadeTrianglesFaceOutward(projected.Mesh, facadeSubmesh, baseHeight: 8.0);
     }
@@ -804,7 +857,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectParsedCityObjectKeepsGeneratedShedHighWallAsFacadeAfterOverlaySplit()
+    public void ProjectParsedCityObjectKeepsGeneratedShedHighWallAsWallSkinAfterOverlaySplit()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -845,7 +898,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new DefaultMaterialResolver()).ToArray();
 
         ImportedCityObject facadeObject = Assert.Single(projected, static cityObject =>
-            cityObject.Materials.Any(static material => material.Family == BundledDefaultMaterialFamilies.Facade));
+            cityObject.Materials.Any(IsBuildingWallSkinMaterial));
         Assert.True(facadeObject.Mesh.Vertices.Max(static vertex => vertex.Position.Y) > 8.25);
         Assert.Contains(projected, cityObject => cityObject.Materials.Any(material => ReferenceEquals(overlay, material.TerrainOverlay)));
         Assert.DoesNotContain(projected.SelectMany(static cityObject => cityObject.Materials), static material => material.Family == BundledDefaultMaterialFamilies.Roof);
@@ -1558,7 +1611,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     [Theory]
     [InlineData((int)ParsedSurfaceSemantic.Wall)]
     [InlineData((int)ParsedSurfaceSemantic.Unknown)]
-    public void CreateCommonMaterialBindingsGeneratesFacadeMappingForTexturelessVerticalBuildingSurfaces(
+    public void CreateCommonMaterialBindingsPrecreatesSharedWallSkinForTexturelessVerticalBuildingSurfaces(
         int semanticValue)
     {
         ParsedSurfaceSemantic semantic = (ParsedSurfaceSemantic)semanticValue;
@@ -1588,11 +1641,11 @@ public sealed class LocalCityGmlObjectProjectionTests
             cartesian);
 
         MaterialBinding material = Assert.Single(materialBindings);
-        Assert.Equal(TextureSourceKind.Bundled, material.TextureSourceKind);
-        Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
-        Assert.Equal(MaterialProjection.Uv, material.Projection);
+        Assert.Equal(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, material.Family);
         Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
-        Assert.Null(material.TexturePayload);
+        string texturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value);
+        BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
+        Assert.Equal(profile.TextureOffset is null ? null : new Float2(profile.TextureOffset.X, profile.TextureOffset.Y), material.TextureOffset);
     }
 
     [Theory]
@@ -3420,6 +3473,12 @@ public sealed class LocalCityGmlObjectProjectionTests
                 null,
                 new DefaultMaterialResolver(),
             ])!;
+    }
+
+    private static bool IsBuildingWallSkinMaterial(MaterialBinding material)
+    {
+        return material.Family is not null
+            && BundledDefaultMaterialFamilies.BuildingWallSkinFamilies.Contains(material.Family);
     }
 
     private static ImportedCityObject ProjectTerrainMeshModeCityObjectForTest(

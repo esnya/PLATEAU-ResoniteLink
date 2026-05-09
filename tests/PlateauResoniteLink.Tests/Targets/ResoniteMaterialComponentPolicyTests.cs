@@ -264,6 +264,36 @@ public sealed class ResoniteMaterialComponentPolicyTests
     }
 
     [Fact]
+    public void BundledWallSkinCompanionTextureSetUsesResonitePackageNaming()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "wall-skin",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            Family: BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
+            BundledVariantIndex: 0,
+            TextureScale: new ResoniteFloat2(1.0 / 3.0, 1.0 / 3.0),
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
+            new BundledDefaultMaterialAssetStore(),
+            material,
+            out BundledDefaultMaterialTextureSet? textureSet);
+
+        Assert.True(resolved);
+        Assert.NotNull(textureSet);
+        Assert.EndsWith("emission.png", textureSet.EmissionPath, StringComparison.Ordinal);
+        Assert.EndsWith("height.png", textureSet.HeightPath, StringComparison.Ordinal);
+        Assert.EndsWith("metallic_ao_smoothness.png", textureSet.MetallicPath, StringComparison.Ordinal);
+        Assert.EndsWith("normalGL.png", textureSet.NormalPath, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BundledDefaultCityFurnitureAlbedoStaysNearNeutralWhite()
     {
         string logicalPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.CityFurniture, 0);

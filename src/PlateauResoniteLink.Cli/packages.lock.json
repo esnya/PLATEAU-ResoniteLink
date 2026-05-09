@@ -315,7 +315,7 @@
           "LibTessDotNet": "[1.1.15, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "NetTopologySuite": "[2.6.0, )",
-          "SharpCompress": "[0.47.4, )",
+          "SharpCompress": "[0.48.0, )",
           "SixLabors.ImageSharp": "[3.1.12, )",
           "YellowDogMan.ResoniteLink": "[0.13.1, )"
         }
@@ -340,9 +340,9 @@
       },
       "SharpCompress": {
         "type": "CentralTransitive",
-        "requested": "[0.47.4, )",
-        "resolved": "0.47.4",
-        "contentHash": "0s2rmGFLFQED6ERPUtJiT/KoDsrBzsc+qDoVX1XT4HfAiLZCtV6Z9mHfArBgHVpDErl4Pt9M5VTMVQLPUJw5Kg=="
+        "requested": "[0.48.0, )",
+        "resolved": "0.48.0",
+        "contentHash": "6k0Sa9gf85Sz9Npy7jnn5UPerejrAa3FxU9Gq5T6PwFWHUhUIdF903TjPiJtrYjXFJsXbnccaWSNMHzEg27DwQ=="
       },
       "SixLabors.ImageSharp": {
         "type": "CentralTransitive",

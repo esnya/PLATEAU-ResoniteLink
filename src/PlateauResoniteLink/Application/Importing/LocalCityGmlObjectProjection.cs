@@ -1404,7 +1404,12 @@ internal static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        cityObject = ApplyGeneratedLod1Roof(cityObject);
+        double? geometryHeightMeters = cityObject.GeometryHeightMeters
+            ?? TryGetGeometryHeightMeters(cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()));
+        cityObject = ApplyGeneratedLod1Roof(cityObject) with
+        {
+            GeometryHeightMeters = geometryHeightMeters,
+        };
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
 
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
@@ -2165,12 +2170,20 @@ internal static partial class LocalCityGmlObjectProjection
             surface,
             cityObjectOrigin,
             cityObjectCartesian);
-        ResolvedMaterial resolvedMaterial = materialResolver.ResolveMaterial(
+        ResolvedMaterial resolvedMaterial = materialResolver.ResolveMaterial(new DefaultMaterialRequest(
             cityObject.PackageName,
             surface.TexturePayload,
             preferUvProjection,
-            preferUvProjection && IsBuildingPackage(cityObject.PackageName) ? BundledDefaultMaterialFamilies.Facade : null,
-            $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}");
+            FamilyOverride: null,
+            VariantSelectionKey: $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}",
+            BuildingAttributes: cityObject.BuildingAttributes,
+            FloorsAboveGround: cityObject.FloorsAboveGround,
+            MeasuredHeightMeters: cityObject.MeasuredHeightMeters,
+            GeometryHeightMeters: cityObject.GeometryHeightMeters,
+            FootprintAreaSquareMeters: cityObject.BuildingAttributes is null
+                ? null
+                : TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
+            SurfaceRole: ToDefaultMaterialSurfaceRole(surface.Semantic)));
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
@@ -2270,16 +2283,46 @@ internal static partial class LocalCityGmlObjectProjection
             projectionSurface,
             cityObjectOrigin.ToProjectionModel(),
             cityObjectCartesian);
-        ResolvedMaterial resolvedMaterial = materialResolver.ResolveMaterial(
+        ResolvedMaterial resolvedMaterial = materialResolver.ResolveMaterial(new DefaultMaterialRequest(
             cityObject.PackageName,
             projectionSurface.TexturePayload,
             preferUvProjection,
-            preferUvProjection && IsBuildingPackage(cityObject.PackageName) ? BundledDefaultMaterialFamilies.Facade : null,
-            $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}");
+            FamilyOverride: null,
+            VariantSelectionKey: $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}",
+            BuildingAttributes: cityObject.BuildingAttributes,
+            FloorsAboveGround: cityObject.FloorsAboveGround,
+            MeasuredHeightMeters: cityObject.MeasuredHeightMeters,
+            GeometryHeightMeters: cityObject.GeometryHeightMeters,
+            FootprintAreaSquareMeters: cityObject.BuildingAttributes is null
+                ? null
+                : TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
+            SurfaceRole: ToDefaultMaterialSurfaceRole(projectionSurface.Semantic)));
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
         return new ResolvedSurfaceMaterial(projectionSurface, resolvedMaterial, depthOffset);
+    }
+
+    private static double? TryGetGeometryHeightMeters(IEnumerable<ParsedSurface> surfaces)
+    {
+        double minAltitude = double.PositiveInfinity;
+        double maxAltitude = double.NegativeInfinity;
+        foreach (ParsedSurface surface in surfaces)
+        {
+            foreach (GeodeticPoint vertex in surface.Vertices)
+            {
+                minAltitude = Math.Min(minAltitude, vertex.Altitude);
+                maxAltitude = Math.Max(maxAltitude, vertex.Altitude);
+            }
+        }
+
+        if (double.IsInfinity(minAltitude) || double.IsInfinity(maxAltitude))
+        {
+            return null;
+        }
+
+        double height = maxAltitude - minAltitude;
+        return height > 0.0 ? height : null;
     }
 
     private static ResolvedMaterial? TryCreateRoofTerrainTextureMaterial(
@@ -3628,6 +3671,20 @@ internal static partial class LocalCityGmlObjectProjection
         return ParsedSurfaceSemantic.Unknown;
     }
 
+    private static DefaultMaterialSurfaceRole ToDefaultMaterialSurfaceRole(ParsedSurfaceSemantic semantic)
+    {
+        return semantic switch
+        {
+            ParsedSurfaceSemantic.Wall => DefaultMaterialSurfaceRole.Wall,
+            ParsedSurfaceSemantic.Roof => DefaultMaterialSurfaceRole.Roof,
+            ParsedSurfaceSemantic.Ground => DefaultMaterialSurfaceRole.Ground,
+            ParsedSurfaceSemantic.Closure => DefaultMaterialSurfaceRole.Closure,
+            ParsedSurfaceSemantic.OuterCeiling => DefaultMaterialSurfaceRole.OuterCeiling,
+            ParsedSurfaceSemantic.OuterFloor => DefaultMaterialSurfaceRole.OuterFloor,
+            _ => DefaultMaterialSurfaceRole.Unknown,
+        };
+    }
+
     private static bool IsFacadeSurface(
         ParsedSurface surface,
         GeodeticPoint cityObjectOrigin,
@@ -4000,8 +4057,12 @@ internal static partial class LocalCityGmlObjectProjection
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
+        double? geometryHeightMeters = TryGetGeometryHeightMeters(parsedCityObject.Surfaces.Select(static surface => surface.ToProjectionModel()));
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject terrainAlignedParsedCityObject =
-            ApplyGeneratedLod1Roof(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler));
+            ApplyGeneratedLod1Roof(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler)) with
+            {
+                GeometryHeightMeters = geometryHeightMeters,
+            };
         List<ImportedCityObject> projectedCityObjects = [];
         List<ImportedCityObject> generatedRoadMarkings = [];
 
@@ -4100,8 +4161,12 @@ internal static partial class LocalCityGmlObjectProjection
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
+        double? geometryHeightMeters = TryGetGeometryHeightMeters(parsedCityObject.Surfaces.Select(static surface => surface.ToProjectionModel()));
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject terrainAlignedParsedCityObject =
-            ApplyGeneratedLod1Roof(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler));
+            ApplyGeneratedLod1Roof(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler)) with
+            {
+                GeometryHeightMeters = geometryHeightMeters,
+            };
 
         foreach ((global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
                  in SplitParsedCityObjectForTerrainProjection(
@@ -6104,7 +6169,8 @@ internal static partial class LocalCityGmlObjectProjection
         GeodeticPoint? GeodeticOriginOverride = null,
         int? FloorsAboveGround = null,
         double? MeasuredHeightMeters = null,
-        BuildingAttributeContext? BuildingAttributes = null);
+        BuildingAttributeContext? BuildingAttributes = null,
+        double? GeometryHeightMeters = null);
 
     internal sealed record SourceFileDescriptor(
         string RelativePath,

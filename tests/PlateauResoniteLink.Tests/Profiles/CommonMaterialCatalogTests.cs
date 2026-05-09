@@ -89,6 +89,59 @@ public sealed class CommonMaterialCatalogTests
         Assert.Equal(BundledDefaultMaterialUvScaleSemantic.WorldMeters, roofProfile.ScaleSemantic);
     }
 
+    [Fact]
+    public void CreateForPackages_PrecreatesReachableBuildingWallSkinFallbackFamilies()
+    {
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingWallSkinFamilies)
+        {
+            Assert.Equal(
+                BundledDefaultMaterialFamilies.GetVariants(family).Count,
+                materials.Count(material => material.Family == family && material.Projection == MaterialProjection.Uv));
+            Assert.DoesNotContain(
+                materials,
+                material => material.Family == family && material.Projection == MaterialProjection.Triplanar);
+        }
+    }
+
+    [Fact]
+    public void CreateForPackages_PrecreatesReachableBuildingFacadeFallbackFamilies()
+    {
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFallbackFamilies)
+        {
+            Assert.Equal(
+                BundledDefaultMaterialFamilies.GetVariants(family).Count,
+                materials.Count(material => material.Family == family && material.Projection == MaterialProjection.Uv));
+            Assert.DoesNotContain(
+                materials,
+                material => material.Family == family && material.Projection == MaterialProjection.Triplanar);
+        }
+    }
+
+    [Fact]
+    public void WallSkinProfiles_UseFacadeFloorUnitUvSemantic()
+    {
+        BundledDefaultMaterialProfile residential = BundledDefaultMaterialProfiles.GetProfile(
+            BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 0));
+        BundledDefaultMaterialProfile apartment = BundledDefaultMaterialProfiles.GetProfile(
+            BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.WallApartmentTileMid, 0));
+        BundledDefaultMaterialProfile factory = BundledDefaultMaterialProfiles.GetProfile(
+            BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.WallFactoryMetal, 0));
+
+        Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, residential.ScaleSemantic);
+        Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, apartment.ScaleSemantic);
+        Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, factory.ScaleSemantic);
+        Assert.True(residential.TextureScale.X > 0.0);
+        Assert.Equal(residential.TextureScale.X, residential.TextureScale.Y, 6);
+        Assert.Equal(apartment.TextureScale.X, apartment.TextureScale.Y, 6);
+        Assert.Equal(factory.TextureScale.X, factory.TextureScale.Y, 6);
+        Assert.Equal(residential.TextureOffset?.Y, apartment.TextureOffset?.Y);
+        Assert.Equal(residential.TextureOffset?.Y, factory.TextureOffset?.Y);
+    }
+
     private static Float2 ExpectedFacadeScale(int variantIndex)
     {
         _ = variantIndex;

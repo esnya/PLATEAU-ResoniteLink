@@ -8,6 +8,22 @@ public static class FacadeMaterialUvScaling
         columnsPerTexture: 16.0,
         rowsPerTexture: 10.0);
 
+    public static readonly BundledDefaultMaterialProfile Facade005Profile = CreateProfile(
+        columnsPerTexture: 32.0,
+        rowsPerTexture: 24.0);
+
+    public static readonly BundledDefaultMaterialProfile Facade006Profile = CreateProfile(
+        columnsPerTexture: 14.0,
+        rowsPerTexture: 8.0);
+
+    public static readonly BundledDefaultMaterialProfile Facade011Profile = CreateProfile(
+        columnsPerTexture: 40.0,
+        rowsPerTexture: 40.0);
+
+    public static readonly BundledDefaultMaterialProfile Facade014Profile = CreateProfile(
+        columnsPerTexture: 32.0,
+        rowsPerTexture: 8.0);
+
     public static readonly BundledDefaultMaterialProfile Facade018AProfile = CreateProfile(
         columnsPerTexture: 6.0,
         rowsPerTexture: 6.0,
@@ -28,6 +44,12 @@ public static class FacadeMaterialUvScaling
         return texturePath.ToLowerInvariant() switch
         {
             "default-materials/ambientcg/facade/facade001_2k-jpg_color.jpg" => Facade001Profile,
+            "default-materials/ambientcg/facade/facade002_2k-jpg_color.jpg" => Facade001Profile,
+            "default-materials/ambientcg/facade/facade005_2k-jpg_color.jpg" => Facade005Profile,
+            "default-materials/ambientcg/facade/facade006_2k-jpg_color.jpg" => Facade006Profile,
+            "default-materials/ambientcg/facade/facade011_2k-jpg_color.jpg" => Facade011Profile,
+            "default-materials/ambientcg/facade/facade014_2k-jpg_color.jpg" => Facade014Profile,
+            "default-materials/ambientcg/facade/facade015_2k-jpg_color.jpg" => Facade014Profile,
             "default-materials/ambientcg/facade/facade018a_2k-jpg_color.jpg" => Facade018AProfile,
             "default-materials/ambientcg/facade/facade019a_2k-jpg_color.jpg" => Facade019AProfile,
             "default-materials/ambientcg/facade/facade020a_2k-jpg_color.jpg" => Facade020AProfile,
@@ -42,15 +64,15 @@ public static class FacadeMaterialUvScaling
         double offsetRows = 0.0)
     {
         return new BundledDefaultMaterialProfile(
-            CreateFloorUnitScaleValue(columnsPerTexture, rowsPerTexture),
+            CreateFloorUnitScaleValue(rowsPerTexture, textureAspect: 1.0),
             CreateTextureOffsetValue(columnsPerTexture, rowsPerTexture, offsetColumns, offsetRows),
             ScaleSemantic: BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits);
     }
 
-    private static ScalarPair CreateFloorUnitScaleValue(double columnsPerTexture, double rowsPerTexture)
+    private static ScalarPair CreateFloorUnitScaleValue(double rowsPerTexture, double textureAspect)
     {
         return new ScalarPair(
-            1.0 / columnsPerTexture,
+            1.0 / (rowsPerTexture * textureAspect),
             1.0 / rowsPerTexture);
     }
 
