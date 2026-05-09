@@ -1643,9 +1643,10 @@ public sealed class LocalCityGmlObjectProjectionTests
         MaterialBinding material = Assert.Single(materialBindings);
         Assert.Equal(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, material.Family);
         Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
-        string texturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value);
-        BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
-        Assert.Equal(profile.TextureOffset is null ? null : new Float2(profile.TextureOffset.X, profile.TextureOffset.Y), material.TextureOffset);
+        Assert.Equal(TextureSourceKind.Bundled, material.TextureSourceKind);
+        Assert.Equal(MaterialProjection.Uv, material.Projection);
+        Assert.Null(material.TexturePayload);
+        Assert.Null(material.TextureOffset);
     }
 
     [Theory]

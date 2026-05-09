@@ -75,6 +75,10 @@ public sealed class CommonMaterialCatalogTests
         Assert.Equal(
             new Float2(BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.X, BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.Y),
             roofMaterial.TextureScale);
+        Assert.DoesNotContain(
+            materials,
+            material => material.Family == BundledDefaultMaterialFamilies.Roof
+                && material.Projection == MaterialProjection.Uv);
     }
 
     [Fact]
@@ -124,22 +128,18 @@ public sealed class CommonMaterialCatalogTests
     [Fact]
     public void WallSkinProfiles_UseFacadeFloorUnitUvSemantic()
     {
-        BundledDefaultMaterialProfile residential = BundledDefaultMaterialProfiles.GetProfile(
-            BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 0));
-        BundledDefaultMaterialProfile apartment = BundledDefaultMaterialProfiles.GetProfile(
-            BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.WallApartmentTileMid, 0));
-        BundledDefaultMaterialProfile factory = BundledDefaultMaterialProfiles.GetProfile(
-            BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.WallFactoryMetal, 0));
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingWallSkinFamilies)
+        {
+            foreach (string variant in BundledDefaultMaterialFamilies.GetVariants(family))
+            {
+                BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(variant);
 
-        Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, residential.ScaleSemantic);
-        Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, apartment.ScaleSemantic);
-        Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, factory.ScaleSemantic);
-        Assert.True(residential.TextureScale.X > 0.0);
-        Assert.Equal(residential.TextureScale.X, residential.TextureScale.Y, 6);
-        Assert.Equal(apartment.TextureScale.X, apartment.TextureScale.Y, 6);
-        Assert.Equal(factory.TextureScale.X, factory.TextureScale.Y, 6);
-        Assert.Equal(residential.TextureOffset?.Y, apartment.TextureOffset?.Y);
-        Assert.Equal(residential.TextureOffset?.Y, factory.TextureOffset?.Y);
+                Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, profile.ScaleSemantic);
+                Assert.True(profile.TextureScale.X > 0.0);
+                Assert.Equal(profile.TextureScale.X, profile.TextureScale.Y, 6);
+                Assert.Null(profile.TextureOffset);
+            }
+        }
     }
 
     private static Float2 ExpectedFacadeScale(int variantIndex)

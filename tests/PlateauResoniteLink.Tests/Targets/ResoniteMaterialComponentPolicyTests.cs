@@ -287,6 +287,14 @@ public sealed class ResoniteMaterialComponentPolicyTests
 
         Assert.True(resolved);
         Assert.NotNull(textureSet);
+        string normalizedEmissionPath = textureSet.EmissionPath!.Replace('\\', '/');
+        string normalizedHeightPath = textureSet.HeightPath!.Replace('\\', '/');
+        string normalizedMetallicPath = textureSet.MetallicPath!.Replace('\\', '/');
+        string normalizedNormalPath = textureSet.NormalPath!.Replace('\\', '/');
+        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedEmissionPath, StringComparison.Ordinal);
+        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedHeightPath, StringComparison.Ordinal);
+        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedMetallicPath, StringComparison.Ordinal);
+        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedNormalPath, StringComparison.Ordinal);
         Assert.EndsWith("emission.png", textureSet.EmissionPath, StringComparison.Ordinal);
         Assert.EndsWith("height.png", textureSet.HeightPath, StringComparison.Ordinal);
         Assert.EndsWith("metallic_ao_smoothness.png", textureSet.MetallicPath, StringComparison.Ordinal);

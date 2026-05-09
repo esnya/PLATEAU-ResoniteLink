@@ -491,7 +491,7 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialDoesNotOffsetWallSkinBeyondFacadeProfile()
+    public void ResolveMaterialDoesNotApplyFacadeAtlasOffsetToWallSkinVariants()
     {
         ResolvedMaterial first = resolver.ResolveMaterial(CreateBuildingWallRequest("bldg:wall:one"));
         ResolvedMaterial? different = null;
@@ -507,10 +507,10 @@ public sealed class DefaultMaterialResolverTests
         Assert.NotNull(different);
         string firstPath = BundledDefaultMaterialFamilies.GetVariant(first.Family!, first.BundledVariantIndex!.Value);
         string differentPath = BundledDefaultMaterialFamilies.GetVariant(different!.Family!, different.BundledVariantIndex!.Value);
-        ScalarPair? firstOffset = BundledDefaultMaterialProfiles.GetProfile(firstPath).TextureOffset;
-        ScalarPair? differentOffset = BundledDefaultMaterialProfiles.GetProfile(differentPath).TextureOffset;
-        Assert.Equal(firstOffset is null ? null : new Float2(firstOffset.X, firstOffset.Y), first.TextureOffset);
-        Assert.Equal(differentOffset is null ? null : new Float2(differentOffset.X, differentOffset.Y), different.TextureOffset);
+        Assert.Null(BundledDefaultMaterialProfiles.GetProfile(firstPath).TextureOffset);
+        Assert.Null(BundledDefaultMaterialProfiles.GetProfile(differentPath).TextureOffset);
+        Assert.Null(first.TextureOffset);
+        Assert.Null(different.TextureOffset);
     }
 
     private static Float2 ToContractFloat2(ScalarPair value) => new(value.X, value.Y);

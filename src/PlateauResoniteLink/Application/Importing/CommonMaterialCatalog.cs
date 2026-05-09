@@ -83,6 +83,11 @@ public sealed class CommonMaterialCatalog
 
     private static IReadOnlyList<MaterialProjection> GetCommonProjections(string family)
     {
+        if (string.Equals(family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal))
+        {
+            return [MaterialProjection.Triplanar];
+        }
+
         if (BundledDefaultMaterialFamilies.BuildingWallSkinFamilies.Contains(family, StringComparer.Ordinal)
             || BundledDefaultMaterialFamilies.BuildingFacadeFallbackFamilies.Contains(family, StringComparer.Ordinal))
         {
