@@ -224,6 +224,37 @@ public sealed class ResoniteMaterialComponentPolicyTests
     }
 
     [Fact]
+    public void BundledFacadeCompanionTextureSetsResolveRequiredMaps()
+    {
+        IReadOnlyList<string> variants = BundledDefaultMaterialFamilies.GetVariants(BundledDefaultMaterialFamilies.Facade);
+        for (int variantIndex = 0; variantIndex < variants.Count; variantIndex++)
+        {
+            ResoniteMaterialBinding material = new(
+                MaterialKey: $"facade:{variantIndex}",
+                BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                MaterialType: ResoniteMaterialType.Standard,
+                TexturePayload: null,
+                TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                Projection: ResoniteMaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [0],
+                Family: BundledDefaultMaterialFamilies.Facade,
+                BundledVariantIndex: variantIndex);
+
+            bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
+                new BundledDefaultMaterialAssetStore(),
+                material,
+                out BundledDefaultMaterialTextureSet? textureSet);
+
+            Assert.True(resolved);
+            Assert.NotNull(textureSet);
+            Assert.True(File.Exists(textureSet.HeightPath), $"Missing height companion for facade variant '{variants[variantIndex]}'.");
+            Assert.True(File.Exists(textureSet.MetallicPath), $"Missing packed metallic companion for facade variant '{variants[variantIndex]}'.");
+            Assert.True(File.Exists(textureSet.NormalPath), $"Missing normal companion for facade variant '{variants[variantIndex]}'.");
+        }
+    }
+
+    [Fact]
     public void TryGetBundledCompanionTextureSetResolvesCityFurnitureCompanions()
     {
         ResoniteMaterialBinding material = new(

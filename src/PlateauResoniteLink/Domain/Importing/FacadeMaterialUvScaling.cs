@@ -22,7 +22,8 @@ public static class FacadeMaterialUvScaling
 
     public static readonly BundledDefaultMaterialProfile Facade014Profile = CreateProfile(
         columnsPerTexture: 32.0,
-        rowsPerTexture: 8.0);
+        rowsPerTexture: 32.0,
+        offsetRows: 0.25);
 
     public static readonly BundledDefaultMaterialProfile Facade018AProfile = CreateProfile(
         columnsPerTexture: 6.0,

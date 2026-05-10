@@ -126,6 +126,33 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
+    public void CreateForPackages_UsesVariantProfilesForBuildingFacadeFallbackFamilies()
+    {
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFallbackFamilies)
+        {
+            IReadOnlyList<string> variants = BundledDefaultMaterialFamilies.GetVariants(family);
+            for (int variantIndex = 0; variantIndex < variants.Count; variantIndex++)
+            {
+                BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(variants[variantIndex]);
+                MaterialBinding material = Assert.Single(
+                    materials,
+                    candidate => candidate.Family == family
+                        && candidate.Projection == MaterialProjection.Uv
+                        && candidate.BundledVariantIndex == variantIndex);
+
+                Assert.Equal(new Float2(profile.TextureScale.X, profile.TextureScale.Y), material.TextureScale);
+                Assert.Equal(
+                    profile.TextureOffset is null
+                        ? null
+                        : new Float2(profile.TextureOffset.X, profile.TextureOffset.Y),
+                    material.TextureOffset);
+            }
+        }
+    }
+
+    [Fact]
     public void WallSkinProfiles_UseFacadeFloorUnitUvSemantic()
     {
         foreach (string family in BundledDefaultMaterialFamilies.BuildingWallSkinFamilies)
