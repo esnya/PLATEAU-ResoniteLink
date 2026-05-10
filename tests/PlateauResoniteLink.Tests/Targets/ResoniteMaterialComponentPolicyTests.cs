@@ -248,9 +248,9 @@ public sealed class ResoniteMaterialComponentPolicyTests
 
             Assert.True(resolved);
             Assert.NotNull(textureSet);
-            Assert.True(File.Exists(textureSet.HeightPath), $"Missing height companion for facade variant '{variants[variantIndex]}'.");
-            Assert.True(File.Exists(textureSet.MetallicPath), $"Missing packed metallic companion for facade variant '{variants[variantIndex]}'.");
-            Assert.True(File.Exists(textureSet.NormalPath), $"Missing normal companion for facade variant '{variants[variantIndex]}'.");
+            Assert.True(textureSet.HeightPath is not null && File.Exists(textureSet.HeightPath), $"Missing height companion for facade variant '{variants[variantIndex]}'.");
+            Assert.True(textureSet.MetallicPath is not null && File.Exists(textureSet.MetallicPath), $"Missing packed metallic companion for facade variant '{variants[variantIndex]}'.");
+            Assert.True(textureSet.NormalPath is not null && File.Exists(textureSet.NormalPath), $"Missing normal companion for facade variant '{variants[variantIndex]}'.");
         }
     }
 
