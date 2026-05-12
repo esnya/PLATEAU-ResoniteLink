@@ -8,14 +8,14 @@ namespace PlateauResoniteLink.Application.Importing;
 
 public static class ImportedDynamicMaterialUvNormalizer
 {
-    public static bool ShouldBakeTextureTransform(MaterialBinding material)
+    public static bool ShouldNormalizeTextureTransform(MaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
 
         return material.MaterialType == MaterialType.Standard
             && material.Projection == MaterialProjection.Uv
             && material.ReuseScope != MaterialReuseScope.Shared
-            && HasBakeableTextureTransform(material);
+            && HasNormalizableTextureTransform(material);
     }
 
     public static ImportedCityObject Normalize(ImportedCityObject cityObject)
@@ -23,7 +23,7 @@ public static class ImportedDynamicMaterialUvNormalizer
         ArgumentNullException.ThrowIfNull(cityObject);
 
         if (cityObject.Geometry is not TriangleMeshGeometry triangleMesh
-            || !cityObject.Materials.Any(ShouldBakeTextureTransform))
+            || !cityObject.Materials.Any(ShouldNormalizeTextureTransform))
         {
             return cityObject;
         }
@@ -42,7 +42,7 @@ public static class ImportedDynamicMaterialUvNormalizer
             foreach (int sourceIndex in submesh.TriangleVertexIndices)
             {
                 MeshVertex sourceVertex = triangleMesh.Mesh.Vertices[sourceIndex];
-                Float2 normalizedUv = material is not null && ShouldBakeTextureTransform(material)
+                Float2 normalizedUv = material is not null && ShouldNormalizeTextureTransform(material)
                     ? ApplyTextureTransform(sourceVertex.UV0, material)
                     : sourceVertex.UV0;
                 normalizedVertices.Add(sourceVertex with { UV0 = normalizedUv });
@@ -80,7 +80,7 @@ public static class ImportedDynamicMaterialUvNormalizer
             };
         }
 
-        return ShouldBakeTextureTransform(material)
+        return ShouldNormalizeTextureTransform(material)
             ? material with
             {
                 TextureScale = null,
@@ -96,13 +96,13 @@ public static class ImportedDynamicMaterialUvNormalizer
         ArgumentNullException.ThrowIfNull(sourceUv);
         ArgumentNullException.ThrowIfNull(material);
 
-        (Float2 bakeScale, Float2 bakeOffset) = CreateBakeTransform(material);
+        (Float2 normalizationScale, Float2 normalizationOffset) = CreateUvNormalizationTransform(material);
         return new Float2(
-            (sourceUv.X * bakeScale.X) + bakeOffset.X,
-            (sourceUv.Y * bakeScale.Y) + bakeOffset.Y);
+            (sourceUv.X * normalizationScale.X) + normalizationOffset.X,
+            (sourceUv.Y * normalizationScale.Y) + normalizationOffset.Y);
     }
 
-    private static bool HasBakeableTextureTransform(MaterialBinding material)
+    private static bool HasNormalizableTextureTransform(MaterialBinding material)
     {
         return IsBundledFamilyMaterial(material)
             ? material.TextureScale is not null || material.TextureOffset is not null
@@ -115,7 +115,7 @@ public static class ImportedDynamicMaterialUvNormalizer
             || !IsZeroTextureOffset(material.TextureOffset);
     }
 
-    private static (Float2 Scale, Float2 Offset) CreateBakeTransform(MaterialBinding material)
+    private static (Float2 Scale, Float2 Offset) CreateUvNormalizationTransform(MaterialBinding material)
     {
         if (!IsBundledFamilyMaterial(material))
         {

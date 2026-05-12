@@ -241,7 +241,7 @@ internal static class ResoniteMaterialComponentPolicy
             return true;
         }
 
-        return ResoniteDynamicMaterialUvNormalizer.ShouldBakeTextureTransform(material)
+        return ResoniteDynamicMaterialUvNormalizer.ShouldNormalizeTextureTransform(material)
             && material.TextureScale is not null
             && (Math.Abs(material.TextureScale.X - 1.0) > 1e-9
                 || Math.Abs(material.TextureScale.Y - 1.0) > 1e-9);
@@ -265,7 +265,7 @@ internal static class ResoniteMaterialComponentPolicy
 
         throw new InvalidOperationException(
             $"Non-common UV material ({DescribeForDiagnostics(material)}) reached Resonite material emission with TextureScale/TextureOffset. "
-            + "Bake city-object UV transforms into mesh UVs before emission.");
+            + "Normalize city-object UV transforms into mesh UVs before emission.");
     }
 
     private static string FormatFloat2(ResoniteFloat2? value)

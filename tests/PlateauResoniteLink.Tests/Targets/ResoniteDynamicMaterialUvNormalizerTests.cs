@@ -9,16 +9,16 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class ResoniteDynamicMaterialUvNormalizerTests
 {
     [Fact]
-    public void ShouldBakeTextureTransform_ReturnsFalseForIdentityScaleWithoutOffset()
+    public void ShouldNormalizeTextureTransform_ReturnsFalseForIdentityScaleWithoutOffset()
     {
         ResoniteMaterialBinding material = CreateDynamicUvMaterial(
             textureScale: new ResoniteFloat2(1.0, 1.0),
             textureOffset: null);
 
-        bool shouldBake = ResoniteDynamicMaterialUvNormalizer.ShouldBakeTextureTransform(material);
+        bool shouldNormalize = ResoniteDynamicMaterialUvNormalizer.ShouldNormalizeTextureTransform(material);
         ResoniteMaterialBinding normalized = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
-        Assert.False(shouldBake);
+        Assert.False(shouldNormalize);
         Assert.Null(normalized.TextureScale);
         Assert.Null(normalized.TextureOffset);
     }
@@ -38,7 +38,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     }
 
     [Fact]
-    public void NormalizeMaterialBinding_ClearsBundledFamilyUvTransformAfterBake()
+    public void NormalizeMaterialBinding_ClearsBundledFamilyUvTransformAfterNormalization()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "bundled-identity-override",
@@ -65,7 +65,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     [InlineData(0, 1.0 / 6.0, 1.0 / 6.0, 0.5)]
     [InlineData(1, 1.0 / 6.0, 1.0 / 6.0, 0.5)]
     [InlineData(2, 1.0 / 6.0, 1.0 / 6.0, 0.5)]
-    public void Normalize_BakesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform(
+    public void Normalize_NormalizesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform(
         int bundledVariantIndex,
         double expectedScaleX,
         double expectedScaleY,
@@ -130,7 +130,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     }
 
     [Fact]
-    public void Normalize_BakesWallSkinScaleLikeFacadeFallback()
+    public void Normalize_NormalizesGeneratedFacadeScaleLikeOtherFacadeMaterials()
     {
         ResoniteConstructionCityObject cityObject = CreateTriangleCityObject(
             textureScale: new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0),
@@ -218,7 +218,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     }
 
     [Fact]
-    public void Normalize_BakesTerrainOverlayTextureTransformIntoMeshUv()
+    public void Normalize_NormalizesTerrainOverlayTextureTransformIntoMeshUv()
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",

@@ -76,7 +76,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
     }
 
     [Fact]
-    public void CreateMembersRejectsRawNonCommonUvTransformBeforeBake()
+    public void CreateMembersRejectsRawNonCommonUvTransformBeforeNormalization()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "dynamic-overlay",
@@ -93,7 +93,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
             () => ResoniteMaterialComponentPolicy.CreateMembers(material));
-        Assert.Contains("Bake city-object UV transforms into mesh UVs before emission.", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Normalize city-object UV transforms into mesh UVs before emission.", error.Message, StringComparison.Ordinal);
         Assert.Contains("projection=Uv", error.Message, StringComparison.Ordinal);
         Assert.Contains("texture=texture-payload", error.Message, StringComparison.Ordinal);
     }
@@ -111,7 +111,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
             DepthOffset: null,
             SubmeshIndices: [0],
             TextureScale: new ResoniteFloat2(0.25, 0.125),
-            Family: BundledDefaultMaterialFamilies.Road,
+            Family: BundledDefaultMaterialFamilies.RoadTriplanar,
             BundledVariantIndex: 0);
         ResoniteMaterialBinding wireframeMaterial = new(
             MaterialKey: "overlay",
@@ -169,7 +169,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
     }
 
     [Fact]
-    public void CreateMembersRejectsOffsetOnlyUvTransformBeforeBake()
+    public void CreateMembersRejectsOffsetOnlyUvTransformBeforeNormalization()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "offset-only-material",
@@ -191,7 +191,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
             () => ResoniteMaterialComponentPolicy.CreateMembers(material));
-        Assert.Contains("Bake city-object UV transforms into mesh UVs before emission.", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Normalize city-object UV transforms into mesh UVs before emission.", error.Message, StringComparison.Ordinal);
         Assert.Contains("texture=terrain-overlay", error.Message, StringComparison.Ordinal);
     }
 
@@ -295,7 +295,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
     }
 
     [Fact]
-    public void BundledWallSkinCompanionTextureSetUsesResonitePackageNaming()
+    public void BundledGeneratedFacadeCompanionTextureSetUsesResonitePackageNaming()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "wall-skin",
@@ -416,7 +416,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
         {
             BundledDefaultMaterialFamilies.Facade,
             BundledDefaultMaterialFamilies.Roof,
-            BundledDefaultMaterialFamilies.Road,
+            BundledDefaultMaterialFamilies.RoadTriplanar,
             BundledDefaultMaterialFamilies.Vegetation,
             BundledDefaultMaterialFamilies.CityFurniture,
             BundledDefaultMaterialFamilies.Other,
