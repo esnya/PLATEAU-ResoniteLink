@@ -35,7 +35,7 @@ public sealed class CommonMaterialCatalog
         }
 
         materials.Add(CreateSharedAlbedoCommonMaterialBinding());
-        materials.Add(CreateSharedVertexColorCommonMaterialBinding());
+        materials.AddRange(CreateSharedVertexColorCommonMaterialBindings());
 
         return materials;
     }
@@ -115,18 +115,27 @@ public sealed class CommonMaterialCatalog
             ReuseScope: MaterialReuseScope.Shared);
     }
 
-    private static MaterialBinding CreateSharedVertexColorCommonMaterialBinding()
+    private static IReadOnlyList<MaterialBinding> CreateSharedVertexColorCommonMaterialBindings()
+    {
+        return
+        [
+            CreateSharedVertexColorCommonMaterialBinding(depthOffset: null),
+            CreateSharedVertexColorCommonMaterialBinding(LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset),
+        ];
+    }
+
+    private static MaterialBinding CreateSharedVertexColorCommonMaterialBinding(MaterialDepthOffset? depthOffset)
     {
         return new MaterialBinding(
             MaterialKey: CreateCanonicalVertexColorCommonMaterialKey(
                 MaterialProjection.Uv,
-                depthOffset: null),
+                depthOffset),
             BaseColor: CanonicalBaseColor,
             MaterialType: MaterialType.VertexColor,
             TexturePayload: null,
             TextureSourceKind: TextureSourceKind.Bundled,
             Projection: MaterialProjection.Uv,
-            DepthOffset: null,
+            DepthOffset: depthOffset,
             SubmeshIndices: [0],
             TextureScale: null,
             Family: null,

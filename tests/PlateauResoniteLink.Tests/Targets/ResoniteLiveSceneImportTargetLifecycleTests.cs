@@ -382,6 +382,52 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_PreparesTerrainAlignedVertexColorCommonMaterialDuringSetup()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneSinkRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(routedClient, session: session);
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(
+            request,
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
+            request,
+            request,
+            metadata,
+            request.LocalSourcePath!,
+            workDirectory.Path,
+            new CommonMaterialCatalog().Create());
+
+        _ = await importTarget.ExecuteAsync(
+            plan,
+            CreateImportedObjectUnits(CreateVertexColorTriangleCityObject(
+                "terrain-aligned-vertex-common",
+                new ResoniteMaterialDepthOffset(-10.0, -10.0))));
+
+        string expectedMaterialName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(
+            new ResoniteMaterialBinding(
+                MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
+                    ResoniteMaterialProjection.Uv,
+                    new ResoniteMaterialDepthOffset(-10.0, -10.0)),
+                BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                MaterialType: ResoniteMaterialType.VertexColor,
+                TexturePayload: null,
+                TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                Projection: ResoniteMaterialProjection.Uv,
+                DepthOffset: new ResoniteMaterialDepthOffset(-10.0, -10.0),
+                SubmeshIndices: [0],
+                AssetScope: ResoniteMaterialAssetScope.Common),
+            useCommonMaterialAssets: true);
+
+        Assert.Contains(
+            routedClient.SlotsById.Values,
+            slot => string.Equals(slot.Name?.Value, expectedMaterialName, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_DoesNotSetUpTerrainOverlayAsSharedGenericAlbedoOnlyMaterial()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -1063,7 +1109,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
     }
 
-    private static ResoniteConstructionCityObject CreateVertexColorTriangleCityObject(string objectIdentity)
+    private static ResoniteConstructionCityObject CreateVertexColorTriangleCityObject(
+        string objectIdentity,
+        ResoniteMaterialDepthOffset? depthOffset = null)
     {
         return new ResoniteConstructionCityObject(
             SlotKey: $"slot-{objectIdentity}",
@@ -1082,7 +1130,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     TexturePayload: null,
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
-                    DepthOffset: null,
+                    DepthOffset: depthOffset,
                     SubmeshIndices: [0],
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],

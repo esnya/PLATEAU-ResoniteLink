@@ -35,6 +35,15 @@ public sealed class CommonMaterialCatalogTests
                 && material.TextureScale is null
                 && material.TextureOffset is null
                 && material.DepthOffset is null);
+        Assert.Contains(
+            materials,
+            material => material.ReuseScope == MaterialReuseScope.Shared
+                && material.MaterialType == MaterialType.VertexColor
+                && material.Projection == MaterialProjection.Uv
+                && material.TexturePayload is null
+                && material.TextureScale is null
+                && material.TextureOffset is null
+                && material.DepthOffset == LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset);
     }
 
     [Fact]
@@ -186,7 +195,14 @@ public sealed class CommonMaterialCatalogTests
             firstMaterials,
             material => material.ReuseScope == MaterialReuseScope.Shared
                 && material.MaterialType == MaterialType.VertexColor
-                && material.Projection == MaterialProjection.Uv);
+                && material.Projection == MaterialProjection.Uv
+                && material.DepthOffset is null);
+        MaterialBinding terrainAlignedSharedVertexColor = Assert.Single(
+            firstMaterials,
+            material => material.ReuseScope == MaterialReuseScope.Shared
+                && material.MaterialType == MaterialType.VertexColor
+                && material.Projection == MaterialProjection.Uv
+                && material.DepthOffset == LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset);
         MaterialBinding repeatedSharedGeneric = Assert.Single(
             secondMaterials,
             material => material.ReuseScope == MaterialReuseScope.Shared
@@ -209,6 +225,14 @@ public sealed class CommonMaterialCatalogTests
                 ResoniteMaterialProjection.Uv,
                 depthOffset: null),
             sharedVertexColor.MaterialKey);
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
+                ResoniteMaterialProjection.Uv,
+                new ResoniteMaterialDepthOffset(
+                    LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset.Factor,
+                    LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset.Units)),
+            terrainAlignedSharedVertexColor.MaterialKey);
+        Assert.NotEqual(sharedVertexColor.MaterialKey, terrainAlignedSharedVertexColor.MaterialKey);
         Assert.DoesNotContain(
             firstMaterials.Where(material => material.Family is not null).Select(static material => material.MaterialKey),
             key => string.Equals(key, sharedGeneric.MaterialKey, StringComparison.Ordinal));

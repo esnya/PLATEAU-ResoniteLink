@@ -217,10 +217,13 @@ public static class BundledDefaultMaterialFamilies
     ];
 
     private static readonly Dictionary<string, BundledDefaultMaterialVariant> VariantsByTexturePath = CreateVariantsByTexturePath();
+    private static readonly Dictionary<string, IReadOnlyList<string>> VariantTexturePathsByFamily = CreateVariantTexturePathsByFamily();
 
     public static IReadOnlyList<string> GetVariants(string family)
     {
-        return GetVariantDefinitions(family).Select(static variant => variant.TexturePath).ToArray();
+        return VariantTexturePathsByFamily.TryGetValue(family, out IReadOnlyList<string>? variants)
+            ? variants
+            : throw new InvalidOperationException($"Unknown bundled material family '{family}'.");
     }
 
     public static IReadOnlyList<BundledDefaultMaterialVariant> GetVariantDefinitions(string family)
@@ -289,6 +292,19 @@ public static class BundledDefaultMaterialFamilies
         }
 
         return variantsByTexturePath;
+    }
+
+    private static Dictionary<string, IReadOnlyList<string>> CreateVariantTexturePathsByFamily()
+    {
+        Dictionary<string, IReadOnlyList<string>> variantTexturePathsByFamily = new(StringComparer.Ordinal);
+        foreach (string family in GetAllFamilies())
+        {
+            variantTexturePathsByFamily.Add(
+                family,
+                GetVariantDefinitions(family).Select(static variant => variant.TexturePath).ToArray());
+        }
+
+        return variantTexturePathsByFamily;
     }
 
     private static IReadOnlyList<string> GetAllFamilies()
