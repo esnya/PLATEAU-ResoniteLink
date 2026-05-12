@@ -6237,9 +6237,9 @@ internal static partial class LocalCityGmlObjectProjection
 
     private sealed class TerrainGridSpatialIndex
     {
-        private static readonly List<int> EmptyTriangleIndices = [];
+        private static readonly IReadOnlyList<int> EmptyTriangleIndices = Array.Empty<int>();
 
-        private readonly List<int>[] triangleBuckets;
+        private readonly IReadOnlyList<int>[] triangleBuckets;
         private readonly double minX;
         private readonly double minZ;
         private readonly double inverseCellSizeX;
@@ -6248,7 +6248,7 @@ internal static partial class LocalCityGmlObjectProjection
         private readonly int cellsZ;
 
         private TerrainGridSpatialIndex(
-            List<int>[] triangleBuckets,
+            IReadOnlyList<int>[] triangleBuckets,
             double minX,
             double minZ,
             double inverseCellSizeX,
@@ -6274,7 +6274,7 @@ internal static partial class LocalCityGmlObjectProjection
         {
             if (triangles.Count == 0)
             {
-                return new TerrainGridSpatialIndex([], minX, minZ, 1.0, 1.0, 1, 1);
+                return new TerrainGridSpatialIndex([EmptyTriangleIndices], minX, minZ, 1.0, 1.0, 1, 1);
             }
 
             double extentX = Math.Max(maxX - minX, 1e-6);
@@ -6285,7 +6285,7 @@ internal static partial class LocalCityGmlObjectProjection
             int cellsZ = Math.Clamp((int)Math.Ceiling(baseCellCount / Math.Sqrt(aspectRatio)), 1, 256);
             double cellSizeX = extentX / cellsX;
             double cellSizeZ = extentZ / cellsZ;
-            List<int>[] triangleBuckets = new List<int>[cellsX * cellsZ];
+            List<int>[] mutableTriangleBuckets = new List<int>[cellsX * cellsZ];
 
             for (int triangleIndex = 0; triangleIndex < triangles.Count; triangleIndex++)
             {
@@ -6304,9 +6304,16 @@ internal static partial class LocalCityGmlObjectProjection
                     for (int cellX = startX; cellX <= endX; cellX++)
                     {
                         int bucketIndex = (cellZ * cellsX) + cellX;
-                        (triangleBuckets[bucketIndex] ??= []).Add(triangleIndex);
+                        (mutableTriangleBuckets[bucketIndex] ??= []).Add(triangleIndex);
                     }
                 }
+            }
+
+            IReadOnlyList<int>[] triangleBuckets = new IReadOnlyList<int>[mutableTriangleBuckets.Length];
+            for (int bucketIndex = 0; bucketIndex < triangleBuckets.Length; bucketIndex++)
+            {
+                triangleBuckets[bucketIndex] = mutableTriangleBuckets[bucketIndex]?.ToArray()
+                    ?? EmptyTriangleIndices;
             }
 
             return new TerrainGridSpatialIndex(
@@ -6319,11 +6326,11 @@ internal static partial class LocalCityGmlObjectProjection
                 cellsZ);
         }
 
-        public List<int> GetCandidateTriangleIndices(double x, double z)
+        public IReadOnlyList<int> GetCandidateTriangleIndices(double x, double z)
         {
             int cellX = Math.Clamp((int)((x - minX) * inverseCellSizeX), 0, cellsX - 1);
             int cellZ = Math.Clamp((int)((z - minZ) * inverseCellSizeZ), 0, cellsZ - 1);
-            List<int>? bucket = triangleBuckets[(cellZ * cellsX) + cellX];
+            IReadOnlyList<int> bucket = triangleBuckets[(cellZ * cellsX) + cellX];
             return bucket is { Count: > 0 } ? bucket : EmptyTriangleIndices;
         }
 

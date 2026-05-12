@@ -27,7 +27,8 @@ public sealed class CommonMaterialCatalog
         List<MaterialBinding> materials = [];
         foreach (string family in families)
         {
-            for (int variantIndex = 0; variantIndex < BundledDefaultMaterialFamilies.GetVariants(family).Count; variantIndex++)
+            int variantCount = BundledDefaultMaterialFamilies.GetVariantDefinitions(family).Count;
+            for (int variantIndex = 0; variantIndex < variantCount; variantIndex++)
             {
                 materials.Add(CreateBinding(family, variantIndex));
             }

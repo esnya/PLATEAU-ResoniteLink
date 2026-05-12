@@ -2233,8 +2233,18 @@ public sealed class LocalCityGmlObjectProjectionTests
             minZ: 0.0,
             maxZ: 101.0);
 
+        object emptySpatialIndex = CreateTerrainGridSpatialIndexForTest(
+            [],
+            minX: 0.0,
+            maxX: 1.0,
+            minZ: 0.0,
+            maxZ: 1.0);
+        IReadOnlyList<int> populatedCellCandidates = GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(spatialIndex, 0.25, 0.25);
+
+        Assert.Empty(GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(emptySpatialIndex, 0.5, 0.5));
         Assert.Empty(GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(spatialIndex, 25.0, 75.0));
-        Assert.NotEmpty(GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(spatialIndex, 0.25, 0.25));
+        Assert.NotEmpty(populatedCellCandidates);
+        Assert.IsType<int[]>(populatedCellCandidates);
     }
 
     [Fact]

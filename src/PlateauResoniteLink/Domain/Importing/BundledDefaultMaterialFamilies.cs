@@ -216,6 +216,8 @@ public static class BundledDefaultMaterialFamilies
         new("default-materials/texturecan/facade/Others0022_2K_Color.jpg", TextureCanFacadeTextureSet),
     ];
 
+    private static readonly Dictionary<string, BundledDefaultMaterialVariant> VariantsByTexturePath = CreateVariantsByTexturePath();
+
     public static IReadOnlyList<string> GetVariants(string family)
     {
         return GetVariantDefinitions(family).Select(static variant => variant.TexturePath).ToArray();
@@ -272,20 +274,21 @@ public static class BundledDefaultMaterialFamilies
 
     public static bool TryGetVariantDefinition(string texturePath, out BundledDefaultMaterialVariant variant)
     {
+        return VariantsByTexturePath.TryGetValue(texturePath, out variant!);
+    }
+
+    private static Dictionary<string, BundledDefaultMaterialVariant> CreateVariantsByTexturePath()
+    {
+        Dictionary<string, BundledDefaultMaterialVariant> variantsByTexturePath = new(StringComparer.OrdinalIgnoreCase);
         foreach (string family in GetAllFamilies())
         {
-            foreach (BundledDefaultMaterialVariant candidate in GetVariantDefinitions(family))
+            foreach (BundledDefaultMaterialVariant variant in GetVariantDefinitions(family))
             {
-                if (string.Equals(candidate.TexturePath, texturePath, StringComparison.OrdinalIgnoreCase))
-                {
-                    variant = candidate;
-                    return true;
-                }
+                variantsByTexturePath.TryAdd(variant.TexturePath, variant);
             }
         }
 
-        variant = null!;
-        return false;
+        return variantsByTexturePath;
     }
 
     private static IReadOnlyList<string> GetAllFamilies()
