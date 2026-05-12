@@ -6237,7 +6237,8 @@ internal static partial class LocalCityGmlObjectProjection
 
     private sealed class TerrainGridSpatialIndex
     {
-        private readonly int[] allTriangleIndices;
+        private static readonly List<int> EmptyTriangleIndices = [];
+
         private readonly List<int>[] triangleBuckets;
         private readonly double minX;
         private readonly double minZ;
@@ -6247,7 +6248,6 @@ internal static partial class LocalCityGmlObjectProjection
         private readonly int cellsZ;
 
         private TerrainGridSpatialIndex(
-            int[] allTriangleIndices,
             List<int>[] triangleBuckets,
             double minX,
             double minZ,
@@ -6256,7 +6256,6 @@ internal static partial class LocalCityGmlObjectProjection
             int cellsX,
             int cellsZ)
         {
-            this.allTriangleIndices = allTriangleIndices;
             this.triangleBuckets = triangleBuckets;
             this.minX = minX;
             this.minZ = minZ;
@@ -6273,10 +6272,9 @@ internal static partial class LocalCityGmlObjectProjection
             double minZ,
             double maxZ)
         {
-            int[] allTriangleIndices = Enumerable.Range(0, triangles.Count).ToArray();
             if (triangles.Count == 0)
             {
-                return new TerrainGridSpatialIndex(allTriangleIndices, [], minX, minZ, 1.0, 1.0, 1, 1);
+                return new TerrainGridSpatialIndex([], minX, minZ, 1.0, 1.0, 1, 1);
             }
 
             double extentX = Math.Max(maxX - minX, 1e-6);
@@ -6312,7 +6310,6 @@ internal static partial class LocalCityGmlObjectProjection
             }
 
             return new TerrainGridSpatialIndex(
-                allTriangleIndices,
                 triangleBuckets,
                 minX,
                 minZ,
@@ -6322,12 +6319,12 @@ internal static partial class LocalCityGmlObjectProjection
                 cellsZ);
         }
 
-        public IReadOnlyList<int> GetCandidateTriangleIndices(double x, double z)
+        public List<int> GetCandidateTriangleIndices(double x, double z)
         {
             int cellX = Math.Clamp((int)((x - minX) * inverseCellSizeX), 0, cellsX - 1);
             int cellZ = Math.Clamp((int)((z - minZ) * inverseCellSizeZ), 0, cellsZ - 1);
             List<int>? bucket = triangleBuckets[(cellZ * cellsX) + cellX];
-            return bucket is { Count: > 0 } ? bucket : allTriangleIndices;
+            return bucket is { Count: > 0 } ? bucket : EmptyTriangleIndices;
         }
 
         private static int GetCellIndex(double coordinate, double minimum, double cellSize, int cellCount)
