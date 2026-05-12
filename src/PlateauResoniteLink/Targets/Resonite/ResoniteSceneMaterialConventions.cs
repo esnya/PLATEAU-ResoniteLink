@@ -121,10 +121,7 @@ internal static class ResoniteSceneMaterialConventions
             {
                 MaterialKey = CreateCanonicalCommonMaterialKey(
                     canonicalFamily,
-                    canonicalVariantIndex,
-                    material.Projection,
-                    canonicalTextureScale,
-                    canonicalTextureOffset),
+                    canonicalVariantIndex),
                 BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType = ResoniteMaterialType.Standard,
                 TextureSourceKind = ResoniteTextureSourceKind.Bundled,
@@ -181,13 +178,9 @@ internal static class ResoniteSceneMaterialConventions
             return false;
         }
 
-        if (material.TexturePayload is null
-            && !string.IsNullOrWhiteSpace(material.Family)
-            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-            && material.DepthOffset is null
-            && !HasNonDefaultBundledTextureTransform(material)
-            && material.AssetScope == ResoniteMaterialAssetScope.Common
-            && IsWhiteBaseColor(material.BaseColor))
+        bool isWhiteBundledFamilyMaterial = IsWhiteBundledFamilyMaterial(material);
+        if (isWhiteBundledFamilyMaterial
+            && material.AssetScope == ResoniteMaterialAssetScope.Common)
         {
             ResoniteMaterialBinding commonBaseCandidate = material with
             {
@@ -266,6 +259,13 @@ internal static class ResoniteSceneMaterialConventions
             };
         }
 
+        if (material.AssetScope == ResoniteMaterialAssetScope.PresentationSlotScoped
+            && IsWhiteBundledFamilyMaterial(material)
+            && !HasNonDefaultBundledTextureTransform(material))
+        {
+            return material;
+        }
+
         if (TryNormalizeSharedMaterialBinding(material, out ResoniteMaterialBinding normalizedSharedMaterial, out _)
             && material.TexturePayload is null)
         {
@@ -293,15 +293,11 @@ internal static class ResoniteSceneMaterialConventions
 
     public static string CreateCanonicalCommonMaterialKey(
         string family,
-        int bundledVariantIndex,
-        ResoniteMaterialProjection projection,
-        ResoniteFloat2? textureScale,
-        ResoniteFloat2? textureOffset)
+        int bundledVariantIndex)
     {
-        ResoniteFloat2? effectiveTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"common-{family}-{bundledVariantIndex}-{ProjectionToken(projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(effectiveTextureOffset)}");
+            $"common-{family}-{bundledVariantIndex}");
     }
 
     public static string CreateCanonicalGenericSharedMaterialKey(
@@ -392,6 +388,15 @@ internal static class ResoniteSceneMaterialConventions
             && !string.IsNullOrWhiteSpace(material.Family)
             && material.DepthOffset is null
             && !HasNonDefaultBundledTextureTransform(material)
+            && IsWhiteBaseColor(material.BaseColor);
+    }
+
+    private static bool IsWhiteBundledFamilyMaterial(ResoniteMaterialBinding material)
+    {
+        return material.TexturePayload is null
+            && !string.IsNullOrWhiteSpace(material.Family)
+            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && material.DepthOffset is null
             && IsWhiteBaseColor(material.BaseColor);
     }
 

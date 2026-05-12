@@ -3405,10 +3405,9 @@ internal static partial class LocalCityGmlObjectProjection
         {
             string family = material.Family ?? throw new InvalidOperationException("Common material must provide a family.");
             int variantIndex = material.BundledVariantIndex ?? 0;
-            Float2? effectiveTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
             return string.Create(
                 CultureInfo.InvariantCulture,
-                $"common-{family}-{variantIndex}-{ProjectionToken(material.Projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(effectiveTextureOffset)}");
+                $"common-{family}-{variantIndex}");
         }
 
         return CreateMaterialKey(

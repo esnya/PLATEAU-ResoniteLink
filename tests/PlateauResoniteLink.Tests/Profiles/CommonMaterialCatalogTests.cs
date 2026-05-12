@@ -12,9 +12,9 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class CommonMaterialCatalogTests
 {
     [Fact]
-    public void CreateForPackages_IncludesSharedAlbedoAndVertexColorCommonMaterials()
+    public void Create_IncludesCodebaseReachableAlbedoAndVertexColorCommonMaterials()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
 
         Assert.Contains(
             materials,
@@ -38,43 +38,31 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
-    public void CreateForPackages_UsesFacadeVariantProfileForBundledFacadeCommonMaterials()
+    public void Create_UsesResolverReachableVariantProfilesForBundledCommonMaterials()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
 
         MaterialBinding roofMaterial = Assert.Single(
             materials,
             material => material.Family == BundledDefaultMaterialFamilies.Roof
                 && material.Projection == MaterialProjection.Triplanar
                 && material.BundledVariantIndex == 0);
-
-        for (int variantIndex = 0; variantIndex < BundledDefaultMaterialFamilies.FacadeVariants.Count; variantIndex++)
-        {
-            MaterialBinding facadeMaterial = Assert.Single(
-                materials,
-                material => material.Family == BundledDefaultMaterialFamilies.Facade
-                    && material.Projection == MaterialProjection.Uv
-                    && material.BundledVariantIndex == variantIndex);
-            Float2 expectedScale = ExpectedFacadeScale(variantIndex);
-            Float2? expectedOffset = ExpectedFacadeOffset(variantIndex);
-
-            Assert.Equal(expectedScale, facadeMaterial.TextureScale);
-            Assert.Equal(expectedOffset, facadeMaterial.TextureOffset);
-            Assert.Equal(
-                ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(
-                    BundledDefaultMaterialFamilies.Facade,
-                    variantIndex,
-                    ResoniteMaterialProjection.Uv,
-                    new ResoniteFloat2(expectedScale.X, expectedScale.Y),
-                    expectedOffset is null
-                        ? null
-                        : new ResoniteFloat2(expectedOffset.X, expectedOffset.Y)),
-                facadeMaterial.MaterialKey);
-        }
+        MaterialBinding wallMaterial = Assert.Single(
+            materials,
+            material => material.Family == BundledDefaultMaterialFamilies.WallResidentialPlasterLow
+                && material.Projection == MaterialProjection.Uv
+                && material.BundledVariantIndex == 0);
+        BundledDefaultMaterialProfile wallProfile = BundledDefaultMaterialProfiles.GetProfile(
+            BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 0));
 
         Assert.Equal(
             new Float2(BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.X, BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.Y),
             roofMaterial.TextureScale);
+        Assert.Equal(new Float2(wallProfile.TextureScale.X, wallProfile.TextureScale.Y), wallMaterial.TextureScale);
+        Assert.Equal(new Float2(wallProfile.TextureOffset!.X, wallProfile.TextureOffset.Y), wallMaterial.TextureOffset);
+        Assert.DoesNotContain(
+            materials,
+            material => material.Family == BundledDefaultMaterialFamilies.Facade);
         Assert.DoesNotContain(
             materials,
             material => material.Family == BundledDefaultMaterialFamilies.Roof
@@ -94,11 +82,11 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
-    public void CreateForPackages_PrecreatesReachableBuildingWallSkinFallbackFamilies()
+    public void Create_IncludesCodebaseReachableBuildingFacadeFamilies()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
 
-        foreach (string family in BundledDefaultMaterialFamilies.BuildingWallSkinFamilies)
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFamilies)
         {
             Assert.Equal(
                 BundledDefaultMaterialFamilies.GetVariants(family).Count,
@@ -110,27 +98,11 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
-    public void CreateForPackages_PrecreatesReachableBuildingFacadeFallbackFamilies()
+    public void Create_UsesVariantProfilesForBuildingFacadeFamilies()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
 
-        foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFallbackFamilies)
-        {
-            Assert.Equal(
-                BundledDefaultMaterialFamilies.GetVariants(family).Count,
-                materials.Count(material => material.Family == family && material.Projection == MaterialProjection.Uv));
-            Assert.DoesNotContain(
-                materials,
-                material => material.Family == family && material.Projection == MaterialProjection.Triplanar);
-        }
-    }
-
-    [Fact]
-    public void CreateForPackages_UsesVariantProfilesForBuildingFacadeFallbackFamilies()
-    {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
-
-        foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFallbackFamilies)
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFamilies)
         {
             IReadOnlyList<string> variants = BundledDefaultMaterialFamilies.GetVariants(family);
             for (int variantIndex = 0; variantIndex < variants.Count; variantIndex++)
@@ -153,9 +125,9 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
-    public void WallSkinProfiles_UseFacadeFloorUnitUvSemantic()
+    public void GeneratedFacadeProfiles_UseFacadeFloorUnitUvSemantic()
     {
-        foreach (string family in BundledDefaultMaterialFamilies.BuildingWallSkinFamilies)
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFamilies)
         {
             foreach (string variant in BundledDefaultMaterialFamilies.GetVariants(family))
             {
@@ -164,31 +136,18 @@ public sealed class CommonMaterialCatalogTests
                 Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, profile.ScaleSemantic);
                 Assert.True(profile.TextureScale.X > 0.0);
                 Assert.Equal(profile.TextureScale.X, profile.TextureScale.Y, 6);
-                Assert.Null(profile.TextureOffset);
             }
         }
     }
 
-    private static Float2 ExpectedFacadeScale(int variantIndex)
-    {
-        _ = variantIndex;
-        return new Float2(1.0 / 6.0, 1.0 / 6.0);
-    }
-
-    private static Float2? ExpectedFacadeOffset(int variantIndex)
-    {
-        _ = variantIndex;
-        return new Float2(0.0, 0.5 / 6.0);
-    }
-
     [Fact]
-    public void CreateForPackages_UsesTargetCanonicalKeysForBundledCommonMaterials()
+    public void Create_UsesTargetCanonicalKeysForBundledCommonMaterials()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
 
-        MaterialBinding facadeMaterial = Assert.Single(
+        MaterialBinding wallMaterial = Assert.Single(
             materials,
-            material => material.Family == BundledDefaultMaterialFamilies.Facade
+            material => material.Family == BundledDefaultMaterialFamilies.WallResidentialPlasterLow
                 && material.Projection == MaterialProjection.Uv
                 && material.BundledVariantIndex == 0);
         MaterialBinding roofMaterial = Assert.Single(
@@ -199,28 +158,22 @@ public sealed class CommonMaterialCatalogTests
 
         Assert.Equal(
             ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(
-                BundledDefaultMaterialFamilies.Facade,
-                0,
-                ResoniteMaterialProjection.Uv,
-                new ResoniteFloat2(facadeMaterial.TextureScale!.X, facadeMaterial.TextureScale.Y),
-                new ResoniteFloat2(facadeMaterial.TextureOffset!.X, facadeMaterial.TextureOffset.Y)),
-            facadeMaterial.MaterialKey);
+                BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
+                0),
+            wallMaterial.MaterialKey);
         Assert.Equal(
             ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(
                 BundledDefaultMaterialFamilies.Roof,
-                0,
-                ResoniteMaterialProjection.Triplanar,
-                new ResoniteFloat2(roofMaterial.TextureScale!.X, roofMaterial.TextureScale.Y),
-                textureOffset: null),
+                0),
             roofMaterial.MaterialKey);
     }
 
     [Fact]
-    public void CreateForPackages_AssignsStableAndDistinctKeysToSharedCommonMaterials()
+    public void Create_AssignsStableAndDistinctKeysToCodebaseReachableCommonMaterials()
     {
         CommonMaterialCatalog catalog = new();
-        IReadOnlyList<MaterialBinding> firstMaterials = catalog.CreateForPackages(["bldg"]);
-        IReadOnlyList<MaterialBinding> secondMaterials = catalog.CreateForPackages(["bldg"]);
+        IReadOnlyList<MaterialBinding> firstMaterials = catalog.Create();
+        IReadOnlyList<MaterialBinding> secondMaterials = catalog.Create();
 
         MaterialBinding sharedGeneric = Assert.Single(
             firstMaterials,
@@ -265,23 +218,35 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
-    public void CreateForPackages_IncludesExpandedRoadAndGenericVariants()
+    public void Create_IncludesOnlyResolverReachableRoadAndGenericVariants()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["tran", "frn", "brid"]);
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
 
         Assert.Equal(
-            BundledDefaultMaterialFamilies.RoadVariants.Count * 2,
-            materials.Count(material => material.Family == BundledDefaultMaterialFamilies.Road));
+            BundledDefaultMaterialFamilies.RoadVariants.Count,
+            materials.Count(material => material.Family == BundledDefaultMaterialFamilies.RoadUv));
         Assert.Equal(
-            BundledDefaultMaterialFamilies.CityFurnitureVariants.Count * 2,
+            BundledDefaultMaterialFamilies.RoadVariants.Count,
+            materials.Count(material => material.Family == BundledDefaultMaterialFamilies.RoadTriplanar));
+        Assert.Equal(
+            BundledDefaultMaterialFamilies.VegetationVariants.Count,
+            materials.Count(material => material.Family == BundledDefaultMaterialFamilies.Vegetation));
+        Assert.Equal(
+            BundledDefaultMaterialFamilies.CityFurnitureVariants.Count,
             materials.Count(material => material.Family == BundledDefaultMaterialFamilies.CityFurniture));
         Assert.Contains(
             materials,
             material => material.Family == BundledDefaultMaterialFamilies.Other
                 && material.BundledVariantIndex == BundledDefaultMaterialFamilies.OtherVariants.Count - 1
+                && material.Projection == MaterialProjection.Triplanar);
+        Assert.DoesNotContain(
+            materials,
+            material => material.Family is BundledDefaultMaterialFamilies.Vegetation
+                    or BundledDefaultMaterialFamilies.CityFurniture
+                    or BundledDefaultMaterialFamilies.Other
                 && material.Projection == MaterialProjection.Uv);
         Assert.Contains(
             BundledDefaultMaterialFamilies.OtherVariants,
-            path => path.StartsWith("default-materials/texturecan/", StringComparison.Ordinal));
+            variant => variant.TexturePath.StartsWith("default-materials/texturecan/", StringComparison.Ordinal));
     }
 }

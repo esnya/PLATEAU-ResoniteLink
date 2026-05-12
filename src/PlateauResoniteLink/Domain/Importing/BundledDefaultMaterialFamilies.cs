@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace PlateauResoniteLink.Domain.Importing;
 
@@ -19,92 +20,142 @@ public static class BundledDefaultMaterialFamilies
     public const string FacadeHighriseNightLow = "facade-highrise-night-low";
     public const string FacadeMidriseGrid = "facade-midrise-grid";
     public const string Roof = "roof";
-    public const string Road = "road";
+    public const string RoadUv = "road-uv";
+    public const string RoadTriplanar = "road-triplanar";
     public const string Vegetation = "vegetation";
     public const string CityFurniture = "city-furniture";
     public const string Other = "other";
 
-    public static readonly IReadOnlyList<string> FacadeVariants =
+    private static readonly BundledDefaultMaterialProfile Facade001TextureSet = CreateFacadeFloorUnitTextureSet(
+        columnsPerTexture: 16.0,
+        rowsPerTexture: 10.0);
+
+    private static readonly BundledDefaultMaterialProfile Facade005TextureSet = CreateFacadeFloorUnitTextureSet(
+        columnsPerTexture: 32.0,
+        rowsPerTexture: 24.0);
+
+    private static readonly BundledDefaultMaterialProfile Facade006TextureSet = CreateFacadeFloorUnitTextureSet(
+        columnsPerTexture: 14.0,
+        rowsPerTexture: 8.0);
+
+    private static readonly BundledDefaultMaterialProfile Facade011TextureSet = CreateFacadeFloorUnitTextureSet(
+        columnsPerTexture: 40.0,
+        rowsPerTexture: 40.0);
+
+    private static readonly BundledDefaultMaterialProfile Facade014TextureSet = CreateFacadeFloorUnitTextureSet(
+        columnsPerTexture: 32.0,
+        rowsPerTexture: 32.0,
+        offsetRows: 0.25);
+
+    private static readonly BundledDefaultMaterialProfile Facade018ATextureSet = CreateFacadeFloorUnitTextureSet(
+        columnsPerTexture: 6.0,
+        rowsPerTexture: 6.0,
+        offsetRows: 0.5);
+
+    private static readonly BundledDefaultMaterialProfile Facade019ATextureSet = CreateFacadeFloorUnitTextureSet(
+        columnsPerTexture: 6.0,
+        rowsPerTexture: 6.0,
+        offsetRows: 0.5);
+
+    private static readonly BundledDefaultMaterialProfile Facade020ATextureSet = CreateFacadeFloorUnitTextureSet(
+        columnsPerTexture: 6.0,
+        rowsPerTexture: 6.0,
+        offsetRows: 0.5);
+
+    private static readonly BundledDefaultMaterialProfile GeneratedFacadeTextureSet = new(
+        new ScalarPair(1.0 / 6.0, 1.0 / 6.0),
+        TextureOffset: new ScalarPair(0.0, 0.5 / 6.0),
+        ScaleSemantic: BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits);
+
+    private static readonly BundledDefaultMaterialProfile ConcreteDefaultTextureSet = new(BundledDefaultMaterialTiling.DefaultTilesPerMeterValue);
+    private static readonly BundledDefaultMaterialProfile RoofingTiles012ATextureSet = new(CreateTilesPerMeterValue(2.9, 2.9));
+    private static readonly BundledDefaultMaterialProfile RoofingTiles014BTextureSet = new(CreateTilesPerMeterValue(2.9, 2.9));
+    private static readonly BundledDefaultMaterialProfile Plaster002TextureSet = new(CreateTilesPerMeterValue(2.5, 2.5));
+    private static readonly BundledDefaultMaterialProfile Ground054TextureSet = new(CreateTilesPerMeterValue(3.5, 3.5));
+    private static readonly BundledDefaultMaterialProfile RoadDefaultTextureSet = new(BundledDefaultMaterialTiling.DefaultTilesPerMeterValue);
+    private static readonly BundledDefaultMaterialProfile TextureCanFacadeTextureSet = new(CreateTilesPerMeterValue(6.0, 6.0));
+
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> FacadeVariants =
     [
-        "default-materials/ambientcg/facade/Facade018A_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/facade/Facade019A_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/facade/Facade020A_2K-JPG_Color.jpg",
+        new("default-materials/ambientcg/facade/Facade018A_2K-JPG_Color.jpg", Facade018ATextureSet),
+        new("default-materials/ambientcg/facade/Facade019A_2K-JPG_Color.jpg", Facade019ATextureSet),
+        new("default-materials/ambientcg/facade/Facade020A_2K-JPG_Color.jpg", Facade020ATextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> WallResidentialPlasterLowVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallResidentialPlasterLowVariants =
     [
-        "default-materials/wallskins/wall_res_plaster_low/basecolor.png",
-        "default-materials/wallskins/wall_res_plaster_dark/basecolor.png",
+        new("default-materials/wallskins/wall_res_plaster_low/basecolor.png", GeneratedFacadeTextureSet),
+        new("default-materials/wallskins/wall_res_plaster_dark/basecolor.png", GeneratedFacadeTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> WallResidentialTileLowVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallResidentialTileLowVariants =
     [
-        "default-materials/wallskins/wall_res_tile_low/basecolor.png",
-        "default-materials/wallskins/wall_res_tile_dark/basecolor.png",
-        "default-materials/wallskins/wall_res_tile_dark_irregular/basecolor.png",
-        "default-materials/wallskins/wall_res_siding_brick_gray/basecolor.png",
+        new("default-materials/wallskins/wall_res_tile_low/basecolor.png", GeneratedFacadeTextureSet),
+        new("default-materials/wallskins/wall_res_tile_dark/basecolor.png", GeneratedFacadeTextureSet),
+        new("default-materials/wallskins/wall_res_tile_dark_irregular/basecolor.png", GeneratedFacadeTextureSet),
+        new("default-materials/wallskins/wall_res_siding_brick_gray/basecolor.png", GeneratedFacadeTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> WallApartmentTileMidVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallApartmentTileMidVariants =
     [
-        "default-materials/wallskins/wall_apartment_tile_mid/basecolor.png",
-        "default-materials/wallskins/wall_apartment_tile_dark/basecolor.png",
+        new("default-materials/wallskins/wall_apartment_tile_mid/basecolor.png", GeneratedFacadeTextureSet),
+        new("default-materials/wallskins/wall_apartment_tile_dark/basecolor.png", GeneratedFacadeTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> WallRcPaintedMidVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallRcPaintedMidVariants =
     [
-        "default-materials/wallskins/wall_rc_painted_mid/basecolor.png",
-        "default-materials/wallskins/wall_rc_painted_dark/basecolor.png",
+        new("default-materials/wallskins/wall_rc_painted_mid/basecolor.png", GeneratedFacadeTextureSet),
+        new("default-materials/wallskins/wall_rc_painted_dark/basecolor.png", GeneratedFacadeTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> WallFactoryMetalVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallFactoryMetalVariants =
     [
-        "default-materials/wallskins/wall_factory_metal/basecolor.png",
+        new("default-materials/wallskins/wall_factory_metal/basecolor.png", GeneratedFacadeTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> WallCommercialPanelVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallCommercialPanelVariants =
     [
-        "default-materials/wallskins/wall_commercial_panel/basecolor.png",
-        "default-materials/wallskins/wall_commercial_panel_dark/basecolor.png",
+        new("default-materials/wallskins/wall_commercial_panel/basecolor.png", GeneratedFacadeTextureSet),
+        new("default-materials/wallskins/wall_commercial_panel_dark/basecolor.png", GeneratedFacadeTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> WallSchoolPublicBandVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallSchoolPublicBandVariants =
     [
-        "default-materials/wallskins/wall_school_public_band/basecolor.png",
-        "default-materials/wallskins/wall_school_public_dark/basecolor.png",
+        new("default-materials/wallskins/wall_school_public_band/basecolor.png", GeneratedFacadeTextureSet),
+        new("default-materials/wallskins/wall_school_public_dark/basecolor.png", GeneratedFacadeTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> WallBrickRetroVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallBrickRetroVariants =
     [
-        "default-materials/wallskins/wall_brick_retro/basecolor.png",
-        "default-materials/wallskins/wall_brick_dark/basecolor.png",
+        new("default-materials/wallskins/wall_brick_retro/basecolor.png", GeneratedFacadeTextureSet),
+        new("default-materials/wallskins/wall_brick_dark/basecolor.png", GeneratedFacadeTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> WallWoodRuralVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallWoodRuralVariants =
     [
-        "default-materials/wallskins/wall_wood_rural_light/basecolor.png",
+        new("default-materials/wallskins/wall_wood_rural_light/basecolor.png", GeneratedFacadeTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> FacadeHighriseGlassVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> FacadeHighriseGlassVariants =
     [
-        "default-materials/ambientcg/facade/Facade001_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/facade/Facade005_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/facade/Facade006_2K-JPG_Color.jpg",
+        new("default-materials/ambientcg/facade/Facade001_2K-JPG_Color.jpg", Facade001TextureSet),
+        new("default-materials/ambientcg/facade/Facade005_2K-JPG_Color.jpg", Facade005TextureSet),
+        new("default-materials/ambientcg/facade/Facade006_2K-JPG_Color.jpg", Facade006TextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> FacadeHighriseNightLowVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> FacadeHighriseNightLowVariants =
     [
-        "default-materials/ambientcg/facade/Facade002_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/facade/Facade011_2K-JPG_Color.jpg",
+        new("default-materials/ambientcg/facade/Facade002_2K-JPG_Color.jpg", Facade001TextureSet),
+        new("default-materials/ambientcg/facade/Facade011_2K-JPG_Color.jpg", Facade011TextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> FacadeMidriseGridVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> FacadeMidriseGridVariants =
     [
-        "default-materials/ambientcg/facade/Facade014_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/facade/Facade015_2K-JPG_Color.jpg",
+        new("default-materials/ambientcg/facade/Facade014_2K-JPG_Color.jpg", Facade014TextureSet),
+        new("default-materials/ambientcg/facade/Facade015_2K-JPG_Color.jpg", Facade014TextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> BuildingWallSkinFamilies =
+    public static readonly IReadOnlyList<string> BuildingFacadeFamilies =
     [
         WallResidentialPlasterLow,
         WallResidentialTileLow,
@@ -115,61 +166,62 @@ public static class BundledDefaultMaterialFamilies
         WallSchoolPublicBand,
         WallBrickRetro,
         WallWoodRural,
-    ];
-
-    public static readonly IReadOnlyList<string> BuildingFacadeFallbackFamilies =
-    [
         FacadeHighriseGlass,
         FacadeHighriseNightLow,
         FacadeMidriseGrid,
     ];
 
-    public static readonly IReadOnlyList<string> RoofVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> RoofVariants =
     [
-        "default-materials/ambientcg/roof/Concrete012_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/roof/Concrete033_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/roof/RoofingTiles012A_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/roof/RoofingTiles014B_2K-JPG_Color.jpg",
+        new("default-materials/ambientcg/roof/Concrete012_2K-JPG_Color.jpg", ConcreteDefaultTextureSet),
+        new("default-materials/ambientcg/roof/Concrete033_2K-JPG_Color.jpg", ConcreteDefaultTextureSet),
+        new("default-materials/ambientcg/roof/RoofingTiles012A_2K-JPG_Color.jpg", RoofingTiles012ATextureSet),
+        new("default-materials/ambientcg/roof/RoofingTiles014B_2K-JPG_Color.jpg", RoofingTiles014BTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> RoadVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> RoadVariants =
     [
-        "default-materials/ambientcg/road/Road012A_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/road/Road013A_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/road/Road014A_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/road/Road015A_2K-JPG_Color.jpg",
+        new("default-materials/ambientcg/road/Road012A_2K-JPG_Color.jpg", RoadDefaultTextureSet),
+        new("default-materials/ambientcg/road/Road013A_2K-JPG_Color.jpg", RoadDefaultTextureSet),
+        new("default-materials/ambientcg/road/Road014A_2K-JPG_Color.jpg", RoadDefaultTextureSet),
+        new("default-materials/ambientcg/road/Road015A_2K-JPG_Color.jpg", RoadDefaultTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> VegetationVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> VegetationVariants =
     [
-        "default-materials/ambientcg/other/Ground054_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/other/Concrete012_2K-JPG_Color.jpg",
+        new("default-materials/ambientcg/other/Ground054_2K-JPG_Color.jpg", Ground054TextureSet),
+        new("default-materials/ambientcg/other/Concrete012_2K-JPG_Color.jpg", ConcreteDefaultTextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> CityFurnitureVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> CityFurnitureVariants =
     [
-        "default-materials/ambientcg/wall/Plaster002_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster001_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster003_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster004_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster005_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster006_2K-JPG_Color.jpg",
+        new("default-materials/ambientcg/wall/Plaster002_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/ambientcg/wall/Plaster001_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/ambientcg/wall/Plaster003_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/ambientcg/wall/Plaster004_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/ambientcg/wall/Plaster005_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/ambientcg/wall/Plaster006_2K-JPG_Color.jpg", Plaster002TextureSet),
     ];
 
-    public static readonly IReadOnlyList<string> OtherVariants =
+    public static readonly IReadOnlyList<BundledDefaultMaterialVariant> OtherVariants =
     [
-        "default-materials/ambientcg/other/Concrete012_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/other/Ground054_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster002_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster001_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster003_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster004_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster005_2K-JPG_Color.jpg",
-        "default-materials/ambientcg/wall/Plaster006_2K-JPG_Color.jpg",
-        "default-materials/texturecan/facade/Others0022_2K_Color.jpg",
+        new("default-materials/ambientcg/other/Concrete012_2K-JPG_Color.jpg", ConcreteDefaultTextureSet),
+        new("default-materials/ambientcg/other/Ground054_2K-JPG_Color.jpg", Ground054TextureSet),
+        new("default-materials/ambientcg/wall/Plaster002_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/ambientcg/wall/Plaster001_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/ambientcg/wall/Plaster003_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/ambientcg/wall/Plaster004_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/ambientcg/wall/Plaster005_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/ambientcg/wall/Plaster006_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new("default-materials/texturecan/facade/Others0022_2K_Color.jpg", TextureCanFacadeTextureSet),
     ];
 
     public static IReadOnlyList<string> GetVariants(string family)
+    {
+        return GetVariantDefinitions(family).Select(static variant => variant.TexturePath).ToArray();
+    }
+
+    public static IReadOnlyList<BundledDefaultMaterialVariant> GetVariantDefinitions(string family)
     {
         return family switch
         {
@@ -187,7 +239,8 @@ public static class BundledDefaultMaterialFamilies
             FacadeHighriseNightLow => FacadeHighriseNightLowVariants,
             FacadeMidriseGrid => FacadeMidriseGridVariants,
             Roof => RoofVariants,
-            Road => RoadVariants,
+            RoadUv => RoadVariants,
+            RoadTriplanar => RoadVariants,
             Vegetation => VegetationVariants,
             CityFurniture => CityFurnitureVariants,
             Other => OtherVariants,
@@ -197,12 +250,98 @@ public static class BundledDefaultMaterialFamilies
 
     public static string GetVariant(string family, int variantIndex)
     {
-        IReadOnlyList<string> variants = GetVariants(family);
+        IReadOnlyList<BundledDefaultMaterialVariant> variants = GetVariantDefinitions(family);
+        if ((uint)variantIndex >= (uint)variants.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(variantIndex), variantIndex, $"Family '{family}' has {variants.Count} variants.");
+        }
+
+        return variants[variantIndex].TexturePath;
+    }
+
+    public static BundledDefaultMaterialVariant GetVariantDefinition(string family, int variantIndex)
+    {
+        IReadOnlyList<BundledDefaultMaterialVariant> variants = GetVariantDefinitions(family);
         if ((uint)variantIndex >= (uint)variants.Count)
         {
             throw new ArgumentOutOfRangeException(nameof(variantIndex), variantIndex, $"Family '{family}' has {variants.Count} variants.");
         }
 
         return variants[variantIndex];
+    }
+
+    public static bool TryGetVariantDefinition(string texturePath, out BundledDefaultMaterialVariant variant)
+    {
+        foreach (string family in GetAllFamilies())
+        {
+            foreach (BundledDefaultMaterialVariant candidate in GetVariantDefinitions(family))
+            {
+                if (string.Equals(candidate.TexturePath, texturePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    variant = candidate;
+                    return true;
+                }
+            }
+        }
+
+        variant = null!;
+        return false;
+    }
+
+    private static IReadOnlyList<string> GetAllFamilies()
+    {
+        return
+        [
+            Facade,
+            WallResidentialPlasterLow,
+            WallResidentialTileLow,
+            WallApartmentTileMid,
+            WallRcPaintedMid,
+            WallFactoryMetal,
+            WallCommercialPanel,
+            WallSchoolPublicBand,
+            WallBrickRetro,
+            WallWoodRural,
+            FacadeHighriseGlass,
+            FacadeHighriseNightLow,
+            FacadeMidriseGrid,
+            Roof,
+            RoadUv,
+            RoadTriplanar,
+            Vegetation,
+            CityFurniture,
+            Other,
+        ];
+    }
+
+    private static BundledDefaultMaterialProfile CreateFacadeFloorUnitTextureSet(
+        double columnsPerTexture,
+        double rowsPerTexture,
+        double offsetColumns = 0.0,
+        double offsetRows = 0.0)
+    {
+        return new BundledDefaultMaterialProfile(
+            new ScalarPair(1.0 / rowsPerTexture, 1.0 / rowsPerTexture),
+            CreateTextureOffsetValue(columnsPerTexture, rowsPerTexture, offsetColumns, offsetRows),
+            ScaleSemantic: BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits);
+    }
+
+    private static ScalarPair? CreateTextureOffsetValue(
+        double columnsPerTexture,
+        double rowsPerTexture,
+        double offsetColumns,
+        double offsetRows)
+    {
+        if (Math.Abs(offsetColumns) < 1e-9 && Math.Abs(offsetRows) < 1e-9)
+        {
+            return null;
+        }
+
+        return new ScalarPair(offsetColumns / columnsPerTexture, offsetRows / rowsPerTexture);
+    }
+
+    private static ScalarPair CreateTilesPerMeterValue(double widthMeters, double heightMeters)
+    {
+        return new ScalarPair(1.0 / widthMeters, 1.0 / heightMeters);
     }
 }

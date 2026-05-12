@@ -591,6 +591,31 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
+    public void TryNormalizeSharedMaterialBinding_RejectsPresentationScopedBundledFamilyMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "bundled-family-presentation-scoped-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: FacadeDefaultTilesPerMeter(),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out _,
+            out _);
+
+        Assert.False(normalized);
+    }
+
+    [Fact]
     public void TryNormalizeSharedMaterialBinding_RejectsBundledFamilySharedMaterialWithUvOrDepthTransform()
     {
         ResoniteMaterialBinding material = new(
