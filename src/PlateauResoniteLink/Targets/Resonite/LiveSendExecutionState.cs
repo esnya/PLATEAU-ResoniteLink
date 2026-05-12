@@ -49,7 +49,7 @@ internal sealed class CommonMaterialAssetCache
 
     public AsyncInFlightResultCache<string, CreatedMaterialAsset> CommonMaterialCreationTasks { get; } = new();
 
-    public required IReadOnlySet<string> SetupKnownMaterialKeys { get; init; }
+    public AsyncInFlightResultCache<string, Uri> BundledTextureImportTasks { get; } = new();
 }
 
 internal sealed class TerrainTextureAssetCache

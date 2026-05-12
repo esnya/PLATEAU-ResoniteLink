@@ -17,7 +17,7 @@ namespace PlateauResoniteLink.Tests.UseCases;
 public sealed class PlateauImportServiceTests
 {
     [Fact]
-    public async Task ExecuteAsync_UsesPackageCatalogCommonMaterialsForSetup()
+    public async Task ExecuteAsync_UsesCodebaseReachableCommonMaterialsForSetup()
     {
         using TemporaryDirectory workRoot = new();
 
@@ -112,7 +112,7 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(readResult.DocumentSet.SelectedMeshCodes, sceneSink.BeginRequest.Metadata.SourceDataset.SelectedMeshCodes);
         Assert.NotNull(sceneSink.BeginRequest.CommonMaterials);
         Assert.Equal(
-            new CommonMaterialCatalog().CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
+            new CommonMaterialCatalog().Create().Select(static material => material.MaterialKey).OrderBy(static key => key),
             [.. sceneSink.BeginRequest.CommonMaterials.Select(material => material.MaterialKey).OrderBy(materialKey => materialKey)]);
         Assert.All(
             sourceCommonMaterials.Select(static material => material.MaterialKey),
@@ -178,7 +178,8 @@ public sealed class PlateauImportServiceTests
             exception.Errors,
             static error => error.Contains("No triangulated CityGML geometry", StringComparison.Ordinal));
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
-        Assert.Equal(0, sceneSink.ExecuteCallCount);
+        Assert.Equal(1, sceneSink.ExecuteCallCount);
+        Assert.Empty(sceneSink.ProcessedCityObjects);
         Assert.Equal(1, importedSceneSourceFactory.CreateCallCount);
         Assert.Equal(1, sceneSink.DisposeCount);
     }
@@ -301,7 +302,7 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_UsesPackageCatalogCommonMaterialsWhenSourceEnumerationIsEmpty()
+    public async Task ExecuteAsync_UsesCodebaseReachableCommonMaterialsWhenSourceEnumerationIsEmpty()
     {
         using TemporaryDirectory rawSourceRoot = new();
         using TemporaryDirectory workRoot = new();
@@ -336,8 +337,48 @@ public sealed class PlateauImportServiceTests
 
         Assert.NotNull(sceneSink.BeginRequest);
         Assert.Equal(
-            new CommonMaterialCatalog().CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
+            new CommonMaterialCatalog().Create().Select(static material => material.MaterialKey).OrderBy(static key => key),
             sceneSink.BeginRequest!.CommonMaterials.Select(material => material.MaterialKey).OrderBy(static key => key));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DoesNotEnumerateObjectUnitsBeforeSinkExecution()
+    {
+        using TemporaryDirectory rawSourceRoot = new();
+        using TemporaryDirectory workRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        ValidatedPlateauImportRequest validatedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
+            Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
+        ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        StubImportedSceneSource source = new(CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
+        RecordingSceneSink sceneSink = new()
+        {
+            OnExecuteBeforeRead = _ => Assert.False(source.EnumerationStarted),
+        };
+        RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
+        RecordingImportedSceneSourceFactory importedSceneSourceFactory = new(source, readResult);
+
+        PlateauImportService service = new(
+            sceneSink,
+            datasetSourceResolver,
+            importedSceneSourceFactory,
+            new CommonMaterialCatalog(),
+            new ArchiveFileLayoutPolicy());
+
+        _ = await service.ExecuteAsync(request, workRoot.Path);
+
+        Assert.True(source.EnumerationStarted);
+        Assert.Single(sceneSink.ProcessedCityObjects);
     }
 
     [Fact]
@@ -435,6 +476,8 @@ public sealed class PlateauImportServiceTests
 
         public Exception? DisposeException { get; init; }
 
+        public Action<SceneImportExecutionPlan>? OnExecuteBeforeRead { get; init; }
+
         public async Task<SceneImportExecutionResult> ExecuteAsync(
             SceneImportExecutionPlan plan,
             IAsyncEnumerable<ImportedObjectUnit> objectUnits,
@@ -443,6 +486,7 @@ public sealed class PlateauImportServiceTests
             ExecuteCallCount++;
             ConnectedRequest = plan.NormalizedRequest;
             BeginRequest = plan.SceneImportRequest;
+            OnExecuteBeforeRead?.Invoke(plan);
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
                 ProcessedCityObjects.AddRange(objectUnit.CityObjects);
@@ -534,9 +578,12 @@ public sealed class PlateauImportServiceTests
 
         public ImportedSceneMetadata Metadata { get; } = metadata;
 
+        public bool EnumerationStarted { get; private set; }
+
         public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            EnumerationStarted = true;
             if (cityObjects.Count == 0)
             {
                 await Task.CompletedTask;

@@ -78,7 +78,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [cityObject],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator,
+            commonMaterials: []);
 
         ResoniteRawTextureImport importedTexture = Assert.Single(client.ImportedRawTextures);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), importedTexture.Width);
@@ -242,7 +243,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [first, second],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator,
+            commonMaterials: []);
 
         AddComponent[] sharedTextures = client.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
@@ -288,7 +290,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [sharedTerrain],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator,
+            commonMaterials: []);
 
         AddComponent sharedTexture = Assert.Single(
             client.AddedComponents,
@@ -314,7 +317,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [dedicatedTerrain],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator,
+            commonMaterials: []);
 
         AddComponent propertyBlock = Assert.Single(
             client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
@@ -477,7 +481,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [cityObject],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator,
+            commonMaterials: []);
 
         Component meshRenderer = Assert.Single(
             client.AddedComponents,
@@ -863,7 +868,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [cityObject],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator,
+            commonMaterials: []);
 
         Component gridMesh = Assert.Single(
             client.ComponentsById.Values,
@@ -1084,7 +1090,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    Family: BundledDefaultMaterialFamilies.Road),
+                    Family: BundledDefaultMaterialFamilies.RoadUv),
                 new ResoniteMaterialBinding(
                     MaterialKey: "payload-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -1257,7 +1263,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncBakesBundledFamilyUvScaleIntoMeshAndUsesDefaultCommonScale()
+    public async Task ExecuteAsyncNormalizesBundledFamilyUvScaleIntoMeshAndKeepsMaterialLocal()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1301,39 +1307,27 @@ public sealed class ResoniteLiveSceneImportTargetTests
             client,
             enableMeshBake: false);
 
-        string expectedCommonMaterialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(
-            ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(Assert.Single(cityObject.Materials)),
-            useCommonMaterialAssets: true);
         Component meshRenderer = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
                 && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "Bundled Family Scale Check", StringComparison.Ordinal))
             .Data;
         SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
-        Assert.IsType<Reference>(Assert.Single(materials.Elements));
+        string materialId = Assert.IsType<Reference>(Assert.Single(materials.Elements)).TargetID;
+        IEnumerable<AddComponent> allAddComponents = client.AddedComponents
+            .Concat(client.Batches.SelectMany(static operations => operations).OfType<AddComponent>());
         AddComponent materialRequest = Assert.Single(
-            client.AddedComponents,
-            request =>
-                client.SlotPaths[request.ContainerSlotId].Contains(
-                    "PLATEAU Shared Assets/Common Materials/",
-                    StringComparison.Ordinal)
-                && client.SlotPaths[request.ContainerSlotId].EndsWith(
-                    $"/{expectedCommonMaterialSlotName}",
-                    StringComparison.Ordinal)
-                && request.Data.Members.ContainsKey("TextureScale"));
+            allAddComponents,
+            request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal));
         Component sharedMaterial = materialRequest.Data;
-        Field_float2 textureScale = Assert.IsType<Field_float2>(sharedMaterial.Members["TextureScale"]);
         SyncList propertyBlocks = Assert.IsType<SyncList>(meshRenderer.Members["MaterialPropertyBlocks"]);
         ImportMeshRawData importedMesh = Assert.Single(client.ImportedMeshes);
         float expectedUvScaleX = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
         float expectedUvScaleY = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y);
 
-        Assert.Contains(
-            "PLATEAU Shared Assets/Common Materials/",
-            client.SlotPaths[materialRequest.ContainerSlotId],
-            StringComparison.Ordinal);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X, textureScale.Value.x, 6);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
+        Assert.False(materialRequest.MessageID.StartsWith("setup_common_material_component", StringComparison.Ordinal));
+        Assert.DoesNotContain("TextureScale", sharedMaterial.Members.Keys);
+        Assert.DoesNotContain("TextureOffset", sharedMaterial.Members.Keys);
         Assert.Empty(propertyBlocks.Elements);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].x, 6);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].y, 6);
@@ -1344,7 +1338,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncBakesBundledFamilyUvTransformIntoMeshAndAvoidsDedicatedUvTransformEmission()
+    public async Task ExecuteAsyncNormalizesBundledFamilyUvTransformIntoMeshAndAvoidsDedicatedUvTransformEmission()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1389,29 +1383,18 @@ public sealed class ResoniteLiveSceneImportTargetTests
             client,
             enableMeshBake: false);
 
-        string expectedCommonMaterialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(
-            ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(Assert.Single(cityObject.Materials)),
-            useCommonMaterialAssets: true);
         AddComponent meshRendererRequest = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
                 && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "Bundled Family Transform Check", StringComparison.Ordinal));
         Component meshRenderer = meshRendererRequest.Data;
         SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
-        Assert.IsType<Reference>(Assert.Single(materials.Elements));
+        string materialId = Assert.IsType<Reference>(Assert.Single(materials.Elements)).TargetID;
+        IEnumerable<AddComponent> allAddComponents = client.AddedComponents
+            .Concat(client.Batches.SelectMany(static operations => operations).OfType<AddComponent>());
         AddComponent materialRequest = Assert.Single(
-            client.AddedComponents,
-            request =>
-                client.SlotPaths[request.ContainerSlotId].Contains(
-                    "PLATEAU Shared Assets/Common Materials/",
-                    StringComparison.Ordinal)
-                && client.SlotPaths[request.ContainerSlotId].EndsWith(
-                    $"/{expectedCommonMaterialSlotName}",
-                    StringComparison.Ordinal)
-                && request.Data.Members.ContainsKey("TextureScale")
-                && request.Data.Members.ContainsKey("TextureOffset"));
-        Field_float2 textureScale = Assert.IsType<Field_float2>(materialRequest.Data.Members["TextureScale"]);
-        Field_float2 textureOffset = Assert.IsType<Field_float2>(materialRequest.Data.Members["TextureOffset"]);
+            allAddComponents,
+            request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal));
         SyncList propertyBlocks = Assert.IsType<SyncList>(meshRenderer.Members["MaterialPropertyBlocks"]);
         ImportMeshRawData importedMesh = Assert.Single(client.ImportedMeshes);
         float expectedUvScaleX = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
@@ -1420,14 +1403,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
         float expectedMaterialOffsetY = (float)(0.5 / 6.0);
         float expectedUvOffsetY = (float)((0.25 - expectedMaterialOffsetY) / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y);
 
-        Assert.Contains(
-            "PLATEAU Shared Assets/Common Materials/",
-            client.SlotPaths[materialRequest.ContainerSlotId],
-            StringComparison.Ordinal);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X, textureScale.Value.x, 6);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
-        Assert.Equal(0.0f, textureOffset.Value.x, 6);
-        Assert.Equal(expectedMaterialOffsetY, textureOffset.Value.y, 6);
+        Assert.False(materialRequest.MessageID.StartsWith("setup_common_material_component", StringComparison.Ordinal));
+        Assert.DoesNotContain("TextureScale", materialRequest.Data.Members.Keys);
+        Assert.DoesNotContain("TextureOffset", materialRequest.Data.Members.Keys);
         Assert.Empty(propertyBlocks.Elements);
         Assert.Equal(expectedUvOffsetX, importedMesh.AccessUV_2D(0)[0].x, 6);
         Assert.Equal(expectedUvOffsetY, importedMesh.AccessUV_2D(0)[0].y, 6);

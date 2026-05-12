@@ -46,7 +46,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
@@ -107,7 +107,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
@@ -159,7 +159,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
@@ -228,7 +228,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_FailsWhensetupKnownCommonMaterialWasNotResolvedDuringSetup()
+    public async Task ExecuteAsync_RejectsCodebaseReachableCommonMaterialWhenSetupDoesNotResolveIt()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -260,7 +260,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
-        IReadOnlyList<MaterialBinding> commonMaterials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+        IReadOnlyList<MaterialBinding> commonMaterials = new CommonMaterialCatalog().Create();
         SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
             request,
             request,
@@ -269,21 +269,15 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             workDirectory.Path,
             commonMaterials);
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => importTarget.ExecuteAsync(
-                plan,
-                CreateImportedObjectUnits(CreateBundledFacadeCityObject("setup-common-missing"))));
+        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() => importTarget.ExecuteAsync(
+            plan,
+            CreateImportedObjectUnits(CreateBundledFacadeCityObject("setup-common-missing"))));
 
-        Assert.Contains(
-            "Setup did not resolve shared/common material",
-            exception.Message,
-            StringComparison.Ordinal);
-        Assert.Contains("family=Facade", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("projection=Uv", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Setup did not create common material family", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ExecuteAsync_PreparesSharedCommonMaterialDuringRuntimeWhenSetupDoesNotMarkIt()
+    public async Task ExecuteAsync_RejectsCommonMaterialWhenSetupDoesNotMarkIt()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -324,22 +318,21 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             workDirectory.Path,
             commonMaterials: []);
 
-        _ = await importTarget.ExecuteAsync(
+        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() => importTarget.ExecuteAsync(
             plan,
-            CreateImportedObjectUnits(CreateVertexColorTriangleCityObject("runtime-common-material")));
+            CreateImportedObjectUnits(CreateVertexColorTriangleCityObject("runtime-common-material"))));
 
-        Assert.Contains(
-            routedClient.SlotPaths.Values,
-            static path => path.EndsWith("/vertex-color/shared_uv_vertex-color", StringComparison.Ordinal));
+        Assert.Contains("Setup did not resolve common material", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ExecuteAsync_StartsRuntimeSharedMaterialPreparationBeforePreparedTextureImport()
+    public async Task ExecuteAsync_PreparesCommonMaterialsBeforeSendWorkers()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
+        List<string> progressMessages = [];
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -349,12 +342,12 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 EnableMeshBake: false,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                ProgressReporter: progressMessages.Add),
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
                 new TerrainTextureAssetGenerator(),
-                new MissingCommonMaterialSetupInterpreter(),
+                new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
@@ -372,20 +365,20 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             metadata,
             request.LocalSourcePath!,
             workDirectory.Path,
-            commonMaterials: []);
+            new CommonMaterialCatalog().Create());
 
         _ = await importTarget.ExecuteAsync(
             plan,
             CreateImportedObjectUnits(CreateMixedSharedMaterialAndPayloadCityObject("runtime-shared-texture")));
 
-        int firstSharedMaterialReadIndex = routedClient.OperationNames.FindIndex(static operation =>
-            operation.StartsWith("GetSlot:", StringComparison.Ordinal)
-            && operation.Contains("Common Materials", StringComparison.Ordinal));
-        int firstTextureImportIndex = routedClient.OperationNames.FindIndex(static operation =>
-            string.Equals(operation, "ImportTexture", StringComparison.Ordinal));
-        Assert.True(firstSharedMaterialReadIndex >= 0, "Expected runtime shared material preparation to read the shared Common Materials slot.");
-        Assert.True(firstTextureImportIndex >= 0, "Expected the textured material to import its prepared texture payload.");
-        Assert.InRange(firstSharedMaterialReadIndex, 0, firstTextureImportIndex - 1);
+        int commonPrepIndex = progressMessages.FindIndex(static message =>
+            message.Contains("Prepared ", StringComparison.Ordinal)
+            && message.Contains("common material assets during scene setup", StringComparison.Ordinal));
+        int sendWorkersIndex = progressMessages.FindIndex(static message =>
+            message.Contains("Starting routed send workers", StringComparison.Ordinal));
+        Assert.True(commonPrepIndex >= 0, "Expected common material preparation progress before streaming.");
+        Assert.True(sendWorkersIndex >= 0, "Expected send worker startup progress.");
+        Assert.InRange(commonPrepIndex, 0, sendWorkersIndex - 1);
     }
 
     [Fact]

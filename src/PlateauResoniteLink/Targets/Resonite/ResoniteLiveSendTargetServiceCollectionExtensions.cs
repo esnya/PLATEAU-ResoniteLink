@@ -31,7 +31,6 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteSceneSetupInterpreter>(
             static serviceProvider => new ResoniteSceneSetupInterpreter(
                 serviceProvider.GetRequiredService<IResoniteSceneSlotLocator>(),
-                serviceProvider.GetRequiredService<IResoniteMaterialPlanning>(),
                 serviceProvider.GetRequiredService<IResoniteSceneAnchorResolver>()));
         services.TryAddScoped<IResoniteDatasetLicenseWriter, ResoniteDatasetLicenseWriter>();
         services.TryAddScoped<IResoniteLiveSceneImportDependencyFactory, ResoniteLiveSceneImportDependencyFactory>();

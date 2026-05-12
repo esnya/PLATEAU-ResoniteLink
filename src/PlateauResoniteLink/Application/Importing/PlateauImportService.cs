@@ -64,11 +64,11 @@ internal sealed class PlateauImportService(
                 PlateauLog.Debug("import", $"Prepared imported scene source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             ImportedSceneMetadata metadata = source.Metadata;
-            IReadOnlyList<MaterialBinding> commonMaterials = commonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames);
+            IReadOnlyList<MaterialBinding> commonMaterials = commonMaterialCatalog.Create();
             ReportProgress(
                 PlateauLog.Info(
                     "import",
-                    $"Setup will use {commonMaterials.Count} package-catalog common materials."));
+                    $"Setup will use {commonMaterials.Count} codebase-reachable common materials."));
 
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
@@ -80,36 +80,33 @@ internal sealed class PlateauImportService(
             ReportProgress(
                 PlateauLog.Info(
                     "import",
-                    $"Starting live scene initialization ({metadata.SourceDataset.PackageNames.Count} package-scoped common material families)."));
+                    "Starting live scene initialization with codebase-reachable common materials."));
 
-            ReportProgress(PlateauLog.Info("import", "Starting object unit streaming."));
+            ReportProgress(PlateauLog.Info("import", "Handing object unit stream to sink after scene setup is planned."));
 
-            await using IAsyncEnumerator<ImportedObjectUnit> objectUnitEnumerator =
-                source.ReadObjectUnitsAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
-            if (!await objectUnitEnumerator.MoveNextAsync())
-            {
-                throw new PlateauImportValidationException(
-                    [$"No triangulated CityGML geometry was produced for mesh code '{resolvedRequest.MeshCode}'."]);
-            }
-
-            int sourceCityObjectCount = objectUnitEnumerator.Current.CityObjects.Count;
+            int sourceCityObjectCount = 0;
             Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
             SceneImportExecutionResult executionResult = await sceneSink.ExecuteAsync(
                 executionPlan,
-                ReadImportedObjectUnitsAsync(
-                    objectUnitEnumerator.Current,
-                    objectUnitEnumerator,
+                CountImportedObjectUnitsAsync(
+                    source.ReadObjectUnitsAsync(cancellationToken),
                     cityObjectCount => sourceCityObjectCount += cityObjectCount,
                     cancellationToken),
                 cancellationToken);
 
             cityObjectStopwatch.Stop();
+            if (sourceCityObjectCount == 0)
+            {
+                throw new PlateauImportValidationException(
+                    [$"No triangulated CityGML geometry was produced for mesh code '{resolvedRequest.MeshCode}'."]);
+            }
+
             ReportProgress(
                 PlateauLog.Info("import", $"Streamed {sourceCityObjectCount} city objects in {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s."));
             ReportProgress(
                 PlateauLog.Debug(
                     "import",
-                    $"City object streaming elapsed {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s after prewarm started."));
+                    $"City object streaming elapsed {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s after sink execution started."));
 
             if (executionResult.ProcessedCityObjectCount == 0
                 && executionResult.FailedCityObjectCount > 0)
@@ -167,19 +164,14 @@ internal sealed class PlateauImportService(
         progressReporter?.Invoke(message);
     }
 
-    private static async IAsyncEnumerable<ImportedObjectUnit> ReadImportedObjectUnitsAsync(
-        ImportedObjectUnit firstObjectUnit,
-        IAsyncEnumerator<ImportedObjectUnit> remainingObjectUnits,
+    private static async IAsyncEnumerable<ImportedObjectUnit> CountImportedObjectUnitsAsync(
+        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
         Action<int> onReadAdditionalCityObjects,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        yield return firstObjectUnit;
-
-        while (await remainingObjectUnits.MoveNextAsync())
+        await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ImportedObjectUnit objectUnit = remainingObjectUnits.Current;
             onReadAdditionalCityObjects(objectUnit.CityObjects.Count);
             yield return objectUnit;
         }
