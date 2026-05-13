@@ -1684,7 +1684,12 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Equal(TextureSourceKind.Bundled, material.TextureSourceKind);
         Assert.Equal(MaterialProjection.Uv, material.Projection);
         Assert.Null(material.TexturePayload);
-        Assert.Equal(new Float2(0.0, 0.5 / 6.0), material.TextureOffset);
+        string texturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value);
+        BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
+        Assert.Equal(new Float2(profile.TextureScale.X, profile.TextureScale.Y), material.TextureScale);
+        Assert.Equal(
+            profile.TextureOffset is null ? null : new Float2(profile.TextureOffset.X, profile.TextureOffset.Y),
+            material.TextureOffset);
     }
 
     [Theory]
@@ -1730,16 +1735,20 @@ public sealed class LocalCityGmlObjectProjectionTests
     [Fact]
     public void SharedBundledFacadeBindingKey_UsesCanonicalScaleAndTreatsExplicitZeroOffsetAsNone()
     {
+        string variantPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, 0);
+        BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(variantPath);
+        Float2 textureScale = new(profile.TextureScale.X, profile.TextureScale.Y);
+        Float2? textureOffset = profile.TextureOffset is null ? null : new Float2(profile.TextureOffset.X, profile.TextureOffset.Y);
         ResolvedMaterial material = new(
             MaterialType.Standard,
             TexturePayload: null,
             TextureSourceKind.Bundled,
             MaterialProjection.Uv,
             BundledDefaultMaterialFamilies.Facade,
-            TextureScale: new Float2(1.0 / 6.0, 1.0 / 6.0),
+            TextureScale: textureScale,
             ReuseScope: MaterialReuseScope.Shared,
             BundledVariantIndex: 0,
-            TextureOffset: new Float2(0.0, 0.5 / 6.0));
+            TextureOffset: textureOffset);
 
         string materialKey = CreateBindingMaterialKeyForTest(
             material,

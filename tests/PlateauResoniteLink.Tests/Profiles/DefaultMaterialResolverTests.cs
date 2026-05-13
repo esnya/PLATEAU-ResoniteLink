@@ -478,7 +478,7 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialAppliesGeneratedFacadeFloorOffset()
+    public void ResolveMaterialAppliesGeneratedFacadeFloorTextureSet()
     {
         ResolvedMaterial first = resolver.ResolveMaterial(CreateBuildingWallRequest("bldg:wall:one"));
         ResolvedMaterial? different = null;
@@ -494,10 +494,17 @@ public sealed class DefaultMaterialResolverTests
         Assert.NotNull(different);
         string firstPath = BundledDefaultMaterialFamilies.GetVariant(first.Family!, first.BundledVariantIndex!.Value);
         string differentPath = BundledDefaultMaterialFamilies.GetVariant(different!.Family!, different.BundledVariantIndex!.Value);
-        Assert.Equal(new ScalarPair(0.0, 0.5 / 6.0), BundledDefaultMaterialProfiles.GetProfile(firstPath).TextureOffset);
-        Assert.Equal(new ScalarPair(0.0, 0.5 / 6.0), BundledDefaultMaterialProfiles.GetProfile(differentPath).TextureOffset);
-        Assert.Equal(new Float2(0.0, 0.5 / 6.0), first.TextureOffset);
-        Assert.Equal(new Float2(0.0, 0.5 / 6.0), different.TextureOffset);
+        BundledDefaultMaterialProfile firstProfile = BundledDefaultMaterialProfiles.GetProfile(firstPath);
+        BundledDefaultMaterialProfile differentProfile = BundledDefaultMaterialProfiles.GetProfile(differentPath);
+
+        Assert.Equal(new Float2(firstProfile.TextureScale.X, firstProfile.TextureScale.Y), first.TextureScale);
+        Assert.Equal(
+            firstProfile.TextureOffset is null ? null : new Float2(firstProfile.TextureOffset.X, firstProfile.TextureOffset.Y),
+            first.TextureOffset);
+        Assert.Equal(new Float2(differentProfile.TextureScale.X, differentProfile.TextureScale.Y), different.TextureScale);
+        Assert.Equal(
+            differentProfile.TextureOffset is null ? null : new Float2(differentProfile.TextureOffset.X, differentProfile.TextureOffset.Y),
+            different.TextureOffset);
     }
 
     private static Float2 ToContractFloat2(ScalarPair value) => new(value.X, value.Y);

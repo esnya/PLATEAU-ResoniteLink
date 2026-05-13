@@ -68,7 +68,11 @@ public sealed class CommonMaterialCatalogTests
             new Float2(BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.X, BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.Y),
             roofMaterial.TextureScale);
         Assert.Equal(new Float2(wallProfile.TextureScale.X, wallProfile.TextureScale.Y), wallMaterial.TextureScale);
-        Assert.Equal(new Float2(wallProfile.TextureOffset!.X, wallProfile.TextureOffset.Y), wallMaterial.TextureOffset);
+        Assert.Equal(
+            wallProfile.TextureOffset is null
+                ? null
+                : new Float2(wallProfile.TextureOffset.X, wallProfile.TextureOffset.Y),
+            wallMaterial.TextureOffset);
         Assert.DoesNotContain(
             materials,
             material => material.Family == BundledDefaultMaterialFamilies.Facade);

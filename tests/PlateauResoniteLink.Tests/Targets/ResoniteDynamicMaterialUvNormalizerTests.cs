@@ -132,9 +132,17 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     [Fact]
     public void Normalize_NormalizesGeneratedFacadeScaleLikeOtherFacadeMaterials()
     {
+        BundledDefaultMaterialVariant variant = BundledDefaultMaterialFamilies.WallResidentialPlasterLowVariants[0];
+        ScalarPair implicitScale = variant.TextureSet.GetImplicitTextureScale();
+        ScalarPair? implicitOffset = variant.TextureSet.GetImplicitTextureOffset();
+        ResoniteFloat2 textureScale = new(implicitScale.X, implicitScale.Y);
+        ResoniteFloat2? textureOffset = implicitOffset is null
+            ? null
+            : new ResoniteFloat2(implicitOffset.X, implicitOffset.Y);
+
         ResoniteConstructionCityObject cityObject = CreateTriangleCityObject(
-            textureScale: new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0),
-            textureOffset: null) with
+            textureScale: textureScale,
+            textureOffset: textureOffset) with
         {
             Materials =
             [
@@ -145,7 +153,8 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     TextureSourceKind = ResoniteTextureSourceKind.Bundled,
                     Family = BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
                     BundledVariantIndex = 0,
-                    TextureScale = new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0),
+                    TextureScale = textureScale,
+                    TextureOffset = textureOffset,
                     AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
                 },
             ],
