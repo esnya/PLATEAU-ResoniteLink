@@ -723,6 +723,33 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
+    public void CommonMaterialAssetSet_KeysBundledAssetsByFamilyAndMaterialSlot()
+    {
+        ResoniteMaterialBinding plaster = CreateBundledCommonMaterial(BundledDefaultMaterialFamilies.WallResidentialPlasterLow);
+        ResoniteMaterialBinding tile = CreateBundledCommonMaterial(BundledDefaultMaterialFamilies.WallResidentialTileLow);
+
+        Assert.Equal(
+            ResoniteCommonMaterialSlots.GetSlotName(plaster),
+            ResoniteCommonMaterialSlots.GetSlotName(tile));
+        Assert.NotEqual(
+            ResoniteCommonMaterialSlots.GetKey(plaster),
+            ResoniteCommonMaterialSlots.GetKey(tile));
+
+        ResoniteCommonMaterialAssetSet assets = new();
+        CreatedMaterialAsset plasterAsset = new(new ResoniteComponentLocator("plaster-component"), null);
+        CreatedMaterialAsset tileAsset = new(new ResoniteComponentLocator("tile-component"), null);
+
+        assets.Set(new ResoniteCommonMaterialAsset(plaster, plasterAsset));
+        assets.Set(new ResoniteCommonMaterialAsset(tile, tileAsset));
+
+        Assert.Equal(2, assets.Count);
+        Assert.True(assets.TryGetAsset(plaster, out CreatedMaterialAsset resolvedPlaster));
+        Assert.True(assets.TryGetAsset(tile, out CreatedMaterialAsset resolvedTile));
+        Assert.Equal(plasterAsset, resolvedPlaster);
+        Assert.Equal(tileAsset, resolvedTile);
+    }
+
+    [Fact]
     public void NormalizeBatchGroupedMaterialBinding_DemotesTintedBundledFamilyCommonMaterial()
     {
         ResoniteMaterialBinding material = new(
@@ -820,6 +847,22 @@ public sealed class ResoniteSceneMaterialConventionsTests
     {
         ScalarPair value = BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue;
         return new ResoniteFloat2(value.X, value.Y);
+    }
+
+    private static ResoniteMaterialBinding CreateBundledCommonMaterial(string family)
+    {
+        return new ResoniteMaterialBinding(
+            MaterialKey: string.Concat("common-", family),
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            Family: family,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.Common);
     }
 
 }
