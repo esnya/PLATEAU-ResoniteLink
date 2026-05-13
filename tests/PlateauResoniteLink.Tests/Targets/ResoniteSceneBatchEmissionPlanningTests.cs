@@ -272,7 +272,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
-            new MaterialIdentity("dedicated"),
             new ResoniteMaterialBinding(
                 MaterialKey: "dedicated-material",
                 BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -284,20 +283,21 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 SubmeshIndices: [0]),
             [new PlannedTextureAsset(new TextureIdentity("albedo"), new Uri("resdb:///texture/albedo"))],
             PreserveDedicatedMaterialSlot: true);
+        PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("existing-material-id"));
         PlannedSceneObjectEmission emissionPlan = new(
             new PlannedTriangleMeshGeometryAsset(
                 new GeometryIdentity("geom"),
                 "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [
-                new PlannedReusableMaterialAsset(new MaterialIdentity("reusable"), new ResoniteComponentLocator("existing-material-id")),
+                reusableMaterial,
                 dedicatedMaterial,
             ],
             new PlannedRenderer(
                 new GeometryIdentity("geom"),
                 [
-                    new PlannedDirectRendererMaterialBinding(new MaterialIdentity("reusable")),
-                    new PlannedDirectRendererMaterialBinding(dedicatedMaterial.Identity),
+                    new PlannedDirectRendererMaterialBinding(reusableMaterial),
+                    new PlannedDirectRendererMaterialBinding(dedicatedMaterial),
                 ]),
             new PlannedCollider(
                 new GeometryIdentity("geom"),
@@ -340,7 +340,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
-            new MaterialIdentity("dedicated"),
             new ResoniteMaterialBinding(
                 MaterialKey: "dedicated-material",
                 BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -366,7 +365,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             [dedicatedMaterial],
             new PlannedRenderer(
                 new GeometryIdentity("geom"),
-                [new PlannedDirectRendererMaterialBinding(dedicatedMaterial.Identity)]),
+                [new PlannedDirectRendererMaterialBinding(dedicatedMaterial)]),
             new PlannedCollider(
                 new GeometryIdentity("geom"),
                 true));
@@ -428,7 +427,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
-        PlannedReusableMaterialAsset reusableMaterial = new(new MaterialIdentity("reusable"), new ResoniteComponentLocator("shared-material-id"));
+        PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
         PlannedSceneObjectEmission emissionPlan = new(
             new PlannedTriangleMeshGeometryAsset(
                 new GeometryIdentity("geom"),
@@ -439,7 +438,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 [
                     new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
-                        reusableMaterial.Identity,
+                        reusableMaterial,
                         new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override"))),
                 ]),
             new PlannedCollider(
@@ -485,7 +484,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
-        PlannedReusableMaterialAsset reusableMaterial = new(new MaterialIdentity("reusable"), new ResoniteComponentLocator("shared-material-id"));
+        PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
         PlannedSceneObjectEmission emissionPlan = new(
             new PlannedTriangleMeshGeometryAsset(
                 new GeometryIdentity("geom"),
@@ -496,7 +495,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 [
                     new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
-                        reusableMaterial.Identity,
+                        reusableMaterial,
                         new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override"))),
                 ]),
             new PlannedCollider(
@@ -524,7 +523,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
-        PlannedReusableMaterialAsset reusableMaterial = new(new MaterialIdentity("reusable"), new ResoniteComponentLocator("shared-material-id"));
+        PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
         PlannedSceneObjectEmission emissionPlan = new(
             new PlannedTriangleMeshGeometryAsset(
                 new GeometryIdentity("geom"),
@@ -535,10 +534,10 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 [
                     new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
-                        reusableMaterial.Identity,
+                        reusableMaterial,
                         new PlannedTextureAsset(new TextureIdentity("override-a"), new Uri("resdb:///texture/override-a"))),
                     new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
-                        reusableMaterial.Identity,
+                        reusableMaterial,
                         new PlannedTextureAsset(new TextureIdentity("override-b"), new Uri("resdb:///texture/override-b"))),
                 ]),
             new PlannedCollider(

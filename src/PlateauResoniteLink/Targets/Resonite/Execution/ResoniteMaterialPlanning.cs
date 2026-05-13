@@ -77,7 +77,6 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             bundledTextureImportTasks,
             cancellationToken);
         return new PlannedDedicatedMaterialAsset(
-            new MaterialIdentity(material.MaterialKey),
             material,
             textures,
             PreserveDedicatedMaterialSlot: false);
@@ -117,7 +116,6 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             bundledTextureImportTasks: null,
             cancellationToken);
         return new PlannedDedicatedMaterialAsset(
-            CreateDedicatedMaterialIdentity(packageName, materialIndex, material.MaterialKey),
             material,
             textures,
             preserveDedicatedMaterialSlot);
@@ -339,17 +337,6 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             members);
         BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
         return CanonicalBatchEntityMap.Create(response).ResolveComponent(pendingComponent);
-    }
-
-    public static MaterialIdentity CreateDedicatedMaterialIdentity(
-        string packageName,
-        int materialIndex,
-        string materialKey)
-    {
-        return new MaterialIdentity(
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"dedicated-{packageName.ToLowerInvariant()}-{materialIndex}-{materialKey}"));
     }
 
     public static ResoniteMaterialBinding ResolveTerrainTextureCanvasMaterial(

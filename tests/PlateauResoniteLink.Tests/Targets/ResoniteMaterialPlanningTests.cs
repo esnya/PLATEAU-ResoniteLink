@@ -153,21 +153,6 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
-    public void CreateDedicatedMaterialIdentity_VariesByPackageIndexAndMaterialKey()
-    {
-        MaterialIdentity baseline = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 0, "material-a");
-        MaterialIdentity repeatedBaseline = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 0, "material-a");
-        MaterialIdentity differentPackage = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("tran", 0, "material-a");
-        MaterialIdentity differentIndex = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 1, "material-a");
-        MaterialIdentity differentKey = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 0, "material-b");
-
-        Assert.Equal(baseline, repeatedBaseline);
-        Assert.NotEqual(baseline, differentPackage);
-        Assert.NotEqual(baseline, differentIndex);
-        Assert.NotEqual(baseline, differentKey);
-    }
-
-    [Fact]
     public async Task PlanMainTextureOverrideAsync_UsesPreparedUriWithRoleIdentity()
     {
         ResoniteMaterialBinding firstMaterial = new(

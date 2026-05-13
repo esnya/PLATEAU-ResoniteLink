@@ -690,6 +690,38 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal(new ResoniteFloat2(0.125, 0.25), normalized.TextureOffset);
     }
 
+    [Theory]
+    [InlineData(BundledDefaultMaterialFamilies.Roof, ResoniteMaterialProjection.Uv, ResoniteMaterialProjection.Triplanar)]
+    [InlineData(BundledDefaultMaterialFamilies.RoadUv, ResoniteMaterialProjection.Triplanar, ResoniteMaterialProjection.Uv)]
+    [InlineData(BundledDefaultMaterialFamilies.RoadTriplanar, ResoniteMaterialProjection.Uv, ResoniteMaterialProjection.Triplanar)]
+    [InlineData(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, ResoniteMaterialProjection.Triplanar, ResoniteMaterialProjection.Uv)]
+    public void NormalizeCommonMaterialBinding_UsesFamilyCanonicalProjectionForBundledCommonMaterial(
+        string family,
+        ResoniteMaterialProjection inputProjection,
+        ResoniteMaterialProjection expectedProjection)
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "common-material-with-noncanonical-projection",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: inputProjection,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            Family: family,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
+
+        Assert.Equal(ResoniteMaterialAssetScope.Common, normalized.AssetScope);
+        Assert.Equal(expectedProjection, normalized.Projection);
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateMaterialSlotName(normalized, useCommonMaterialAssets: true),
+            ResoniteCommonMaterialSlots.GetSlotName(material));
+    }
+
     [Fact]
     public void NormalizeBatchGroupedMaterialBinding_DemotesTintedBundledFamilyCommonMaterial()
     {

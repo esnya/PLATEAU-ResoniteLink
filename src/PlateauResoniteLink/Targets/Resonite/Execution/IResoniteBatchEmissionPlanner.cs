@@ -125,13 +125,14 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         }
         componentResolutionTargets.Add(rendererGeometryComponentId);
 
-        Dictionary<MaterialIdentity, PlannedWorldElementReference> emittedMaterialTargets = new();
+        Dictionary<PlannedMaterialAsset, PlannedWorldElementReference> emittedMaterialTargets =
+            new(ReferenceEqualityComparer.Instance);
         foreach (PlannedMaterialAsset materialAsset in emissionPlan.MaterialAssets)
         {
             switch (materialAsset)
             {
                 case PlannedReusableMaterialAsset reusableMaterial:
-                    emittedMaterialTargets[reusableMaterial.Identity] = PlannedWorldElementReference.Canonical(reusableMaterial.Target);
+                    emittedMaterialTargets[reusableMaterial] = PlannedWorldElementReference.Canonical(reusableMaterial.Target);
                     break;
                 case PlannedDedicatedMaterialAsset dedicatedMaterial:
                     PlannedWorldElementReference emittedMaterialTarget = AddPlannedDedicatedMaterialEmissions(
@@ -141,7 +142,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                         dedicatedMaterial,
                         ref nextSlotLocator,
                         ref nextComponentLocator);
-                    emittedMaterialTargets[dedicatedMaterial.Identity] = emittedMaterialTarget;
+                    emittedMaterialTargets[dedicatedMaterial] = emittedMaterialTarget;
                     break;
                 default:
                     throw new InvalidOperationException(
@@ -597,11 +598,11 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
 
     private static PlannedSyncListMember CreateRendererMaterials(
         IReadOnlyList<PlannedRendererMaterialBinding> materialBindings,
-        Dictionary<MaterialIdentity, PlannedWorldElementReference> emittedMaterialTargets)
+        Dictionary<PlannedMaterialAsset, PlannedWorldElementReference> emittedMaterialTargets)
     {
         return new PlannedSyncListMember(
             materialBindings
-                .Select(binding => PlannedMembers.Reference(emittedMaterialTargets[binding.MaterialIdentity]))
+                .Select(binding => PlannedMembers.Reference(emittedMaterialTargets[binding.MaterialAsset]))
                 .ToList());
     }
 

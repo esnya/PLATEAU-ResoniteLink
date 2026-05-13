@@ -463,31 +463,18 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialKeepsExplicitFacadeOverrideReachable()
+    public void ResolveMaterialRejectsExplicitFacadeOverrideOutsideCodebaseReachableFamilies()
     {
-        Dictionary<int, ResolvedMaterial> materialsByVariant = [];
-        for (int attempt = 0; attempt < 256 && materialsByVariant.Count < BundledDefaultMaterialFamilies.FacadeVariants.Count; attempt++)
-        {
-            string variantSelectionKey = $"bldg:uv:{attempt}";
-            ResolvedMaterial material = resolver.ResolveMaterial(new DefaultMaterialRequest(
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
+            () => resolver.ResolveMaterial(new DefaultMaterialRequest(
                 "bldg",
                 TexturePayload: null,
                 PreferUvProjection: true,
                 FamilyOverride: BundledDefaultMaterialFamilies.Facade,
-                VariantSelectionKey: variantSelectionKey,
-                SurfaceRole: DefaultMaterialSurfaceRole.Wall));
-            materialsByVariant.TryAdd(material.BundledVariantIndex!.Value, material);
-        }
+                VariantSelectionKey: "bldg:uv:0",
+                SurfaceRole: DefaultMaterialSurfaceRole.Wall)));
 
-        Assert.Equal(BundledDefaultMaterialFamilies.FacadeVariants.Count, materialsByVariant.Count);
-        foreach (ResolvedMaterial material in materialsByVariant.Values)
-        {
-            Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
-            Assert.Equal(new Float2(1.0 / 6.0, 1.0 / 6.0), material.TextureScale);
-            string texturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value);
-            ScalarPair? profileOffset = BundledDefaultMaterialProfiles.GetProfile(texturePath).TextureOffset;
-            Assert.Equal(profileOffset is null ? null : new Float2(profileOffset.X, profileOffset.Y), material.TextureOffset);
-        }
+        Assert.Contains("not codebase-reachable", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

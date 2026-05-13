@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -117,6 +118,7 @@ internal static class ResoniteSceneMaterialConventions
                 : new ResoniteFloat2(defaultProfile.TextureOffset.X, defaultProfile.TextureOffset.Y);
             ResoniteFloat2 canonicalTextureScale = material.TextureScale ?? defaultTextureScale;
             ResoniteFloat2? canonicalTextureOffset = material.TextureOffset ?? defaultTextureOffset;
+            ResoniteMaterialProjection canonicalProjection = GetBundledCommonMaterialProjection(canonicalFamily);
             return material with
             {
                 MaterialKey = CreateCanonicalCommonMaterialKey(
@@ -125,6 +127,7 @@ internal static class ResoniteSceneMaterialConventions
                 BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType = ResoniteMaterialType.Standard,
                 TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+                Projection = canonicalProjection,
                 TextureScale = canonicalTextureScale,
                 Family = canonicalFamily,
                 TextureOffset = canonicalTextureOffset,
@@ -144,6 +147,16 @@ internal static class ResoniteSceneMaterialConventions
         }
 
         return material with { AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped };
+    }
+
+    public static ResoniteMaterialProjection GetBundledCommonMaterialProjection(string family)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(family);
+
+        return string.Equals(family, BundledDefaultMaterialFamilies.RoadUv, StringComparison.Ordinal)
+            || BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(family, StringComparer.Ordinal)
+            ? ResoniteMaterialProjection.Uv
+            : ResoniteMaterialProjection.Triplanar;
     }
 
     public static string GetCommonMaterialFamilySlotName(ResoniteMaterialBinding material)

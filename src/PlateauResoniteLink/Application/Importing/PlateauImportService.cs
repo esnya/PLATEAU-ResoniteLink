@@ -82,31 +82,27 @@ internal sealed class PlateauImportService(
                     "import",
                     "Starting live scene initialization with codebase-reachable common materials."));
 
-            ReportProgress(PlateauLog.Info("import", "Handing object unit stream to sink after scene setup is planned."));
-
             int sourceCityObjectCount = 0;
             Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
+            ReportProgress(PlateauLog.Info("import", "Handing object unit stream to sink."));
             SceneImportExecutionResult executionResult = await sceneSink.ExecuteAsync(
                 executionPlan,
-                CountImportedObjectUnitsAsync(
-                    source.ReadObjectUnitsAsync(cancellationToken),
-                    cityObjectCount => sourceCityObjectCount += cityObjectCount,
-                    cancellationToken),
+                CountImportedObjectUnitsAsync(source.ReadObjectUnitsAsync(cancellationToken), cityObjectCount => sourceCityObjectCount += cityObjectCount, cancellationToken),
                 cancellationToken);
 
             cityObjectStopwatch.Stop();
-            if (sourceCityObjectCount == 0)
-            {
-                throw new PlateauImportValidationException(
-                    [$"No triangulated CityGML geometry was produced for mesh code '{resolvedRequest.MeshCode}'."]);
-            }
-
             ReportProgress(
                 PlateauLog.Info("import", $"Streamed {sourceCityObjectCount} city objects in {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s."));
             ReportProgress(
                 PlateauLog.Debug(
                     "import",
                     $"City object streaming elapsed {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s after sink execution started."));
+
+            if (sourceCityObjectCount == 0)
+            {
+                throw new PlateauImportValidationException(
+                    [$"No triangulated CityGML geometry was produced for mesh code '{resolvedRequest.MeshCode}'."]);
+            }
 
             if (executionResult.ProcessedCityObjectCount == 0
                 && executionResult.FailedCityObjectCount > 0)

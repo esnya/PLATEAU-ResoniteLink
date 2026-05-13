@@ -333,6 +333,24 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         List<string> progressMessages = [];
+        ResoniteMaterialDepthOffset terrainAlignedDepthOffset = new(-10.0, -10.0);
+        string expectedMaterialName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(
+            new ResoniteMaterialBinding(
+                MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
+                    ResoniteMaterialProjection.Uv,
+                    textureScale: null,
+                    textureOffset: null,
+                    terrainAlignedDepthOffset),
+                BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                MaterialType: ResoniteMaterialType.Standard,
+                TexturePayload: null,
+                TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                Projection: ResoniteMaterialProjection.Uv,
+                DepthOffset: terrainAlignedDepthOffset,
+                SubmeshIndices: [0],
+                AssetScope: ResoniteMaterialAssetScope.Common),
+            useCommonMaterialAssets: true);
+        bool terrainAlignedGenericSlotExistedWhenSendWorkersStarted = false;
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -342,7 +360,16 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 EnableMeshBake: false,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: progressMessages.Add),
+                ProgressReporter: message =>
+                {
+                    if (message.Contains("Starting routed send workers", StringComparison.Ordinal))
+                    {
+                        terrainAlignedGenericSlotExistedWhenSendWorkersStarted = routedClient.SlotsById.Values.Any(
+                            slot => string.Equals(slot.Name?.Value, expectedMaterialName, StringComparison.Ordinal));
+                    }
+
+                    progressMessages.Add(message);
+                }),
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
@@ -369,7 +396,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
         _ = await importTarget.ExecuteAsync(
             plan,
-            CreateImportedObjectUnits(CreateMixedSharedMaterialAndPayloadCityObject("runtime-shared-texture")));
+            CreateImportedObjectUnits(CreateMixedSharedMaterialAndPayloadCityObject(
+                "runtime-shared-texture",
+                terrainAlignedDepthOffset)));
 
         int commonPrepIndex = progressMessages.FindIndex(static message =>
             message.Contains("Prepared ", StringComparison.Ordinal)
@@ -379,6 +408,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         Assert.True(commonPrepIndex >= 0, "Expected common material preparation progress before streaming.");
         Assert.True(sendWorkersIndex >= 0, "Expected send worker startup progress.");
         Assert.InRange(commonPrepIndex, 0, sendWorkersIndex - 1);
+        Assert.True(
+            terrainAlignedGenericSlotExistedWhenSendWorkersStarted,
+            "Expected terrain-aligned generic shared material slot to exist before send workers start.");
     }
 
     [Fact]
@@ -388,7 +420,35 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory workDirectory = new();
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
-        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(routedClient, session: session);
+        List<string> progressMessages = [];
+        string expectedMaterialName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(
+            new ResoniteMaterialBinding(
+                MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
+                    ResoniteMaterialProjection.Uv,
+                    new ResoniteMaterialDepthOffset(-10.0, -10.0)),
+                BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                MaterialType: ResoniteMaterialType.VertexColor,
+                TexturePayload: null,
+                TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                Projection: ResoniteMaterialProjection.Uv,
+                DepthOffset: new ResoniteMaterialDepthOffset(-10.0, -10.0),
+                SubmeshIndices: [0],
+                AssetScope: ResoniteMaterialAssetScope.Common),
+            useCommonMaterialAssets: true);
+        bool materialSlotExistedWhenSendWorkersStarted = false;
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
+            routedClient,
+            session: session,
+            progressReporter: message =>
+            {
+                if (message.Contains("Starting routed send workers", StringComparison.Ordinal))
+                {
+                    materialSlotExistedWhenSendWorkersStarted = routedClient.SlotsById.Values.Any(
+                        slot => string.Equals(slot.Name?.Value, expectedMaterialName, StringComparison.Ordinal));
+                }
+
+                progressMessages.Add(message);
+            });
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -407,24 +467,20 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 "terrain-aligned-vertex-common",
                 new ResoniteMaterialDepthOffset(-10.0, -10.0))));
 
-        string expectedMaterialName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(
-            new ResoniteMaterialBinding(
-                MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
-                    ResoniteMaterialProjection.Uv,
-                    new ResoniteMaterialDepthOffset(-10.0, -10.0)),
-                BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                MaterialType: ResoniteMaterialType.VertexColor,
-                TexturePayload: null,
-                TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-                Projection: ResoniteMaterialProjection.Uv,
-                DepthOffset: new ResoniteMaterialDepthOffset(-10.0, -10.0),
-                SubmeshIndices: [0],
-                AssetScope: ResoniteMaterialAssetScope.Common),
-            useCommonMaterialAssets: true);
-
         Assert.Contains(
             routedClient.SlotsById.Values,
             slot => string.Equals(slot.Name?.Value, expectedMaterialName, StringComparison.Ordinal));
+        int materialPrepIndex = progressMessages.FindIndex(static message =>
+            message.Contains("Setup batch prepared", StringComparison.Ordinal)
+            && message.Contains("textureless common materials", StringComparison.Ordinal));
+        int sendWorkersIndex = progressMessages.FindIndex(static message =>
+            message.Contains("Starting routed send workers", StringComparison.Ordinal));
+        Assert.True(materialPrepIndex >= 0, "Expected terrain-aligned vertex common material preparation in the setup batch.");
+        Assert.True(sendWorkersIndex >= 0, "Expected send worker startup progress.");
+        Assert.InRange(materialPrepIndex, 0, sendWorkersIndex - 1);
+        Assert.True(
+            materialSlotExistedWhenSendWorkersStarted,
+            "Expected terrain-aligned vertex common material slot to exist before send workers start.");
     }
 
     [Fact]
@@ -1138,7 +1194,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
     }
 
-    private static ResoniteConstructionCityObject CreateMixedSharedMaterialAndPayloadCityObject(string objectIdentity)
+    private static ResoniteConstructionCityObject CreateMixedSharedMaterialAndPayloadCityObject(
+        string objectIdentity,
+        ResoniteMaterialDepthOffset? payloadDepthOffset = null)
     {
         return new ResoniteConstructionCityObject(
             SlotKey: $"slot-{objectIdentity}",
@@ -1157,7 +1215,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     TexturePayload: null,
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
-                    DepthOffset: null,
+                    DepthOffset: payloadDepthOffset,
                     SubmeshIndices: [0],
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
                 new ResoniteMaterialBinding(
@@ -1256,7 +1314,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 DatasetRootExisted: false,
                 new SceneAnchor(new ResoniteSlotLocator(datasetRootId), "53394525", new ResoniteFloat3(0.0, 0.0, 0.0), null),
                 DatasetRootSnapshot: null,
-                CommonMaterialAssetsByKey: new Dictionary<string, CreatedMaterialAsset>(StringComparer.Ordinal),
+                CommonMaterialAssets: new ResoniteCommonMaterialAssetSet(),
                 CommonMaterialFamilies: []);
         }
     }

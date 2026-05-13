@@ -48,7 +48,9 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         }
 
         bool useBuildingFacade = ShouldUseBuildingFacade(request);
-        string family = request.FamilyOverride ?? ResolveBundledTextureFamily(request, useBuildingFacade);
+        string family = request.FamilyOverride is null
+            ? ResolveBundledTextureFamily(request, useBuildingFacade)
+            : ResolveFamilyOverride(request.FamilyOverride);
         int bundledVariantIndex = SelectBundledVariantIndex(family, request.VariantSelectionKey);
         string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, bundledVariantIndex);
         BundledDefaultMaterialProfile uvProfile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
@@ -69,6 +71,23 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
     private static bool ShouldUseWireframeMaterial(string packageName)
     {
         return PlateauPackageCatalog.IsWireframeOverlayPackage(packageName);
+    }
+
+    private static string ResolveFamilyOverride(string family)
+    {
+        if (string.Equals(family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.RoadUv, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.RoadTriplanar, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.Vegetation, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.CityFurniture, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.Other, StringComparison.Ordinal)
+            || BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(family, StringComparer.Ordinal))
+        {
+            return family;
+        }
+
+        throw new InvalidOperationException(
+            $"Bundled material family override '{family}' is not codebase-reachable and is not part of the common material catalog.");
     }
 
     private static bool ShouldUseBuildingFacade(DefaultMaterialRequest request)

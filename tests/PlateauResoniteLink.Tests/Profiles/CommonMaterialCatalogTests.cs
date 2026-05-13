@@ -190,7 +190,16 @@ public sealed class CommonMaterialCatalogTests
                 && material.MaterialType == MaterialType.Standard
                 && material.Family is null
                 && material.TexturePayload is null
-                && material.Projection == MaterialProjection.Uv);
+                && material.Projection == MaterialProjection.Uv
+                && material.DepthOffset is null);
+        MaterialBinding terrainAlignedSharedGeneric = Assert.Single(
+            firstMaterials,
+            material => material.ReuseScope == MaterialReuseScope.Shared
+                && material.MaterialType == MaterialType.Standard
+                && material.Family is null
+                && material.TexturePayload is null
+                && material.Projection == MaterialProjection.Uv
+                && material.DepthOffset == LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset);
         MaterialBinding sharedVertexColor = Assert.Single(
             firstMaterials,
             material => material.ReuseScope == MaterialReuseScope.Shared
@@ -209,7 +218,8 @@ public sealed class CommonMaterialCatalogTests
                 && material.MaterialType == MaterialType.Standard
                 && material.Family is null
                 && material.TexturePayload is null
-                && material.Projection == MaterialProjection.Uv);
+                && material.Projection == MaterialProjection.Uv
+                && material.DepthOffset is null);
 
         Assert.Equal(sharedGeneric.MaterialKey, repeatedSharedGeneric.MaterialKey);
         Assert.NotEqual(sharedGeneric.MaterialKey, sharedVertexColor.MaterialKey);
@@ -220,6 +230,15 @@ public sealed class CommonMaterialCatalogTests
                 textureOffset: null,
                 depthOffset: null),
             sharedGeneric.MaterialKey);
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
+                ResoniteMaterialProjection.Uv,
+                textureScale: null,
+                textureOffset: null,
+                new ResoniteMaterialDepthOffset(
+                    LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset.Factor,
+                    LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset.Units)),
+            terrainAlignedSharedGeneric.MaterialKey);
         Assert.Equal(
             ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
                 ResoniteMaterialProjection.Uv,
