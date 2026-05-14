@@ -234,14 +234,14 @@ public sealed class ResoniteSceneAnchorResolverTests
     }
 
     [Fact]
-    public void SnapshotSelectsPreferredChildWhenDuplicateNamesExist()
+    public void SnapshotDoesNotSelectChildWhenDuplicateNamesExist()
     {
         Slot datasetRoot = CreateSlot(
             "dataset-root",
             "PLATEAU tokyo23ku",
             children:
             [
-                CreateSlot("mesh-b", "plateau_tokyo23ku_bldg_53394525_b", "dataset-root"),
+                CreateSlot("mesh-b", "plateau_tokyo23ku_bldg_53394525_a", "dataset-root"),
                 CreateSlot("mesh-a", "plateau_tokyo23ku_bldg_53394525_a", "dataset-root"),
             ]);
 
@@ -249,8 +249,8 @@ public sealed class ResoniteSceneAnchorResolverTests
 
         ResoniteSceneChildLookupResult lookup = snapshot.GetUniqueChildLookupResult("plateau_tokyo23ku_bldg_53394525_a", "dataset-root");
 
-        Assert.Equal(ResoniteSceneChildLookupState.FoundWithId, lookup.State);
-        Assert.Equal("mesh-a", lookup.Slot!.ID);
+        Assert.Equal(ResoniteSceneChildLookupState.FoundWithoutId, lookup.State);
+        Assert.Null(lookup.Slot);
     }
 
     private static ResoniteFloat3 ComputeExpectedAnchorPosition(
@@ -417,4 +417,3 @@ public sealed class ResoniteSceneAnchorResolverTests
         }
     }
 }
-

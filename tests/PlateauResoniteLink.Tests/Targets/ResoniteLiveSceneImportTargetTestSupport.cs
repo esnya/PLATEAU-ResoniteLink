@@ -27,7 +27,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         SceneSinkRecordingClient client,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
-        bool enableMeshBake = true)
+        bool enableMeshBake = true,
+        IReadOnlyList<MaterialBinding>? commonMaterials = null)
     {
         await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(
             client,
@@ -40,7 +41,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             metadata,
             workDirectory.Path,
             cityObjects,
-            commonMaterials: CollectExecutionPlanCommonMaterials(metadata, cityObjects));
+            commonMaterials: commonMaterials ?? CollectExecutionPlanCommonMaterials(metadata, cityObjects));
     }
 
     public static ResoniteImportedMesh CreateTriangleMesh(
@@ -182,7 +183,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             effectiveMetadata,
             GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
-            commonMaterials ?? new CommonMaterialCatalog().CreateForPackages(metadata.SourceDataset.PackageNames));
+            commonMaterials ?? new CommonMaterialCatalog().Create());
     }
 
     private static PlateauImportRequest CreateImportRequest(
@@ -202,7 +203,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     {
         Dictionary<string, ResoniteMaterialBinding> materialsByKey = new(StringComparer.Ordinal);
 
-        foreach (MaterialBinding material in new CommonMaterialCatalog().CreateForPackages(metadata.SourceDataset.PackageNames))
+        foreach (MaterialBinding material in new CommonMaterialCatalog().Create())
         {
             AddNormalizedCommonMaterial(materialsByKey, SceneImportContractMapper.ToInternal(material));
         }
@@ -371,7 +372,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
                 new ResoniteSceneSetupInterpreter(
                     new ResoniteSceneSlotLocator(),
-                    new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                     new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),

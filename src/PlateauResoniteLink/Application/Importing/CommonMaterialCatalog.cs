@@ -14,100 +14,52 @@ public sealed class CommonMaterialCatalog
 {
     private static readonly ColorRgba CanonicalBaseColor = new(1.0, 1.0, 1.0, 1.0);
 
-    public IReadOnlyList<MaterialBinding> CreateForPackages(
-        IReadOnlyList<string> packageNames)
+    public IReadOnlyList<MaterialBinding> Create()
     {
-        ArgumentNullException.ThrowIfNull(packageNames);
-
         SortedSet<string> families = new(StringComparer.Ordinal);
-        foreach (string packageName in packageNames.Where(static name => !string.IsNullOrWhiteSpace(name)))
-        {
-            if (PlateauPackageCatalog.IsBuildingPackage(packageName))
-            {
-                families.Add(BundledDefaultMaterialFamilies.Facade);
-                families.Add(BundledDefaultMaterialFamilies.Roof);
-                foreach (string family in BundledDefaultMaterialFamilies.BuildingWallSkinFamilies)
-                {
-                    families.Add(family);
-                }
-
-                foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFallbackFamilies)
-                {
-                    families.Add(family);
-                }
-
-                continue;
-            }
-
-            if (PlateauPackageCatalog.IsRoadPackage(packageName) || PlateauPackageCatalog.IsPathLikePackage(packageName))
-            {
-                families.Add(BundledDefaultMaterialFamilies.Road);
-                continue;
-            }
-
-            if (PlateauPackageCatalog.IsVegetationPackage(packageName))
-            {
-                families.Add(BundledDefaultMaterialFamilies.Vegetation);
-                continue;
-            }
-
-            if (PlateauPackageCatalog.IsCityFurniturePackage(packageName))
-            {
-                families.Add(BundledDefaultMaterialFamilies.CityFurniture);
-                continue;
-            }
-
-            if (PlateauPackageCatalog.IsOtherMaterialPackage(packageName))
-            {
-                families.Add(BundledDefaultMaterialFamilies.Other);
-            }
-        }
+        AddBuildingFamilies(families);
+        families.Add(BundledDefaultMaterialFamilies.RoadUv);
+        families.Add(BundledDefaultMaterialFamilies.RoadTriplanar);
+        families.Add(BundledDefaultMaterialFamilies.Vegetation);
+        families.Add(BundledDefaultMaterialFamilies.CityFurniture);
+        families.Add(BundledDefaultMaterialFamilies.Other);
 
         List<MaterialBinding> materials = [];
         foreach (string family in families)
         {
-            for (int variantIndex = 0; variantIndex < BundledDefaultMaterialFamilies.GetVariants(family).Count; variantIndex++)
+            int variantCount = BundledDefaultMaterialFamilies.GetVariantDefinitions(family).Count;
+            for (int variantIndex = 0; variantIndex < variantCount; variantIndex++)
             {
-                foreach (MaterialProjection projection in GetCommonProjections(family))
-                {
-                    materials.Add(CreateBinding(family, variantIndex, projection));
-                }
+                materials.Add(CreateBinding(family, variantIndex));
             }
         }
 
-        materials.Add(CreateSharedAlbedoCommonMaterialBinding());
-        materials.Add(CreateSharedVertexColorCommonMaterialBinding());
+        materials.AddRange(CreateSharedAlbedoCommonMaterialBindings());
+        materials.AddRange(CreateSharedVertexColorCommonMaterialBindings());
 
         return materials;
     }
 
-    private static IReadOnlyList<MaterialProjection> GetCommonProjections(string family)
+    private static void AddBuildingFamilies(SortedSet<string> families)
     {
-        if (string.Equals(family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal))
+        families.Add(BundledDefaultMaterialFamilies.Roof);
+        foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFamilies)
         {
-            return [MaterialProjection.Triplanar];
+            families.Add(family);
         }
-
-        if (BundledDefaultMaterialFamilies.BuildingWallSkinFamilies.Contains(family, StringComparer.Ordinal)
-            || BundledDefaultMaterialFamilies.BuildingFacadeFallbackFamilies.Contains(family, StringComparer.Ordinal))
-        {
-            return [MaterialProjection.Uv];
-        }
-
-        return [MaterialProjection.Uv, MaterialProjection.Triplanar];
     }
 
     private static MaterialBinding CreateBinding(
         string family,
-        int variantIndex,
-        MaterialProjection projection)
+        int variantIndex)
     {
         string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, variantIndex);
         BundledDefaultMaterialProfile uvProfile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
         Float2 textureScale = ToContract(uvProfile.TextureScale);
         Float2? textureOffset = uvProfile.TextureOffset is null ? null : ToContract(uvProfile.TextureOffset);
+        MaterialProjection projection = GetDefaultProjection(family);
         return new MaterialBinding(
-            MaterialKey: CreateMaterialKey(family, variantIndex, projection, textureScale, textureOffset),
+            MaterialKey: CreateMaterialKey(family, variantIndex),
             BaseColor: CanonicalBaseColor,
             MaterialType: MaterialType.Standard,
             TexturePayload: null,
@@ -124,31 +76,47 @@ public sealed class CommonMaterialCatalog
 
     private static string CreateMaterialKey(
         string family,
-        int variantIndex,
-        MaterialProjection projection,
-        Float2 textureScale,
-        Float2? textureOffset)
+        int variantIndex)
     {
-        Float2? effectiveOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"common-{family}-{variantIndex}-{ProjectionToken(projection)}-scale-{FormatRounded(textureScale.X)}-{FormatRounded(textureScale.Y)}-offset-{FormatFloat2(effectiveOffset)}");
+            $"common-{family}-{variantIndex}");
     }
 
-    private static MaterialBinding CreateSharedAlbedoCommonMaterialBinding()
+    private static MaterialProjection GetDefaultProjection(string family)
+    {
+        if (string.Equals(family, BundledDefaultMaterialFamilies.RoadUv, StringComparison.Ordinal)
+            || BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(family, StringComparer.Ordinal))
+        {
+            return MaterialProjection.Uv;
+        }
+
+        return MaterialProjection.Triplanar;
+    }
+
+    private static IReadOnlyList<MaterialBinding> CreateSharedAlbedoCommonMaterialBindings()
+    {
+        return
+        [
+            CreateSharedAlbedoCommonMaterialBinding(depthOffset: null),
+            CreateSharedAlbedoCommonMaterialBinding(LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset),
+        ];
+    }
+
+    private static MaterialBinding CreateSharedAlbedoCommonMaterialBinding(MaterialDepthOffset? depthOffset)
     {
         return new MaterialBinding(
             MaterialKey: CreateCanonicalGenericSharedMaterialKey(
                 MaterialProjection.Uv,
                 textureScale: null,
                 textureOffset: null,
-                depthOffset: null),
+                depthOffset),
             BaseColor: CanonicalBaseColor,
             MaterialType: MaterialType.Standard,
             TexturePayload: null,
             TextureSourceKind: TextureSourceKind.Dataset,
             Projection: MaterialProjection.Uv,
-            DepthOffset: null,
+            DepthOffset: depthOffset,
             SubmeshIndices: [0],
             TextureScale: null,
             Family: null,
@@ -156,18 +124,27 @@ public sealed class CommonMaterialCatalog
             ReuseScope: MaterialReuseScope.Shared);
     }
 
-    private static MaterialBinding CreateSharedVertexColorCommonMaterialBinding()
+    private static IReadOnlyList<MaterialBinding> CreateSharedVertexColorCommonMaterialBindings()
+    {
+        return
+        [
+            CreateSharedVertexColorCommonMaterialBinding(depthOffset: null),
+            CreateSharedVertexColorCommonMaterialBinding(LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset),
+        ];
+    }
+
+    private static MaterialBinding CreateSharedVertexColorCommonMaterialBinding(MaterialDepthOffset? depthOffset)
     {
         return new MaterialBinding(
             MaterialKey: CreateCanonicalVertexColorCommonMaterialKey(
                 MaterialProjection.Uv,
-                depthOffset: null),
+                depthOffset),
             BaseColor: CanonicalBaseColor,
             MaterialType: MaterialType.VertexColor,
             TexturePayload: null,
             TextureSourceKind: TextureSourceKind.Bundled,
             Projection: MaterialProjection.Uv,
-            DepthOffset: null,
+            DepthOffset: depthOffset,
             SubmeshIndices: [0],
             TextureScale: null,
             Family: null,
@@ -231,10 +208,4 @@ public sealed class CommonMaterialCatalog
         return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private static bool IsZeroTextureOffset(Float2? textureOffset)
-    {
-        return textureOffset is null
-            || (Math.Abs(textureOffset.X) < 1e-9
-                && Math.Abs(textureOffset.Y) < 1e-9);
-    }
 }

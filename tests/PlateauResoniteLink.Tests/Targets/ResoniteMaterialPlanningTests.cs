@@ -39,6 +39,7 @@ public sealed class ResoniteMaterialPlanningTests
         PlannedDedicatedMaterialAsset plannedAsset = await planning.PlanCommonMaterialAssetAsync(
             client,
             material,
+            new AsyncInFlightResultCache<string, Uri>(),
             CancellationToken.None);
 
         PlannedTextureAsset metallicAsset = Assert.Single(
@@ -52,6 +53,31 @@ public sealed class ResoniteMaterialPlanningTests
         Assert.Contains(
             plannedAsset.Textures,
             texture => string.Equals(texture.Identity.Value, "metallic", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task PlanCommonMaterialAssetAsyncReusesBundledTextureImportsAcrossProjectionVariants()
+    {
+        using SceneSinkRecordingClient client = new();
+        ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
+        AsyncInFlightResultCache<string, Uri> bundledTextureImportTasks = new();
+        ResoniteMaterialBinding uvMaterial = CreateRoadMaterial(ResoniteMaterialProjection.Uv);
+        ResoniteMaterialBinding triplanarMaterial = CreateRoadMaterial(ResoniteMaterialProjection.Triplanar);
+
+        _ = await planning.PlanCommonMaterialAssetAsync(
+            client,
+            uvMaterial,
+            bundledTextureImportTasks,
+            CancellationToken.None);
+        int importCountAfterUv = client.ImportedRawTextures.Count;
+
+        _ = await planning.PlanCommonMaterialAssetAsync(
+            client,
+            triplanarMaterial,
+            bundledTextureImportTasks,
+            CancellationToken.None);
+
+        Assert.Equal(importCountAfterUv, client.ImportedRawTextures.Count);
     }
 
     [Fact]
@@ -127,21 +153,6 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
-    public void CreateDedicatedMaterialIdentity_VariesByPackageIndexAndMaterialKey()
-    {
-        MaterialIdentity baseline = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 0, "material-a");
-        MaterialIdentity repeatedBaseline = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 0, "material-a");
-        MaterialIdentity differentPackage = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("tran", 0, "material-a");
-        MaterialIdentity differentIndex = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 1, "material-a");
-        MaterialIdentity differentKey = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 0, "material-b");
-
-        Assert.Equal(baseline, repeatedBaseline);
-        Assert.NotEqual(baseline, differentPackage);
-        Assert.NotEqual(baseline, differentIndex);
-        Assert.NotEqual(baseline, differentKey);
-    }
-
-    [Fact]
     public async Task PlanMainTextureOverrideAsync_UsesPreparedUriWithRoleIdentity()
     {
         ResoniteMaterialBinding firstMaterial = new(
@@ -194,6 +205,24 @@ public sealed class ResoniteMaterialPlanningTests
         Assert.Equal(new Uri("resdb:///texture/first", UriKind.Absolute), firstOverride.AssetUri);
         Assert.Equal(firstOverride.AssetUri, repeatedFirstOverride.AssetUri);
         Assert.Equal(new Uri("resdb:///texture/second", UriKind.Absolute), secondOverride.AssetUri);
+    }
+
+    private static ResoniteMaterialBinding CreateRoadMaterial(ResoniteMaterialProjection projection)
+    {
+        return new ResoniteMaterialBinding(
+            MaterialKey: $"road-{projection}",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: projection,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            Family: projection == ResoniteMaterialProjection.Uv
+                ? BundledDefaultMaterialFamilies.RoadUv
+                : BundledDefaultMaterialFamilies.RoadTriplanar,
+            AssetScope: ResoniteMaterialAssetScope.Common,
+            BundledVariantIndex: 0);
     }
 
     private sealed class TexturePayloadReferenceComparer : IEqualityComparer<ResoniteTexturePayload>

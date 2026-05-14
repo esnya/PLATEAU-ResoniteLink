@@ -1031,7 +1031,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     private static ResoniteConstructionCityObject CreateBundledTriangleCityObject(
         string objectIdentity,
         ResoniteFloat2? textureScale = null,
-        string family = BundledDefaultMaterialFamilies.Facade,
+        string family = BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
         ResoniteMaterialProjection projection = ResoniteMaterialProjection.Uv,
         string actualMeshCode = MeshCode,
         string sourceFileRelativePath = PrimarySourceFile,
@@ -1228,7 +1228,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    Family: BundledDefaultMaterialFamilies.Facade,
+                    Family: BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
                     AssetScope: ResoniteMaterialAssetScope.Common),
                 new ResoniteMaterialBinding(
                     MaterialKey: "mixed-dedicated-material",

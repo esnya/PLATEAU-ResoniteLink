@@ -61,7 +61,7 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialFallsBackToBundledWallSkinForBuildingUvProjection()
+    public void ResolveMaterialFallsBackToBundledFacadeForBuildingUvProjection()
     {
         ResolvedMaterial material = resolver.ResolveMaterial(CreateBuildingWallRequest("bldg:uv"));
         string texturePath = BundledDefaultMaterialFamilies.GetVariant(
@@ -87,7 +87,7 @@ public sealed class DefaultMaterialResolverTests
     [InlineData((int)DefaultMaterialSurfaceRole.Wall)]
     [InlineData((int)DefaultMaterialSurfaceRole.Closure)]
     [InlineData((int)DefaultMaterialSurfaceRole.Unknown)]
-    public void ResolveMaterialUsesWallSkinForWallLikeBuildingSurfaces(int surfaceRoleValue)
+    public void ResolveMaterialUsesFacadeForWallLikeBuildingSurfaces(int surfaceRoleValue)
     {
         DefaultMaterialSurfaceRole surfaceRole = (DefaultMaterialSurfaceRole)surfaceRoleValue;
 
@@ -95,7 +95,7 @@ public sealed class DefaultMaterialResolverTests
             $"bldg:{surfaceRole}:fallback",
             surfaceRole: surfaceRole));
 
-        Assert.Contains(BundledDefaultMaterialFamilies.BuildingWallSkinFamilies, family => family == material.Family);
+        Assert.Contains(BundledDefaultMaterialFamilies.BuildingFacadeFamilies, family => family == material.Family);
         Assert.Equal(MaterialProjection.Uv, material.Projection);
         Assert.Equal(TextureSourceKind.Bundled, material.TextureSourceKind);
         Assert.Null(material.TexturePayload);
@@ -106,7 +106,7 @@ public sealed class DefaultMaterialResolverTests
     [InlineData((int)DefaultMaterialSurfaceRole.Ground)]
     [InlineData((int)DefaultMaterialSurfaceRole.OuterCeiling)]
     [InlineData((int)DefaultMaterialSurfaceRole.OuterFloor)]
-    public void ResolveMaterialDoesNotUseWallSkinForNonWallBuildingSurfaces(int surfaceRoleValue)
+    public void ResolveMaterialDoesNotUseFacadeForNonWallBuildingSurfaces(int surfaceRoleValue)
     {
         DefaultMaterialSurfaceRole surfaceRole = (DefaultMaterialSurfaceRole)surfaceRoleValue;
         ResolvedMaterial material = resolver.ResolveMaterial(new DefaultMaterialRequest(
@@ -123,7 +123,7 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(MaterialProjection.Uv, material.Projection);
         Assert.Equal(BundledDefaultMaterialFamilies.Roof, material.Family);
         Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
-        Assert.DoesNotContain(BundledDefaultMaterialFamilies.BuildingWallSkinFamilies, family => family == material.Family);
+        Assert.DoesNotContain(BundledDefaultMaterialFamilies.BuildingFacadeFamilies, family => family == material.Family);
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public sealed class DefaultMaterialResolverTests
         ResolvedMaterial material = resolver.ResolveMaterial(CreateFallbackRequest("wwy", "wwy:tri"));
 
         Assert.Equal(MaterialType.Standard, material.MaterialType);
-        Assert.Equal(BundledDefaultMaterialFamilies.Road, material.Family);
+        Assert.Equal(BundledDefaultMaterialFamilies.RoadTriplanar, material.Family);
         Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
     }
 
@@ -187,7 +187,7 @@ public sealed class DefaultMaterialResolverTests
             materialsByVariant.Values,
             material =>
             {
-                Assert.Equal(BundledDefaultMaterialFamilies.Road, material.Family);
+                Assert.Equal(BundledDefaultMaterialFamilies.RoadTriplanar, material.Family);
                 Assert.StartsWith(
                     "default-materials/ambientcg/road/Road",
                     BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value),
@@ -263,7 +263,7 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialCanReachEveryWallSkinVariantWithFacadeUvProfile()
+    public void ResolveMaterialCanReachEveryGeneratedFacadeVariantWithFacadeUvProfile()
     {
         Dictionary<int, ResolvedMaterial> materialsByVariant = [];
         for (int attempt = 0; attempt < 256 && materialsByVariant.Count < BundledDefaultMaterialFamilies.WallResidentialPlasterLowVariants.Count; attempt++)
@@ -293,7 +293,7 @@ public sealed class DefaultMaterialResolverTests
     [InlineData((int)PlateauBuildingUse.Education, BundledDefaultMaterialFamilies.WallSchoolPublicBand)]
     [InlineData((int)PlateauBuildingUse.Warehouse, BundledDefaultMaterialFamilies.WallFactoryMetal)]
     [InlineData((int)PlateauBuildingUse.Factory, BundledDefaultMaterialFamilies.WallFactoryMetal)]
-    public void ResolveMaterialSelectsWallSkinFromBuildingUse(int useValue, string expectedFamily)
+    public void ResolveMaterialSelectsFacadeFromBuildingUse(int useValue, string expectedFamily)
     {
         PlateauBuildingUse use = (PlateauBuildingUse)useValue;
 
@@ -308,7 +308,7 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialSelectsRuralWallSkinFromAgriculturalCode()
+    public void ResolveMaterialSelectsRuralFacadeFromAgriculturalCode()
     {
         ResolvedMaterial material = resolver.ResolveMaterial(CreateBuildingWallRequest(
             "bldg:usage:451",
@@ -318,7 +318,7 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialSelectsBrickWallSkinFromConcreteBlockStructure()
+    public void ResolveMaterialSelectsBrickFacadeFromConcreteBlockStructure()
     {
         ResolvedMaterial material = resolver.ResolveMaterial(CreateBuildingWallRequest(
             "bldg:structure:606",
@@ -334,7 +334,7 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialSelectsRcWallSkinForUnknownMidRise()
+    public void ResolveMaterialSelectsRcFacadeForUnknownMidRise()
     {
         ResolvedMaterial material = resolver.ResolveMaterial(CreateBuildingWallRequest(
             "bldg:unknown:midrise",
@@ -411,7 +411,7 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialKeepsLowriseResidentialOnWallSkin()
+    public void ResolveMaterialKeepsLowriseResidentialOnGeneratedFacade()
     {
         ResolvedMaterial material = resolver.ResolveMaterial(CreateBuildingWallRequest(
             "bldg:lowrise:residential",
@@ -425,21 +425,21 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void BuildingWallSkinFamilyCatalogContainsOnlyResolverReachableFamilies()
+    public void BuildingFacadeFamilyCatalogContainsOnlyResolverReachableFamilies()
     {
         HashSet<string> reachableFamilies = [];
-        foreach (DefaultMaterialRequest request in CreateRepresentativeWallSkinRequests())
+        foreach (DefaultMaterialRequest request in CreateRepresentativeBuildingFacadeRequests())
         {
             reachableFamilies.Add(resolver.ResolveMaterial(request).Family!);
         }
 
         Assert.Equal(
             reachableFamilies.OrderBy(static family => family, StringComparer.Ordinal),
-            BundledDefaultMaterialFamilies.BuildingWallSkinFamilies.OrderBy(static family => family, StringComparer.Ordinal));
+            BundledDefaultMaterialFamilies.BuildingFacadeFamilies.OrderBy(static family => family, StringComparer.Ordinal));
     }
 
     [Fact]
-    public void BuildingFacadeFallbackFamiliesUseCuratedSubstanceChildAssets()
+    public void BuildingFacadeFamiliesUseCuratedSubstanceChildAssets()
     {
         Assert.Equal<string>(
             [
@@ -447,51 +447,38 @@ public sealed class DefaultMaterialResolverTests
                 "default-materials/ambientcg/facade/Facade005_2K-JPG_Color.jpg",
                 "default-materials/ambientcg/facade/Facade006_2K-JPG_Color.jpg",
             ],
-            BundledDefaultMaterialFamilies.FacadeHighriseGlassVariants);
+            BundledDefaultMaterialFamilies.FacadeHighriseGlassVariants.Select(static variant => variant.TexturePath));
         Assert.Equal<string>(
             [
                 "default-materials/ambientcg/facade/Facade002_2K-JPG_Color.jpg",
                 "default-materials/ambientcg/facade/Facade011_2K-JPG_Color.jpg",
             ],
-            BundledDefaultMaterialFamilies.FacadeHighriseNightLowVariants);
+            BundledDefaultMaterialFamilies.FacadeHighriseNightLowVariants.Select(static variant => variant.TexturePath));
         Assert.Equal<string>(
             [
                 "default-materials/ambientcg/facade/Facade014_2K-JPG_Color.jpg",
                 "default-materials/ambientcg/facade/Facade015_2K-JPG_Color.jpg",
             ],
-            BundledDefaultMaterialFamilies.FacadeMidriseGridVariants);
+            BundledDefaultMaterialFamilies.FacadeMidriseGridVariants.Select(static variant => variant.TexturePath));
     }
 
     [Fact]
-    public void ResolveMaterialKeepsExplicitFacadeOverrideReachable()
+    public void ResolveMaterialRejectsExplicitFacadeOverrideOutsideCodebaseReachableFamilies()
     {
-        Dictionary<int, ResolvedMaterial> materialsByVariant = [];
-        for (int attempt = 0; attempt < 256 && materialsByVariant.Count < BundledDefaultMaterialFamilies.FacadeVariants.Count; attempt++)
-        {
-            string variantSelectionKey = $"bldg:uv:{attempt}";
-            ResolvedMaterial material = resolver.ResolveMaterial(new DefaultMaterialRequest(
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
+            () => resolver.ResolveMaterial(new DefaultMaterialRequest(
                 "bldg",
                 TexturePayload: null,
                 PreferUvProjection: true,
                 FamilyOverride: BundledDefaultMaterialFamilies.Facade,
-                VariantSelectionKey: variantSelectionKey,
-                SurfaceRole: DefaultMaterialSurfaceRole.Wall));
-            materialsByVariant.TryAdd(material.BundledVariantIndex!.Value, material);
-        }
+                VariantSelectionKey: "bldg:uv:0",
+                SurfaceRole: DefaultMaterialSurfaceRole.Wall)));
 
-        Assert.Equal(BundledDefaultMaterialFamilies.FacadeVariants.Count, materialsByVariant.Count);
-        foreach (ResolvedMaterial material in materialsByVariant.Values)
-        {
-            Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
-            Assert.Equal(new Float2(1.0 / 6.0, 1.0 / 6.0), material.TextureScale);
-            string texturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value);
-            ScalarPair? profileOffset = BundledDefaultMaterialProfiles.GetProfile(texturePath).TextureOffset;
-            Assert.Equal(profileOffset is null ? null : new Float2(profileOffset.X, profileOffset.Y), material.TextureOffset);
-        }
+        Assert.Contains("not codebase-reachable", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ResolveMaterialDoesNotApplyFacadeAtlasOffsetToWallSkinVariants()
+    public void ResolveMaterialAppliesGeneratedFacadeFloorTextureSet()
     {
         ResolvedMaterial first = resolver.ResolveMaterial(CreateBuildingWallRequest("bldg:wall:one"));
         ResolvedMaterial? different = null;
@@ -507,10 +494,17 @@ public sealed class DefaultMaterialResolverTests
         Assert.NotNull(different);
         string firstPath = BundledDefaultMaterialFamilies.GetVariant(first.Family!, first.BundledVariantIndex!.Value);
         string differentPath = BundledDefaultMaterialFamilies.GetVariant(different!.Family!, different.BundledVariantIndex!.Value);
-        Assert.Null(BundledDefaultMaterialProfiles.GetProfile(firstPath).TextureOffset);
-        Assert.Null(BundledDefaultMaterialProfiles.GetProfile(differentPath).TextureOffset);
-        Assert.Null(first.TextureOffset);
-        Assert.Null(different.TextureOffset);
+        BundledDefaultMaterialProfile firstProfile = BundledDefaultMaterialProfiles.GetProfile(firstPath);
+        BundledDefaultMaterialProfile differentProfile = BundledDefaultMaterialProfiles.GetProfile(differentPath);
+
+        Assert.Equal(new Float2(firstProfile.TextureScale.X, firstProfile.TextureScale.Y), first.TextureScale);
+        Assert.Equal(
+            firstProfile.TextureOffset is null ? null : new Float2(firstProfile.TextureOffset.X, firstProfile.TextureOffset.Y),
+            first.TextureOffset);
+        Assert.Equal(new Float2(differentProfile.TextureScale.X, differentProfile.TextureScale.Y), different.TextureScale);
+        Assert.Equal(
+            differentProfile.TextureOffset is null ? null : new Float2(differentProfile.TextureOffset.X, differentProfile.TextureOffset.Y),
+            different.TextureOffset);
     }
 
     private static Float2 ToContractFloat2(ScalarPair value) => new(value.X, value.Y);
@@ -546,7 +540,7 @@ public sealed class DefaultMaterialResolverTests
             SurfaceRole: surfaceRole);
     }
 
-    private static IEnumerable<DefaultMaterialRequest> CreateRepresentativeWallSkinRequests()
+    private static IEnumerable<DefaultMaterialRequest> CreateRepresentativeBuildingFacadeRequests()
     {
         yield return CreateBuildingWallRequest(
             "bldg:catalog:detached",
@@ -587,5 +581,17 @@ public sealed class DefaultMaterialResolverTests
             BuildingAttributeContext.Empty,
             floorsAboveGround: 5,
             measuredHeightMeters: 16.0);
+        yield return CreateBuildingWallRequest(
+            "bldg:catalog:highrise-office",
+            BuildingAttributeContext.Empty with { Uses = [new BuildingCodeValue<PlateauBuildingUse>(PlateauBuildingUse.Office, "401")] },
+            measuredHeightMeters: 95.0);
+        yield return CreateBuildingWallRequest(
+            "bldg:catalog:highrise-night",
+            BuildingAttributeContext.Empty with { Uses = [new BuildingCodeValue<PlateauBuildingUse>(PlateauBuildingUse.Apartment, "412")] },
+            measuredHeightMeters: 95.0);
+        yield return CreateBuildingWallRequest(
+            "bldg:catalog:midrise-grid",
+            BuildingAttributeContext.Empty with { Uses = [new BuildingCodeValue<PlateauBuildingUse>(PlateauBuildingUse.Office, "401")] },
+            measuredHeightMeters: 35.0);
     }
 }

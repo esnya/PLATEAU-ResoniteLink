@@ -461,7 +461,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver());
 
         Assert.Contains(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
-        Assert.Contains(projected.Materials, IsBuildingWallSkinMaterial);
+        Assert.Contains(projected.Materials, IsBuildingFacadeMaterial);
         Assert.DoesNotContain(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Roof);
         Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
         Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) > 8.25);
@@ -606,12 +606,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver());
 
         Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) > 8.25);
-        Assert.Contains(projected.Materials, IsBuildingWallSkinMaterial);
+        Assert.Contains(projected.Materials, IsBuildingFacadeMaterial);
         Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
     }
 
     [Fact]
-    public void ProjectCityObjectGeneratesShedRoofWallExtensionsAsWallSkinWithoutStretchingOriginalWallUv()
+    public void ProjectCityObjectGeneratesShedRoofWallExtensionsAsFacadeWithoutStretchingOriginalWallUv()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -644,7 +644,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
 
-        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingWallSkinMaterial);
+        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingFacadeMaterial);
         Assert.Contains(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
         Assert.DoesNotContain(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Roof);
         Assert.DoesNotContain(projected.Materials, static material => material.Projection == MaterialProjection.Triplanar);
@@ -662,7 +662,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectUsesGeneratedRoofWallsForWallSkinUvWhenNoOriginalWallHeightExists()
+    public void ProjectCityObjectUsesGeneratedRoofWallsForFacadeUvWhenNoOriginalWallHeightExists()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -690,7 +690,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
 
-        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingWallSkinMaterial);
+        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingFacadeMaterial);
         MeshSubmesh facadeSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == facadeMaterial.SubmeshIndices.Single());
         double maxFacadeV = facadeSubmesh.TriangleVertexIndices
             .Select(index => projected.Mesh.Vertices[index].UV0.Y)
@@ -731,7 +731,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver());
 
-        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingWallSkinMaterial);
+        MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingFacadeMaterial);
         MeshSubmesh facadeSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == facadeMaterial.SubmeshIndices.Single());
         AssertGeneratedUpperFacadeTrianglesFaceOutward(projected.Mesh, facadeSubmesh, baseHeight: 8.0);
     }
@@ -895,7 +895,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectParsedCityObjectKeepsGeneratedShedHighWallAsWallSkinAfterOverlaySplit()
+    public void ProjectParsedCityObjectKeepsGeneratedShedHighWallAsFacadeAfterOverlaySplit()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -936,7 +936,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new DefaultMaterialResolver()).ToArray();
 
         ImportedCityObject facadeObject = Assert.Single(projected, static cityObject =>
-            cityObject.Materials.Any(IsBuildingWallSkinMaterial));
+            cityObject.Materials.Any(IsBuildingFacadeMaterial));
         Assert.True(facadeObject.Mesh.Vertices.Max(static vertex => vertex.Position.Y) > 8.25);
         Assert.Contains(projected, cityObject => cityObject.Materials.Any(material => ReferenceEquals(overlay, material.TerrainOverlay)));
         Assert.DoesNotContain(projected.SelectMany(static cityObject => cityObject.Materials), static material => material.Family == BundledDefaultMaterialFamilies.Roof);
@@ -1649,7 +1649,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     [Theory]
     [InlineData((int)ParsedSurfaceSemantic.Wall)]
     [InlineData((int)ParsedSurfaceSemantic.Unknown)]
-    public void CreateCommonMaterialBindingsPrecreatesSharedWallSkinForTexturelessVerticalBuildingSurfaces(
+    public void CreateCommonMaterialBindingsPrecreatesCommonFacadeForTexturelessVerticalBuildingSurfaces(
         int semanticValue)
     {
         ParsedSurfaceSemantic semantic = (ParsedSurfaceSemantic)semanticValue;
@@ -1684,7 +1684,12 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Equal(TextureSourceKind.Bundled, material.TextureSourceKind);
         Assert.Equal(MaterialProjection.Uv, material.Projection);
         Assert.Null(material.TexturePayload);
-        Assert.Null(material.TextureOffset);
+        string texturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value);
+        BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
+        Assert.Equal(new Float2(profile.TextureScale.X, profile.TextureScale.Y), material.TextureScale);
+        Assert.Equal(
+            profile.TextureOffset is null ? null : new Float2(profile.TextureOffset.X, profile.TextureOffset.Y),
+            material.TextureOffset);
     }
 
     [Theory]
@@ -1730,16 +1735,20 @@ public sealed class LocalCityGmlObjectProjectionTests
     [Fact]
     public void SharedBundledFacadeBindingKey_UsesCanonicalScaleAndTreatsExplicitZeroOffsetAsNone()
     {
+        string variantPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, 0);
+        BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(variantPath);
+        Float2 textureScale = new(profile.TextureScale.X, profile.TextureScale.Y);
+        Float2? textureOffset = profile.TextureOffset is null ? null : new Float2(profile.TextureOffset.X, profile.TextureOffset.Y);
         ResolvedMaterial material = new(
             MaterialType.Standard,
             TexturePayload: null,
             TextureSourceKind.Bundled,
             MaterialProjection.Uv,
             BundledDefaultMaterialFamilies.Facade,
-            TextureScale: new Float2(1.0 / 6.0, 1.0 / 6.0),
+            TextureScale: textureScale,
             ReuseScope: MaterialReuseScope.Shared,
             BundledVariantIndex: 0,
-            TextureOffset: new Float2(0.0, 0.5 / 6.0));
+            TextureOffset: textureOffset);
 
         string materialKey = CreateBindingMaterialKeyForTest(
             material,
@@ -1754,7 +1763,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             textureOffset: null);
 
-        Assert.Equal("common-facade-0-uv-scale-0.166667-0.166667-offset-none", materialKey);
+        Assert.Equal("common-facade-0", materialKey);
         Assert.Equal(defaultOffsetMaterialKey, materialKey);
     }
 
@@ -2218,6 +2227,33 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.True(leftEdge.Min() > -1.0, $"Left edge dropped to sea-level fallback: min={leftEdge.Min():F6}");
         Assert.True(rightEdge.Min() > -1.0, $"Right edge dropped to sea-level fallback: min={rightEdge.Min():F6}");
         Assert.True(topEdge.Min() > -1.0, $"Top edge dropped to sea-level fallback: min={topEdge.Min():F6}");
+    }
+
+    [Fact]
+    public void DemTerrainGridSpatialIndexDoesNotScanEveryTriangleForEmptyCells()
+    {
+        object spatialIndex = CreateTerrainGridSpatialIndexForTest(
+            [
+                (new Float3(0.0, 0.0, 0.0), new Float3(1.0, 0.0, 0.0), new Float3(0.0, 0.0, 1.0)),
+                (new Float3(100.0, 0.0, 100.0), new Float3(101.0, 0.0, 100.0), new Float3(100.0, 0.0, 101.0)),
+            ],
+            minX: 0.0,
+            maxX: 101.0,
+            minZ: 0.0,
+            maxZ: 101.0);
+
+        object emptySpatialIndex = CreateTerrainGridSpatialIndexForTest(
+            [],
+            minX: 0.0,
+            maxX: 1.0,
+            minZ: 0.0,
+            maxZ: 1.0);
+        IReadOnlyList<int> populatedCellCandidates = GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(spatialIndex, 0.25, 0.25);
+
+        Assert.Empty(GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(emptySpatialIndex, 0.5, 0.5));
+        Assert.Empty(GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(spatialIndex, 25.0, 75.0));
+        Assert.NotEmpty(populatedCellCandidates);
+        Assert.IsType<int[]>(populatedCellCandidates);
     }
 
     [Fact]
@@ -3514,10 +3550,10 @@ public sealed class LocalCityGmlObjectProjectionTests
             ])!;
     }
 
-    private static bool IsBuildingWallSkinMaterial(MaterialBinding material)
+    private static bool IsBuildingFacadeMaterial(MaterialBinding material)
     {
         return material.Family is not null
-            && BundledDefaultMaterialFamilies.BuildingWallSkinFamilies.Contains(material.Family);
+            && BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(material.Family);
     }
 
     private static ImportedCityObject ProjectTerrainMeshModeCityObjectForTest(
@@ -3542,6 +3578,55 @@ public sealed class LocalCityGmlObjectProjectionTests
                 null,
                 CancellationToken.None,
             ])!;
+    }
+
+    private static object CreateTerrainGridSpatialIndexForTest(
+        IReadOnlyList<(Float3 A, Float3 B, Float3 C)> triangles,
+        double minX,
+        double maxX,
+        double minZ,
+        double maxZ)
+    {
+        Type triangleType = typeof(LocalCityGmlObjectProjection).GetNestedType(
+                "TerrainGridTriangle",
+                BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Failed to resolve TerrainGridTriangle.");
+        Type indexType = typeof(LocalCityGmlObjectProjection).GetNestedType(
+                "TerrainGridSpatialIndex",
+                BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Failed to resolve TerrainGridSpatialIndex.");
+        ConstructorInfo triangleConstructor = triangleType.GetConstructor(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                binder: null,
+                [typeof(Float3), typeof(Float3), typeof(Float3)],
+                modifiers: null)
+            ?? throw new InvalidOperationException("Failed to resolve TerrainGridTriangle constructor.");
+
+        Array triangleArray = Array.CreateInstance(triangleType, triangles.Count);
+        for (int index = 0; index < triangles.Count; index++)
+        {
+            (Float3 a, Float3 b, Float3 c) = triangles[index];
+            triangleArray.SetValue(triangleConstructor.Invoke([a, b, c]), index);
+        }
+
+        MethodInfo createMethod = indexType.GetMethod(
+                "Create",
+                BindingFlags.Public | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Failed to resolve TerrainGridSpatialIndex.Create.");
+        return createMethod.Invoke(null, [triangleArray, minX, maxX, minZ, maxZ])!;
+    }
+
+    private static IReadOnlyList<int> GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(
+        object spatialIndex,
+        double x,
+        double z)
+    {
+        MethodInfo method = spatialIndex.GetType().GetMethod(
+                "GetCandidateTriangleIndices",
+                BindingFlags.Public | BindingFlags.Instance)
+            ?? throw new InvalidOperationException("Failed to resolve GetCandidateTriangleIndices.");
+
+        return (IReadOnlyList<int>)method.Invoke(spatialIndex, [x, z])!;
     }
 
     private static ImportedCityObject CreateTerrainGridCityObject(

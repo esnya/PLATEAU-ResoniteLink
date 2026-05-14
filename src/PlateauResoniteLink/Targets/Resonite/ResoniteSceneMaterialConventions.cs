@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -117,17 +118,16 @@ internal static class ResoniteSceneMaterialConventions
                 : new ResoniteFloat2(defaultProfile.TextureOffset.X, defaultProfile.TextureOffset.Y);
             ResoniteFloat2 canonicalTextureScale = material.TextureScale ?? defaultTextureScale;
             ResoniteFloat2? canonicalTextureOffset = material.TextureOffset ?? defaultTextureOffset;
+            ResoniteMaterialProjection canonicalProjection = GetBundledCommonMaterialProjection(canonicalFamily);
             return material with
             {
                 MaterialKey = CreateCanonicalCommonMaterialKey(
                     canonicalFamily,
-                    canonicalVariantIndex,
-                    material.Projection,
-                    canonicalTextureScale,
-                    canonicalTextureOffset),
+                    canonicalVariantIndex),
                 BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType = ResoniteMaterialType.Standard,
                 TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+                Projection = canonicalProjection,
                 TextureScale = canonicalTextureScale,
                 Family = canonicalFamily,
                 TextureOffset = canonicalTextureOffset,
@@ -147,6 +147,16 @@ internal static class ResoniteSceneMaterialConventions
         }
 
         return material with { AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped };
+    }
+
+    public static ResoniteMaterialProjection GetBundledCommonMaterialProjection(string family)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(family);
+
+        return string.Equals(family, BundledDefaultMaterialFamilies.RoadUv, StringComparison.Ordinal)
+            || BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(family, StringComparer.Ordinal)
+            ? ResoniteMaterialProjection.Uv
+            : ResoniteMaterialProjection.Triplanar;
     }
 
     public static string GetCommonMaterialFamilySlotName(ResoniteMaterialBinding material)
@@ -181,13 +191,9 @@ internal static class ResoniteSceneMaterialConventions
             return false;
         }
 
-        if (material.TexturePayload is null
-            && !string.IsNullOrWhiteSpace(material.Family)
-            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-            && material.DepthOffset is null
-            && !HasNonDefaultBundledTextureTransform(material)
-            && material.AssetScope == ResoniteMaterialAssetScope.Common
-            && IsWhiteBaseColor(material.BaseColor))
+        bool isWhiteBundledFamilyMaterial = IsWhiteBundledFamilyMaterial(material);
+        if (isWhiteBundledFamilyMaterial
+            && material.AssetScope == ResoniteMaterialAssetScope.Common)
         {
             ResoniteMaterialBinding commonBaseCandidate = material with
             {
@@ -266,6 +272,13 @@ internal static class ResoniteSceneMaterialConventions
             };
         }
 
+        if (material.AssetScope == ResoniteMaterialAssetScope.PresentationSlotScoped
+            && IsWhiteBundledFamilyMaterial(material)
+            && !HasNonDefaultBundledTextureTransform(material))
+        {
+            return material;
+        }
+
         if (TryNormalizeSharedMaterialBinding(material, out ResoniteMaterialBinding normalizedSharedMaterial, out _)
             && material.TexturePayload is null)
         {
@@ -293,15 +306,11 @@ internal static class ResoniteSceneMaterialConventions
 
     public static string CreateCanonicalCommonMaterialKey(
         string family,
-        int bundledVariantIndex,
-        ResoniteMaterialProjection projection,
-        ResoniteFloat2? textureScale,
-        ResoniteFloat2? textureOffset)
+        int bundledVariantIndex)
     {
-        ResoniteFloat2? effectiveTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"common-{family}-{bundledVariantIndex}-{ProjectionToken(projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(effectiveTextureOffset)}");
+            $"common-{family}-{bundledVariantIndex}");
     }
 
     public static string CreateCanonicalGenericSharedMaterialKey(
@@ -390,9 +399,31 @@ internal static class ResoniteSceneMaterialConventions
             && material.TexturePayload is null
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && !string.IsNullOrWhiteSpace(material.Family)
+            && IsCodebaseReachableBundledCommonFamily(material.Family!)
             && material.DepthOffset is null
             && !HasNonDefaultBundledTextureTransform(material)
             && IsWhiteBaseColor(material.BaseColor);
+    }
+
+    private static bool IsWhiteBundledFamilyMaterial(ResoniteMaterialBinding material)
+    {
+        return material.TexturePayload is null
+            && !string.IsNullOrWhiteSpace(material.Family)
+            && IsCodebaseReachableBundledCommonFamily(material.Family!)
+            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && material.DepthOffset is null
+            && IsWhiteBaseColor(material.BaseColor);
+    }
+
+    private static bool IsCodebaseReachableBundledCommonFamily(string family)
+    {
+        return string.Equals(family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.RoadUv, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.RoadTriplanar, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.Vegetation, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.CityFurniture, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.Other, StringComparison.Ordinal)
+            || BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(family, StringComparer.Ordinal);
     }
 
     private static bool IsGenericSharedCommonMaterialCandidate(ResoniteMaterialBinding material)

@@ -69,7 +69,7 @@ public sealed record SceneImportExecutionPlan
             metadata,
             resolvedSourcePath,
             workRoot,
-            commonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames));
+            commonMaterialCatalog.Create());
     }
 
     private static void ValidateRequestConsistency(

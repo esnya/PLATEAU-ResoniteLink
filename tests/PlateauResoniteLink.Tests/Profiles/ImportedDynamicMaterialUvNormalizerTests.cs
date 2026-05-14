@@ -9,16 +9,16 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class ImportedDynamicMaterialUvNormalizerTests
 {
     [Fact]
-    public void ShouldBakeTextureTransform_ReturnsFalseForIdentityScaleWithoutOffset()
+    public void ShouldNormalizeTextureTransform_ReturnsFalseForIdentityScaleWithoutOffset()
     {
         MaterialBinding material = CreateDynamicUvMaterial(
             textureScale: new Float2(1.0, 1.0),
             textureOffset: null);
 
-        bool shouldBake = ImportedDynamicMaterialUvNormalizer.ShouldBakeTextureTransform(material);
+        bool shouldNormalize = ImportedDynamicMaterialUvNormalizer.ShouldNormalizeTextureTransform(material);
         MaterialBinding normalized = ImportedDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
-        Assert.False(shouldBake);
+        Assert.False(shouldNormalize);
         Assert.Null(normalized.TextureScale);
         Assert.Null(normalized.TextureOffset);
     }
@@ -38,7 +38,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
     }
 
     [Fact]
-    public void NormalizeMaterialBinding_ClearsBundledFamilyUvTransformAfterBake()
+    public void NormalizeMaterialBinding_ClearsBundledFamilyUvTransformAfterNormalization()
     {
         MaterialBinding material = new(
             MaterialKey: "bundled-identity-override",
@@ -61,7 +61,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
     }
 
     [Fact]
-    public void Normalize_BakesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform()
+    public void Normalize_NormalizesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform()
     {
         ImportedCityObject cityObject = new(
             ObjectKey: "mixed-material-city-object",
@@ -173,7 +173,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
     }
 
     [Fact]
-    public void Normalize_BakesTerrainOverlayTextureTransformIntoMeshUv()
+    public void Normalize_NormalizesTerrainOverlayTextureTransformIntoMeshUv()
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",

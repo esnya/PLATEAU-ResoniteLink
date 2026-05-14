@@ -17,6 +17,7 @@ internal interface IResoniteMaterialPlanning
     Task<PlannedDedicatedMaterialAsset> PlanCommonMaterialAssetAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
+        AsyncInFlightResultCache<string, Uri> bundledTextureImportTasks,
         CancellationToken cancellationToken);
 
     Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
@@ -45,10 +46,12 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
     public async Task<PlannedDedicatedMaterialAsset> PlanCommonMaterialAssetAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
+        AsyncInFlightResultCache<string, Uri> bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(importClient);
         ArgumentNullException.ThrowIfNull(material);
+        ArgumentNullException.ThrowIfNull(bundledTextureImportTasks);
 
         Task<Uri?> albedoTextureTask = Task.FromResult<Uri?>(null);
         if (!string.IsNullOrWhiteSpace(material.Family))
@@ -59,16 +62,21 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 albedoPath,
                 ResoniteTextureColorProfiles.Srgb,
                 cancellationToken);
-            albedoTextureTask = ImportOptionalTextureAsync(importClient, albedoTexture, cancellationToken);
+            albedoTextureTask = ImportOptionalTextureAsync(
+                importClient,
+                albedoTexture,
+                CreateBundledTextureImportKey(albedoPath, ResoniteTextureColorProfiles.Srgb),
+                bundledTextureImportTasks,
+                cancellationToken);
         }
 
         List<PlannedTextureAsset> textures = await PlanBundledCompanionTexturesAsync(
             importClient,
             material,
             albedoTextureTask,
+            bundledTextureImportTasks,
             cancellationToken);
         return new PlannedDedicatedMaterialAsset(
-            new MaterialIdentity(material.MaterialKey),
             material,
             textures,
             PreserveDedicatedMaterialSlot: false);
@@ -105,9 +113,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             importClient,
             material,
             albedoTextureTask,
+            bundledTextureImportTasks: null,
             cancellationToken);
         return new PlannedDedicatedMaterialAsset(
-            CreateDedicatedMaterialIdentity(packageName, materialIndex, material.MaterialKey),
             material,
             textures,
             preserveDedicatedMaterialSlot);
@@ -331,17 +339,6 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return CanonicalBatchEntityMap.Create(response).ResolveComponent(pendingComponent);
     }
 
-    public static MaterialIdentity CreateDedicatedMaterialIdentity(
-        string packageName,
-        int materialIndex,
-        string materialKey)
-    {
-        return new MaterialIdentity(
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"dedicated-{packageName.ToLowerInvariant()}-{materialIndex}-{materialKey}"));
-    }
-
     public static ResoniteMaterialBinding ResolveTerrainTextureCanvasMaterial(
         ResoniteMaterialBinding material,
         IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
@@ -371,6 +368,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
         Task<Uri?> albedoTextureTask,
+        AsyncInFlightResultCache<string, Uri>? bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
         Task<Uri?> normalTextureTask = Task.FromResult<Uri?>(null);
@@ -390,6 +388,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                     importClient,
                     textureSet.NormalPath,
                     ResoniteTextureColorProfiles.Linear,
+                    bundledTextureImportTasks,
                     cancellationToken);
             }
 
@@ -400,6 +399,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                     importClient,
                     textureSet.HeightPath,
                     ResoniteTextureColorProfiles.Linear,
+                    bundledTextureImportTasks,
                     cancellationToken);
             }
 
@@ -409,6 +409,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                     importClient,
                     textureSet.MetallicPath,
                     ResoniteTextureColorProfiles.Linear,
+                    bundledTextureImportTasks,
                     cancellationToken);
             }
 
@@ -418,6 +419,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                     importClient,
                     textureSet.EmissionPath,
                     ResoniteTextureColorProfiles.Srgb,
+                    bundledTextureImportTasks,
                     cancellationToken);
             }
         }
@@ -457,21 +459,37 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         IResoniteLinkClient importClient,
         string absolutePath,
         string colorProfile,
+        AsyncInFlightResultCache<string, Uri>? bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
         ResoniteRawTextureImport textureImport = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
             absolutePath,
             colorProfile,
             cancellationToken);
-        return await ImportOptionalTextureAsync(importClient, textureImport, cancellationToken);
+        return await ImportOptionalTextureAsync(
+            importClient,
+            textureImport,
+            bundledTextureImportTasks is null ? null : CreateBundledTextureImportKey(absolutePath, colorProfile),
+            bundledTextureImportTasks,
+            cancellationToken);
     }
 
     private static async Task<Uri?> ImportOptionalTextureAsync(
         IResoniteLinkClient importClient,
         ResoniteTextureImport textureImport,
+        string? bundledTextureImportKey,
+        AsyncInFlightResultCache<string, Uri>? bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
-        return await importClient.ImportTextureAsync(textureImport, cancellationToken);
+        if (bundledTextureImportTasks is null || string.IsNullOrWhiteSpace(bundledTextureImportKey))
+        {
+            return await importClient.ImportTextureAsync(textureImport, cancellationToken);
+        }
+
+        return await bundledTextureImportTasks.GetOrCreateAsync(
+            bundledTextureImportKey,
+            () => importClient.ImportTextureAsync(textureImport, cancellationToken),
+            cancellationToken);
     }
 
     private Task<Uri?> ImportBundledAlbedoTextureAsync(
@@ -490,7 +508,15 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             importClient,
             albedoPath,
             ResoniteTextureColorProfiles.Srgb,
+            bundledTextureImportTasks: null,
             cancellationToken);
+    }
+
+    private static string CreateBundledTextureImportKey(string absolutePath, string colorProfile)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{colorProfile}|{System.IO.Path.GetFullPath(absolutePath)}");
     }
 
     private static void AddPlannedTextureAsset(

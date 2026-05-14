@@ -9,8 +9,6 @@ internal readonly record struct GeometryIdentity(string Value);
 
 internal readonly record struct TextureIdentity(string Value);
 
-internal readonly record struct MaterialIdentity(string Value);
-
 internal abstract record PlannedGeometryAsset(GeometryIdentity Identity, string MeshAssetSlotName);
 
 internal sealed record PlannedTriangleMeshGeometryAsset(
@@ -44,40 +42,38 @@ internal sealed record PlannedTextureAsset(
     TextureIdentity Identity,
     Uri AssetUri);
 
-internal abstract record PlannedMaterialAsset(MaterialIdentity Identity);
+internal abstract record PlannedMaterialAsset;
 
 internal sealed record PlannedReusableMaterialAsset(
-    MaterialIdentity Identity,
     ResoniteComponentLocator Target)
-    : PlannedMaterialAsset(Identity);
+    : PlannedMaterialAsset;
 
 internal sealed record PlannedDedicatedMaterialAsset(
-    MaterialIdentity Identity,
     ResoniteMaterialBinding Material,
     IReadOnlyList<PlannedTextureAsset> Textures,
     bool PreserveDedicatedMaterialSlot)
-    : PlannedMaterialAsset(Identity);
+    : PlannedMaterialAsset;
 
-internal abstract record PlannedRendererMaterialBinding(MaterialIdentity MaterialIdentity);
+internal abstract record PlannedRendererMaterialBinding(PlannedMaterialAsset MaterialAsset);
 
-internal sealed record PlannedDirectRendererMaterialBinding(MaterialIdentity MaterialIdentity)
-    : PlannedRendererMaterialBinding(MaterialIdentity);
+internal sealed record PlannedDirectRendererMaterialBinding(PlannedMaterialAsset MaterialAsset)
+    : PlannedRendererMaterialBinding(MaterialAsset);
 
 internal abstract record PlannedMainTextureOverrideRendererMaterialBinding(
-    MaterialIdentity MaterialIdentity,
+    PlannedMaterialAsset MaterialAsset,
     PlannedTextureAsset MainTexture)
-    : PlannedRendererMaterialBinding(MaterialIdentity);
+    : PlannedRendererMaterialBinding(MaterialAsset);
 
 internal sealed record PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
-    MaterialIdentity MaterialIdentity,
+    PlannedMaterialAsset MaterialAsset,
     PlannedTextureAsset MainTexture)
-    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialIdentity, MainTexture);
+    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture);
 
 internal sealed record PlannedTerrainMainTextureOverrideRendererMaterialBinding(
-    MaterialIdentity MaterialIdentity,
+    PlannedMaterialAsset MaterialAsset,
     PlannedTextureAsset MainTexture,
     ResoniteComponentLocator? SharedMainTextureComponent = null)
-    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialIdentity, MainTexture);
+    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture);
 
 internal sealed record PlannedRenderer(
     GeometryIdentity GeometryIdentity,

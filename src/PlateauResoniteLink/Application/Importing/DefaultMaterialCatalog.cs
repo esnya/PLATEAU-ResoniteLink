@@ -47,8 +47,10 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
                 ReuseScope: MaterialReuseScope.PerObject);
         }
 
-        bool useWallSkin = ShouldUseBuildingWallSkin(request);
-        string family = request.FamilyOverride ?? ResolveBundledTextureFamily(request, useWallSkin);
+        bool useBuildingFacade = ShouldUseBuildingFacade(request);
+        string family = request.FamilyOverride is null
+            ? ResolveBundledTextureFamily(request, useBuildingFacade)
+            : ResolveFamilyOverride(request.FamilyOverride);
         int bundledVariantIndex = SelectBundledVariantIndex(family, request.VariantSelectionKey);
         string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, bundledVariantIndex);
         BundledDefaultMaterialProfile uvProfile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
@@ -71,7 +73,24 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         return PlateauPackageCatalog.IsWireframeOverlayPackage(packageName);
     }
 
-    private static bool ShouldUseBuildingWallSkin(DefaultMaterialRequest request)
+    private static string ResolveFamilyOverride(string family)
+    {
+        if (string.Equals(family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.RoadUv, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.RoadTriplanar, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.Vegetation, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.CityFurniture, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.Other, StringComparison.Ordinal)
+            || BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(family, StringComparer.Ordinal))
+        {
+            return family;
+        }
+
+        throw new InvalidOperationException(
+            $"Bundled material family override '{family}' is not codebase-reachable and is not part of the common material catalog.");
+    }
+
+    private static bool ShouldUseBuildingFacade(DefaultMaterialRequest request)
     {
         return request.PreferUvProjection
             && PlateauPackageCatalog.IsBuildingPackage(request.PackageName)
@@ -80,11 +99,11 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
                 or DefaultMaterialSurfaceRole.Unknown;
     }
 
-    private static string ResolveBundledTextureFamily(DefaultMaterialRequest request, bool useWallSkin)
+    private static string ResolveBundledTextureFamily(DefaultMaterialRequest request, bool useBuildingFacade)
     {
-        if (useWallSkin)
+        if (useBuildingFacade)
         {
-            return SelectWallSkinFamily(request);
+            return SelectBuildingFacadeFamily(request);
         }
 
         if (PlateauPackageCatalog.IsBuildingPackage(request.PackageName))
@@ -95,7 +114,9 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         if (PlateauPackageCatalog.IsRoadPackage(request.PackageName)
             || PlateauPackageCatalog.IsPathLikePackage(request.PackageName))
         {
-            return BundledDefaultMaterialFamilies.Road;
+            return request.PreferUvProjection
+                ? BundledDefaultMaterialFamilies.RoadUv
+                : BundledDefaultMaterialFamilies.RoadTriplanar;
         }
 
         if (PlateauPackageCatalog.IsVegetationPackage(request.PackageName))
@@ -111,7 +132,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         return BundledDefaultMaterialFamilies.Other;
     }
 
-    private static string SelectWallSkinFamily(DefaultMaterialRequest request)
+    private static string SelectBuildingFacadeFamily(DefaultMaterialRequest request)
     {
         BuildingAttributeContext attributes = request.BuildingAttributes ?? BuildingAttributeContext.Empty;
         int? floorCount = request.FloorsAboveGround;

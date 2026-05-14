@@ -13,23 +13,17 @@ namespace PlateauResoniteLink.Targets.Resonite.Execution;
 internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpreter
 {
     private const string LicenseComponentType = "[FrooxEngine]FrooxEngine.License";
-    private const string StaticTextureComponentType = "[FrooxEngine]FrooxEngine.StaticTexture2D";
     private const string SharedAssetsRootName = "PLATEAU Shared Assets";
     private const string SharedCommonMaterialsRootName = "Common Materials";
-    private const float DefaultNormalScale = 1.0f;
-    private const float DefaultBundledHeightScale = 0.002f;
 
     private readonly IResoniteSceneSlotLocator sceneSlotLocator;
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
-    private readonly IResoniteMaterialPlanning materialPlanning;
 
     internal ResoniteSceneSetupInterpreter(
         IResoniteSceneSlotLocator sceneSlotLocator,
-        IResoniteMaterialPlanning materialPlanning,
         IResoniteSceneAnchorResolver sceneAnchorResolver)
     {
         this.sceneSlotLocator = sceneSlotLocator ?? throw new ArgumentNullException(nameof(sceneSlotLocator));
-        this.materialPlanning = materialPlanning ?? throw new ArgumentNullException(nameof(materialPlanning));
         this.sceneAnchorResolver = sceneAnchorResolver ?? throw new ArgumentNullException(nameof(sceneAnchorResolver));
     }
 
@@ -49,7 +43,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
             ?? throw new InvalidOperationException("ResoniteLink did not surface the Root slot during setup.");
         ResoniteSceneSlotSnapshot rootSlotSnapshot = new(rootSnapshot);
         Slot? sharedAssetsSlot = GetReusableChildSlot(rootSlotSnapshot, SharedAssetsRootName, "Root");
-        Slot? sharedCommonMaterialsSlot = await TryGetExistingSharedCommonMaterialsSlotAsync(
+        Slot? sharedCommonMaterialsSlot = await TryGetExistingCommonMaterialsSlotAsync(
             setupClient,
             sharedAssetsSlot,
             cancellationToken);
@@ -138,7 +132,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
 
         string commonParentId = sharedCommonMaterialsSlot?.ID
             ?? pendingSharedCommon?.LocalId.Value
-            ?? throw new InvalidOperationException("Setup could not determine the shared Common Materials parent slot.");
+            ?? throw new InvalidOperationException("Setup could not determine the Common Materials parent slot.");
 
         SceneAnchor sceneAnchor = await sceneAnchorResolver.ResolveAsync(
             setupClient,
@@ -165,15 +159,13 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                 license.Members);
         }
 
-        (Dictionary<string, CreatedMaterialAsset> commonMaterialAssetsByKey, HashSet<string> commonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> plannedCommonMaterials)
-            = await PlanCommonMaterialOperationsAsync(
-                setupClient,
+        (ResoniteCommonMaterialAssetSet commonMaterialAssets, HashSet<string> commonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> plannedCommonMaterials)
+            = PlanCommonMaterialOperations(
                 commonMaterials,
                 sharedCommonMaterialsSlot,
                 commonParentId,
                 batchScopeToken,
-                batchBuilder,
-                cancellationToken);
+                batchBuilder);
 
         if (batchBuilder.Actions.Count > 0)
         {
@@ -191,9 +183,11 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
 
             foreach (PlannedCommonMaterialBatchEntry plannedMaterial in plannedCommonMaterials)
             {
-                commonMaterialAssetsByKey[plannedMaterial.MaterialKey] = new CreatedMaterialAsset(
-                    entityMap.ResolveComponent(plannedMaterial.PendingMaterialComponent).Locator,
-                    null);
+                commonMaterialAssets.Set(new ResoniteCommonMaterialAsset(
+                    plannedMaterial.MaterialPlan.Material,
+                    new CreatedMaterialAsset(
+                        entityMap.ResolveComponent(plannedMaterial.PendingMaterialComponent).Locator,
+                        null)));
             }
         }
 
@@ -209,7 +203,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
             DatasetRootExisted: true,
             sceneAnchor,
             datasetRootSnapshot,
-            commonMaterialAssetsByKey,
+            commonMaterialAssets,
             commonMaterialFamilies);
     }
 
@@ -224,7 +218,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
             : null;
     }
 
-    private static async Task<Slot?> TryGetExistingSharedCommonMaterialsSlotAsync(
+    private static async Task<Slot?> TryGetExistingCommonMaterialsSlotAsync(
         IResoniteLinkClient setupClient,
         Slot? sharedAssetsSlot,
         CancellationToken cancellationToken)
@@ -255,7 +249,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
             cancellationToken);
     }
 
-    private async Task<ResoniteSceneSetupState> CreateInitialSetupStateAsync(
+    private static async Task<ResoniteSceneSetupState> CreateInitialSetupStateAsync(
         IResoniteLinkClient setupClient,
         string datasetName,
         string completionMeshCode,
@@ -327,17 +321,15 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                 datasetLicense.Members);
         }
 
-        (Dictionary<string, CreatedMaterialAsset> commonMaterialAssetsByKey, HashSet<string> commonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> plannedCommonMaterials)
-            = await PlanCommonMaterialOperationsAsync(
-                setupClient,
+        (ResoniteCommonMaterialAssetSet commonMaterialAssets, HashSet<string> commonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> plannedCommonMaterials)
+            = PlanCommonMaterialOperations(
                 commonMaterials,
                 commonSlot: existingSharedCommonMaterialsSlot,
                 commonParentId: existingSharedCommonMaterialsSlot?.ID
                     ?? pendingSharedCommonMaterialsRootSlot?.LocalId.Value
-                    ?? throw new InvalidOperationException("Setup could not determine the shared Common Materials parent slot."),
+                    ?? throw new InvalidOperationException("Setup could not determine the Common Materials parent slot."),
                 batchScopeToken,
-                batchBuilder,
-                cancellationToken);
+                batchBuilder);
 
         BatchResponse response = await setupClient.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
 
@@ -345,13 +337,15 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
         CreatedSlot datasetRootSlot = entityMap.ResolveSlot(pendingDatasetRootSlot);
         CreatedSlot datasetAssetsRootSlot = entityMap.ResolveSlot(pendingDatasetAssetsRootSlot);
         CreatedSlot commonAssetsRootSlot = existingSharedCommonMaterialsSlot is null
-            ? entityMap.ResolveSlot(pendingSharedCommonMaterialsRootSlot ?? throw new InvalidOperationException("Shared Common Materials slot was not planned."))
+            ? entityMap.ResolveSlot(pendingSharedCommonMaterialsRootSlot ?? throw new InvalidOperationException("Common Materials slot was not planned."))
             : new CreatedSlot(new ResoniteSlotLocator(existingSharedCommonMaterialsSlot.ID!), existingSharedCommonMaterialsSlot.Name?.Value ?? SharedCommonMaterialsRootName);
         foreach (PlannedCommonMaterialBatchEntry plannedMaterial in plannedCommonMaterials)
         {
-            commonMaterialAssetsByKey[plannedMaterial.MaterialKey] = new CreatedMaterialAsset(
-                entityMap.ResolveComponent(plannedMaterial.PendingMaterialComponent).Locator,
-                null);
+            commonMaterialAssets.Set(new ResoniteCommonMaterialAsset(
+                plannedMaterial.MaterialPlan.Material,
+                new CreatedMaterialAsset(
+                    entityMap.ResolveComponent(plannedMaterial.PendingMaterialComponent).Locator,
+                    null)));
         }
 
         return new ResoniteSceneSetupState(
@@ -361,7 +355,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
             DatasetRootExisted: false,
             new SceneAnchor(datasetRootSlot.Locator, completionMeshCode, anchorPosition, ReferenceSourceFileRoot: null),
             DatasetRootSnapshot: null,
-            commonMaterialAssetsByKey,
+            commonMaterialAssets,
             commonMaterialFamilies);
     }
 
@@ -434,25 +428,25 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
         return string.Equals(existingCreditString.Value, expectedCreditString.Value, StringComparison.Ordinal);
     }
 
-    private async Task<(Dictionary<string, CreatedMaterialAsset> CommonMaterialAssetsByKey, HashSet<string> CommonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> PlannedCommonMaterials)> PlanCommonMaterialOperationsAsync(
-        IResoniteLinkClient setupClient,
+    private static (ResoniteCommonMaterialAssetSet CommonMaterialAssets, HashSet<string> CommonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> PlannedCommonMaterials) PlanCommonMaterialOperations(
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         Slot? commonSlot,
         string commonParentId,
         string batchScopeToken,
-        ResoniteBatchOperations.BatchActionBuilder batchBuilder,
-        CancellationToken cancellationToken)
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder)
     {
-        Dictionary<string, CreatedMaterialAsset> commonMaterialAssetsByKey = new(StringComparer.Ordinal);
+        ResoniteCommonMaterialAssetSet commonMaterialAssets = new();
         HashSet<string> commonMaterialFamilies = new(StringComparer.Ordinal);
         List<PlannedCommonMaterialBatchEntry> plannedCommonMaterials = [];
-        Dictionary<string, ResoniteMaterialBinding> canonicalMaterialsByKey = CollectCanonicalCommonMaterials(commonMaterials);
+        Dictionary<ResoniteCommonMaterialKey, ResoniteCommonMaterialPlan> canonicalMaterialsByKey = CollectCanonicalCommonMaterials(commonMaterials);
         ResoniteSceneSlotSnapshot? commonSlotSnapshot = commonSlot is null ? null : new ResoniteSceneSlotSnapshot(commonSlot);
         string? commonSlotId = commonSlot?.ID;
         Dictionary<string, string> familyParentIds = new(StringComparer.Ordinal);
+        int materialSlotIndex = 0;
 
-        foreach (ResoniteMaterialBinding material in canonicalMaterialsByKey.Values.OrderBy(static material => material.MaterialKey, StringComparer.Ordinal))
+        foreach ((_, ResoniteCommonMaterialPlan materialPlan) in canonicalMaterialsByKey.OrderBy(static pair => pair.Key.SortKey, StringComparer.Ordinal))
         {
+            ResoniteMaterialBinding material = materialPlan.Material;
             string family = ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(material);
             commonMaterialFamilies.Add(family);
             string familySlotName = family;
@@ -463,11 +457,11 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                     : GetReusableChildSlot(
                         commonSlotSnapshot,
                         familySlotName,
-                        commonSlotId ?? throw new InvalidOperationException("Existing shared Common Materials slot did not expose an ID."));
+                        commonSlotId ?? throw new InvalidOperationException("Existing Common Materials slot did not expose an ID."));
                 if (existingFamilySlot is null)
                 {
                     ResoniteBatchOperations.PendingBatchSlot pendingFamilySlot = ResoniteBatchOperations.CreatePendingSlot(
-                        $"setup_common_material_family_{plannedCommonMaterials.Count}",
+                        $"setup_common_material_family_{familyParentIds.Count}",
                         familySlotName,
                         batchScopeToken);
                     _ = batchBuilder.AddSlot(
@@ -487,14 +481,14 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                 familyParentIds[family] = familyParentId;
             }
 
-            string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+            string materialSlotName = materialPlan.SlotName;
             IReadOnlyList<string> materialSlotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
             Slot? familySnapshotSlot = commonSlotSnapshot is null
                 ? null
                 : GetReusableChildSlot(
                     commonSlotSnapshot,
                     familySlotName,
-                    commonSlotId ?? throw new InvalidOperationException("Existing shared Common Materials slot did not expose an ID."));
+                    commonSlotId ?? throw new InvalidOperationException("Existing Common Materials slot did not expose an ID."));
             ResoniteSceneSlotSnapshot? familySlotSnapshot = familySnapshotSlot is null ? null : new ResoniteSceneSlotSnapshot(familySnapshotSlot);
             string? familySnapshotSlotId = familySnapshotSlot?.ID;
             Slot? existingMaterialSlot = null;
@@ -529,25 +523,24 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                 .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
             if (!string.IsNullOrWhiteSpace(existingMaterialComponentId))
             {
-                commonMaterialAssetsByKey[material.MaterialKey] = new CreatedMaterialAsset(
-                    new ResoniteComponentLocator(existingMaterialComponentId),
-                    null);
+                commonMaterialAssets.Set(new ResoniteCommonMaterialAsset(
+                    material,
+                    new CreatedMaterialAsset(
+                        new ResoniteComponentLocator(existingMaterialComponentId),
+                        null)));
                 continue;
             }
 
-            PlannedDedicatedMaterialAsset plannedMaterial = await this.materialPlanning.PlanCommonMaterialAssetAsync(
-                setupClient,
-                material,
-                cancellationToken);
             int materialIndex = plannedCommonMaterials.Count;
             ResoniteBatchOperations.PendingBatchSlot? pendingMaterialSlot = null;
             string materialContainerId = existingMaterialSlot?.ID ?? string.Empty;
             if (existingMaterialSlot is null)
             {
                 pendingMaterialSlot = ResoniteBatchOperations.CreatePendingSlot(
-                    $"setup_common_material_slot_{materialIndex}",
+                    $"setup_common_material_slot_{materialSlotIndex}",
                     materialSlotName,
                     batchScopeToken);
+                materialSlotIndex++;
                 materialContainerId = pendingMaterialSlot.Value.LocalId.Value;
                 _ = batchBuilder.AddSlot(
                     pendingMaterialSlot.Value.LocalId,
@@ -558,27 +551,44 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                     null);
             }
 
-            ResoniteBatchOperations.PendingBatchComponent pendingMaterialComponent = AddCommonMaterialComponentOperations(
+            if (!CanCreateCommonMaterialDuringSetup(material))
+            {
+                continue;
+            }
+
+            ResoniteBatchOperations.PendingBatchComponent pendingMaterialComponent = ResoniteBatchOperations.CreatePendingComponent(
+                $"setup_common_material_component_{materialIndex}",
+                materialComponentType,
+                batchScopeToken);
+            _ = batchBuilder.AddComponent(
+                pendingMaterialComponent.LocalId,
+                pendingMaterialComponent.MessageId,
                 materialContainerId,
-                plannedMaterial,
-                batchScopeToken,
-                batchBuilder,
-                materialIndex);
-            plannedCommonMaterials.Add(new PlannedCommonMaterialBatchEntry(material.MaterialKey, family, pendingMaterialComponent));
+                materialComponentType,
+                ResoniteMaterialComponentPolicy.CreateMembers(material));
+            plannedCommonMaterials.Add(new PlannedCommonMaterialBatchEntry(materialPlan, family, pendingMaterialComponent));
         }
 
-        return (commonMaterialAssetsByKey, commonMaterialFamilies, plannedCommonMaterials);
+        return (commonMaterialAssets, commonMaterialFamilies, plannedCommonMaterials);
     }
 
-    private static Dictionary<string, ResoniteMaterialBinding> CollectCanonicalCommonMaterials(IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
+    private static bool CanCreateCommonMaterialDuringSetup(ResoniteMaterialBinding material)
     {
-        Dictionary<string, ResoniteMaterialBinding> canonicalMaterialsByKey = new(StringComparer.Ordinal);
+        return string.IsNullOrWhiteSpace(material.Family)
+            && material.TexturePayload is null
+            && material.TerrainOverlay is null;
+    }
+
+    private static Dictionary<ResoniteCommonMaterialKey, ResoniteCommonMaterialPlan> CollectCanonicalCommonMaterials(IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
+    {
+        Dictionary<ResoniteCommonMaterialKey, ResoniteCommonMaterialPlan> canonicalMaterialsByKey = [];
         foreach (ResoniteMaterialBinding material in commonMaterials)
         {
             ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
             if (normalizedMaterial.AssetScope == ResoniteMaterialAssetScope.Common)
             {
-                canonicalMaterialsByKey.TryAdd(normalizedMaterial.MaterialKey, normalizedMaterial);
+                ResoniteCommonMaterialPlan plan = new(normalizedMaterial);
+                canonicalMaterialsByKey.TryAdd(plan.Key, plan);
                 continue;
             }
 
@@ -587,164 +597,12 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                     out ResoniteMaterialBinding normalizedSharedMaterial,
                     out _))
             {
-                canonicalMaterialsByKey.TryAdd(normalizedSharedMaterial.MaterialKey, normalizedSharedMaterial);
+                ResoniteCommonMaterialPlan plan = new(normalizedSharedMaterial);
+                canonicalMaterialsByKey.TryAdd(plan.Key, plan);
             }
         }
 
         return canonicalMaterialsByKey;
-    }
-
-    private static ResoniteBatchOperations.PendingBatchComponent AddCommonMaterialComponentOperations(
-        string materialContainerId,
-        PlannedDedicatedMaterialAsset plannedMaterial,
-        string batchScopeToken,
-        ResoniteBatchOperations.BatchActionBuilder batchBuilder,
-        int materialIndex)
-    {
-        ResoniteMaterialBinding material = plannedMaterial.Material;
-        Dictionary<string, Member> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(material);
-        string componentPrefix = $"setup_common_material_component_{materialIndex}";
-
-        Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo);
-        if (albedoTextureUri is not null)
-        {
-            ResoniteBatchOperations.PendingBatchComponent albedoTexture = ResoniteBatchOperations.CreatePendingComponent(
-                $"{componentPrefix}_albedo",
-                StaticTextureComponentType,
-                batchScopeToken);
-            _ = batchBuilder.AddComponent(
-                albedoTexture.LocalId,
-                albedoTexture.MessageId,
-                materialContainerId,
-                StaticTextureComponentType,
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    albedoTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo));
-            materialMembers["AlbedoTexture"] = new Reference
-            {
-                TargetID = albedoTexture.LocalId.Value,
-            };
-        }
-
-        Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Normal);
-        if (normalTextureUri is not null)
-        {
-            ResoniteBatchOperations.PendingBatchComponent normalTexture = ResoniteBatchOperations.CreatePendingComponent(
-                $"{componentPrefix}_normal",
-                StaticTextureComponentType,
-                batchScopeToken);
-            _ = batchBuilder.AddComponent(
-                normalTexture.LocalId,
-                normalTexture.MessageId,
-                materialContainerId,
-                StaticTextureComponentType,
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    normalTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Normal));
-            materialMembers["NormalMap"] = new Reference
-            {
-                TargetID = normalTexture.LocalId.Value,
-            };
-            materialMembers["NormalScale"] = new Field_float
-            {
-                Value = DefaultNormalScale,
-            };
-        }
-
-        Uri? heightTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Height);
-        if (heightTextureUri is not null)
-        {
-            ResoniteBatchOperations.PendingBatchComponent heightTexture = ResoniteBatchOperations.CreatePendingComponent(
-                $"{componentPrefix}_height",
-                StaticTextureComponentType,
-                batchScopeToken);
-            _ = batchBuilder.AddComponent(
-                heightTexture.LocalId,
-                heightTexture.MessageId,
-                materialContainerId,
-                StaticTextureComponentType,
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    heightTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Height));
-            materialMembers["HeightMap"] = new Reference
-            {
-                TargetID = heightTexture.LocalId.Value,
-            };
-            materialMembers["HeightScale"] = new Field_float
-            {
-                Value = DefaultBundledHeightScale,
-            };
-        }
-
-        Uri? metallicTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Metallic);
-        if (metallicTextureUri is not null)
-        {
-            ResoniteBatchOperations.PendingBatchComponent metallicTexture = ResoniteBatchOperations.CreatePendingComponent(
-                $"{componentPrefix}_metallic",
-                StaticTextureComponentType,
-                batchScopeToken);
-            _ = batchBuilder.AddComponent(
-                metallicTexture.LocalId,
-                metallicTexture.MessageId,
-                materialContainerId,
-                StaticTextureComponentType,
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    metallicTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic));
-            materialMembers["MetallicMap"] = new Reference
-            {
-                TargetID = metallicTexture.LocalId.Value,
-            };
-            materialMembers["OcclusionMap"] = new Reference
-            {
-                TargetID = metallicTexture.LocalId.Value,
-            };
-        }
-
-        Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Emission);
-        if (emissionTextureUri is not null)
-        {
-            ResoniteBatchOperations.PendingBatchComponent emissionTexture = ResoniteBatchOperations.CreatePendingComponent(
-                $"{componentPrefix}_emission",
-                StaticTextureComponentType,
-                batchScopeToken);
-            _ = batchBuilder.AddComponent(
-                emissionTexture.LocalId,
-                emissionTexture.MessageId,
-                materialContainerId,
-                StaticTextureComponentType,
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    emissionTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Emission));
-            materialMembers["EmissiveMap"] = new Reference
-            {
-                TargetID = emissionTexture.LocalId.Value,
-            };
-            materialMembers["EmissiveColor"] = ResoniteMaterialComponentPolicy.CreateColorMember(
-                new ResoniteColor(1.0, 1.0, 1.0, 1.0));
-        }
-
-        ResoniteBatchOperations.PendingBatchComponent pendingMaterialComponent = ResoniteBatchOperations.CreatePendingComponent(
-            componentPrefix,
-            ResoniteMaterialComponentPolicy.GetComponentType(material),
-            batchScopeToken);
-        _ = batchBuilder.AddComponent(
-            pendingMaterialComponent.LocalId,
-            pendingMaterialComponent.MessageId,
-            materialContainerId,
-            ResoniteMaterialComponentPolicy.GetComponentType(material),
-            materialMembers);
-        return pendingMaterialComponent;
     }
 
     private static Dictionary<string, Member> CreateDatasetLicenseMembers(
@@ -777,7 +635,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
     }
 
     private readonly record struct PlannedCommonMaterialBatchEntry(
-        string MaterialKey,
+        ResoniteCommonMaterialPlan MaterialPlan,
         string Family,
         ResoniteBatchOperations.PendingBatchComponent PendingMaterialComponent);
 

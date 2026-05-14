@@ -13,5 +13,5 @@ internal readonly record struct ResoniteSceneSetupState(
     bool DatasetRootExisted,
     SceneAnchor SceneAnchor,
     Slot? DatasetRootSnapshot,
-    IReadOnlyDictionary<string, CreatedMaterialAsset> CommonMaterialAssetsByKey,
+    ResoniteCommonMaterialAssetSet CommonMaterialAssets,
     IReadOnlyCollection<string> CommonMaterialFamilies);
