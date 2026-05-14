@@ -64,7 +64,7 @@ internal sealed class PlateauImportService(
                 PlateauLog.Debug("import", $"Prepared imported scene source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             ImportedSceneMetadata metadata = source.Metadata;
-            IReadOnlyList<MaterialBinding> commonMaterials = commonMaterialCatalog.Create();
+            CommonMaterialCatalogSnapshot commonMaterials = commonMaterialCatalog.Create();
             ReportProgress(
                 PlateauLog.Info(
                     "import",

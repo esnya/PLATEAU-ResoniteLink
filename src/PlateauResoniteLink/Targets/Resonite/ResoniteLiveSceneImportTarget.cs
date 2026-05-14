@@ -138,7 +138,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private async Task<LiveSendRunState> CreateRunStateAsync(
         ResoniteSceneSetupInfo SetupInfo,
         string workRoot,
-        IReadOnlyList<MaterialBinding> commonMaterials,
+        CommonMaterialCatalogSnapshot commonMaterials,
         PlateauImportRequest normalizedRequest,
         ResoniteLocalOrigin requestLocalOrigin,
         CancellationToken cancellationToken)
@@ -1189,7 +1189,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         CancellationToken cancellationToken)
     {
-        List<ResoniteCommonMaterialPlan> commonMaterialPlans = CollectCanonicalCommonMaterials(commonMaterials);
+        IReadOnlyList<ResoniteCommonMaterialPlan> commonMaterialPlans =
+            ResoniteCommonMaterialPlans.CreateCatalogPlans(commonMaterials);
         if (commonMaterialPlans.Count == 0)
         {
             ReportProgress(PlateauLog.Info("live", "No common material assets are required during scene setup."));
@@ -1202,6 +1203,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             PlateauLog.Info(
                 "live",
                 $"Preparing {commonMaterialPlans.Count} common material assets during scene setup before object streaming."));
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
+        List<PreparedCommonMaterialBatchEntry> preparedMaterials = [];
         foreach (ResoniteCommonMaterialPlan materialPlan in commonMaterialPlans)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1251,32 +1254,65 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 continue;
             }
 
-            if (reusableSlot is null)
-            {
-                throw new InvalidOperationException(
-                    $"Setup did not create common material slot '{materialSlotName}' before common asset preparation.");
-            }
-
             PlannedDedicatedMaterialAsset plannedMaterial = await materialPlanning.PlanCommonMaterialAssetAsync(
                 client,
                 material,
                 materials.BundledTextureImportTasks,
                 cancellationToken);
-            CreatedMaterialAsset createdMaterial = await ResoniteMaterialPlanning.EmitCommonMaterialAsync(
-                client,
-                plannedMaterial,
-                familySlot.Locator,
-                materialSlotName,
-                (_, _, _, _) => Task.FromResult(reusableSlot.Value),
-                ResoniteMaterialPlanning.CreateComponentAsync,
-                cancellationToken);
-            materials.CommonMaterialAssets.Set(new ResoniteCommonMaterialAsset(material, createdMaterial));
+            string materialContainerSlotId;
+            ResoniteBatchOperations.PendingBatchSlot? pendingMaterialSlot = null;
+            if (reusableSlot is null)
+            {
+                pendingMaterialSlot = batchBuilder.AddSlot(
+                    familySlot.Locator.Value,
+                    materialSlotName,
+                    null,
+                    null);
+                materialContainerSlotId = pendingMaterialSlot.Value.LocalId.Value;
+            }
+            else
+            {
+                materialContainerSlotId = reusableSlot.Value.Locator.Value;
+            }
+
+            ResoniteBatchOperations.PendingBatchComponent pendingMaterialComponent =
+                ResoniteMaterialPlanning.AddCommonMaterialComponents(
+                    batchBuilder,
+                    plannedMaterial,
+                    materialContainerSlotId);
+            preparedMaterials.Add(new PreparedCommonMaterialBatchEntry(
+                material,
+                pendingMaterialSlot,
+                pendingMaterialComponent));
             preparedCount++;
             ReportProgress(
                 PlateauLog.Info(
                     "live",
-                    $"Prepared common material asset {preparedCount}/{commonMaterialPlans.Count}: "
-                    + $"family='{familySlotName}', slot='{materialSlotName}', elapsed_s={materialStopwatch.Elapsed.TotalSeconds:F2}."));
+                    $"Planned common material asset {preparedCount}/{commonMaterialPlans.Count}: "
+                    + $"family='{familySlotName}', slot='{materialSlotName}', texture_import_elapsed_s={materialStopwatch.Elapsed.TotalSeconds:F2}."));
+        }
+
+        if (batchBuilder.Actions.Count > 0)
+        {
+            BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
+            CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response);
+            foreach (PreparedCommonMaterialBatchEntry preparedMaterial in preparedMaterials)
+            {
+                if (preparedMaterial.PendingMaterialSlot is not null)
+                {
+                    _ = entityMap.ResolveSlot(preparedMaterial.PendingMaterialSlot.Value);
+                }
+
+                CreatedComponent createdMaterialComponent = entityMap.ResolveComponent(preparedMaterial.PendingMaterialComponent);
+                materials.CommonMaterialAssets.Set(new ResoniteCommonMaterialAsset(
+                    preparedMaterial.Material,
+                    new CreatedMaterialAsset(createdMaterialComponent.Locator, null)));
+            }
+
+            ReportProgress(
+                PlateauLog.Info(
+                    "live",
+                    $"Created {preparedMaterials.Count} common material assets in one setup component batch."));
         }
 
         foreach (string family in setupState.CommonMaterialFamilies)
@@ -1290,29 +1326,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 $"Prepared {preparedCount} common material assets during scene setup in {stopwatch.Elapsed.TotalSeconds:F2}s."));
     }
 
-    private static List<ResoniteCommonMaterialPlan> CollectCanonicalCommonMaterials(IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
-    {
-        List<ResoniteCommonMaterialPlan> commonMaterialPlans = [];
-        foreach (ResoniteMaterialBinding material in commonMaterials)
-        {
-            ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
-            if (normalizedMaterial.AssetScope == ResoniteMaterialAssetScope.Common)
-            {
-                commonMaterialPlans.Add(new ResoniteCommonMaterialPlan(normalizedMaterial));
-                continue;
-            }
-
-            if (ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-                    material,
-                    out ResoniteMaterialBinding normalizedSharedMaterial,
-                    out _))
-            {
-                commonMaterialPlans.Add(new ResoniteCommonMaterialPlan(normalizedSharedMaterial));
-            }
-        }
-
-        return commonMaterialPlans;
-    }
+    private readonly record struct PreparedCommonMaterialBatchEntry(
+        ResoniteMaterialBinding Material,
+        ResoniteBatchOperations.PendingBatchSlot? PendingMaterialSlot,
+        ResoniteBatchOperations.PendingBatchComponent PendingMaterialComponent);
 
     private Task<PreparedTextureReference?> PrepareDirectMaterialTextureReferenceAsync(
         ResoniteMaterialBinding material)
@@ -2225,6 +2242,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             if (!string.IsNullOrWhiteSpace(existingComponentId))
             {
                 return (reusableSlot, new ResoniteComponentLocator(existingComponentId));
+            }
+
+            if (materialLookup.Slot.Components?.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Common material slot '{materialSlotName}' exists but does not contain material component '{materialComponentType}'. "
+                    + "Remove the incomplete common material slot before retrying.");
             }
 
             reusableSlotWithoutComponent ??= reusableSlot;

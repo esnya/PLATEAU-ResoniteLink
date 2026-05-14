@@ -158,89 +158,46 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             textureUri);
     }
 
-    public static async Task<CreatedMaterialAsset> EmitCommonMaterialAsync(
-        IResoniteLinkClient client,
+    public static ResoniteBatchOperations.PendingBatchComponent AddCommonMaterialComponents(
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder,
         PlannedDedicatedMaterialAsset plannedMaterial,
-        ResoniteSlotLocator commonAssetsSlot,
-        string materialSlotName,
-        Func<IResoniteLinkClient, ResoniteSlotLocator, string, CancellationToken, Task<CreatedSlot>> getOrCreateSharedChildSlotAsync,
-        Func<IResoniteLinkClient, ResoniteSlotLocator, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> createComponentAsync,
-        CancellationToken cancellationToken)
+        string materialContainerSlotId)
     {
-        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(batchBuilder);
         ArgumentNullException.ThrowIfNull(plannedMaterial);
-        ArgumentException.ThrowIfNullOrWhiteSpace(commonAssetsSlot.Value);
-        ArgumentException.ThrowIfNullOrWhiteSpace(materialSlotName);
-        ArgumentNullException.ThrowIfNull(getOrCreateSharedChildSlotAsync);
-        ArgumentNullException.ThrowIfNull(createComponentAsync);
+        ArgumentException.ThrowIfNullOrWhiteSpace(materialContainerSlotId);
 
-        CreatedSlot materialSlot = await getOrCreateSharedChildSlotAsync(
-            client,
-            commonAssetsSlot,
-            materialSlotName,
-            cancellationToken);
-        ResoniteSlotLocator materialContainerSlot = materialSlot.Locator;
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(plannedMaterial.Material);
 
-        Uri? albedoTextureUri = TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo);
-        if (albedoTextureUri is not null)
+        AddTextureComponentReference(
+            batchBuilder,
+            plannedMaterial,
+            materialContainerSlotId,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
+            "AlbedoTexture",
+            materialMembers);
+        if (AddTextureComponentReference(
+                batchBuilder,
+                plannedMaterial,
+                materialContainerSlotId,
+                ResoniteSceneMaterialConventions.TextureMemberRole.Normal,
+                "NormalMap",
+                materialMembers))
         {
-            CreatedComponent albedoTexture = await createComponentAsync(
-                client,
-                materialContainerSlot,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    albedoTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
-                cancellationToken);
-            materialMembers["AlbedoTexture"] = new Reference
-            {
-                TargetID = albedoTexture.Locator.Value,
-            };
-        }
-
-        Uri? normalTextureUri = TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Normal);
-        if (normalTextureUri is not null)
-        {
-            CreatedComponent normalTexture = await createComponentAsync(
-                client,
-                materialContainerSlot,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    normalTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Normal),
-                cancellationToken);
-            materialMembers["NormalMap"] = new Reference
-            {
-                TargetID = normalTexture.Locator.Value,
-            };
             materialMembers["NormalScale"] = new Field_float
             {
                 Value = DefaultNormalScale,
             };
         }
 
-        Uri? heightTextureUri = TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Height);
-        if (heightTextureUri is not null)
+        if (AddTextureComponentReference(
+                batchBuilder,
+                plannedMaterial,
+                materialContainerSlotId,
+                ResoniteSceneMaterialConventions.TextureMemberRole.Height,
+                "HeightMap",
+                materialMembers))
         {
-            CreatedComponent heightTexture = await createComponentAsync(
-                client,
-                materialContainerSlot,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    heightTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Height),
-                cancellationToken);
-            materialMembers["HeightMap"] = new Reference
-            {
-                TargetID = heightTexture.Locator.Value,
-            };
             materialMembers["HeightScale"] = new Field_float
             {
                 Value = DefaultBundledHeightScale,
@@ -252,52 +209,63 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             ResoniteSceneMaterialConventions.TextureMemberRole.Metallic);
         if (metallicTextureUri is not null)
         {
-            CreatedComponent metallicTexture = await createComponentAsync(
-                client,
-                materialContainerSlot,
+            ResoniteBatchOperations.PendingBatchComponent metallicTexture = batchBuilder.AddComponent(
+                materialContainerSlotId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     metallicTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic),
-                cancellationToken);
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic));
             materialMembers["MetallicMap"] = new Reference
             {
-                TargetID = metallicTexture.Locator.Value,
+                TargetID = metallicTexture.LocalId.Value,
             };
             materialMembers["OcclusionMap"] = new Reference
             {
-                TargetID = metallicTexture.Locator.Value,
+                TargetID = metallicTexture.LocalId.Value,
             };
         }
 
-        Uri? emissionTextureUri = TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Emission);
-        if (emissionTextureUri is not null)
+        if (AddTextureComponentReference(
+                batchBuilder,
+                plannedMaterial,
+                materialContainerSlotId,
+                ResoniteSceneMaterialConventions.TextureMemberRole.Emission,
+                "EmissiveMap",
+                materialMembers))
         {
-            CreatedComponent emissionTexture = await createComponentAsync(
-                client,
-                materialContainerSlot,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    emissionTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Emission),
-                cancellationToken);
-            materialMembers["EmissiveMap"] = new Reference
-            {
-                TargetID = emissionTexture.Locator.Value,
-            };
             materialMembers["EmissiveColor"] = ResoniteMaterialComponentPolicy.CreateColorMember(
                 new ResoniteColor(1.0, 1.0, 1.0, 1.0));
         }
 
-        CreatedComponent materialComponent = await createComponentAsync(
-            client,
-            materialContainerSlot,
+        return batchBuilder.AddComponent(
+            materialContainerSlotId,
             ResoniteMaterialComponentPolicy.GetComponentType(plannedMaterial.Material),
-            materialMembers,
-            cancellationToken);
-        return new CreatedMaterialAsset(materialComponent.Locator, null);
+            materialMembers);
+    }
+
+    private static bool AddTextureComponentReference(
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder,
+        PlannedDedicatedMaterialAsset plannedMaterial,
+        string materialContainerSlotId,
+        ResoniteSceneMaterialConventions.TextureMemberRole textureRole,
+        string materialMemberName,
+        Dictionary<string, Member> materialMembers)
+    {
+        Uri? textureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, textureRole);
+        if (textureUri is null)
+        {
+            return false;
+        }
+
+        ResoniteBatchOperations.PendingBatchComponent textureComponent = batchBuilder.AddComponent(
+            materialContainerSlotId,
+            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+            ResoniteSceneMaterialConventions.CreateTextureMembers(textureUri, textureRole));
+        materialMembers[materialMemberName] = new Reference
+        {
+            TargetID = textureComponent.LocalId.Value,
+        };
+        return true;
     }
 
     public static async Task<CreatedSlot?> TryGetExistingSharedChildSlotAsync(

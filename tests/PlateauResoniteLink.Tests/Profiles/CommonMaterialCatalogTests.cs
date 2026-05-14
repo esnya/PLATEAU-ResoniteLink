@@ -265,6 +265,30 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
+    public void Create_DoesNotContainDuplicateMaterialDefinitions()
+    {
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
+
+        Assert.Equal(
+            materials.Count,
+            materials
+                .Select(static material => new
+                {
+                    material.MaterialType,
+                    material.TextureSourceKind,
+                    material.Projection,
+                    material.DepthOffset,
+                    material.TextureScale,
+                    material.Family,
+                    material.TextureOffset,
+                    material.BundledVariantIndex,
+                    material.TerrainMeshCode,
+                })
+                .Distinct()
+                .Count());
+    }
+
+    [Fact]
     public void Create_IncludesOnlyResolverReachableRoadAndGenericVariants()
     {
         IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();

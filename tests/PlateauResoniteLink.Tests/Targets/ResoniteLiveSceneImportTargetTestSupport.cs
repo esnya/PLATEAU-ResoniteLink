@@ -28,7 +28,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         SceneSinkRecordingClient client,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true,
-        IReadOnlyList<MaterialBinding>? commonMaterials = null)
+        CommonMaterialCatalogSnapshot? commonMaterials = null)
     {
         await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(
             client,
@@ -41,7 +41,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             metadata,
             workDirectory.Path,
             cityObjects,
-            commonMaterials: commonMaterials ?? CollectExecutionPlanCommonMaterials(metadata, cityObjects));
+            commonMaterials: commonMaterials ?? new CommonMaterialCatalog().Create());
     }
 
     public static ResoniteImportedMesh CreateTriangleMesh(
@@ -128,7 +128,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 metadata,
                 firstWorkDirectory.Path,
                 firstRunCityObjects,
-                commonMaterials: CollectExecutionPlanCommonMaterials(metadata, firstRunCityObjects));
+                commonMaterials: new CommonMaterialCatalog().Create());
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
@@ -139,7 +139,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 metadata,
                 secondWorkDirectory.Path,
                 secondRunCityObjects,
-                commonMaterials: CollectExecutionPlanCommonMaterials(metadata, secondRunCityObjects));
+                commonMaterials: new CommonMaterialCatalog().Create());
         }
     }
 
@@ -148,14 +148,14 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ImportedSceneMetadata metadata,
         string workDirectory,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
-        IReadOnlyList<MaterialBinding>? commonMaterials = null,
+        CommonMaterialCatalogSnapshot? commonMaterials = null,
         CancellationToken cancellationToken = default)
     {
         return importTarget.ExecuteAsync(
             CreateExecutionPlan(
                 metadata,
                 workDirectory,
-                commonMaterials: commonMaterials ?? CollectExecutionPlanCommonMaterials(metadata, cityObjects)),
+                commonMaterials: commonMaterials ?? new CommonMaterialCatalog().Create()),
             CreateImportedObjectUnitsAsync(cityObjects, cancellationToken),
             cancellationToken);
     }
@@ -164,7 +164,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ImportedSceneMetadata metadata,
         string workDirectory,
         PlateauImportRequest? normalizedRequest = null,
-        IReadOnlyList<MaterialBinding>? commonMaterials = null)
+        CommonMaterialCatalogSnapshot? commonMaterials = null)
     {
         PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? metadata.Request;
         PlateauImportRequest resolvedRequest = CreateResolvedRequest(
@@ -195,62 +195,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             Source = resolvedRequest.Source,
             DemTextureSource = resolvedRequest.DemTextureSource,
         };
-    }
-
-    private static IReadOnlyList<MaterialBinding> CollectExecutionPlanCommonMaterials(
-        ImportedSceneMetadata metadata,
-        IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
-    {
-        Dictionary<string, ResoniteMaterialBinding> materialsByKey = new(StringComparer.Ordinal);
-
-        foreach (MaterialBinding material in new CommonMaterialCatalog().Create())
-        {
-            AddNormalizedCommonMaterial(materialsByKey, SceneImportContractMapper.ToInternal(material));
-        }
-
-        foreach (ResoniteConstructionCityObject cityObject in cityObjects)
-        {
-            IReadOnlyList<ResoniteMaterialBinding> candidateMaterials;
-            try
-            {
-                candidateMaterials = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject).Materials;
-            }
-            catch (ArgumentException)
-            {
-                candidateMaterials = cityObject.Materials;
-            }
-
-            foreach (ResoniteMaterialBinding material in candidateMaterials)
-            {
-                AddNormalizedCommonMaterial(materialsByKey, material);
-            }
-        }
-
-        return ToContractMaterials(
-            materialsByKey.Values
-                .OrderBy(static material => material.MaterialKey, StringComparer.Ordinal)
-                .ToArray());
-    }
-
-    private static void AddNormalizedCommonMaterial(
-        IDictionary<string, ResoniteMaterialBinding> materialsByKey,
-        ResoniteMaterialBinding material)
-    {
-        ResoniteMaterialBinding normalizedCommonMaterial =
-            ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
-        if (normalizedCommonMaterial.AssetScope == ResoniteMaterialAssetScope.Common)
-        {
-            materialsByKey.TryAdd(normalizedCommonMaterial.MaterialKey, normalizedCommonMaterial);
-            return;
-        }
-
-        if (ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-                material,
-                out ResoniteMaterialBinding normalizedSharedMaterial,
-                out _))
-        {
-            materialsByKey.TryAdd(normalizedSharedMaterial.MaterialKey, normalizedSharedMaterial);
-        }
     }
 
     private static PlateauImportRequest CreateResolvedRequest(

@@ -14,7 +14,7 @@ public sealed class CommonMaterialCatalog
 {
     private static readonly ColorRgba CanonicalBaseColor = new(1.0, 1.0, 1.0, 1.0);
 
-    public IReadOnlyList<MaterialBinding> Create()
+    public CommonMaterialCatalogSnapshot Create()
     {
         SortedSet<string> families = new(StringComparer.Ordinal);
         AddBuildingFamilies(families);
@@ -37,7 +37,7 @@ public sealed class CommonMaterialCatalog
         materials.AddRange(CreateSharedAlbedoCommonMaterialBindings());
         materials.AddRange(CreateSharedVertexColorCommonMaterialBindings());
 
-        return materials;
+        return new CommonMaterialCatalogSnapshot(materials);
     }
 
     private static void AddBuildingFamilies(SortedSet<string> families)

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -13,6 +14,29 @@ internal readonly record struct ResoniteCommonMaterialPlan(
     ResoniteMaterialBinding Material)
 {
     public string SlotName => ResoniteCommonMaterialSlots.GetSlotName(Material);
+}
+
+internal static class ResoniteCommonMaterialPlans
+{
+    public static IReadOnlyList<ResoniteCommonMaterialPlan> CreateCatalogPlans(
+        IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
+    {
+        ResoniteCommonMaterialPlan[] plans = new ResoniteCommonMaterialPlan[commonMaterials.Count];
+        for (int i = 0; i < commonMaterials.Count; i++)
+        {
+            ResoniteMaterialBinding normalizedMaterial =
+                ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(commonMaterials[i]);
+            if (normalizedMaterial.AssetScope != ResoniteMaterialAssetScope.Common)
+            {
+                throw new InvalidOperationException(
+                    "Common material setup received a non-common material. Use the static common material catalog boundary.");
+            }
+
+            plans[i] = new ResoniteCommonMaterialPlan(normalizedMaterial);
+        }
+
+        return plans;
+    }
 }
 
 internal sealed class ResoniteCommonMaterialAssetSet
@@ -55,6 +79,16 @@ internal sealed class ResoniteCommonMaterialAssetSet
     }
 
     private static bool CommonMaterialMatches(
+        ResoniteMaterialBinding left,
+        ResoniteMaterialBinding right)
+    {
+        return ResoniteCommonMaterialIdentity.Matches(left, right);
+    }
+}
+
+internal static class ResoniteCommonMaterialIdentity
+{
+    public static bool Matches(
         ResoniteMaterialBinding left,
         ResoniteMaterialBinding right)
     {

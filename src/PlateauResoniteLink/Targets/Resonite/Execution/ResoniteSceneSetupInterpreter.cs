@@ -438,7 +438,8 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
         ResoniteCommonMaterialAssetSet commonMaterialAssets = new();
         HashSet<string> commonMaterialFamilies = new(StringComparer.Ordinal);
         List<PlannedCommonMaterialBatchEntry> plannedCommonMaterials = [];
-        List<ResoniteCommonMaterialPlan> canonicalMaterials = CollectCanonicalCommonMaterials(commonMaterials);
+        IReadOnlyList<ResoniteCommonMaterialPlan> canonicalMaterials =
+            ResoniteCommonMaterialPlans.CreateCatalogPlans(commonMaterials);
         ResoniteSceneSlotSnapshot? commonSlotSnapshot = commonSlot is null ? null : new ResoniteSceneSlotSnapshot(commonSlot);
         string? commonSlotId = commonSlot?.ID;
         Dictionary<string, string> familyParentIds = new(StringComparer.Ordinal);
@@ -531,6 +532,18 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                 continue;
             }
 
+            if (existingMaterialSlot?.Components?.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Common material slot '{materialSlotName}' exists but does not contain material component '{materialComponentType}'. "
+                    + "Remove the incomplete common material slot before retrying.");
+            }
+
+            if (!CanCreateCommonMaterialDuringSetup(material))
+            {
+                continue;
+            }
+
             int materialIndex = plannedCommonMaterials.Count;
             ResoniteBatchOperations.PendingBatchSlot? pendingMaterialSlot = null;
             string materialContainerId = existingMaterialSlot?.ID ?? string.Empty;
@@ -549,11 +562,6 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                     materialSlotName,
                     null,
                     null);
-            }
-
-            if (!CanCreateCommonMaterialDuringSetup(material))
-            {
-                continue;
             }
 
             ResoniteBatchOperations.PendingBatchComponent pendingMaterialComponent = ResoniteBatchOperations.CreatePendingComponent(
@@ -577,30 +585,6 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
         return string.IsNullOrWhiteSpace(material.Family)
             && material.TexturePayload is null
             && material.TerrainOverlay is null;
-    }
-
-    private static List<ResoniteCommonMaterialPlan> CollectCanonicalCommonMaterials(IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
-    {
-        List<ResoniteCommonMaterialPlan> canonicalMaterials = [];
-        foreach (ResoniteMaterialBinding material in commonMaterials)
-        {
-            ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
-            if (normalizedMaterial.AssetScope == ResoniteMaterialAssetScope.Common)
-            {
-                canonicalMaterials.Add(new ResoniteCommonMaterialPlan(normalizedMaterial));
-                continue;
-            }
-
-            if (ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-                    material,
-                    out ResoniteMaterialBinding normalizedSharedMaterial,
-                    out _))
-            {
-                canonicalMaterials.Add(new ResoniteCommonMaterialPlan(normalizedSharedMaterial));
-            }
-        }
-
-        return canonicalMaterials;
     }
 
     private static Dictionary<string, Member> CreateDatasetLicenseMembers(

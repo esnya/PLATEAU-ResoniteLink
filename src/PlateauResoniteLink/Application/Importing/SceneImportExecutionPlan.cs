@@ -36,7 +36,7 @@ public sealed record SceneImportExecutionPlan
         ImportedSceneMetadata metadata,
         string resolvedSourcePath,
         string workRoot,
-        IReadOnlyList<MaterialBinding> commonMaterials)
+        CommonMaterialCatalogSnapshot commonMaterials)
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedSourcePath);

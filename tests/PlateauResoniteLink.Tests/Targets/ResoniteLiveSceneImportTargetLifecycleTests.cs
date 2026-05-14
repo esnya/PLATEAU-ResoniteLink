@@ -260,7 +260,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
-        IReadOnlyList<MaterialBinding> commonMaterials = new CommonMaterialCatalog().Create();
+        CommonMaterialCatalogSnapshot commonMaterials = new CommonMaterialCatalog().Create();
         SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
             request,
             request,
@@ -316,7 +316,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             metadata,
             request.LocalSourcePath!,
             workDirectory.Path,
-            commonMaterials: []);
+            commonMaterials: CommonMaterialCatalogSnapshot.Empty);
 
         InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() => importTarget.ExecuteAsync(
             plan,
@@ -523,25 +523,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
             sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
-        MaterialBinding setupTerrainOverlayMaterial = ResoniteLiveSceneImportTargetTestSupport.ToContractMaterial(
-            new ResoniteMaterialBinding(
-                "dem-overlay-setup",
-                new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                ResoniteMaterialType.Standard,
-                null,
-                ResoniteTextureSourceKind.Dataset,
-                ResoniteMaterialProjection.Uv,
-                null,
-                [0],
-                AssetScope: ResoniteMaterialAssetScope.Common,
-                TerrainOverlay: overlay,
-                TerrainMeshCode: "53394525"));
-
         SceneImportExecutionResult executionResult = await importTarget.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
                 metadata,
                 workDirectory.Path,
-                commonMaterials: [setupTerrainOverlayMaterial]),
+                commonMaterials: CommonMaterialCatalogSnapshot.Empty),
             CreateImportedObjectUnits(
                 CreateDemCityObject("dem-setup-generic", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 

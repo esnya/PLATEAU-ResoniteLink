@@ -263,6 +263,36 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncCreatesBundledCommonMaterialSlotAndComponentsInSameBatch()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneSinkRecordingClient client = new();
+
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            metadata,
+            [CreateBundledTriangleCityObject("bundled-common-batch")],
+            client);
+
+        IReadOnlyList<DataModelOperation>[] batches = client.Batches.ToArray();
+        int bundledMaterialBatchIndex = Array.FindIndex(
+            batches,
+            batch => batch.OfType<AddSlot>().Any(static operation =>
+                string.Equals(operation.Data.Name?.Value, "variant-0", StringComparison.Ordinal)));
+
+        Assert.True(bundledMaterialBatchIndex >= 0, "Expected bundled common material slot creation batch.");
+        Assert.DoesNotContain(
+            batches.Take(bundledMaterialBatchIndex).SelectMany(static batch => batch).OfType<AddSlot>(),
+            static operation => string.Equals(operation.Data.Name?.Value, "variant-0", StringComparison.Ordinal));
+        Assert.Contains(
+            batches[bundledMaterialBatchIndex].OfType<AddComponent>(),
+            static operation => string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
+        Assert.Contains(
+            batches[bundledMaterialBatchIndex].OfType<AddComponent>(),
+            static operation => string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteAsyncReusesSharedCommonMaterialForVertexColor()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -342,6 +372,40 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             1,
             client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "uv", StringComparison.Ordinal)
                 && client.SlotPaths[slot.ID!].Replace('\\', '/').EndsWith("/generic/uv", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncRejectsIncompleteCommonMaterialSlotWithNonMaterialComponents()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneSinkRecordingClient client = new();
+
+        string incompleteMaterialSlotId = await SeedEmptyCurrentGenericSharedMaterialSlotAsync(client);
+        _ = await client.AddComponentAsync(
+            new AddComponent
+            {
+                ContainerSlotId = incompleteMaterialSlotId,
+                Data = new Component
+                {
+                    ComponentType = "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                    Members = [],
+                },
+            },
+            CancellationToken.None);
+
+        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+                metadata,
+                [
+                    CreatePayloadTriangleCityObject(
+                        "incomplete-current-generic-slot",
+                        ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/incomplete-current-generic-slot.png")),
+                ],
+                client,
+                enableMeshBake: false));
+
+        Assert.Contains("exists but does not contain material component", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
