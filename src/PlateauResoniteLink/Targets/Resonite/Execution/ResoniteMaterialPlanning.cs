@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,7 +16,7 @@ internal interface IResoniteMaterialPlanning
     Task<PlannedDedicatedMaterialAsset> PlanCommonMaterialAssetAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
-        AsyncInFlightResultCache<string, Uri> bundledTextureImportTasks,
+        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> bundledTextureImportTasks,
         CancellationToken cancellationToken);
 
     Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
@@ -46,7 +45,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
     public async Task<PlannedDedicatedMaterialAsset> PlanCommonMaterialAssetAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
-        AsyncInFlightResultCache<string, Uri> bundledTextureImportTasks,
+        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(importClient);
@@ -56,16 +55,10 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         Task<Uri?> albedoTextureTask = Task.FromResult<Uri?>(null);
         if (!string.IsNullOrWhiteSpace(material.Family))
         {
-            string albedoPath = bundledDefaultMaterialAssetStore.GetAbsolutePath(
-                BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0));
-            ResoniteRawTextureImport albedoTexture = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
-                albedoPath,
-                ResoniteTextureColorProfiles.Srgb,
-                cancellationToken);
-            albedoTextureTask = ImportOptionalTextureAsync(
+            albedoTextureTask = ImportBundledTextureAsync(
                 importClient,
-                albedoTexture,
-                CreateBundledTextureImportKey(albedoPath, ResoniteTextureColorProfiles.Srgb),
+                GetBundledAlbedoTextureAsset(material),
+                ResoniteTextureColorProfiles.Srgb,
                 bundledTextureImportTasks,
                 cancellationToken);
         }
@@ -336,7 +329,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
         Task<Uri?> albedoTextureTask,
-        AsyncInFlightResultCache<string, Uri>? bundledTextureImportTasks,
+        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri>? bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
         Task<Uri?> normalTextureTask = Task.FromResult<Uri?>(null);
@@ -350,42 +343,42 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 out BundledDefaultMaterialTextureSet? textureSet)
             && textureSet is not null)
         {
-            if (textureSet.NormalPath is not null)
+            if (textureSet.Normal is not null)
             {
-                normalTextureTask = ImportTextureFromFileAsync(
+                normalTextureTask = ImportBundledTextureAsync(
                     importClient,
-                    textureSet.NormalPath,
+                    textureSet.Normal,
                     ResoniteTextureColorProfiles.Linear,
                     bundledTextureImportTasks,
                     cancellationToken);
             }
 
-            if (textureSet.HeightPath is not null
+            if (textureSet.Height is not null
                 && material.Projection == ResoniteMaterialProjection.Uv)
             {
-                heightTextureTask = ImportTextureFromFileAsync(
+                heightTextureTask = ImportBundledTextureAsync(
                     importClient,
-                    textureSet.HeightPath,
+                    textureSet.Height,
                     ResoniteTextureColorProfiles.Linear,
                     bundledTextureImportTasks,
                     cancellationToken);
             }
 
-            if (textureSet.MetallicPath is not null)
+            if (textureSet.Metallic is not null)
             {
-                metallicTextureTask = ImportTextureFromFileAsync(
+                metallicTextureTask = ImportBundledTextureAsync(
                     importClient,
-                    textureSet.MetallicPath,
+                    textureSet.Metallic,
                     ResoniteTextureColorProfiles.Linear,
                     bundledTextureImportTasks,
                     cancellationToken);
             }
 
-            if (textureSet.EmissionPath is not null)
+            if (textureSet.Emission is not null)
             {
-                emissionTextureTask = ImportTextureFromFileAsync(
+                emissionTextureTask = ImportBundledTextureAsync(
                     importClient,
-                    textureSet.EmissionPath,
+                    textureSet.Emission,
                     ResoniteTextureColorProfiles.Srgb,
                     bundledTextureImportTasks,
                     cancellationToken);
@@ -423,13 +416,14 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return textures;
     }
 
-    private static async Task<Uri?> ImportTextureFromFileAsync(
+    private async Task<Uri?> ImportBundledTextureAsync(
         IResoniteLinkClient importClient,
-        string absolutePath,
+        BundledDefaultTextureAsset asset,
         string colorProfile,
-        AsyncInFlightResultCache<string, Uri>? bundledTextureImportTasks,
+        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri>? bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
+        string absolutePath = bundledDefaultMaterialAssetStore.GetAbsolutePath(asset);
         ResoniteRawTextureImport textureImport = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
             absolutePath,
             colorProfile,
@@ -437,7 +431,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return await ImportOptionalTextureAsync(
             importClient,
             textureImport,
-            bundledTextureImportTasks is null ? null : CreateBundledTextureImportKey(absolutePath, colorProfile),
+            asset,
             bundledTextureImportTasks,
             cancellationToken);
     }
@@ -445,17 +439,17 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
     private static async Task<Uri?> ImportOptionalTextureAsync(
         IResoniteLinkClient importClient,
         ResoniteTextureImport textureImport,
-        string? bundledTextureImportKey,
-        AsyncInFlightResultCache<string, Uri>? bundledTextureImportTasks,
+        BundledDefaultTextureAsset? bundledTextureImportAsset,
+        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri>? bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
-        if (bundledTextureImportTasks is null || string.IsNullOrWhiteSpace(bundledTextureImportKey))
+        if (bundledTextureImportTasks is null || bundledTextureImportAsset is null)
         {
             return await importClient.ImportTextureAsync(textureImport, cancellationToken);
         }
 
         return await bundledTextureImportTasks.GetOrCreateAsync(
-            bundledTextureImportKey,
+            bundledTextureImportAsset,
             () => importClient.ImportTextureAsync(textureImport, cancellationToken),
             cancellationToken);
     }
@@ -470,21 +464,20 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             return Task.FromResult<Uri?>(null);
         }
 
-        string albedoPath = bundledDefaultMaterialAssetStore.GetAbsolutePath(
-            BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0));
-        return ImportTextureFromFileAsync(
+        return ImportBundledTextureAsync(
             importClient,
-            albedoPath,
+            GetBundledAlbedoTextureAsset(material),
             ResoniteTextureColorProfiles.Srgb,
             bundledTextureImportTasks: null,
             cancellationToken);
     }
 
-    private static string CreateBundledTextureImportKey(string absolutePath, string colorProfile)
+    private static BundledDefaultTextureAsset<BundledDefaultAlbedoTextureRole> GetBundledAlbedoTextureAsset(ResoniteMaterialBinding material)
     {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{colorProfile}|{System.IO.Path.GetFullPath(absolutePath)}");
+        BundledDefaultMaterialVariant variant = BundledDefaultMaterialFamilies.GetVariantDefinition(
+            material.Family!,
+            material.BundledVariantIndex ?? 0);
+        return variant.TextureSources?.Albedo ?? variant.Albedo;
     }
 
     private static void AddPlannedTextureAsset(

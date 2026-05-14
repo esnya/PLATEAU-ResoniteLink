@@ -37,137 +37,151 @@ public static class BundledDefaultMaterialFamilies
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> FacadeVariants =
     [
         new(
-            "default-materials/ambientcg/facade/Facade018A_2K-JPG_Color.jpg",
+            BundledDefaultTextureAssets.Facade.Facade018A.Albedo,
             CreateFacadeFloorUnitTextureSet(columnsPerTexture: 6.0, rowsPerTexture: 6.0, offsetRows: 0.5)),
         new(
-            "default-materials/ambientcg/facade/Facade019A_2K-JPG_Color.jpg",
+            BundledDefaultTextureAssets.Facade.Facade019A.Albedo,
             CreateFacadeFloorUnitTextureSet(columnsPerTexture: 6.0, rowsPerTexture: 6.0, offsetRows: 0.5)),
         new(
-            "default-materials/ambientcg/facade/Facade020A_2K-JPG_Color.jpg",
+            BundledDefaultTextureAssets.Facade.Facade020A.Albedo,
             CreateFacadeFloorUnitTextureSet(columnsPerTexture: 6.0, rowsPerTexture: 6.0, offsetRows: 0.5)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallResidentialPlasterLowVariants =
     [
         new(
-            "default-materials/wallskins/wall_res_plaster_low/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.ResidentialPlasterLow.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 3.0)),
         new(
-            "default-materials/wallskins/wall_res_plaster_dark/basecolor.png",
-            CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 3.0)),
+            BundledDefaultTextureAssets.WallSkins.ResidentialPlasterDark.Albedo,
+            CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 3.0),
+            TextureSources: new(
+                Emission: BundledDefaultTextureAssets.WallSkins.ResidentialPlasterLow.Emission,
+                Metallic: BundledDefaultTextureAssets.WallSkins.ResidentialPlasterLow.Metallic)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallResidentialTileLowVariants =
     [
         new(
-            "default-materials/wallskins/wall_res_tile_low/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.ResidentialTileLow.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 3.0)),
         new(
-            "default-materials/wallskins/wall_res_tile_dark/basecolor.png",
-            CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 3.0)),
+            BundledDefaultTextureAssets.WallSkins.ResidentialTileDark.Albedo,
+            CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 3.0),
+            TextureSources: new(Emission: BundledDefaultTextureAssets.WallSkins.ResidentialTileLow.Emission)),
         new(
-            "default-materials/wallskins/wall_res_tile_dark_irregular/basecolor.png",
-            CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 3.0)),
+            BundledDefaultTextureAssets.WallSkins.ResidentialTileDarkIrregular.Albedo,
+            CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 3.0),
+            TextureSources: new(Emission: BundledDefaultTextureAssets.WallSkins.ResidentialPlasterLow.Emission)),
         new(
-            "default-materials/wallskins/wall_res_siding_brick_gray/basecolor.png",
-            CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 3.0)),
+            BundledDefaultTextureAssets.WallSkins.ResidentialSidingBrickGray.Albedo,
+            CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 3.0),
+            TextureSources: new(Emission: BundledDefaultTextureAssets.WallSkins.ResidentialPlasterLow.Emission)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallApartmentTileMidVariants =
     [
         new(
-            "default-materials/wallskins/wall_apartment_tile_mid/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.ApartmentTileMid.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 6.0)),
         new(
-            "default-materials/wallskins/wall_apartment_tile_dark/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.ApartmentTileDark.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 6.0)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallRcPaintedMidVariants =
     [
         new(
-            "default-materials/wallskins/wall_rc_painted_mid/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.RcPaintedMid.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 5.0)),
         new(
-            "default-materials/wallskins/wall_rc_painted_dark/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.RcPaintedDark.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 5.0)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallFactoryMetalVariants =
     [
         new(
-            "default-materials/wallskins/wall_factory_metal/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.FactoryMetal.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 2.0)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallCommercialPanelVariants =
     [
         new(
-            "default-materials/wallskins/wall_commercial_panel/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.CommercialPanel.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 5.0)),
         new(
-            "default-materials/wallskins/wall_commercial_panel_dark/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.CommercialPanelDark.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 5.0)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallSchoolPublicBandVariants =
     [
         new(
-            "default-materials/wallskins/wall_school_public_band/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.SchoolPublicBand.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 4.0)),
         new(
-            "default-materials/wallskins/wall_school_public_dark/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.SchoolPublicDark.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 4.0)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallBrickRetroVariants =
     [
         new(
-            "default-materials/wallskins/wall_brick_retro/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.BrickRetro.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 4.0)),
         new(
-            "default-materials/wallskins/wall_brick_dark/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.BrickDark.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 4.0)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> WallWoodRuralVariants =
     [
         new(
-            "default-materials/wallskins/wall_wood_rural_light/basecolor.png",
+            BundledDefaultTextureAssets.WallSkins.WoodRuralLight.Albedo,
             CreateWallSkinFacadeFloorUnitTextureSet(storeysInTexture: 2.0)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> FacadeHighriseGlassVariants =
     [
         new(
-            "default-materials/ambientcg/facade/Facade001_2K-JPG_Color.jpg",
+            BundledDefaultTextureAssets.Facade.Facade001.Albedo,
             CreateFacadeFloorUnitTextureSet(columnsPerTexture: 16.0, rowsPerTexture: 10.0)),
         new(
-            "default-materials/ambientcg/facade/Facade005_2K-JPG_Color.jpg",
+            BundledDefaultTextureAssets.Facade.Facade005.Albedo,
             CreateFacadeFloorUnitTextureSet(columnsPerTexture: 32.0, rowsPerTexture: 24.0)),
         new(
-            "default-materials/ambientcg/facade/Facade006_2K-JPG_Color.jpg",
+            BundledDefaultTextureAssets.Facade.Facade006.Albedo,
             CreateFacadeFloorUnitTextureSet(columnsPerTexture: 14.0, rowsPerTexture: 8.0)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> FacadeHighriseNightLowVariants =
     [
         new(
-            "default-materials/ambientcg/facade/Facade002_2K-JPG_Color.jpg",
-            CreateFacadeFloorUnitTextureSet(columnsPerTexture: 16.0, rowsPerTexture: 10.0)),
+            BundledDefaultTextureAssets.Facade.Facade002.Albedo,
+            CreateFacadeFloorUnitTextureSet(columnsPerTexture: 16.0, rowsPerTexture: 10.0),
+            TextureSources: new(
+                Height: BundledDefaultTextureAssets.Facade.Facade001.Height,
+                Metallic: BundledDefaultTextureAssets.Facade.Facade001.Metallic,
+                Normal: BundledDefaultTextureAssets.Facade.Facade001.Normal)),
         new(
-            "default-materials/ambientcg/facade/Facade011_2K-JPG_Color.jpg",
+            BundledDefaultTextureAssets.Facade.Facade011.Albedo,
             CreateFacadeFloorUnitTextureSet(columnsPerTexture: 40.0, rowsPerTexture: 40.0)),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> FacadeMidriseGridVariants =
     [
         new(
-            "default-materials/ambientcg/facade/Facade014_2K-JPG_Color.jpg",
+            BundledDefaultTextureAssets.Facade.Facade014.Albedo,
             CreateFacadeFloorUnitTextureSet(columnsPerTexture: 32.0, rowsPerTexture: 32.0, offsetRows: 0.25)),
         new(
-            "default-materials/ambientcg/facade/Facade015_2K-JPG_Color.jpg",
-            CreateFacadeFloorUnitTextureSet(columnsPerTexture: 32.0, rowsPerTexture: 32.0, offsetRows: 0.25)),
+            BundledDefaultTextureAssets.Facade.Facade015.Albedo,
+            CreateFacadeFloorUnitTextureSet(columnsPerTexture: 32.0, rowsPerTexture: 32.0, offsetRows: 0.25),
+            TextureSources: new(
+                Height: BundledDefaultTextureAssets.Facade.Facade014.Height,
+                Metallic: BundledDefaultTextureAssets.Facade.Facade014.Metallic,
+                Normal: BundledDefaultTextureAssets.Facade.Facade014.Normal)),
     ];
 
     public static readonly IReadOnlyList<string> BuildingFacadeFamilies =
@@ -188,47 +202,49 @@ public static class BundledDefaultMaterialFamilies
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> RoofVariants =
     [
-        new("default-materials/ambientcg/roof/Concrete012_2K-JPG_Color.jpg", ConcreteDefaultTextureSet),
-        new("default-materials/ambientcg/roof/Concrete033_2K-JPG_Color.jpg", ConcreteDefaultTextureSet),
-        new("default-materials/ambientcg/roof/RoofingTiles012A_2K-JPG_Color.jpg", RoofingTiles012ATextureSet),
-        new("default-materials/ambientcg/roof/RoofingTiles014B_2K-JPG_Color.jpg", RoofingTiles014BTextureSet),
+        new(
+            BundledDefaultTextureAssets.Concrete.Concrete012.Albedo,
+            ConcreteDefaultTextureSet),
+        new(BundledDefaultTextureAssets.Concrete.Concrete033.Albedo, ConcreteDefaultTextureSet),
+        new(BundledDefaultTextureAssets.Roof.RoofingTiles012A.Albedo, RoofingTiles012ATextureSet),
+        new(BundledDefaultTextureAssets.Roof.RoofingTiles014B.Albedo, RoofingTiles014BTextureSet),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> RoadVariants =
     [
-        new("default-materials/ambientcg/road/Road012A_2K-JPG_Color.jpg", RoadDefaultTextureSet),
-        new("default-materials/ambientcg/road/Road013A_2K-JPG_Color.jpg", RoadDefaultTextureSet),
-        new("default-materials/ambientcg/road/Road014A_2K-JPG_Color.jpg", RoadDefaultTextureSet),
-        new("default-materials/ambientcg/road/Road015A_2K-JPG_Color.jpg", RoadDefaultTextureSet),
+        new(BundledDefaultTextureAssets.Road.Road012A.Albedo, RoadDefaultTextureSet),
+        new(BundledDefaultTextureAssets.Road.Road013A.Albedo, RoadDefaultTextureSet),
+        new(BundledDefaultTextureAssets.Road.Road014A.Albedo, RoadDefaultTextureSet),
+        new(BundledDefaultTextureAssets.Road.Road015A.Albedo, RoadDefaultTextureSet),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> VegetationVariants =
     [
-        new("default-materials/ambientcg/other/Ground054_2K-JPG_Color.jpg", Ground054TextureSet),
-        new("default-materials/ambientcg/other/Concrete012_2K-JPG_Color.jpg", ConcreteDefaultTextureSet),
+        new(BundledDefaultTextureAssets.Ground.Ground054.Albedo, Ground054TextureSet),
+        new(BundledDefaultTextureAssets.Concrete.Concrete012.Albedo, ConcreteDefaultTextureSet),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> CityFurnitureVariants =
     [
-        new("default-materials/ambientcg/wall/Plaster002_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/ambientcg/wall/Plaster001_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/ambientcg/wall/Plaster003_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/ambientcg/wall/Plaster004_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/ambientcg/wall/Plaster005_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/ambientcg/wall/Plaster006_2K-JPG_Color.jpg", Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster002.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster001.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster003.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster004.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster005.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster006.Albedo, Plaster002TextureSet),
     ];
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> OtherVariants =
     [
-        new("default-materials/ambientcg/other/Concrete012_2K-JPG_Color.jpg", ConcreteDefaultTextureSet),
-        new("default-materials/ambientcg/other/Ground054_2K-JPG_Color.jpg", Ground054TextureSet),
-        new("default-materials/ambientcg/wall/Plaster002_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/ambientcg/wall/Plaster001_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/ambientcg/wall/Plaster003_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/ambientcg/wall/Plaster004_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/ambientcg/wall/Plaster005_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/ambientcg/wall/Plaster006_2K-JPG_Color.jpg", Plaster002TextureSet),
-        new("default-materials/texturecan/facade/Others0022_2K_Color.jpg", TextureCanFacadeTextureSet),
+        new(BundledDefaultTextureAssets.Concrete.Concrete012.Albedo, ConcreteDefaultTextureSet),
+        new(BundledDefaultTextureAssets.Ground.Ground054.Albedo, Ground054TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster002.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster001.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster003.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster004.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster005.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.Wall.Plaster006.Albedo, Plaster002TextureSet),
+        new(BundledDefaultTextureAssets.TextureCanFacade.Others0022.Albedo, TextureCanFacadeTextureSet),
     ];
 
     private static readonly Dictionary<string, BundledDefaultMaterialVariant> VariantsByTexturePath = CreateVariantsByTexturePath();
@@ -276,7 +292,7 @@ public static class BundledDefaultMaterialFamilies
             throw new ArgumentOutOfRangeException(nameof(variantIndex), variantIndex, $"Family '{family}' has {variants.Count} variants.");
         }
 
-        return variants[variantIndex].TexturePath;
+        return variants[variantIndex].Albedo.LogicalPath;
     }
 
     public static BundledDefaultMaterialVariant GetVariantDefinition(string family, int variantIndex)
@@ -313,7 +329,7 @@ public static class BundledDefaultMaterialFamilies
         {
             foreach (BundledDefaultMaterialVariant variant in GetVariantDefinitions(family))
             {
-                variantsByTexturePath.TryAdd(variant.TexturePath, variant);
+                variantsByTexturePath.TryAdd(variant.Albedo.LogicalPath, variant);
             }
         }
 
@@ -327,7 +343,7 @@ public static class BundledDefaultMaterialFamilies
         {
             variantTexturePathsByFamily.Add(
                 family,
-                GetVariantDefinitions(family).Select(static variant => variant.TexturePath).ToArray());
+                GetVariantDefinitions(family).Select(static variant => variant.Albedo.LogicalPath).ToArray());
         }
 
         return variantTexturePathsByFamily;

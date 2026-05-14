@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -183,53 +182,68 @@ internal static class ResoniteMaterialComponentPolicy
             return false;
         }
 
-        string albedoLogicalPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
-        string stem = Path.GetFileNameWithoutExtension(albedoLogicalPath);
-        if (string.Equals(stem, "basecolor", StringComparison.Ordinal))
-        {
-            string wallSkinDirectory = Path.GetDirectoryName(albedoLogicalPath)?.Replace('\\', '/')
-                ?? throw new InvalidOperationException($"Could not determine bundled texture directory for '{albedoLogicalPath}'.");
-            textureSet = new BundledDefaultMaterialTextureSet(
-                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "emission", ".png", ".jpg"),
-                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "height", ".png", ".jpg"),
-                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "metallic_ao_smoothness", ".png", ".jpg"),
-                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "normalGL", ".png", ".jpg"));
-            return true;
-        }
-
-        if (!stem.EndsWith("_Color", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        string directory = Path.GetDirectoryName(albedoLogicalPath)?.Replace('\\', '/')
-            ?? throw new InvalidOperationException($"Could not determine bundled texture directory for '{albedoLogicalPath}'.");
-        string baseStem = stem[..^"_Color".Length];
-
+        BundledDefaultMaterialVariant variant = BundledDefaultMaterialFamilies.GetVariantDefinition(
+            material.Family!,
+            material.BundledVariantIndex ?? 0);
         textureSet = new BundledDefaultMaterialTextureSet(
-            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_Emission", ".jpg", ".png"),
-            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_Height", ".jpg", ".png"),
-            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_Metallic", ".png", ".jpg"),
-            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_NormalGL", ".jpg", ".png"));
+            ResolveEmissionTextureSource(bundledDefaultMaterialAssetStore, variant),
+            ResolveTextureSource<BundledDefaultHeightTextureRole>(bundledDefaultMaterialAssetStore, variant, variant.TextureSources?.Height),
+            ResolveTextureSource<BundledDefaultMetallicTextureRole>(bundledDefaultMaterialAssetStore, variant, variant.TextureSources?.Metallic),
+            ResolveTextureSource<BundledDefaultNormalTextureRole>(bundledDefaultMaterialAssetStore, variant, variant.TextureSources?.Normal));
         return true;
     }
 
-    private static string? TryResolveBundledTexture(
+    private static BundledDefaultTextureAsset<BundledDefaultEmissionTextureRole>? ResolveEmissionTextureSource(
         BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
-        string directory,
-        string baseFileName,
-        params string[] extensions)
+        BundledDefaultMaterialVariant variant)
     {
-        foreach (string extension in extensions)
+        if (variant.TextureSources?.Emission is { } explicitEmission)
         {
-            string logicalPath = $"{directory}/{baseFileName}{extension}";
-            if (bundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath))
+            if (BundledDefaultTextureAssets.IsBlackEmission(explicitEmission))
             {
-                return absolutePath;
+                return null;
             }
+
+            EnsureBundledTextureExists(bundledDefaultMaterialAssetStore, explicitEmission);
+            return explicitEmission;
         }
 
-        return null;
+        return ResolveTextureSource<BundledDefaultEmissionTextureRole>(
+            bundledDefaultMaterialAssetStore,
+            variant,
+            explicitAsset: null);
+    }
+
+    private static BundledDefaultTextureAsset<TRole>? ResolveTextureSource<TRole>(
+        BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
+        BundledDefaultMaterialVariant variant,
+        BundledDefaultTextureAsset<TRole>? explicitAsset)
+        where TRole : IBundledDefaultTextureRole
+    {
+        if (explicitAsset is not null)
+        {
+            EnsureBundledTextureExists(bundledDefaultMaterialAssetStore, explicitAsset);
+            return explicitAsset;
+        }
+
+        if (!BundledDefaultTextureAssets.TryGetCompanionAsset(variant.Albedo, out BundledDefaultTextureAsset<TRole>? companion))
+        {
+            return null;
+        }
+
+        return bundledDefaultMaterialAssetStore.TryGetAbsolutePath(companion!, out _)
+            ? companion
+            : null;
+    }
+
+    private static void EnsureBundledTextureExists(
+        BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
+        BundledDefaultTextureAsset asset)
+    {
+        if (!bundledDefaultMaterialAssetStore.TryGetAbsolutePath(asset, out _))
+        {
+            throw new InvalidOperationException("Could not resolve bundled texture source.");
+        }
     }
 
     private static bool ShouldOmitUvTransformMembers(ResoniteMaterialBinding material)
@@ -285,7 +299,7 @@ internal static class ResoniteMaterialComponentPolicy
 }
 
 internal sealed record BundledDefaultMaterialTextureSet(
-    string? EmissionPath,
-    string? HeightPath,
-    string? MetallicPath,
-    string? NormalPath);
+    BundledDefaultTextureAsset<BundledDefaultEmissionTextureRole>? Emission,
+    BundledDefaultTextureAsset<BundledDefaultHeightTextureRole>? Height,
+    BundledDefaultTextureAsset<BundledDefaultMetallicTextureRole>? Metallic,
+    BundledDefaultTextureAsset<BundledDefaultNormalTextureRole>? Normal);

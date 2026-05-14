@@ -318,6 +318,6 @@ public sealed class CommonMaterialCatalogTests
                 && material.Projection == MaterialProjection.Uv);
         Assert.Contains(
             BundledDefaultMaterialFamilies.OtherVariants,
-            variant => variant.TexturePath.StartsWith("default-materials/texturecan/", StringComparison.Ordinal));
+            variant => variant.Albedo.LogicalPath.StartsWith("default-materials/texturecan/", StringComparison.Ordinal));
     }
 }
