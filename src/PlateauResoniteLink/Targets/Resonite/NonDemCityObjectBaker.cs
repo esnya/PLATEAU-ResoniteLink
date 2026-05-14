@@ -1976,11 +1976,62 @@ internal sealed class NonDemCityObjectBaker(
                 return 1;
             }
 
-            return RuntimeHelpers.GetHashCode(x).CompareTo(RuntimeHelpers.GetHashCode(y));
+            int compare = CompareNullableString(x.Identity, y.Identity);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.Format.CompareTo(y.Format);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = Nullable.Compare(x.Width, y.Width);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = Nullable.Compare(x.Height, y.Height);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = string.CompareOrdinal(x.ColorProfile, y.ColorProfile);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.BinaryPayload.Length.CompareTo(y.BinaryPayload.Length);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            return CompareBytes(x.BinaryPayload.AsSpan(), y.BinaryPayload.AsSpan());
         }
 
         private static int CompareNullableString(string? x, string? y) =>
             string.Compare(x ?? string.Empty, y ?? string.Empty, StringComparison.Ordinal);
+
+        private static int CompareBytes(ReadOnlySpan<byte> x, ReadOnlySpan<byte> y)
+        {
+            int count = Math.Min(x.Length, y.Length);
+            for (int index = 0; index < count; index++)
+            {
+                int compare = x[index].CompareTo(y[index]);
+                if (compare != 0)
+                {
+                    return compare;
+                }
+            }
+
+            return x.Length.CompareTo(y.Length);
+        }
 
         private static int CompareNullableCommonMaterial(
             DefaultCommonMaterialMember? x,

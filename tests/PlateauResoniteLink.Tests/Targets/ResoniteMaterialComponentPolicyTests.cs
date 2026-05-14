@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
@@ -214,6 +215,32 @@ public sealed class ResoniteMaterialComponentPolicyTests
         Assert.EndsWith("_Height.jpg", GetPath(textureSet.Height), StringComparison.Ordinal);
         Assert.EndsWith("_Metallic.png", GetPath(textureSet.Metallic), StringComparison.Ordinal);
         Assert.EndsWith("_NormalGL.jpg", GetPath(textureSet.Normal), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MissingBundledTextureDiagnosticIncludesMaterialAndTextureContext()
+    {
+        BundledDefaultTextureAsset<BundledDefaultNormalTextureRole> missingAsset = new(
+            "default-materials/ambientcg/facade/Missing_NormalGL.jpg");
+        MethodInfo method = typeof(ResoniteMaterialComponentPolicy)
+            .GetMethod("EnsureBundledTextureExists", BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(typeof(BundledDefaultNormalTextureRole));
+
+        TargetInvocationException error = Assert.Throws<TargetInvocationException>(
+            () => method.Invoke(
+                null,
+                [
+                    new BundledDefaultMaterialAssetStore(),
+                    missingAsset,
+                    BundledDefaultMaterialFamilies.Facade,
+                    2,
+                ]));
+        InvalidOperationException inner = Assert.IsType<InvalidOperationException>(error.InnerException);
+
+        Assert.Contains("default-materials/ambientcg/facade/Missing_NormalGL.jpg", inner.Message, StringComparison.Ordinal);
+        Assert.Contains("family 'facade'", inner.Message, StringComparison.Ordinal);
+        Assert.Contains("variant 2", inner.Message, StringComparison.Ordinal);
+        Assert.Contains("role 'BundledDefaultNormalTextureRole'", inner.Message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
@@ -90,6 +91,41 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
         Assert.Equal(new ResoniteColor(1.0, 1.0, 1.0, 1.0), material.BaseColor);
         Assert.All(cityObject.Mesh.Vertices, static vertex => Assert.Equal(new ResoniteColor(1.0, 0.0, 0.0, 1.0), vertex.Color));
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncOrdersPreservedPayloadMaterialsByStablePayloadContent()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 0);
+        ResoniteTexturePayload payloadB = CreateCheckerPayload(
+            "textures/b.png",
+            new Rgba32(0, 255, 0, 255),
+            new Rgba32(0, 0, 255, 255),
+            4,
+            4);
+        ResoniteTexturePayload payloadA = CreateCheckerPayload(
+            "textures/a.png",
+            new Rgba32(255, 0, 0, 255),
+            new Rgba32(255, 255, 0, 255),
+            4,
+            4);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateCommonPayloadPreservedLod2Building("building-b", payloadB, 0.0, "unit-a"));
+        await AssertBufferedAsync(
+            baker,
+            CreateCommonPayloadPreservedLod2Building("building-a", payloadA, 2.0, "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+
+        string?[] identities = cityObject.Materials
+            .Select(static material => material.TexturePayload?.Identity)
+            .ToArray();
+        Assert.Collection(
+            identities,
+            static identity => Assert.Equal("textures/a.png", identity),
+            static identity => Assert.Equal("textures/b.png", identity));
     }
 
     [Fact]
@@ -1020,6 +1056,31 @@ public sealed class NonDemCityObjectBakerTests
                     SubmeshIndices: [1]),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
+    }
+
+    private static ResoniteConstructionCityObject CreateCommonPayloadPreservedLod2Building(
+        string slotKey,
+        ResoniteTexturePayload payload,
+        double x,
+        string sourceUnitKey)
+    {
+        DefaultCommonMaterialMember commonMaterial = DefaultCommonMaterialMember.GenericUv();
+        return CreateLod2Building(slotKey, payload, x, sourceUnitKey) with
+        {
+            Materials =
+            [
+                new ResoniteMaterialBinding(
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: payload,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    CommonMaterial: commonMaterial),
+            ],
+        };
     }
 
     private static ResoniteConstructionCityObject CreateMixedScopeLod2Building(

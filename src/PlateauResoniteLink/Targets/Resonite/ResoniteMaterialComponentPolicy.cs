@@ -186,17 +186,21 @@ internal static class ResoniteMaterialComponentPolicy
             material.Family!,
             material.BundledVariantIndex ?? 0);
         BundledDefaultMaterialTextureSources? sources = variant.TextureSources;
+        string family = material.Family!;
+        int variantIndex = material.BundledVariantIndex ?? 0;
         textureSet = new BundledDefaultMaterialTextureSet(
-            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Emission),
-            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Height),
-            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Metallic),
-            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Normal));
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Emission, family, variantIndex),
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Height, family, variantIndex),
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Metallic, family, variantIndex),
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Normal, family, variantIndex));
         return true;
     }
 
     private static BundledDefaultTextureAsset<TRole>? ResolveTextureSource<TRole>(
         BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
-        BundledDefaultTextureAsset<TRole>? source)
+        BundledDefaultTextureAsset<TRole>? source,
+        string family,
+        int variantIndex)
         where TRole : IBundledDefaultTextureRole
     {
         if (source is null)
@@ -204,19 +208,22 @@ internal static class ResoniteMaterialComponentPolicy
             return null;
         }
 
-        EnsureBundledTextureExists<TRole>(bundledDefaultMaterialAssetStore, source);
+        EnsureBundledTextureExists<TRole>(bundledDefaultMaterialAssetStore, source, family, variantIndex);
         return source;
     }
 
     private static void EnsureBundledTextureExists<TRole>(
         BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
-        BundledDefaultTextureAsset asset)
+        BundledDefaultTextureAsset asset,
+        string family,
+        int variantIndex)
         where TRole : IBundledDefaultTextureRole
     {
         if (!bundledDefaultMaterialAssetStore.TryGetAbsolutePath(asset, out _))
         {
             throw new InvalidOperationException(
-                $"Could not resolve bundled texture source '{asset.LogicalPath}' for role '{typeof(TRole).Name}'.");
+                $"Could not resolve bundled texture source '{asset.LogicalPath}' "
+                + $"for family '{family}' variant {variantIndex} role '{typeof(TRole).Name}'.");
         }
     }
 
