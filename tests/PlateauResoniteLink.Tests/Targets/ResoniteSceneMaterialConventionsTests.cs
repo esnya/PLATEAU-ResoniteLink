@@ -690,6 +690,30 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal(new ResoniteFloat2(0.125, 0.25), normalized.TextureOffset);
     }
 
+    [Fact]
+    public void NormalizeCommonMaterialBinding_DemotesLegacyFacadeFamilyCommonMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "legacy-facade-common-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: FacadeDefaultTilesPerMeter(),
+            TextureOffset: new ResoniteFloat2(0.0, 0.5 / 6.0),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
+
+        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, normalized.Family);
+    }
+
     [Theory]
     [InlineData(BundledDefaultMaterialFamilies.Roof, ResoniteMaterialProjection.Uv, ResoniteMaterialProjection.Triplanar)]
     [InlineData(BundledDefaultMaterialFamilies.RoadUv, ResoniteMaterialProjection.Triplanar, ResoniteMaterialProjection.Uv)]

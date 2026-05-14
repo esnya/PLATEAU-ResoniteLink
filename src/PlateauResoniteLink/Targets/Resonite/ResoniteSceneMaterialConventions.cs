@@ -399,6 +399,7 @@ internal static class ResoniteSceneMaterialConventions
             && material.TexturePayload is null
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && !string.IsNullOrWhiteSpace(material.Family)
+            && IsCodebaseReachableBundledCommonFamily(material.Family!)
             && material.DepthOffset is null
             && !HasNonDefaultBundledTextureTransform(material)
             && IsWhiteBaseColor(material.BaseColor);
@@ -408,9 +409,21 @@ internal static class ResoniteSceneMaterialConventions
     {
         return material.TexturePayload is null
             && !string.IsNullOrWhiteSpace(material.Family)
+            && IsCodebaseReachableBundledCommonFamily(material.Family!)
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && material.DepthOffset is null
             && IsWhiteBaseColor(material.BaseColor);
+    }
+
+    private static bool IsCodebaseReachableBundledCommonFamily(string family)
+    {
+        return string.Equals(family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.RoadUv, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.RoadTriplanar, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.Vegetation, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.CityFurniture, StringComparison.Ordinal)
+            || string.Equals(family, BundledDefaultMaterialFamilies.Other, StringComparison.Ordinal)
+            || BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(family, StringComparer.Ordinal);
     }
 
     private static bool IsGenericSharedCommonMaterialCandidate(ResoniteMaterialBinding material)
