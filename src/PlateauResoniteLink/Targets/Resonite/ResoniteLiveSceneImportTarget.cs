@@ -213,7 +213,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 + $"anchor_source_file_root='{setupState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
         foreach (ResoniteCommonMaterialAsset materialAsset in setupState.CommonMaterialAssets)
         {
-            materials.CommonMaterialAssets = ResoniteCommonMaterialAssets.Set(materials.CommonMaterialAssets, materialAsset);
+            materials.CommonMaterialAssets.Set(materialAsset);
         }
 
         foreach (string family in setupState.CommonMaterialFamilies)
@@ -1216,7 +1216,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     $"Setup did not create common material family '{familySlotName}' before common asset preparation.");
             }
 
-            if (ResoniteCommonMaterialAssets.TryGetAsset(materials.CommonMaterialAssets, materialPlan.Member, out _))
+            if (materials.CommonMaterialAssets.TryGetAsset(materialPlan.Member, out _))
             {
                 preparedCount++;
                 continue;
@@ -1241,9 +1241,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 cancellationToken);
             if (existingComponent is not null)
             {
-                materials.CommonMaterialAssets = ResoniteCommonMaterialAssets.Set(
-                    materials.CommonMaterialAssets,
-                    new ResoniteCommonMaterialAsset(
+                materials.CommonMaterialAssets.Set(new ResoniteCommonMaterialAsset(
                     materialPlan.Member,
                     material,
                     new CreatedMaterialAsset(existingComponent.Value, null)));
@@ -1307,9 +1305,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 }
 
                 CreatedComponent createdMaterialComponent = entityMap.ResolveComponent(preparedMaterial.PendingMaterialComponent);
-                materials.CommonMaterialAssets = ResoniteCommonMaterialAssets.Set(
-                    materials.CommonMaterialAssets,
-                    new ResoniteCommonMaterialAsset(
+                materials.CommonMaterialAssets.Set(new ResoniteCommonMaterialAsset(
                     preparedMaterial.MaterialPlan.Member,
                     preparedMaterial.Material,
                     new CreatedMaterialAsset(createdMaterialComponent.Locator, null)));
@@ -2060,10 +2056,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 await familyWarmupTask.WaitAsync(ct);
             }
 
-            if (!ResoniteCommonMaterialAssets.TryGetAsset(
-                runState.Materials.CommonMaterialAssets,
-                member,
-                out CreatedMaterialAsset existingMaterialAsset))
+            if (!runState.Materials.CommonMaterialAssets.TryGetAsset(member, out CreatedMaterialAsset existingMaterialAsset))
             {
                 throw new InvalidOperationException(
                     $"Setup did not resolve common material ({ResoniteMaterialComponentPolicy.DescribeForDiagnostics(sourceMaterial)}) before runtime emission.");

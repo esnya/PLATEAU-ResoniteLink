@@ -94,7 +94,7 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
-    public async Task FlushAllAsyncOrdersPreservedPayloadMaterialsByStablePayloadContent()
+    public async Task FlushAllAsyncOrdersPreservedPayloadMaterialsByFirstTraversalOccurrence()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 0);
         ResoniteTexturePayload payloadB = CreateCheckerPayload(
@@ -112,10 +112,10 @@ public sealed class NonDemCityObjectBakerTests
 
         await AssertBufferedAsync(
             baker,
-            CreateCommonPayloadPreservedLod2Building("building-b", payloadB, 0.0, "unit-a"));
+            CreateCommonPayloadPreservedLod2Building("building-0", payloadB, 0.0, "unit-a"));
         await AssertBufferedAsync(
             baker,
-            CreateCommonPayloadPreservedLod2Building("building-a", payloadA, 2.0, "unit-a"));
+            CreateCommonPayloadPreservedLod2Building("building-1", payloadA, 2.0, "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
 
@@ -124,8 +124,50 @@ public sealed class NonDemCityObjectBakerTests
             .ToArray();
         Assert.Collection(
             identities,
-            static identity => Assert.Equal("textures/a.png", identity),
-            static identity => Assert.Equal("textures/b.png", identity));
+            static identity => Assert.Equal("textures/b.png", identity),
+            static identity => Assert.Equal("textures/a.png", identity));
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncKeepsPreservedMaterialSubmeshIndicesAlignedWithGeometry()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 0);
+        ResoniteTexturePayload payloadLeft = CreateCheckerPayload(
+            "textures/left.png",
+            new Rgba32(255, 0, 0, 255),
+            new Rgba32(255, 255, 0, 255),
+            4,
+            4);
+        ResoniteTexturePayload payloadRight = CreateCheckerPayload(
+            "textures/right.png",
+            new Rgba32(0, 255, 0, 255),
+            new Rgba32(0, 0, 255, 255),
+            4,
+            4);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateCommonPayloadPreservedLod2Building("building-left", payloadLeft, 0.0, "unit-a"));
+        await AssertBufferedAsync(
+            baker,
+            CreateCommonPayloadPreservedLod2Building("building-right", payloadRight, 10.0, "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+
+        Dictionary<string, double> averageXByPayloadIdentity = [];
+        foreach (ResoniteMaterialBinding material in cityObject.Materials)
+        {
+            int submeshIndex = Assert.Single(material.SubmeshIndices);
+            ResoniteMeshSubmesh submesh = Assert.Single(
+                cityObject.Mesh.Submeshes,
+                candidate => candidate.Index == submeshIndex);
+            double averageX = submesh.TriangleVertexIndices
+                .Select(index => cityObject.Mesh.Vertices[index].Position.X)
+                .Average();
+            averageXByPayloadIdentity.Add(material.TexturePayload?.Identity ?? string.Empty, averageX);
+        }
+
+        Assert.True(averageXByPayloadIdentity["textures/left.png"] < averageXByPayloadIdentity["textures/right.png"]);
     }
 
     [Fact]
@@ -629,7 +671,10 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
         ResoniteMaterialBinding preservedRoofMaterial = Assert.Single(preservedRoofMaterials);
         Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
-        Assert.Equal([0], preservedRoofMaterial.SubmeshIndices);
+        int preservedRoofSubmeshIndex = Assert.Single(preservedRoofMaterial.SubmeshIndices);
+        Assert.Contains(
+            cityObject.Mesh.Submeshes,
+            submesh => submesh.Index == preservedRoofSubmeshIndex);
     }
 
     [Fact]

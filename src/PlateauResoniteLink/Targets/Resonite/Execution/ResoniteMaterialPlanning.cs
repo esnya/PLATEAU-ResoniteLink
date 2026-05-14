@@ -111,7 +111,10 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return new PlannedDedicatedMaterialAsset(
             material,
             textures,
-            preserveDedicatedMaterialSlot);
+            preserveDedicatedMaterialSlot,
+            DedicatedMaterialSlotName: preserveDedicatedMaterialSlot
+                ? ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex)
+                : null);
     }
 
     public static Uri? TryGetPlannedTextureUri(

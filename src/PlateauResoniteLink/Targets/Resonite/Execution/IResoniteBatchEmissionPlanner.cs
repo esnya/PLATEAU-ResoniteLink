@@ -478,7 +478,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         if (plannedMaterial.PreserveDedicatedMaterialSlot)
         {
             BatchPlanSlotLocator materialSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
-            string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: false);
+            string materialSlotName = plannedMaterial.DedicatedMaterialSlotName
+                ?? throw new InvalidOperationException("Dedicated material slot preservation requires a planned ordinal slot name.");
             slotEmissions.Add(new PlannedBatchSlotEmission(
                 materialSlotId,
                 meshAssetSlotTarget,

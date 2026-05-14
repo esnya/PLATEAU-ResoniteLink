@@ -33,52 +33,23 @@ internal static class ResoniteSceneMaterialConventions
         ArgumentNullException.ThrowIfNull(material);
         ResoniteMaterialBinding normalizedMaterial = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
-        if (useCommonMaterialAssets)
+        if (!useCommonMaterialAssets)
         {
-            return CreateCommonMaterialSlotName(normalizedMaterial);
+            throw new InvalidOperationException("Dedicated material slot names require a material ordinal.");
         }
 
-        string componentKind = normalizedMaterial.MaterialType switch
-        {
-            ResoniteMaterialType.Standard => normalizedMaterial.Projection switch
-            {
-                ResoniteMaterialProjection.Uv => "pbs-uv",
-                ResoniteMaterialProjection.Triplanar => "pbs-triplanar",
-                _ => "material",
-            },
-            ResoniteMaterialType.VertexColor => "vertex-color",
-            ResoniteMaterialType.Wireframe => "wireframe",
-            _ => "material",
-        };
+        return CreateCommonMaterialSlotName(normalizedMaterial);
+    }
 
-        string projectionName = normalizedMaterial.Projection switch
-        {
-            ResoniteMaterialProjection.Uv => "uv",
-            ResoniteMaterialProjection.Triplanar => "triplanar",
-            _ => normalizedMaterial.Projection.ToString().ToLowerInvariant(),
-        };
-
-        string sourceName = normalizedMaterial.TerrainOverlay is not null
-            ? CreateTerrainOverlayToken(normalizedMaterial.TerrainOverlay)
-            : normalizedMaterial.TexturePayload is not null
-                ? "payload"
-            : normalizedMaterial.AssetScope == ResoniteMaterialAssetScope.Common
-                ? $"bundled-v{normalizedMaterial.BundledVariantIndex ?? 0}"
-            : normalizedMaterial.MaterialType.ToString();
-
-        string familyName = string.IsNullOrWhiteSpace(normalizedMaterial.Family)
-            ? "none"
-            : normalizedMaterial.Family!;
-        string colorName = CreateCompactColorSuffix(normalizedMaterial.BaseColor);
-        string depthName = normalizedMaterial.DepthOffset is not null
-            ? string.Create(
-                CultureInfo.InvariantCulture,
-                $"{normalizedMaterial.DepthOffset.Factor:0.######}x{normalizedMaterial.DepthOffset.Units:0.######}")
-            : "none";
+    public static string CreateDedicatedMaterialSlotName(ResoniteMaterialBinding material, int materialIndex)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+        ArgumentOutOfRangeException.ThrowIfNegative(materialIndex);
+        ResoniteMaterialBinding normalizedMaterial = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{componentKind}_{projectionName}_{sourceName}_{familyName}_{depthName}_{colorName}");
+            $"material-{materialIndex:000}-{MaterialComponentToken(normalizedMaterial)}-{ProjectionToken(normalizedMaterial.Projection)}");
     }
 
     public static IReadOnlyList<string> CreateCommonMaterialSlotLookupNames(ResoniteMaterialBinding material)
@@ -269,15 +240,6 @@ internal static class ResoniteSceneMaterialConventions
         return BundledDefaultMaterialFamilies.GetVariantMaterialName(material.Family!, variantIndex);
     }
 
-    private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainTextureOverlay)
-    {
-        ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
-
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"terrain-overlay-{terrainTextureOverlay.PackageName.ToLowerInvariant()}-{terrainTextureOverlay.SourceDescriptorKey}-bounds-{FormatBounds(terrainTextureOverlay.GeographicBounds)}");
-    }
-
     private static string ProjectionToken(ResoniteMaterialProjection projection)
     {
         return projection switch
@@ -288,15 +250,20 @@ internal static class ResoniteSceneMaterialConventions
         };
     }
 
-    private static string FormatBounds(GeographicRectangle bounds) =>
-        string.Create(
-            CultureInfo.InvariantCulture,
-            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
-
-    private static string FormatRounded(double value)
+    private static string MaterialComponentToken(ResoniteMaterialBinding material)
     {
-        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
-        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", CultureInfo.InvariantCulture);
+        return material.MaterialType switch
+        {
+            ResoniteMaterialType.Standard => material.Projection switch
+            {
+                ResoniteMaterialProjection.Uv => "pbs-uv",
+                ResoniteMaterialProjection.Triplanar => "pbs-triplanar",
+                _ => "material",
+            },
+            ResoniteMaterialType.VertexColor => "vertex-color",
+            ResoniteMaterialType.Wireframe => "wireframe",
+            _ => "material",
+        };
     }
 
     private static bool IsWhiteBaseColor(ResoniteColor color)

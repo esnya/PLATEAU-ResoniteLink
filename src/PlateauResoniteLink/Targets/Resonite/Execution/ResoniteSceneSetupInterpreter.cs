@@ -182,17 +182,18 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                 sharedCommonMaterialsSlot = CreateSlot(entityMap.ResolveSlot(pendingSharedCommon.Value));
             }
 
+            ResoniteCommonMaterialAssetAccumulator commonMaterialAssetAccumulator = new(commonMaterialAssets);
             foreach (PlannedCommonMaterialBatchEntry plannedMaterial in plannedCommonMaterials)
             {
-                commonMaterialAssets = ResoniteCommonMaterialAssets.Set(
-                    commonMaterialAssets,
-                    new ResoniteCommonMaterialAsset(
+                commonMaterialAssetAccumulator.Set(new ResoniteCommonMaterialAsset(
                     plannedMaterial.MaterialPlan.Member,
                     plannedMaterial.MaterialPlan.Material,
                     new CreatedMaterialAsset(
                         entityMap.ResolveComponent(plannedMaterial.PendingMaterialComponent).Locator,
                         null)));
             }
+
+            commonMaterialAssets = commonMaterialAssetAccumulator.ToCatalog();
         }
 
         if (assetsSlot is null || sharedCommonMaterialsSlot is null)
@@ -343,17 +344,18 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
         CreatedSlot commonAssetsRootSlot = existingSharedCommonMaterialsSlot is null
             ? entityMap.ResolveSlot(pendingSharedCommonMaterialsRootSlot ?? throw new InvalidOperationException("Common Materials slot was not planned."))
             : new CreatedSlot(new ResoniteSlotLocator(existingSharedCommonMaterialsSlot.ID!), existingSharedCommonMaterialsSlot.Name?.Value ?? SharedCommonMaterialsRootName);
+        ResoniteCommonMaterialAssetAccumulator commonMaterialAssetAccumulator = new(commonMaterialAssets);
         foreach (PlannedCommonMaterialBatchEntry plannedMaterial in plannedCommonMaterials)
         {
-            commonMaterialAssets = ResoniteCommonMaterialAssets.Set(
-                commonMaterialAssets,
-                new ResoniteCommonMaterialAsset(
+            commonMaterialAssetAccumulator.Set(new ResoniteCommonMaterialAsset(
                 plannedMaterial.MaterialPlan.Member,
                 plannedMaterial.MaterialPlan.Material,
                 new CreatedMaterialAsset(
                     entityMap.ResolveComponent(plannedMaterial.PendingMaterialComponent).Locator,
                     null)));
         }
+
+        commonMaterialAssets = commonMaterialAssetAccumulator.ToCatalog();
 
         return new ResoniteSceneSetupState(
             datasetRootSlot,
@@ -442,8 +444,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
         string batchScopeToken,
         ResoniteBatchOperations.BatchActionBuilder batchBuilder)
     {
-        CommonMaterialCatalog<ResoniteCommonMaterialAsset> commonMaterialAssets =
-            new CommonMaterialCatalog<ResoniteCommonMaterialAsset>([]);
+        ResoniteCommonMaterialAssetAccumulator commonMaterialAssets = new();
         HashSet<string> commonMaterialFamilies = new(StringComparer.Ordinal);
         List<PlannedCommonMaterialBatchEntry> plannedCommonMaterials = [];
         CommonMaterialCatalog<ResoniteCommonMaterialPlan> canonicalMaterials =
@@ -532,9 +533,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                 .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
             if (!string.IsNullOrWhiteSpace(existingMaterialComponentId))
             {
-                commonMaterialAssets = ResoniteCommonMaterialAssets.Set(
-                    commonMaterialAssets,
-                    new ResoniteCommonMaterialAsset(
+                commonMaterialAssets.Set(new ResoniteCommonMaterialAsset(
                     materialPlan.Member,
                     material,
                     new CreatedMaterialAsset(
@@ -588,7 +587,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
             plannedCommonMaterials.Add(new PlannedCommonMaterialBatchEntry(materialPlan, family, pendingMaterialComponent));
         }
 
-        return (commonMaterialAssets, commonMaterialFamilies, new CommonMaterialCatalog<PlannedCommonMaterialBatchEntry>(plannedCommonMaterials));
+        return (commonMaterialAssets.ToCatalog(), commonMaterialFamilies, new CommonMaterialCatalog<PlannedCommonMaterialBatchEntry>(plannedCommonMaterials));
     }
 
     private static bool CanCreateCommonMaterialDuringSetup(ResoniteMaterialBinding material)

@@ -608,14 +608,16 @@ internal sealed class NonDemCityObjectBaker(
                     TexturePayload: ResoniteTextureImportFactory.CreatePayloadFromImage(atlasImage!, identity: textureIdentity)));
         }
 
-        foreach (IGrouping<PreservedMaterialGroupingKey, PreservedSubmeshEntry> preservedGroup in candidates
+        foreach (IGrouping<PreservedMaterialGroupingKey, OrderedPreservedSubmeshEntry> preservedGroup in candidates
                      .SelectMany(static candidate => candidate.PreservedEntries)
-                     .GroupBy(static entry => CreatePreservedMaterialGroupingKey(entry.Material), PreservedMaterialGroupingKeyComparer.Instance)
-                     .OrderBy(static group => group.Key, PreservedMaterialGroupingKeyComparer.Instance))
+                     .Select(static (entry, order) => new OrderedPreservedSubmeshEntry(entry, order))
+                     .GroupBy(static entry => CreatePreservedMaterialGroupingKey(entry.Entry.Material), PreservedMaterialGroupingKeyComparer.Instance)
+                     .OrderBy(static group => group.Min(static entry => entry.Order)))
         {
             cancellationToken.ThrowIfCancellationRequested();
             List<int> preservedTriangleIndices = [];
             foreach (PreservedSubmeshEntry preservedEntry in preservedGroup
+                         .Select(static entry => entry.Entry)
                          .OrderBy(static entry => entry.CityObject.SlotKey, StringComparer.Ordinal)
                          .ThenBy(static entry => entry.Submesh.Index))
             {
@@ -628,7 +630,7 @@ internal sealed class NonDemCityObjectBaker(
             }
 
             int submeshIndex = submeshes.Count;
-            ResoniteMaterialBinding preservedMaterial = NormalizePreservedMaterial(preservedGroup.First().Material) with
+            ResoniteMaterialBinding preservedMaterial = NormalizePreservedMaterial(preservedGroup.First().Entry.Material) with
             {
                 SubmeshIndices = [submeshIndex],
             };
@@ -1649,6 +1651,10 @@ internal sealed class NonDemCityObjectBaker(
         ResoniteMaterialBinding Material,
         ResoniteColor? VertexColorOverride = null);
 
+    private sealed record OrderedPreservedSubmeshEntry(
+        PreservedSubmeshEntry Entry,
+        int Order);
+
     private sealed record CityObjectBakeCandidate(
         ResoniteConstructionCityObject CityObject,
         IReadOnlyList<AtlasBatchEntry> AtlasEntries,
@@ -1765,8 +1771,7 @@ internal sealed class NonDemCityObjectBaker(
     }
 
     private sealed class PreservedMaterialGroupingKeyComparer :
-        IEqualityComparer<PreservedMaterialGroupingKey>,
-        IComparer<PreservedMaterialGroupingKey>
+        IEqualityComparer<PreservedMaterialGroupingKey>
     {
         internal static readonly PreservedMaterialGroupingKeyComparer Instance = new();
 
@@ -1835,262 +1840,5 @@ internal sealed class NonDemCityObjectBaker(
             return hash.ToHashCode();
         }
 
-        public int Compare(PreservedMaterialGroupingKey x, PreservedMaterialGroupingKey y)
-        {
-            int compare = CompareNullableCommonMaterial(x.CommonMaterial, y.CommonMaterial);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            if (x.CommonMaterial is not null)
-            {
-                compare = CompareNullablePayload(x.TexturePayload, y.TexturePayload);
-                if (compare != 0)
-                {
-                    return compare;
-                }
-
-                compare = x.TextureSourceKind.CompareTo(y.TextureSourceKind);
-                if (compare != 0)
-                {
-                    return compare;
-                }
-
-                compare = CompareNullableString(x.TerrainOverlay?.SourceDescriptorKey, y.TerrainOverlay?.SourceDescriptorKey);
-                return compare != 0 ? compare : CompareNullableString(x.TerrainMeshCode, y.TerrainMeshCode);
-            }
-
-            compare = CompareColor(x.BaseColor, y.BaseColor);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = x.MaterialType.CompareTo(y.MaterialType);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = CompareNullablePayload(x.TexturePayload, y.TexturePayload);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = x.TextureSourceKind.CompareTo(y.TextureSourceKind);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = CompareNullableString(x.TerrainOverlay?.SourceDescriptorKey, y.TerrainOverlay?.SourceDescriptorKey);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = x.Projection.CompareTo(y.Projection);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = CompareNullableDepth(x.DepthOffset, y.DepthOffset);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = CompareNullableFloat2(x.TextureScale, y.TextureScale);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = CompareNullableFloat2(x.TextureOffset, y.TextureOffset);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = x.AssetScope.CompareTo(y.AssetScope);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = CompareNullableString(x.Family, y.Family);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = Nullable.Compare(x.BundledVariantIndex, y.BundledVariantIndex);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            return CompareNullableString(x.TerrainMeshCode, y.TerrainMeshCode);
-        }
-
-        private static int CompareColor(ResoniteColor x, ResoniteColor y)
-        {
-            int compare = x.R.CompareTo(y.R);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = x.G.CompareTo(y.G);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = x.B.CompareTo(y.B);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            return x.A.CompareTo(y.A);
-        }
-
-        private static int CompareNullablePayload(ResoniteTexturePayload? x, ResoniteTexturePayload? y)
-        {
-            if (ReferenceEquals(x, y))
-            {
-                return 0;
-            }
-
-            if (x is null)
-            {
-                return -1;
-            }
-
-            if (y is null)
-            {
-                return 1;
-            }
-
-            int compare = CompareNullableString(x.Identity, y.Identity);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = x.Format.CompareTo(y.Format);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = Nullable.Compare(x.Width, y.Width);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = Nullable.Compare(x.Height, y.Height);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = string.CompareOrdinal(x.ColorProfile, y.ColorProfile);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = x.BinaryPayload.Length.CompareTo(y.BinaryPayload.Length);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            return CompareBytes(x.BinaryPayload.AsSpan(), y.BinaryPayload.AsSpan());
-        }
-
-        private static int CompareNullableString(string? x, string? y) =>
-            string.Compare(x ?? string.Empty, y ?? string.Empty, StringComparison.Ordinal);
-
-        private static int CompareBytes(ReadOnlySpan<byte> x, ReadOnlySpan<byte> y)
-        {
-            int count = Math.Min(x.Length, y.Length);
-            for (int index = 0; index < count; index++)
-            {
-                int compare = x[index].CompareTo(y[index]);
-                if (compare != 0)
-                {
-                    return compare;
-                }
-            }
-
-            return x.Length.CompareTo(y.Length);
-        }
-
-        private static int CompareNullableCommonMaterial(
-            DefaultCommonMaterialMember? x,
-            DefaultCommonMaterialMember? y)
-        {
-            if (x is null || y is null)
-            {
-                return x is null && y is null ? 0 : x is null ? -1 : 1;
-            }
-
-            int compare = x.Kind.CompareTo(y.Kind);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = x.Projection.CompareTo(y.Projection);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = CompareNullableDepth(ToResoniteDepth(x.DepthOffset), ToResoniteDepth(y.DepthOffset));
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = CompareNullableString(x.Family, y.Family);
-            return compare != 0 ? compare : Nullable.Compare(x.BundledVariantIndex, y.BundledVariantIndex);
-        }
-
-        private static ResoniteMaterialDepthOffset? ToResoniteDepth(MaterialDepthOffset? depthOffset)
-        {
-            return depthOffset is null
-                ? null
-                : new ResoniteMaterialDepthOffset(depthOffset.Factor, depthOffset.Units);
-        }
-
-        private static int CompareNullableDepth(ResoniteMaterialDepthOffset? x, ResoniteMaterialDepthOffset? y)
-        {
-            if (x is null || y is null)
-            {
-                return x is null && y is null ? 0 : x is null ? -1 : 1;
-            }
-
-            int compare = x.Factor.CompareTo(y.Factor);
-            return compare != 0 ? compare : x.Units.CompareTo(y.Units);
-        }
-
-        private static int CompareNullableFloat2(ResoniteFloat2? x, ResoniteFloat2? y)
-        {
-            if (x is null || y is null)
-            {
-                return x is null && y is null ? 0 : x is null ? -1 : 1;
-            }
-
-            int compare = x.X.CompareTo(y.X);
-            return compare != 0 ? compare : x.Y.CompareTo(y.Y);
-        }
     }
 }

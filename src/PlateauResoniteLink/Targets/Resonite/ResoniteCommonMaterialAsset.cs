@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
 
@@ -38,73 +40,53 @@ internal static class ResoniteCommonMaterialPlans
     }
 }
 
-internal static class ResoniteCommonMaterialAssets
+internal sealed class ResoniteCommonMaterialAssetAccumulator
 {
-    public static CommonMaterialCatalog<ResoniteCommonMaterialAsset> Set(
-        CommonMaterialCatalog<ResoniteCommonMaterialAsset> assets,
-        ResoniteCommonMaterialAsset asset)
+    private readonly Dictionary<DefaultCommonMaterialMember, ResoniteCommonMaterialAsset> assetsByMember = [];
+    private readonly List<DefaultCommonMaterialMember> memberOrder = [];
+
+    public ResoniteCommonMaterialAssetAccumulator()
     {
-        ArgumentNullException.ThrowIfNull(assets);
-
-        ResoniteCommonMaterialAsset[] updatedAssets = new ResoniteCommonMaterialAsset[
-            ContainsMember(assets, asset.Member) ? assets.Count : assets.Count + 1];
-        int writeIndex = 0;
-        bool replaced = false;
-        foreach (ResoniteCommonMaterialAsset existingAsset in assets)
-        {
-            if (existingAsset.Member == asset.Member)
-            {
-                updatedAssets[writeIndex++] = asset;
-                replaced = true;
-            }
-            else
-            {
-                updatedAssets[writeIndex++] = existingAsset;
-            }
-        }
-
-        if (!replaced)
-        {
-            updatedAssets[writeIndex] = asset;
-        }
-
-        return new CommonMaterialCatalog<ResoniteCommonMaterialAsset>(updatedAssets);
     }
 
-    public static bool TryGetAsset(
-        CommonMaterialCatalog<ResoniteCommonMaterialAsset> assets,
-        DefaultCommonMaterialMember member,
-        out CreatedMaterialAsset asset)
+    public ResoniteCommonMaterialAssetAccumulator(CommonMaterialCatalog<ResoniteCommonMaterialAsset> assets)
     {
         ArgumentNullException.ThrowIfNull(assets);
-        ArgumentNullException.ThrowIfNull(member);
-
-        foreach (ResoniteCommonMaterialAsset entry in assets)
+        foreach (ResoniteCommonMaterialAsset asset in assets)
         {
-            if (entry.Member == member)
-            {
-                asset = entry.Asset;
-                return true;
-            }
+            Set(asset);
+        }
+    }
+
+    public int Count => memberOrder.Count;
+
+    public void Set(ResoniteCommonMaterialAsset asset)
+    {
+        if (!assetsByMember.ContainsKey(asset.Member))
+        {
+            memberOrder.Add(asset.Member);
+        }
+
+        assetsByMember[asset.Member] = asset;
+    }
+
+    public bool TryGetAsset(DefaultCommonMaterialMember member, out CreatedMaterialAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        if (assetsByMember.TryGetValue(member, out ResoniteCommonMaterialAsset entry))
+        {
+            asset = entry.Asset;
+            return true;
         }
 
         asset = default;
         return false;
     }
 
-    private static bool ContainsMember(
-        CommonMaterialCatalog<ResoniteCommonMaterialAsset> assets,
-        DefaultCommonMaterialMember member)
+    public CommonMaterialCatalog<ResoniteCommonMaterialAsset> ToCatalog()
     {
-        foreach (ResoniteCommonMaterialAsset asset in assets)
-        {
-            if (asset.Member == member)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return new CommonMaterialCatalog<ResoniteCommonMaterialAsset>(
+            memberOrder.Select(member => assetsByMember[member]).ToArray());
     }
 }
 

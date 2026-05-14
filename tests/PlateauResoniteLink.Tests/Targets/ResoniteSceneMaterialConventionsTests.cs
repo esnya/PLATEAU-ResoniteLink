@@ -145,13 +145,13 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
-    public void CreateMaterialSlotName_ForDedicatedMaterial_KeepsDetailedIdentity()
+    public void CreateDedicatedMaterialSlotName_ForDedicatedMaterial_UsesOrdinalPresentationName()
     {
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(0.1, 0.2, 0.3, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/payload-a.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: new ResoniteMaterialDepthOffset(2.0, 3.0),
             SubmeshIndices: [0],
@@ -161,12 +161,13 @@ public sealed class ResoniteSceneMaterialConventionsTests
             BundledVariantIndex: 0,
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: false);
+        string slotName = ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex: 7);
 
-        Assert.Contains("pbs-uv_uv_", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("_0.5x0.25_", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("_0.125x0.75_", slotName, StringComparison.Ordinal);
-        Assert.Contains("_2x3_", slotName, StringComparison.Ordinal);
+        Assert.Equal("material-007-pbs-uv-uv", slotName);
+        Assert.DoesNotContain("payload", slotName, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("textures", slotName, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("2x3", slotName, StringComparison.Ordinal);
+        Assert.DoesNotContain("0.5", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
