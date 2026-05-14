@@ -106,13 +106,12 @@ internal static class SceneImportContractMapper
 
     private static ResoniteMeshSubmesh ToInternal(MeshSubmesh submesh)
     {
-        return new ResoniteMeshSubmesh(submesh.Index, submesh.MaterialKey, submesh.TriangleVertexIndices);
+        return new ResoniteMeshSubmesh(submesh.Index, submesh.TriangleVertexIndices);
     }
 
     internal static ResoniteMaterialBinding ToInternal(MaterialBinding binding)
     {
         return new ResoniteMaterialBinding(
-            binding.MaterialKey,
             ToInternal(binding.BaseColor),
             (ResoniteMaterialType)binding.MaterialType,
             binding.TexturePayload is null ? null : ToInternal(binding.TexturePayload),
@@ -130,7 +129,8 @@ internal static class SceneImportContractMapper
                     : ResoniteMaterialAssetScope.PresentationSlotScoped,
             binding.TerrainOverlay,
             binding.BundledVariantIndex,
-            binding.TerrainMeshCode);
+            binding.TerrainMeshCode,
+            binding.CommonMaterial);
     }
 
     private static ResoniteTexturePayload ToInternal(TexturePayload payload)

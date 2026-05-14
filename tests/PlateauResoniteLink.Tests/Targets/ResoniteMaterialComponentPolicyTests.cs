@@ -18,7 +18,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersBuildsUvStandardMaterialFields()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "facade",
             BaseColor: new ResoniteColor(0.1, 0.2, 0.3, 0.4),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -59,7 +58,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersUsesSrgbProfileForVertexColorMaterialFields()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "vertex-color",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.VertexColor,
             TexturePayload: null,
@@ -79,7 +77,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersRejectsRawNonCommonUvTransformBeforeNormalization()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "dynamic-overlay",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
@@ -102,7 +99,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersBuildsTriplanarAndWireframeFields()
     {
         ResoniteMaterialBinding triplanarMaterial = new(
-            MaterialKey: "road",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -114,7 +110,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Family: BundledDefaultMaterialFamilies.RoadTriplanar,
             BundledVariantIndex: 0);
         ResoniteMaterialBinding wireframeMaterial = new(
-            MaterialKey: "overlay",
             BaseColor: new ResoniteColor(0.2, 0.4, 0.6, 0.5),
             MaterialType: ResoniteMaterialType.Wireframe,
             TexturePayload: null,
@@ -148,7 +143,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersCreatesUvMaterialWithoutTransformAfterNormalization()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "direct-terrain-grid-style-material",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/direct-terrain-grid-style.png"),
@@ -172,7 +166,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersRejectsOffsetOnlyUvTransformBeforeNormalization()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "offset-only-material",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -199,7 +192,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void TryGetBundledCompanionTextureSetResolvesSiblingTextures()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "facade",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -231,7 +223,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
         for (int variantIndex = 0; variantIndex < variants.Count; variantIndex++)
         {
             ResoniteMaterialBinding material = new(
-                MaterialKey: $"facade:{variantIndex}",
                 BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
@@ -259,7 +250,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void TryGetBundledCompanionTextureSetResolvesCityFurnitureCompanions()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "city-furniture",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -299,7 +289,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void BundledGeneratedFacadeCompanionTextureSetUsesResonitePackageNaming()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "wall-skin",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -337,7 +326,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void BundledGeneratedFacadeColorVariantCompanionTextureSetSharesOnlyEmissionTexture()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "wall-skin-dark",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -371,7 +359,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void BundledFacadeHighriseNightCompanionTextureSetSharesOnlyIdenticalMaterialMaps()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "facade-highrise-night-variant",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,

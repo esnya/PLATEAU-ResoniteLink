@@ -32,8 +32,8 @@ public sealed class ResoniteMeshImportFactoryTests
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(3, "later", [2, 1, 0]),
-                new ResoniteMeshSubmesh(1, "first", [0, 1, 2]),
+                new ResoniteMeshSubmesh(3, [2, 1, 0]),
+                new ResoniteMeshSubmesh(1, [0, 1, 2]),
             ]);
 
         ImportMeshRawData result = ResoniteMeshImportFactory.Create(mesh);
@@ -89,7 +89,7 @@ public sealed class ResoniteMeshImportFactoryTests
             Vertices: vertices,
             Submeshes:
             [
-                new ResoniteMeshSubmesh(0, "wide-index", [0, 65_535, 65_536]),
+                new ResoniteMeshSubmesh(0, [0, 65_535, 65_536]),
             ]);
 
         ImportMeshRawData result = ResoniteMeshImportFactory.Create(mesh);
@@ -133,7 +133,7 @@ public sealed class ResoniteMeshImportFactoryTests
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(0, "invalid", [0, 1, 99]),
+                new ResoniteMeshSubmesh(0, [0, 1, 99]),
             ]);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ResoniteMeshImportFactory.Create(mesh));
@@ -162,7 +162,7 @@ public sealed class ResoniteMeshImportFactoryTests
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(0, "invalid", [0, 1, 2]),
+                new ResoniteMeshSubmesh(0, [0, 1, 2]),
             ]);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ResoniteMeshImportFactory.Create(mesh));
@@ -191,7 +191,7 @@ public sealed class ResoniteMeshImportFactoryTests
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(0, "invalid", [0, 1, 2]),
+                new ResoniteMeshSubmesh(0, [0, 1, 2]),
             ]);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ResoniteMeshImportFactory.Create(mesh));
@@ -220,7 +220,7 @@ public sealed class ResoniteMeshImportFactoryTests
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(0, "invalid", [0, 1, 2]),
+                new ResoniteMeshSubmesh(0, [0, 1, 2]),
             ]);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ResoniteMeshImportFactory.Create(mesh));
@@ -249,7 +249,7 @@ public sealed class ResoniteMeshImportFactoryTests
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(0, "invalid", [0, 1, 2]),
+                new ResoniteMeshSubmesh(0, [0, 1, 2]),
             ]);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ResoniteMeshImportFactory.Create(mesh));

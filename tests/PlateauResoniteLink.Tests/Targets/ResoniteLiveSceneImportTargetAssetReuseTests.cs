@@ -499,7 +499,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncUsesDistinctPropertyBlocksForSameMaterialKeyWithDifferentPayloadOverrides()
+    public async Task ExecuteAsyncUsesDistinctPropertyBlocksForSamePresentationMaterialWithDifferentPayloadOverrides()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
@@ -509,15 +509,15 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             metadata,
             [
                 CreateSameKeyPayloadOverrideCityObject(
-                    "same-key-override",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/same-key-a.png"),
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/same-key-b.png")),
+                    "same-material-override",
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/same-material-a.png"),
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/same-material-b.png")),
             ],
             client,
             enableMeshBake: false);
 
-        string[] materialIds = GetRendererMaterialReferenceTargets(client, "CityObject same-key-override");
-        string?[] propertyBlockIds = GetRendererMaterialPropertyBlockReferenceTargets(client, "CityObject same-key-override");
+        string[] materialIds = GetRendererMaterialReferenceTargets(client, "CityObject same-material-override");
+        string?[] propertyBlockIds = GetRendererMaterialPropertyBlockReferenceTargets(client, "CityObject same-material-override");
 
         Assert.Equal(2, materialIds.Length);
         Assert.All(materialIds, materialId => Assert.Equal(materialIds[0], materialId));
@@ -1106,6 +1106,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ResoniteFloat3? worldPosition = null,
         int? lodLevel = 0)
     {
+        DefaultCommonMaterialMember? commonMaterial = textureScale is null
+            ? DefaultCommonMaterialMember.Bundled(family, 0)
+            : null;
         return new ResoniteConstructionCityObject(
             SlotKey: $"slot-{objectIdentity}",
             DisplayName: $"CityObject {objectIdentity}",
@@ -1113,11 +1116,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             ActualMeshCode: actualMeshCode,
             LodLevel: lodLevel,
             Transform: new ResoniteTransform(worldPosition ?? new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("triangle-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "triangle-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1127,8 +1129,11 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     SubmeshIndices: [0],
                     TextureScale: textureScale,
                     Family: family,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
-                    BundledVariantIndex: 0),
+                    AssetScope: commonMaterial is null
+                        ? ResoniteMaterialAssetScope.PresentationSlotScoped
+                        : ResoniteMaterialAssetScope.Common,
+                    BundledVariantIndex: 0,
+                    CommonMaterial: commonMaterial),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1147,11 +1152,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("triangle-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "triangle-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: payload,
@@ -1162,7 +1166,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     TextureScale: textureScale,
                     Family: null,
                     TextureOffset: textureOffset,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1180,11 +1185,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: CreateTwoSubmeshMesh("shared-submesh-material"),
+            Mesh: CreateQuadTwoSubmeshMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "shared-submesh-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: firstPayload,
@@ -1193,9 +1197,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     Family: null,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "shared-submesh-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: secondPayload,
@@ -1204,7 +1208,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     DepthOffset: null,
                     SubmeshIndices: [1],
                     Family: null,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1232,7 +1237,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "dem-terrain-grid-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Wireframe,
                     TexturePayload: null,
@@ -1255,11 +1259,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("vertex-color-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "vertex-color-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.VertexColor,
                     TexturePayload: null,
@@ -1267,7 +1270,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    CommonMaterial: DefaultCommonMaterialMember.VertexColorUv()),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1288,7 +1292,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "mixed-common-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1297,9 +1300,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     Family: BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
-                    AssetScope: ResoniteMaterialAssetScope.Common),
+                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    BundledVariantIndex: 0,
+                    CommonMaterial: DefaultCommonMaterialMember.Bundled(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 0)),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "mixed-dedicated-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: payload,
@@ -1308,7 +1312,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     DepthOffset: null,
                     SubmeshIndices: [1],
                     Family: null,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1327,8 +1332,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(0, "mixed-common-material", [0, 1, 2]),
-                new ResoniteMeshSubmesh(1, "mixed-dedicated-material", [3, 4, 5]),
+                new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                new ResoniteMeshSubmesh(1, [3, 4, 5]),
             ]);
     }
 
@@ -1428,7 +1433,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             .ToArray();
     }
 
-    private static ResoniteImportedMesh CreateTwoSubmeshMesh(string materialKey)
+    private static ResoniteImportedMesh CreateQuadTwoSubmeshMesh()
     {
         return new ResoniteImportedMesh(
             Vertices:
@@ -1440,8 +1445,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(0, materialKey, [0, 1, 2]),
-                new ResoniteMeshSubmesh(1, materialKey, [1, 3, 2]),
+                new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                new ResoniteMeshSubmesh(1, [1, 3, 2]),
             ]);
     }
 

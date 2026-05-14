@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
 using SixLabors.ImageSharp;
@@ -494,12 +495,7 @@ internal sealed class NonDemCityObjectBaker(
 
     private static bool CanPreserveAsCommonMaterial(ResoniteMaterialBinding material)
     {
-        ResoniteMaterialBinding commonCandidate = material with
-        {
-            AssetScope = ResoniteMaterialAssetScope.Common,
-        };
-        return ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(commonCandidate).AssetScope
-            == ResoniteMaterialAssetScope.Common;
+        return material.CommonMaterial is not null;
     }
 
     private AtlasBatchPlan CreateAtlasCandidateBatches(
@@ -600,11 +596,9 @@ internal sealed class NonDemCityObjectBaker(
                 AppendPlacementGeometry(vertices, atlasTriangleIndices, bakeOrigin, placement, layout.Width, layout.Height);
             }
 
-            string atlasMaterialKey = CreateAtlasMaterialKey(sourceFileKey, batchIndex, slotKey);
-            submeshes.Add(new ResoniteMeshSubmesh(0, atlasMaterialKey, atlasTriangleIndices));
+            submeshes.Add(new ResoniteMeshSubmesh(0, atlasTriangleIndices));
             materials.Add(
                 new ResoniteMaterialBinding(
-                    MaterialKey: atlasMaterialKey,
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
@@ -617,7 +611,7 @@ internal sealed class NonDemCityObjectBaker(
         foreach (IGrouping<PreservedMaterialGroupingKey, PreservedSubmeshEntry> preservedGroup in candidates
                      .SelectMany(static candidate => candidate.PreservedEntries)
                      .GroupBy(static entry => CreatePreservedMaterialGroupingKey(entry.Material), PreservedMaterialGroupingKeyComparer.Instance)
-                     .OrderBy(static group => group.Key.MaterialKey, StringComparer.Ordinal))
+                     .OrderBy(static group => group.Key, PreservedMaterialGroupingKeyComparer.Instance))
         {
             cancellationToken.ThrowIfCancellationRequested();
             List<int> preservedTriangleIndices = [];
@@ -638,7 +632,7 @@ internal sealed class NonDemCityObjectBaker(
             {
                 SubmeshIndices = [submeshIndex],
             };
-            submeshes.Add(new ResoniteMeshSubmesh(submeshIndex, preservedMaterial.MaterialKey, preservedTriangleIndices));
+            submeshes.Add(new ResoniteMeshSubmesh(submeshIndex, preservedTriangleIndices));
             materials.Add(preservedMaterial);
         }
 
@@ -1119,23 +1113,22 @@ internal sealed class NonDemCityObjectBaker(
 
     private static ResoniteMaterialBinding CreateVertexColorMaterial(ResoniteMaterialBinding material, int submeshIndex)
     {
-        return ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(
-            material with
-            {
-                MaterialType = ResoniteMaterialType.VertexColor,
-                MaterialKey = ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
-                    material.Projection,
-                    material.DepthOffset),
-                BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                TexturePayload = null,
-                TextureSourceKind = ResoniteTextureSourceKind.Bundled,
-                TextureScale = null,
-                TextureOffset = null,
-                Family = null,
-                TerrainOverlay = null,
-                AssetScope = ResoniteMaterialAssetScope.Common,
-                SubmeshIndices = [submeshIndex],
-            });
+        return material with
+        {
+            MaterialType = ResoniteMaterialType.VertexColor,
+            BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            TexturePayload = null,
+            TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+            TextureScale = null,
+            TextureOffset = null,
+            Family = null,
+            TerrainOverlay = null,
+            AssetScope = ResoniteMaterialAssetScope.Common,
+            SubmeshIndices = [submeshIndex],
+            CommonMaterial = DefaultCommonMaterialMember.VertexColorUv(material.DepthOffset is null
+                ? null
+                : new MaterialDepthOffset(material.DepthOffset.Factor, material.DepthOffset.Units)),
+        };
     }
 
     private static SourceFileBatchKey CreateSourceFileKey(
@@ -1180,13 +1173,6 @@ internal sealed class NonDemCityObjectBaker(
         return string.Create(
             CultureInfo.InvariantCulture,
             $"atlastex-{sourceFileKey.SourceFileRelativePath}-{batchIndex + 1}");
-    }
-
-    private static string CreateAtlasMaterialKey(SourceFileBatchKey sourceFileKey, int batchIndex, string slotKey)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"atlasmat-{slotKey}-{sourceFileKey.PackageName}-{batchIndex + 1}");
     }
 
     private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
@@ -1529,8 +1515,27 @@ internal sealed class NonDemCityObjectBaker(
     private static PreservedMaterialGroupingKey CreatePreservedMaterialGroupingKey(ResoniteMaterialBinding material)
     {
         ResoniteMaterialBinding normalizedMaterial = NormalizePreservedMaterial(material);
+        if (normalizedMaterial.CommonMaterial is not null)
+        {
+            return new PreservedMaterialGroupingKey(
+                normalizedMaterial.CommonMaterial,
+                new ResoniteColor(0.0, 0.0, 0.0, 0.0),
+                default,
+                normalizedMaterial.TexturePayload,
+                normalizedMaterial.TextureSourceKind,
+                normalizedMaterial.TerrainOverlay,
+                default,
+                default,
+                default,
+                default,
+                default,
+                default,
+                default,
+                normalizedMaterial.TerrainMeshCode);
+        }
+
         return new PreservedMaterialGroupingKey(
-            normalizedMaterial.MaterialKey,
+            null,
             normalizedMaterial.BaseColor,
             normalizedMaterial.MaterialType,
             normalizedMaterial.TexturePayload,
@@ -1540,7 +1545,10 @@ internal sealed class NonDemCityObjectBaker(
             normalizedMaterial.DepthOffset,
             normalizedMaterial.TextureScale,
             normalizedMaterial.TextureOffset,
-            normalizedMaterial.AssetScope);
+            normalizedMaterial.AssetScope,
+            normalizedMaterial.Family,
+            normalizedMaterial.BundledVariantIndex,
+            normalizedMaterial.TerrainMeshCode);
     }
 
     private static ResoniteMaterialBinding NormalizePreservedMaterial(ResoniteMaterialBinding material)
@@ -1701,7 +1709,7 @@ internal sealed class NonDemCityObjectBaker(
         string SourceFileRelativePath);
 
     private readonly record struct PreservedMaterialGroupingKey(
-        string MaterialKey,
+        DefaultCommonMaterialMember? CommonMaterial,
         ResoniteColor BaseColor,
         ResoniteMaterialType MaterialType,
         ResoniteTexturePayload? TexturePayload,
@@ -1711,7 +1719,10 @@ internal sealed class NonDemCityObjectBaker(
         ResoniteMaterialDepthOffset? DepthOffset,
         ResoniteFloat2? TextureScale,
         ResoniteFloat2? TextureOffset,
-        ResoniteMaterialAssetScope AssetScope);
+        ResoniteMaterialAssetScope AssetScope,
+        string? Family,
+        int? BundledVariantIndex,
+        string? TerrainMeshCode);
 
     private sealed class SourceFileBatchKeyComparer : IComparer<SourceFileBatchKey>
     {
@@ -1753,14 +1764,28 @@ internal sealed class NonDemCityObjectBaker(
         }
     }
 
-    private sealed class PreservedMaterialGroupingKeyComparer : IEqualityComparer<PreservedMaterialGroupingKey>
+    private sealed class PreservedMaterialGroupingKeyComparer :
+        IEqualityComparer<PreservedMaterialGroupingKey>,
+        IComparer<PreservedMaterialGroupingKey>
     {
         internal static readonly PreservedMaterialGroupingKeyComparer Instance = new();
 
         public bool Equals(PreservedMaterialGroupingKey x, PreservedMaterialGroupingKey y)
         {
-            return string.Equals(x.MaterialKey, y.MaterialKey, StringComparison.Ordinal)
-                && x.BaseColor == y.BaseColor
+            if (!EqualityComparer<DefaultCommonMaterialMember?>.Default.Equals(x.CommonMaterial, y.CommonMaterial))
+            {
+                return false;
+            }
+
+            if (x.CommonMaterial is not null)
+            {
+                return ReferenceEquals(x.TexturePayload, y.TexturePayload)
+                    && x.TextureSourceKind == y.TextureSourceKind
+                    && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
+                    && string.Equals(x.TerrainMeshCode, y.TerrainMeshCode, StringComparison.Ordinal);
+            }
+
+            return x.BaseColor == y.BaseColor
                 && x.MaterialType == y.MaterialType
                 && ReferenceEquals(x.TexturePayload, y.TexturePayload)
                 && x.TextureSourceKind == y.TextureSourceKind
@@ -1769,13 +1794,28 @@ internal sealed class NonDemCityObjectBaker(
                 && EqualityComparer<ResoniteMaterialDepthOffset?>.Default.Equals(x.DepthOffset, y.DepthOffset)
                 && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureScale, y.TextureScale)
                 && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureOffset, y.TextureOffset)
-                && x.AssetScope == y.AssetScope;
+                && x.AssetScope == y.AssetScope
+                && string.Equals(x.Family, y.Family, StringComparison.Ordinal)
+                && x.BundledVariantIndex == y.BundledVariantIndex
+                && string.Equals(x.TerrainMeshCode, y.TerrainMeshCode, StringComparison.Ordinal);
         }
 
         public int GetHashCode(PreservedMaterialGroupingKey obj)
         {
             HashCode hash = new();
-            hash.Add(obj.MaterialKey, StringComparer.Ordinal);
+            hash.Add(obj.CommonMaterial);
+            if (obj.CommonMaterial is not null)
+            {
+                if (obj.TexturePayload is not null)
+                {
+                    hash.Add(RuntimeHelpers.GetHashCode(obj.TexturePayload));
+                }
+                hash.Add(obj.TextureSourceKind);
+                hash.Add(obj.TerrainOverlay);
+                hash.Add(obj.TerrainMeshCode, StringComparer.Ordinal);
+                return hash.ToHashCode();
+            }
+
             hash.Add(obj.BaseColor);
             hash.Add(obj.MaterialType);
             if (obj.TexturePayload is not null)
@@ -1789,7 +1829,217 @@ internal sealed class NonDemCityObjectBaker(
             hash.Add(obj.TextureScale);
             hash.Add(obj.TextureOffset);
             hash.Add(obj.AssetScope);
+            hash.Add(obj.Family, StringComparer.Ordinal);
+            hash.Add(obj.BundledVariantIndex);
+            hash.Add(obj.TerrainMeshCode, StringComparer.Ordinal);
             return hash.ToHashCode();
+        }
+
+        public int Compare(PreservedMaterialGroupingKey x, PreservedMaterialGroupingKey y)
+        {
+            int compare = CompareNullableCommonMaterial(x.CommonMaterial, y.CommonMaterial);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            if (x.CommonMaterial is not null)
+            {
+                compare = CompareNullablePayload(x.TexturePayload, y.TexturePayload);
+                if (compare != 0)
+                {
+                    return compare;
+                }
+
+                compare = x.TextureSourceKind.CompareTo(y.TextureSourceKind);
+                if (compare != 0)
+                {
+                    return compare;
+                }
+
+                compare = CompareNullableString(x.TerrainOverlay?.SourceDescriptorKey, y.TerrainOverlay?.SourceDescriptorKey);
+                return compare != 0 ? compare : CompareNullableString(x.TerrainMeshCode, y.TerrainMeshCode);
+            }
+
+            compare = CompareColor(x.BaseColor, y.BaseColor);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.MaterialType.CompareTo(y.MaterialType);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = CompareNullablePayload(x.TexturePayload, y.TexturePayload);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.TextureSourceKind.CompareTo(y.TextureSourceKind);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = CompareNullableString(x.TerrainOverlay?.SourceDescriptorKey, y.TerrainOverlay?.SourceDescriptorKey);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.Projection.CompareTo(y.Projection);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = CompareNullableDepth(x.DepthOffset, y.DepthOffset);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = CompareNullableFloat2(x.TextureScale, y.TextureScale);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = CompareNullableFloat2(x.TextureOffset, y.TextureOffset);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.AssetScope.CompareTo(y.AssetScope);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = CompareNullableString(x.Family, y.Family);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = Nullable.Compare(x.BundledVariantIndex, y.BundledVariantIndex);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            return CompareNullableString(x.TerrainMeshCode, y.TerrainMeshCode);
+        }
+
+        private static int CompareColor(ResoniteColor x, ResoniteColor y)
+        {
+            int compare = x.R.CompareTo(y.R);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.G.CompareTo(y.G);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.B.CompareTo(y.B);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            return x.A.CompareTo(y.A);
+        }
+
+        private static int CompareNullablePayload(ResoniteTexturePayload? x, ResoniteTexturePayload? y)
+        {
+            if (ReferenceEquals(x, y))
+            {
+                return 0;
+            }
+
+            if (x is null)
+            {
+                return -1;
+            }
+
+            if (y is null)
+            {
+                return 1;
+            }
+
+            return RuntimeHelpers.GetHashCode(x).CompareTo(RuntimeHelpers.GetHashCode(y));
+        }
+
+        private static int CompareNullableString(string? x, string? y) =>
+            string.Compare(x ?? string.Empty, y ?? string.Empty, StringComparison.Ordinal);
+
+        private static int CompareNullableCommonMaterial(
+            DefaultCommonMaterialMember? x,
+            DefaultCommonMaterialMember? y)
+        {
+            if (x is null || y is null)
+            {
+                return x is null && y is null ? 0 : x is null ? -1 : 1;
+            }
+
+            int compare = x.Kind.CompareTo(y.Kind);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.Projection.CompareTo(y.Projection);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = CompareNullableDepth(ToResoniteDepth(x.DepthOffset), ToResoniteDepth(y.DepthOffset));
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = CompareNullableString(x.Family, y.Family);
+            return compare != 0 ? compare : Nullable.Compare(x.BundledVariantIndex, y.BundledVariantIndex);
+        }
+
+        private static ResoniteMaterialDepthOffset? ToResoniteDepth(MaterialDepthOffset? depthOffset)
+        {
+            return depthOffset is null
+                ? null
+                : new ResoniteMaterialDepthOffset(depthOffset.Factor, depthOffset.Units);
+        }
+
+        private static int CompareNullableDepth(ResoniteMaterialDepthOffset? x, ResoniteMaterialDepthOffset? y)
+        {
+            if (x is null || y is null)
+            {
+                return x is null && y is null ? 0 : x is null ? -1 : 1;
+            }
+
+            int compare = x.Factor.CompareTo(y.Factor);
+            return compare != 0 ? compare : x.Units.CompareTo(y.Units);
+        }
+
+        private static int CompareNullableFloat2(ResoniteFloat2? x, ResoniteFloat2? y)
+        {
+            if (x is null || y is null)
+            {
+                return x is null && y is null ? 0 : x is null ? -1 : 1;
+            }
+
+            int compare = x.X.CompareTo(y.X);
+            return compare != 0 ? compare : x.Y.CompareTo(y.Y);
         }
     }
 }

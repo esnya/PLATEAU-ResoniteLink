@@ -52,8 +52,9 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
             ? ResolveBundledTextureFamily(request, useBuildingFacade)
             : ResolveFamilyOverride(request.FamilyOverride);
         int bundledVariantIndex = SelectBundledVariantIndex(family, request.VariantSelectionKey);
-        string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, bundledVariantIndex);
-        BundledDefaultMaterialProfile uvProfile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
+        DefaultCommonMaterialMember commonMaterial = DefaultCommonMaterialMember.Bundled(family, bundledVariantIndex);
+        BundledDefaultMaterialVariant variant = BundledDefaultMaterialFamilies.GetVariantDefinition(family, bundledVariantIndex);
+        BundledDefaultMaterialProfile uvProfile = variant.TextureSet;
         Float2? textureOffset = uvProfile.TextureOffset is null ? null : ToContractFloat2(uvProfile.TextureOffset);
 
         return new ResolvedMaterial(
@@ -65,7 +66,8 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
             ToContractFloat2(uvProfile.TextureScale),
             MaterialReuseScope.Shared,
             BundledVariantIndex: bundledVariantIndex,
-            TextureOffset: textureOffset);
+            TextureOffset: textureOffset,
+            CommonMaterial: commonMaterial);
     }
 
     private static bool ShouldUseWireframeMaterial(string packageName)

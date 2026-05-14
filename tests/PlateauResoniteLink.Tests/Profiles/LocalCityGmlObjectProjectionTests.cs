@@ -50,7 +50,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy()))),
                 new PassthroughImportedObjectUnitOptimizer()),
-            commonMaterialCatalog: new CommonMaterialCatalog(),
+            commonMaterialCatalog: new DefaultCommonMaterialCatalog(),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy(),
             progressReporter);
     }
@@ -1584,9 +1584,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         MaterialBinding material = Assert.Single(cityObject.Materials);
 
         Assert.Equal(new ColorRgba(0.2, 0.4, 0.6, 0.75), material.BaseColor);
-        Assert.DoesNotContain(
-            cityObject.Materials,
-            static candidate => candidate.MaterialKey.Contains("optical", StringComparison.Ordinal));
+        Assert.Null(material.TexturePayload);
 
         ResoniteMaterialBinding resoniteMaterial = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(
             SceneImportContractMapper.ToInternal(material));
@@ -1730,41 +1728,6 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Equal(MaterialProjection.Triplanar, material.Projection);
         Assert.NotEqual(BundledDefaultMaterialFamilies.Facade, material.Family);
         Assert.Equal(BundledDefaultMaterialFamilies.Roof, material.Family);
-    }
-
-    [Fact]
-    public void SharedBundledFacadeBindingKey_UsesCanonicalScaleAndTreatsExplicitZeroOffsetAsNone()
-    {
-        string variantPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, 0);
-        BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(variantPath);
-        Float2 textureScale = new(profile.TextureScale.X, profile.TextureScale.Y);
-        Float2? textureOffset = profile.TextureOffset is null ? null : new Float2(profile.TextureOffset.X, profile.TextureOffset.Y);
-        ResolvedMaterial material = new(
-            MaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind.Bundled,
-            MaterialProjection.Uv,
-            BundledDefaultMaterialFamilies.Facade,
-            TextureScale: textureScale,
-            ReuseScope: MaterialReuseScope.Shared,
-            BundledVariantIndex: 0,
-            TextureOffset: textureOffset);
-
-        string materialKey = CreateBindingMaterialKeyForTest(
-            material,
-            depthOffset: null,
-            textureScale: material.TextureScale!,
-            color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            textureOffset: new Float2(0.0, 0.0));
-        string defaultOffsetMaterialKey = CreateBindingMaterialKeyForTest(
-            material,
-            depthOffset: null,
-            textureScale: material.TextureScale!,
-            color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            textureOffset: null);
-
-        Assert.Equal("facade/variant-0", materialKey);
-        Assert.Equal(defaultOffsetMaterialKey, materialKey);
     }
 
     [Fact]
@@ -3192,31 +3155,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             ?? throw new InvalidOperationException("CreateGeneratedSurfaceUvProjection returned null.");
     }
 
-    private static string CreateBindingMaterialKeyForTest(
-        ResolvedMaterial material,
-        MaterialDepthOffset? depthOffset,
-        Float2 textureScale,
-        ColorRgba color,
-        Float2? textureOffset)
-    {
-        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
-                "CreateBindingMaterialKey",
-                BindingFlags.NonPublic | BindingFlags.Static,
-                binder: null,
-                [
-                    typeof(string),
-                    typeof(ResolvedMaterial),
-                    typeof(MaterialDepthOffset),
-                    typeof(Float2),
-                    typeof(ColorRgba),
-                    typeof(Float2),
-                ],
-                modifiers: null)
-            ?? throw new InvalidOperationException("Failed to resolve CreateBindingMaterialKey.");
-        return (string?)method.Invoke(null, [string.Empty, material, depthOffset, textureScale, color, textureOffset])
-            ?? throw new InvalidOperationException("CreateBindingMaterialKey returned null.");
-    }
-
     private static Float2 CreateGeneratedSurfaceUvForTest(
         LocalCityGmlObjectProjection.GeodeticPoint point,
         LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
@@ -3639,7 +3577,6 @@ public sealed class LocalCityGmlObjectProjectionTests
         IReadOnlyList<double> heightSamples)
     {
         MaterialBinding material = new(
-            MaterialKey: $"{slotKey}-material",
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             MaterialType: MaterialType.Standard,
             TexturePayload: null,

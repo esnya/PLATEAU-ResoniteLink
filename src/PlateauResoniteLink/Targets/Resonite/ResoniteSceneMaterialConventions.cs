@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -63,7 +61,7 @@ internal static class ResoniteSceneMaterialConventions
         string sourceName = normalizedMaterial.TerrainOverlay is not null
             ? CreateTerrainOverlayToken(normalizedMaterial.TerrainOverlay)
             : normalizedMaterial.TexturePayload is not null
-                ? $"payload-{ComputeShortStableHash(normalizedMaterial.MaterialKey)}"
+                ? "payload"
             : normalizedMaterial.AssetScope == ResoniteMaterialAssetScope.Common
                 ? $"bundled-v{normalizedMaterial.BundledVariantIndex ?? 0}"
             : normalizedMaterial.MaterialType.ToString();
@@ -86,66 +84,12 @@ internal static class ResoniteSceneMaterialConventions
     public static IReadOnlyList<string> CreateCommonMaterialSlotLookupNames(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
-        material = NormalizeCommonMaterialBinding(material);
         if (material.AssetScope != ResoniteMaterialAssetScope.Common)
         {
             return EmptyLookupNames;
         }
 
         return [CreateMaterialSlotName(material, useCommonMaterialAssets: true)];
-    }
-
-    public static ResoniteMaterialBinding NormalizeCommonMaterialBinding(ResoniteMaterialBinding material)
-    {
-        ArgumentNullException.ThrowIfNull(material);
-        if (material.AssetScope != ResoniteMaterialAssetScope.Common)
-        {
-            return material;
-        }
-
-        if (IsBundledCommonMaterialCandidate(material))
-        {
-            string canonicalFamily = string.IsNullOrWhiteSpace(material.Family)
-                ? BundledDefaultMaterialFamilies.Other
-                : material.Family!;
-            int canonicalVariantIndex = material.BundledVariantIndex ?? 0;
-            BundledDefaultMaterialProfile defaultProfile = BundledDefaultMaterialProfiles.GetProfile(
-                BundledDefaultMaterialFamilies.GetVariant(canonicalFamily, canonicalVariantIndex));
-            ResoniteFloat2 defaultTextureScale = new(defaultProfile.TextureScale.X, defaultProfile.TextureScale.Y);
-            ResoniteFloat2? defaultTextureOffset = defaultProfile.TextureOffset is null
-                ? null
-                : new ResoniteFloat2(defaultProfile.TextureOffset.X, defaultProfile.TextureOffset.Y);
-            ResoniteFloat2 canonicalTextureScale = material.TextureScale ?? defaultTextureScale;
-            ResoniteFloat2? canonicalTextureOffset = material.TextureOffset ?? defaultTextureOffset;
-            ResoniteMaterialProjection canonicalProjection = GetBundledCommonMaterialProjection(canonicalFamily);
-            return material with
-            {
-                MaterialKey = CreateCanonicalCommonMaterialKey(
-                    canonicalFamily,
-                    canonicalVariantIndex),
-                BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                MaterialType = ResoniteMaterialType.Standard,
-                TextureSourceKind = ResoniteTextureSourceKind.Bundled,
-                Projection = canonicalProjection,
-                TextureScale = canonicalTextureScale,
-                Family = canonicalFamily,
-                TextureOffset = canonicalTextureOffset,
-                DepthOffset = null,
-                BundledVariantIndex = canonicalVariantIndex,
-            };
-        }
-
-        if (IsGenericSharedCommonMaterialCandidate(material))
-        {
-            return NormalizeGenericSharedMaterialBinding(material);
-        }
-
-        if (ResoniteMaterialSharing.CanUseSharedVertexColorMaterial(material))
-        {
-            return NormalizeVertexColorSharedMaterialBinding(material);
-        }
-
-        return material with { AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped };
     }
 
     public static ResoniteMaterialProjection GetBundledCommonMaterialProjection(string family)
@@ -161,89 +105,11 @@ internal static class ResoniteSceneMaterialConventions
     public static string GetCommonMaterialFamilySlotName(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
-        material = NormalizeCommonMaterialBinding(material);
-        if (TryGetCommonMaterialPathParts(material.MaterialKey, out string familySlotName, out _))
-        {
-            return familySlotName;
-        }
-
         return material.MaterialType == ResoniteMaterialType.VertexColor
             ? "vertex-color"
             : string.IsNullOrWhiteSpace(material.Family)
                 ? "generic"
                 : material.Family!;
-    }
-
-    public static bool TryNormalizeSharedMaterialBinding(
-        ResoniteMaterialBinding material,
-        out ResoniteMaterialBinding normalizedMaterial,
-        out string familySlotName)
-    {
-        ArgumentNullException.ThrowIfNull(material);
-
-        normalizedMaterial = material;
-        familySlotName = string.Empty;
-        if (ResoniteMaterialSharing.CanUseSharedVertexColorMaterial(material))
-        {
-            normalizedMaterial = NormalizeVertexColorSharedMaterialBinding(material);
-            familySlotName = GetCommonMaterialFamilySlotName(normalizedMaterial);
-            return true;
-        }
-
-        if (material.MaterialType != ResoniteMaterialType.Standard)
-        {
-            return false;
-        }
-
-        bool isWhiteBundledFamilyMaterial = IsWhiteBundledFamilyMaterial(material);
-        if (isWhiteBundledFamilyMaterial
-            && material.AssetScope == ResoniteMaterialAssetScope.Common)
-        {
-            ResoniteMaterialBinding commonBaseCandidate = material with
-            {
-                BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                TexturePayload = null,
-                TextureSourceKind = ResoniteTextureSourceKind.Bundled,
-                AssetScope = ResoniteMaterialAssetScope.Common,
-            };
-            normalizedMaterial = NormalizeCommonMaterialBinding(commonBaseCandidate);
-            if (normalizedMaterial.AssetScope != ResoniteMaterialAssetScope.Common)
-            {
-                return false;
-            }
-
-            familySlotName = GetCommonMaterialFamilySlotName(normalizedMaterial);
-            return true;
-        }
-
-        if (!IsWhiteBaseColor(material.BaseColor))
-        {
-            return false;
-        }
-
-        if (material.Projection != ResoniteMaterialProjection.Uv)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(material.Family))
-        {
-            return false;
-        }
-
-        if (material.TerrainOverlay is not null)
-        {
-            return false;
-        }
-
-        if (HasEffectiveGenericTextureTransform(material))
-        {
-            return false;
-        }
-
-        normalizedMaterial = NormalizeGenericSharedMaterialBinding(material);
-        familySlotName = GetCommonMaterialFamilySlotName(normalizedMaterial);
-        return true;
     }
 
     public static ResoniteMaterialBinding NormalizeBatchGroupedMaterialBinding(ResoniteMaterialBinding material)
@@ -283,58 +149,15 @@ internal static class ResoniteSceneMaterialConventions
             return material;
         }
 
-        if (TryNormalizeSharedMaterialBinding(material, out ResoniteMaterialBinding normalizedSharedMaterial, out _)
-            && material.TexturePayload is null)
-        {
-            return normalizedSharedMaterial with
-            {
-                SubmeshIndices = material.SubmeshIndices,
-                TerrainOverlay = material.TerrainOverlay,
-                TerrainMeshCode = material.TerrainMeshCode,
-            };
-        }
-
         if (material.MaterialType == ResoniteMaterialType.Standard
             && material.TexturePayload is null
             && material.AssetScope != ResoniteMaterialAssetScope.Common
             && string.IsNullOrWhiteSpace(material.Family))
         {
-            return material with
-            {
-                MaterialKey = "preserved-standard-textureless",
-            };
+            return material;
         }
 
         return material;
-    }
-
-    public static string CreateCanonicalCommonMaterialKey(
-        string family,
-        int bundledVariantIndex)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{family}/{BundledDefaultMaterialFamilies.GetVariantMaterialName(family, bundledVariantIndex)}");
-    }
-
-    public static string CreateCanonicalGenericSharedMaterialKey(
-        ResoniteMaterialProjection projection,
-        ResoniteFloat2? textureScale,
-        ResoniteFloat2? textureOffset,
-        ResoniteMaterialDepthOffset? depthOffset)
-    {
-        return ResoniteMaterialSharing.CreateCanonicalGenericSharedMaterialKey(
-            projection,
-            textureScale,
-            textureOffset,
-            depthOffset);
-    }
-
-    public static string CreateCanonicalVertexColorCommonMaterialKey(
-        ResoniteMaterialProjection projection,
-        ResoniteMaterialDepthOffset? depthOffset)
-    {
-        return ResoniteMaterialSharing.CreateCanonicalVertexColorCommonMaterialKey(projection, depthOffset);
     }
 
     public static TextureIdentity CreateTextureIdentity(TextureMemberRole role)
@@ -397,18 +220,6 @@ internal static class ResoniteSceneMaterialConventions
         return members;
     }
 
-    private static bool IsBundledCommonMaterialCandidate(ResoniteMaterialBinding material)
-    {
-        return material.TerrainOverlay is null
-            && material.TexturePayload is null
-            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-            && !string.IsNullOrWhiteSpace(material.Family)
-            && IsCodebaseReachableBundledCommonFamily(material.Family!)
-            && material.DepthOffset is null
-            && !HasNonDefaultBundledTextureTransform(material)
-            && IsWhiteBaseColor(material.BaseColor);
-    }
-
     private static bool IsWhiteBundledFamilyMaterial(ResoniteMaterialBinding material)
     {
         return material.TexturePayload is null
@@ -430,16 +241,6 @@ internal static class ResoniteSceneMaterialConventions
             || BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(family, StringComparer.Ordinal);
     }
 
-    private static bool IsGenericSharedCommonMaterialCandidate(ResoniteMaterialBinding material)
-    {
-        return material.MaterialType == ResoniteMaterialType.Standard
-            && material.Projection == ResoniteMaterialProjection.Uv
-            && ResoniteMaterialSharing.IsWhiteBaseColor(material.BaseColor)
-            && string.IsNullOrWhiteSpace(material.Family)
-            && material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
-            && material.TerrainOverlay is null;
-    }
-
     private static string CreateCompactColorSuffix(ResoniteColor color)
     {
         return string.Create(
@@ -449,11 +250,6 @@ internal static class ResoniteSceneMaterialConventions
 
     private static string CreateCommonMaterialSlotName(ResoniteMaterialBinding material)
     {
-        if (TryGetCommonMaterialPathParts(material.MaterialKey, out _, out string materialSlotName))
-        {
-            return materialSlotName;
-        }
-
         string projectionName = ProjectionToken(material.Projection);
         if (material.MaterialType == ResoniteMaterialType.VertexColor)
         {
@@ -482,12 +278,6 @@ internal static class ResoniteSceneMaterialConventions
             $"terrain-overlay-{terrainTextureOverlay.PackageName.ToLowerInvariant()}-{terrainTextureOverlay.SourceDescriptorKey}-bounds-{FormatBounds(terrainTextureOverlay.GeographicBounds)}");
     }
 
-    private static string ComputeShortStableHash(string text)
-    {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
-        return Convert.ToHexString(hash.AsSpan(0, 4)).ToLowerInvariant();
-    }
-
     private static string ProjectionToken(ResoniteMaterialProjection projection)
     {
         return projection switch
@@ -496,15 +286,6 @@ internal static class ResoniteSceneMaterialConventions
             ResoniteMaterialProjection.Triplanar => "triplanar",
             _ => projection.ToString().ToLowerInvariant(),
         };
-    }
-
-    private static string FormatFloat2(ResoniteFloat2? value)
-    {
-        return value is null
-            ? "none"
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"{FormatRounded(value.X)}-{FormatRounded(value.Y)}");
     }
 
     private static string FormatBounds(GeographicRectangle bounds) =>
@@ -579,83 +360,8 @@ internal static class ResoniteSceneMaterialConventions
             && Math.Abs(left.Y - right.Y) < 1e-9;
     }
 
-    private static bool TryGetCommonMaterialPathParts(
-        string materialKey,
-        out string familySlotName,
-        out string materialSlotName)
-    {
-        int separatorIndex = materialKey.IndexOf('/');
-        if (separatorIndex <= 0 || separatorIndex == materialKey.Length - 1)
-        {
-            familySlotName = string.Empty;
-            materialSlotName = string.Empty;
-            return false;
-        }
-
-        familySlotName = materialKey[..separatorIndex];
-        materialSlotName = materialKey[(separatorIndex + 1)..];
-        return true;
-    }
-
     private static string TerrainAlignedSuffix(ResoniteMaterialDepthOffset? depthOffset) =>
         depthOffset is null ? string.Empty : "-terrain-aligned";
-
-    private static ResoniteMaterialBinding NormalizeGenericSharedMaterialBinding(ResoniteMaterialBinding material)
-    {
-        ResoniteFloat2? normalizedTextureScale = material.TextureScale is not null
-            && Math.Abs(material.TextureScale.X - 1.0) < 1e-9
-            && Math.Abs(material.TextureScale.Y - 1.0) < 1e-9
-            ? null
-            : material.TextureScale;
-        ResoniteFloat2? normalizedTextureOffset = IsZeroTextureOffset(material.TextureOffset)
-            ? null
-            : material.TextureOffset;
-
-        return material with
-        {
-            MaterialKey = CreateCanonicalGenericSharedMaterialKey(
-                material.Projection,
-                normalizedTextureScale,
-                normalizedTextureOffset,
-                material.DepthOffset),
-            BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            TexturePayload = null,
-            TerrainOverlay = null,
-            TextureSourceKind = ResoniteTextureSourceKind.Dataset,
-            TextureScale = normalizedTextureScale,
-            TextureOffset = normalizedTextureOffset,
-            AssetScope = ResoniteMaterialAssetScope.Common,
-            BundledVariantIndex = null,
-            TerrainMeshCode = null,
-        };
-    }
-
-    private static ResoniteMaterialBinding NormalizeVertexColorSharedMaterialBinding(ResoniteMaterialBinding material)
-    {
-        return material with
-        {
-            MaterialKey = CreateCanonicalVertexColorCommonMaterialKey(
-                material.Projection,
-                material.DepthOffset),
-            BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            TexturePayload = null,
-            TerrainOverlay = null,
-            TextureSourceKind = ResoniteTextureSourceKind.Bundled,
-            Family = null,
-            TextureScale = null,
-            TextureOffset = null,
-            AssetScope = ResoniteMaterialAssetScope.Common,
-            BundledVariantIndex = null,
-        };
-    }
-
-    private static bool HasEffectiveGenericTextureTransform(ResoniteMaterialBinding material)
-    {
-        bool hasNonIdentityScale = material.TextureScale is not null
-            && (Math.Abs(material.TextureScale.X - 1.0) > 1e-9
-                || Math.Abs(material.TextureScale.Y - 1.0) > 1e-9);
-        return hasNonIdentityScale || !IsZeroTextureOffset(material.TextureOffset);
-    }
 
     private static bool IsZeroTextureOffset(ResoniteFloat2? textureOffset)
     {

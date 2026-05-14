@@ -28,7 +28,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         SceneSinkRecordingClient client,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true,
-        CommonMaterialCatalogSnapshot? commonMaterials = null)
+        CommonMaterialCatalog<DefaultCommonMaterialMember>? commonMaterials = null)
     {
         await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(
             client,
@@ -41,11 +41,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             metadata,
             workDirectory.Path,
             cityObjects,
-            commonMaterials: commonMaterials ?? new CommonMaterialCatalog().Create());
+            commonMaterials: commonMaterials ?? new DefaultCommonMaterialCatalog().Create());
     }
 
     public static ResoniteImportedMesh CreateTriangleMesh(
-        string materialKey,
         double firstY = 0.0,
         double secondY = 0.0,
         double thirdY = 0.0)
@@ -59,7 +58,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(0, materialKey, [0, 1, 2]),
+                new ResoniteMeshSubmesh(0, [0, 1, 2]),
             ]);
     }
 
@@ -105,8 +104,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     RequireCredit: true,
                     CreditText: "credit",
                     LicenseName: "license",
-                    LicenseUrl: "https://example.invalid/license"),
-                MaterialLicenses: []),
+                    LicenseUrl: "https://example.invalid/license")),
             GeodeticOrigin: new GeodeticOrigin(
                 localOrigin.Latitude,
                 localOrigin.Longitude,
@@ -128,7 +126,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 metadata,
                 firstWorkDirectory.Path,
                 firstRunCityObjects,
-                commonMaterials: new CommonMaterialCatalog().Create());
+                commonMaterials: new DefaultCommonMaterialCatalog().Create());
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
@@ -139,7 +137,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 metadata,
                 secondWorkDirectory.Path,
                 secondRunCityObjects,
-                commonMaterials: new CommonMaterialCatalog().Create());
+                commonMaterials: new DefaultCommonMaterialCatalog().Create());
         }
     }
 
@@ -148,14 +146,14 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ImportedSceneMetadata metadata,
         string workDirectory,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
-        CommonMaterialCatalogSnapshot? commonMaterials = null,
+        CommonMaterialCatalog<DefaultCommonMaterialMember>? commonMaterials = null,
         CancellationToken cancellationToken = default)
     {
         return importTarget.ExecuteAsync(
             CreateExecutionPlan(
                 metadata,
                 workDirectory,
-                commonMaterials: commonMaterials ?? new CommonMaterialCatalog().Create()),
+                commonMaterials: commonMaterials ?? new DefaultCommonMaterialCatalog().Create()),
             CreateImportedObjectUnitsAsync(cityObjects, cancellationToken),
             cancellationToken);
     }
@@ -164,7 +162,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ImportedSceneMetadata metadata,
         string workDirectory,
         PlateauImportRequest? normalizedRequest = null,
-        CommonMaterialCatalogSnapshot? commonMaterials = null)
+        CommonMaterialCatalog<DefaultCommonMaterialMember>? commonMaterials = null)
     {
         PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? metadata.Request;
         PlateauImportRequest resolvedRequest = CreateResolvedRequest(
@@ -183,7 +181,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             effectiveMetadata,
             GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
-            commonMaterials ?? new CommonMaterialCatalog().Create());
+            commonMaterials ?? new DefaultCommonMaterialCatalog().Create());
     }
 
     private static PlateauImportRequest CreateImportRequest(
@@ -411,7 +409,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     public static MaterialBinding ToContractMaterial(ResoniteMaterialBinding binding)
     {
         return new MaterialBinding(
-            binding.MaterialKey,
             ToContractColor(binding.BaseColor),
             (MaterialType)binding.MaterialType,
             binding.TexturePayload is null ? null : ToContractTexturePayload(binding.TexturePayload),
@@ -425,7 +422,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             binding.AssetScope == ResoniteMaterialAssetScope.Common ? MaterialReuseScope.Shared : MaterialReuseScope.PerObject,
             binding.TerrainOverlay,
             binding.BundledVariantIndex,
-            binding.TerrainMeshCode);
+            binding.TerrainMeshCode,
+            binding.CommonMaterial);
     }
 
     private static Transform3D ToContractTransform(ResoniteTransform transform)
@@ -446,7 +444,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 new Float3(vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z),
                 new Float2(vertex.UV0.X, vertex.UV0.Y),
                 vertex.Color is null ? null : new ColorRgba(vertex.Color.R, vertex.Color.G, vertex.Color.B, vertex.Color.A))).ToArray(),
-            mesh.Submeshes.Select(static submesh => new MeshSubmesh(submesh.Index, submesh.MaterialKey, submesh.TriangleVertexIndices)).ToArray());
+            mesh.Submeshes.Select(static submesh => new MeshSubmesh(submesh.Index, submesh.TriangleVertexIndices)).ToArray());
 
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
         => new(

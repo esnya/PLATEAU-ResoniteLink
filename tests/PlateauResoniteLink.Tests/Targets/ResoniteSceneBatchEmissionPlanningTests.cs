@@ -273,7 +273,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
             new ResoniteMaterialBinding(
-                MaterialKey: "dedicated-material",
                 BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
@@ -341,7 +340,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
             new ResoniteMaterialBinding(
-                MaterialKey: "dedicated-material",
                 BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,

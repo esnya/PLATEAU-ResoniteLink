@@ -68,7 +68,7 @@ public sealed class ResoniteLiveSceneImportTargetYOffsetTests
             ActualMeshCode: actualMeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(worldPosition),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("wireframe-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials: [CreateWireframeMaterial()],
             SourceFileRelativePath: $"udx/bldg/{actualMeshCode}/plateau_{DatasetName}_bldg_{actualMeshCode}.gml");
     }
@@ -76,7 +76,6 @@ public sealed class ResoniteLiveSceneImportTargetYOffsetTests
     private static ResoniteMaterialBinding CreateWireframeMaterial()
     {
         return new ResoniteMaterialBinding(
-            MaterialKey: "wireframe-material",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Wireframe,
             TexturePayload: null,

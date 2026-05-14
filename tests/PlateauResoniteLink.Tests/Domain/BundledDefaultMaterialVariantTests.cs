@@ -148,7 +148,6 @@ public sealed class BundledDefaultMaterialVariantTests
         Assert.NotNull(variant.TextureSources);
         Assert.Equal(expectedEmissionTexturePath, variant.TextureSources.Emission?.LogicalPath);
         Assert.Null(variant.TextureSources.Albedo);
-        Assert.Null(variant.TextureSources.Height);
         if (family == BundledDefaultMaterialFamilies.WallResidentialPlasterLow && variantIndex == 1)
         {
             Assert.Equal(
@@ -157,9 +156,10 @@ public sealed class BundledDefaultMaterialVariantTests
         }
         else
         {
-            Assert.Null(variant.TextureSources.Metallic);
+            Assert.NotNull(variant.TextureSources.Metallic);
         }
-        Assert.Null(variant.TextureSources.Normal);
+        Assert.NotNull(variant.TextureSources.Height);
+        Assert.NotNull(variant.TextureSources.Normal);
     }
 
     [Theory]
@@ -274,25 +274,6 @@ public sealed class BundledDefaultMaterialVariantTests
             materialName,
             "emission.png");
         return true;
-    }
-
-    private static string GetBundledAssetPath(string logicalPath)
-    {
-        const string defaultMaterialsPrefix = "default-materials/";
-        if (logicalPath.StartsWith(defaultMaterialsPrefix, StringComparison.Ordinal))
-        {
-            logicalPath = logicalPath[defaultMaterialsPrefix.Length..];
-        }
-
-        List<string> segments =
-        [
-            "src",
-            "PlateauResoniteLink",
-            "Assets",
-            "DefaultMaterials",
-        ];
-        segments.AddRange(logicalPath.Split('/', StringSplitOptions.RemoveEmptyEntries));
-        return TestData.GetRepositoryPath([.. segments]);
     }
 
 }

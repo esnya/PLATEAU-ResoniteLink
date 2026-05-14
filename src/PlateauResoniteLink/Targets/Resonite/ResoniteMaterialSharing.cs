@@ -33,30 +33,6 @@ public static class ResoniteMaterialSharing
             && material.TextureOffset is null;
     }
 
-
-    public static string CreateCanonicalGenericSharedMaterialKey(
-        ResoniteMaterialProjection projection,
-        ResoniteFloat2? textureScale,
-        ResoniteFloat2? textureOffset,
-        ResoniteMaterialDepthOffset? depthOffset)
-    {
-        _ = textureScale;
-        _ = textureOffset;
-
-        return string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"generic/{ProjectionToken(projection)}{TerrainAlignedSuffix(depthOffset)}");
-    }
-
-    public static string CreateCanonicalVertexColorCommonMaterialKey(
-        ResoniteMaterialProjection projection,
-        ResoniteMaterialDepthOffset? depthOffset)
-    {
-        return string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"vertex-color/{ProjectionToken(projection)}{TerrainAlignedSuffix(depthOffset)}");
-    }
-
     public static bool IsWhiteBaseColor(ResoniteColor color)
     {
         return Math.Abs(color.R - 1.0) < 1e-9
@@ -65,16 +41,4 @@ public static class ResoniteMaterialSharing
             && Math.Abs(color.A - 1.0) < 1e-9;
     }
 
-    private static string ProjectionToken(ResoniteMaterialProjection projection)
-    {
-        return projection switch
-        {
-            ResoniteMaterialProjection.Uv => "uv",
-            ResoniteMaterialProjection.Triplanar => "triplanar",
-            _ => projection.ToString().ToLowerInvariant(),
-        };
-    }
-
-    private static string TerrainAlignedSuffix(ResoniteMaterialDepthOffset? depthOffset) =>
-        depthOffset is null ? string.Empty : "-terrain-aligned";
 }

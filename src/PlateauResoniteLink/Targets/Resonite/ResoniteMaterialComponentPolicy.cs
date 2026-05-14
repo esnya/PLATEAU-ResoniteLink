@@ -185,64 +185,38 @@ internal static class ResoniteMaterialComponentPolicy
         BundledDefaultMaterialVariant variant = BundledDefaultMaterialFamilies.GetVariantDefinition(
             material.Family!,
             material.BundledVariantIndex ?? 0);
+        BundledDefaultMaterialTextureSources? sources = variant.TextureSources;
         textureSet = new BundledDefaultMaterialTextureSet(
-            ResolveEmissionTextureSource(bundledDefaultMaterialAssetStore, variant),
-            ResolveTextureSource<BundledDefaultHeightTextureRole>(bundledDefaultMaterialAssetStore, variant, variant.TextureSources?.Height),
-            ResolveTextureSource<BundledDefaultMetallicTextureRole>(bundledDefaultMaterialAssetStore, variant, variant.TextureSources?.Metallic),
-            ResolveTextureSource<BundledDefaultNormalTextureRole>(bundledDefaultMaterialAssetStore, variant, variant.TextureSources?.Normal));
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Emission),
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Height),
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Metallic),
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Normal));
         return true;
-    }
-
-    private static BundledDefaultTextureAsset<BundledDefaultEmissionTextureRole>? ResolveEmissionTextureSource(
-        BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
-        BundledDefaultMaterialVariant variant)
-    {
-        if (variant.TextureSources?.Emission is { } explicitEmission)
-        {
-            if (BundledDefaultTextureAssets.IsBlackEmission(explicitEmission))
-            {
-                return null;
-            }
-
-            EnsureBundledTextureExists(bundledDefaultMaterialAssetStore, explicitEmission);
-            return explicitEmission;
-        }
-
-        return ResolveTextureSource<BundledDefaultEmissionTextureRole>(
-            bundledDefaultMaterialAssetStore,
-            variant,
-            explicitAsset: null);
     }
 
     private static BundledDefaultTextureAsset<TRole>? ResolveTextureSource<TRole>(
         BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
-        BundledDefaultMaterialVariant variant,
-        BundledDefaultTextureAsset<TRole>? explicitAsset)
+        BundledDefaultTextureAsset<TRole>? source)
         where TRole : IBundledDefaultTextureRole
     {
-        if (explicitAsset is not null)
-        {
-            EnsureBundledTextureExists(bundledDefaultMaterialAssetStore, explicitAsset);
-            return explicitAsset;
-        }
-
-        if (!BundledDefaultTextureAssets.TryGetCompanionAsset(variant.Albedo, out BundledDefaultTextureAsset<TRole>? companion))
+        if (source is null)
         {
             return null;
         }
 
-        return bundledDefaultMaterialAssetStore.TryGetAbsolutePath(companion!, out _)
-            ? companion
-            : null;
+        EnsureBundledTextureExists<TRole>(bundledDefaultMaterialAssetStore, source);
+        return source;
     }
 
-    private static void EnsureBundledTextureExists(
+    private static void EnsureBundledTextureExists<TRole>(
         BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
         BundledDefaultTextureAsset asset)
+        where TRole : IBundledDefaultTextureRole
     {
         if (!bundledDefaultMaterialAssetStore.TryGetAbsolutePath(asset, out _))
         {
-            throw new InvalidOperationException("Could not resolve bundled texture source.");
+            throw new InvalidOperationException(
+                $"Could not resolve bundled texture source '{asset.LogicalPath}' for role '{typeof(TRole).Name}'.");
         }
     }
 

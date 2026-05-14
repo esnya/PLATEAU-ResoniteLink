@@ -1,9 +1,11 @@
 using System;
-using System.Collections.Generic;
+
+using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal readonly record struct ResoniteCommonMaterialAsset(
+    DefaultCommonMaterialMember Member,
     ResoniteMaterialBinding Material,
     CreatedMaterialAsset Asset)
 {
@@ -11,6 +13,7 @@ internal readonly record struct ResoniteCommonMaterialAsset(
 }
 
 internal readonly record struct ResoniteCommonMaterialPlan(
+    DefaultCommonMaterialMember Member,
     ResoniteMaterialBinding Material)
 {
     public string SlotName => ResoniteCommonMaterialSlots.GetSlotName(Material);
@@ -18,56 +21,67 @@ internal readonly record struct ResoniteCommonMaterialPlan(
 
 internal static class ResoniteCommonMaterialPlans
 {
-    public static IReadOnlyList<ResoniteCommonMaterialPlan> CreateCatalogPlans(
-        IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
+    public static CommonMaterialCatalog<ResoniteCommonMaterialPlan> CreateCatalogPlans(
+        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials)
     {
-        ResoniteCommonMaterialPlan[] plans = new ResoniteCommonMaterialPlan[commonMaterials.Count];
-        for (int i = 0; i < commonMaterials.Count; i++)
+        return commonMaterials.Select(static member =>
         {
-            ResoniteMaterialBinding normalizedMaterial =
-                ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(commonMaterials[i]);
-            if (normalizedMaterial.AssetScope != ResoniteMaterialAssetScope.Common)
+            ResoniteMaterialBinding material = SceneImportContractMapper.ToInternal(member.CreateBinding([0]));
+            if (material.AssetScope != ResoniteMaterialAssetScope.Common)
             {
                 throw new InvalidOperationException(
                     "Common material setup received a non-common material. Use the static common material catalog boundary.");
             }
 
-            plans[i] = new ResoniteCommonMaterialPlan(normalizedMaterial);
-        }
-
-        return plans;
+            return new ResoniteCommonMaterialPlan(member, material);
+        });
     }
 }
 
-internal sealed class ResoniteCommonMaterialAssetSet
+internal static class ResoniteCommonMaterialAssets
 {
-    private readonly List<ResoniteCommonMaterialAsset> assets = [];
-
-    public int Count => assets.Count;
-
-    public IEnumerable<ResoniteCommonMaterialAsset> Assets => assets;
-
-    public void Set(ResoniteCommonMaterialAsset asset)
+    public static CommonMaterialCatalog<ResoniteCommonMaterialAsset> Set(
+        CommonMaterialCatalog<ResoniteCommonMaterialAsset> assets,
+        ResoniteCommonMaterialAsset asset)
     {
-        ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(asset.Material);
-        for (int i = 0; i < assets.Count; i++)
+        ArgumentNullException.ThrowIfNull(assets);
+
+        ResoniteCommonMaterialAsset[] updatedAssets = new ResoniteCommonMaterialAsset[
+            ContainsMember(assets, asset.Member) ? assets.Count : assets.Count + 1];
+        int writeIndex = 0;
+        bool replaced = false;
+        foreach (ResoniteCommonMaterialAsset existingAsset in assets)
         {
-            if (CommonMaterialMatches(assets[i].Material, normalizedMaterial))
+            if (existingAsset.Member == asset.Member)
             {
-                assets[i] = asset;
-                return;
+                updatedAssets[writeIndex++] = asset;
+                replaced = true;
+            }
+            else
+            {
+                updatedAssets[writeIndex++] = existingAsset;
             }
         }
 
-        assets.Add(asset);
+        if (!replaced)
+        {
+            updatedAssets[writeIndex] = asset;
+        }
+
+        return new CommonMaterialCatalog<ResoniteCommonMaterialAsset>(updatedAssets);
     }
 
-    public bool TryGetAsset(ResoniteMaterialBinding material, out CreatedMaterialAsset asset)
+    public static bool TryGetAsset(
+        CommonMaterialCatalog<ResoniteCommonMaterialAsset> assets,
+        DefaultCommonMaterialMember member,
+        out CreatedMaterialAsset asset)
     {
-        ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
+        ArgumentNullException.ThrowIfNull(assets);
+        ArgumentNullException.ThrowIfNull(member);
+
         foreach (ResoniteCommonMaterialAsset entry in assets)
         {
-            if (CommonMaterialMatches(entry.Material, normalizedMaterial))
+            if (entry.Member == member)
             {
                 asset = entry.Asset;
                 return true;
@@ -78,38 +92,19 @@ internal sealed class ResoniteCommonMaterialAssetSet
         return false;
     }
 
-    private static bool CommonMaterialMatches(
-        ResoniteMaterialBinding left,
-        ResoniteMaterialBinding right)
+    private static bool ContainsMember(
+        CommonMaterialCatalog<ResoniteCommonMaterialAsset> assets,
+        DefaultCommonMaterialMember member)
     {
-        return ResoniteCommonMaterialIdentity.Matches(left, right);
-    }
-}
+        foreach (ResoniteCommonMaterialAsset asset in assets)
+        {
+            if (asset.Member == member)
+            {
+                return true;
+            }
+        }
 
-internal static class ResoniteCommonMaterialIdentity
-{
-    public static bool Matches(
-        ResoniteMaterialBinding left,
-        ResoniteMaterialBinding right)
-    {
-        left = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(left);
-        right = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(right);
-        return left.AssetScope == ResoniteMaterialAssetScope.Common
-            && right.AssetScope == ResoniteMaterialAssetScope.Common
-            && left.BaseColor == right.BaseColor
-            && left.MaterialType == right.MaterialType
-            && left.TexturePayload is null
-            && right.TexturePayload is null
-            && left.TextureSourceKind == right.TextureSourceKind
-            && left.Projection == right.Projection
-            && left.DepthOffset == right.DepthOffset
-            && left.TextureScale == right.TextureScale
-            && left.TextureOffset == right.TextureOffset
-            && string.Equals(left.Family, right.Family, System.StringComparison.Ordinal)
-            && left.BundledVariantIndex == right.BundledVariantIndex
-            && left.TerrainOverlay is null
-            && right.TerrainOverlay is null
-            && string.Equals(left.TerrainMeshCode, right.TerrainMeshCode, System.StringComparison.Ordinal);
+        return false;
     }
 }
 
@@ -118,7 +113,7 @@ internal static class ResoniteCommonMaterialSlots
     public static string GetSlotName(ResoniteMaterialBinding material)
     {
         return ResoniteSceneMaterialConventions.CreateMaterialSlotName(
-            ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material),
+            material,
             useCommonMaterialAssets: true);
     }
 }

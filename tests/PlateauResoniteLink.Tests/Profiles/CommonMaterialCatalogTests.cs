@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
@@ -14,7 +15,7 @@ public sealed class CommonMaterialCatalogTests
     [Fact]
     public void Create_IncludesCodebaseReachableAlbedoAndVertexColorCommonMaterials()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
+        IReadOnlyList<MaterialBinding> materials = CreateMaterialCatalog();
 
         Assert.Contains(
             materials,
@@ -49,7 +50,7 @@ public sealed class CommonMaterialCatalogTests
     [Fact]
     public void Create_UsesResolverReachableVariantProfilesForBundledCommonMaterials()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
+        IReadOnlyList<MaterialBinding> materials = CreateMaterialCatalog();
 
         MaterialBinding roofMaterial = Assert.Single(
             materials,
@@ -97,7 +98,7 @@ public sealed class CommonMaterialCatalogTests
     [Fact]
     public void Create_IncludesCodebaseReachableBuildingFacadeFamilies()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
+        IReadOnlyList<MaterialBinding> materials = CreateMaterialCatalog();
 
         foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFamilies)
         {
@@ -113,7 +114,7 @@ public sealed class CommonMaterialCatalogTests
     [Fact]
     public void Create_UsesVariantProfilesForBuildingFacadeFamilies()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
+        IReadOnlyList<MaterialBinding> materials = CreateMaterialCatalog();
 
         foreach (string family in BundledDefaultMaterialFamilies.BuildingFacadeFamilies)
         {
@@ -154,9 +155,9 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
-    public void Create_UsesTargetCanonicalKeysForBundledCommonMaterials()
+    public void Create_UsesCanonicalFamilyVariantShapeForBundledCommonMaterials()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
+        IReadOnlyList<MaterialBinding> materials = CreateMaterialCatalog();
 
         MaterialBinding wallMaterial = Assert.Single(
             materials,
@@ -169,24 +170,20 @@ public sealed class CommonMaterialCatalogTests
                 && material.Projection == MaterialProjection.Triplanar
                 && material.BundledVariantIndex == 0);
 
-        Assert.Equal(
-            ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(
-                BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
-                0),
-            wallMaterial.MaterialKey);
-        Assert.Equal(
-            ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(
-                BundledDefaultMaterialFamilies.Roof,
-                0),
-            roofMaterial.MaterialKey);
+        Assert.Equal(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, wallMaterial.Family);
+        Assert.Equal(0, wallMaterial.BundledVariantIndex);
+        Assert.Equal(MaterialProjection.Uv, wallMaterial.Projection);
+        Assert.Equal(BundledDefaultMaterialFamilies.Roof, roofMaterial.Family);
+        Assert.Equal(0, roofMaterial.BundledVariantIndex);
+        Assert.Equal(MaterialProjection.Triplanar, roofMaterial.Projection);
     }
 
     [Fact]
-    public void Create_AssignsStableAndDistinctKeysToCodebaseReachableCommonMaterials()
+    public void Create_AssignsStableAndDistinctDefinitionsToCodebaseReachableCommonMaterials()
     {
-        CommonMaterialCatalog catalog = new();
-        IReadOnlyList<MaterialBinding> firstMaterials = catalog.Create();
-        IReadOnlyList<MaterialBinding> secondMaterials = catalog.Create();
+        DefaultCommonMaterialCatalog catalog = new();
+        IReadOnlyList<MaterialBinding> firstMaterials = catalog.Create().Select(static member => member.CreateBinding([0]));
+        IReadOnlyList<MaterialBinding> secondMaterials = catalog.Create().Select(static member => member.CreateBinding([0]));
 
         MaterialBinding sharedGeneric = Assert.Single(
             firstMaterials,
@@ -225,49 +222,23 @@ public sealed class CommonMaterialCatalogTests
                 && material.Projection == MaterialProjection.Uv
                 && material.DepthOffset is null);
 
-        Assert.Equal(sharedGeneric.MaterialKey, repeatedSharedGeneric.MaterialKey);
-        Assert.NotEqual(sharedGeneric.MaterialKey, sharedVertexColor.MaterialKey);
-        Assert.Equal(
-            ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
-                ResoniteMaterialProjection.Uv,
-                textureScale: null,
-                textureOffset: null,
-                depthOffset: null),
-            sharedGeneric.MaterialKey);
-        Assert.Equal(
-            ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
-                ResoniteMaterialProjection.Uv,
-                textureScale: null,
-                textureOffset: null,
-                new ResoniteMaterialDepthOffset(
-                    LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset.Factor,
-                    LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset.Units)),
-            terrainAlignedSharedGeneric.MaterialKey);
-        Assert.Equal(
-            ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
-                ResoniteMaterialProjection.Uv,
-                depthOffset: null),
-            sharedVertexColor.MaterialKey);
-        Assert.Equal(
-            ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
-                ResoniteMaterialProjection.Uv,
-                new ResoniteMaterialDepthOffset(
-                    LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset.Factor,
-                    LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset.Units)),
-            terrainAlignedSharedVertexColor.MaterialKey);
-        Assert.NotEqual(sharedVertexColor.MaterialKey, terrainAlignedSharedVertexColor.MaterialKey);
-        Assert.DoesNotContain(
-            firstMaterials.Where(material => material.Family is not null).Select(static material => material.MaterialKey),
-            key => string.Equals(key, sharedGeneric.MaterialKey, StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            firstMaterials.Where(material => material.Family is not null).Select(static material => material.MaterialKey),
-            key => string.Equals(key, sharedVertexColor.MaterialKey, StringComparison.Ordinal));
+        Assert.Equal(CreateMaterialSignature(sharedGeneric), CreateMaterialSignature(repeatedSharedGeneric));
+        Assert.NotEqual(sharedGeneric.MaterialType, sharedVertexColor.MaterialType);
+        Assert.Null(sharedGeneric.DepthOffset);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset, terrainAlignedSharedGeneric.DepthOffset);
+        Assert.Null(sharedVertexColor.DepthOffset);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset, terrainAlignedSharedVertexColor.DepthOffset);
+        Assert.All(firstMaterials.Where(static material => material.Family is not null), static material =>
+        {
+            Assert.NotNull(material.Family);
+            Assert.Equal(TextureSourceKind.Bundled, material.TextureSourceKind);
+        });
     }
 
     [Fact]
     public void Create_DoesNotContainDuplicateMaterialDefinitions()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
+        IReadOnlyList<MaterialBinding> materials = CreateMaterialCatalog();
 
         Assert.Equal(
             materials.Count,
@@ -289,9 +260,54 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
+    public void Catalog_CopiesCallerListBeforeValidationBoundaryEscapes()
+    {
+        List<DefaultCommonMaterialMember> sourceMaterials = [new DefaultCommonMaterialCatalog().Create()[0]];
+        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = new(sourceMaterials);
+
+        sourceMaterials.Clear();
+
+        DefaultCommonMaterialMember material = Assert.Single(catalog);
+        Assert.Equal(sourceMaterials.Count + 1, catalog.Count);
+        Assert.Equal(DefaultCommonMaterialMemberKind.Bundled, material.Kind);
+    }
+
+    [Fact]
+    public void Select_PreservesCatalogCountAndOrder()
+    {
+        CommonMaterialCatalog<int> catalog = new([3, 1, 4]);
+
+        CommonMaterialCatalog<string> selected = catalog.Select(static value => string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"item-{value}"));
+
+        Assert.Equal(3, selected.Count);
+        Assert.Equal(["item-3", "item-1", "item-4"], selected);
+    }
+
+    [Fact]
+    public async Task SelectAsync_PreservesCatalogCountAndOrder()
+    {
+        CommonMaterialCatalog<int> catalog = new([3, 1, 4]);
+
+        CommonMaterialCatalog<string> selected = await catalog.SelectAsync(
+            static (value, cancellationToken) =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return ValueTask.FromResult(string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"item-{value}"));
+            },
+            CancellationToken.None);
+
+        Assert.Equal(3, selected.Count);
+        Assert.Equal(["item-3", "item-1", "item-4"], selected);
+    }
+
+    [Fact]
     public void Create_IncludesOnlyResolverReachableRoadAndGenericVariants()
     {
-        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().Create();
+        IReadOnlyList<MaterialBinding> materials = CreateMaterialCatalog();
 
         Assert.Equal(
             BundledDefaultMaterialFamilies.RoadVariants.Count,
@@ -319,5 +335,23 @@ public sealed class CommonMaterialCatalogTests
         Assert.Contains(
             BundledDefaultMaterialFamilies.OtherVariants,
             variant => variant.Albedo.LogicalPath.StartsWith("default-materials/texturecan/", StringComparison.Ordinal));
+    }
+
+    private static string CreateMaterialSignature(MaterialBinding material)
+    {
+        string submeshes = string.Join("/", material.SubmeshIndices);
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{material.BaseColor.R},{material.BaseColor.G},{material.BaseColor.B},{material.BaseColor.A}|"
+            + $"{material.MaterialType}|{material.TextureSourceKind}|{material.Projection}|"
+            + $"{material.DepthOffset?.Factor}:{material.DepthOffset?.Units}|"
+            + $"{material.TextureScale?.X}:{material.TextureScale?.Y}|"
+            + $"{material.Family}|{material.TextureOffset?.X}:{material.TextureOffset?.Y}|"
+            + $"{material.ReuseScope}|{material.BundledVariantIndex}|{material.TerrainMeshCode}|{submeshes}");
+    }
+
+    private static CommonMaterialCatalog<MaterialBinding> CreateMaterialCatalog()
+    {
+        return new DefaultCommonMaterialCatalog().Create().Select(static member => member.CreateBinding([0]));
     }
 }

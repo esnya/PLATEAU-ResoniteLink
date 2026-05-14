@@ -1496,15 +1496,8 @@ internal static partial class LocalCityGmlObjectProjection
             }
 
             ResolvedSurfaceMaterial representativeSurface = materialGroup.First();
-            string materialKey = CreateBindingMaterialKey(
-                cityObject.ActualMeshCode,
-                representativeSurface.Material,
-                representativeSurface.DepthOffset,
-                representativeSurface.Material.TextureScale,
-                representativeSurface.Surface.BaseColor,
-                representativeSurface.Material.TextureOffset);
-            submeshes.Add(new MeshSubmesh(materialIndex, materialKey, indices));
-            materials.Add(CreateMaterialBinding(cityObject.ActualMeshCode, representativeSurface, materialKey, materialIndex));
+            submeshes.Add(new MeshSubmesh(materialIndex, indices));
+            materials.Add(CreateMaterialBinding(cityObject.ActualMeshCode, representativeSurface, materialIndex));
         }
 
         return new ImportedCityObject(
@@ -3351,101 +3344,6 @@ internal static partial class LocalCityGmlObjectProjection
             cartesian);
     }
 
-    private static string CreateMaterialKey(
-        MaterialType materialType,
-        TerrainTextureOverlay? terrainOverlay,
-        TexturePayload? texturePayload,
-        TextureSourceKind textureSourceKind,
-        MaterialProjection projection,
-        MaterialDepthOffset? depthOffset,
-        Float2? textureScale,
-        string? family,
-        ColorRgba color,
-        Float2? textureOffset = null)
-    {
-        string terrainToken = terrainOverlay is null ? "none" : CreateTerrainOverlayToken(terrainOverlay);
-        string textureToken = texturePayload?.Identity ?? "none";
-        string familyToken = string.IsNullOrWhiteSpace(family) ? "none" : family.ToLowerInvariant();
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"material-{MaterialTypeToken(materialType)}-{ProjectionToken(projection)}-terrain-{terrainToken}-texture-{textureToken}-source-{textureSourceKind.ToString().ToLowerInvariant()}-family-{familyToken}-depth-{FormatDepth(depthOffset)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-color-{FormatColor(color)}");
-    }
-
-    private static string CreateBindingMaterialKey(
-        string actualMeshCode,
-        ResolvedMaterial material,
-        MaterialDepthOffset? depthOffset,
-        Float2? textureScale,
-        ColorRgba color,
-        Float2? textureOffset = null)
-    {
-        if (material.TerrainOverlay is not null)
-        {
-            if (ResolveTerrainTextureMeshCode(actualMeshCode, material.TerrainOverlay) is null)
-            {
-                throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
-            }
-
-            Float2? normalizedTextureScale = IsIdentityTextureScale(textureScale) ? null : textureScale;
-            Float2? normalizedTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
-            return CreateMaterialKey(
-                material.MaterialType,
-                terrainOverlay: null,
-                material.TexturePayload,
-                material.TextureSourceKind,
-                material.Projection,
-                depthOffset,
-                normalizedTextureScale,
-                family: null,
-                new ColorRgba(1.0, 1.0, 1.0, 1.0),
-                normalizedTextureOffset);
-        }
-
-        if (material.ReuseScope == MaterialReuseScope.Shared)
-        {
-            return CreateSharedMaterialKey(material, depthOffset);
-        }
-
-        return CreateMaterialKey(
-            material.MaterialType,
-            material.TerrainOverlay,
-            material.TexturePayload,
-            material.TextureSourceKind,
-            material.Projection,
-            depthOffset,
-            textureScale,
-            material.Family,
-            color,
-            textureOffset);
-    }
-
-    private static string CreateSharedMaterialKey(
-        ResolvedMaterial material,
-        MaterialDepthOffset? depthOffset)
-    {
-        string projectionToken = material.Projection switch
-        {
-            MaterialProjection.Uv => "uv",
-            MaterialProjection.Triplanar => "triplanar",
-            _ => material.Projection.ToString().ToLowerInvariant(),
-        };
-        string semanticSuffix = depthOffset is null ? string.Empty : "-terrain-aligned";
-        if (material.MaterialType == MaterialType.VertexColor)
-        {
-            return string.Create(CultureInfo.InvariantCulture, $"vertex-color/{projectionToken}{semanticSuffix}");
-        }
-
-        if (string.IsNullOrWhiteSpace(material.Family))
-        {
-            return string.Create(CultureInfo.InvariantCulture, $"generic/{projectionToken}{semanticSuffix}");
-        }
-
-        int variantIndex = material.BundledVariantIndex ?? 0;
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{material.Family}/{BundledDefaultMaterialFamilies.GetVariantMaterialName(material.Family, variantIndex)}");
-    }
-
     private static MaterialGroupingKey CreateMaterialGroupingKey(
         string actualMeshCode,
         ResolvedMaterial material,
@@ -4447,13 +4345,6 @@ internal static partial class LocalCityGmlObjectProjection
                 return CreateMaterialBinding(
                     cityObject.ActualMeshCode,
                     representativeSurface,
-                    CreateBindingMaterialKey(
-                        cityObject.ActualMeshCode,
-                        representativeSurface.Material,
-                        representativeSurface.DepthOffset,
-                        representativeSurface.Material.TextureScale,
-                        representativeSurface.Surface.BaseColor,
-                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
@@ -4506,13 +4397,6 @@ internal static partial class LocalCityGmlObjectProjection
                 return CreateMaterialBinding(
                     cityObject.ActualMeshCode,
                     representativeSurface,
-                    CreateBindingMaterialKey(
-                        cityObject.ActualMeshCode,
-                        representativeSurface.Material,
-                        representativeSurface.DepthOffset,
-                        representativeSurface.Material.TextureScale,
-                        representativeSurface.Surface.BaseColor,
-                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
@@ -5111,13 +4995,6 @@ internal static partial class LocalCityGmlObjectProjection
                 return CreateMaterialBinding(
                     terrainMaterialMeshCodeSource,
                     representativeSurface,
-                    CreateBindingMaterialKey(
-                        terrainMaterialMeshCodeSource,
-                        representativeSurface.Material,
-                        representativeSurface.DepthOffset,
-                        representativeSurface.Material.TextureScale,
-                        representativeSurface.Surface.BaseColor,
-                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .ToArray();
@@ -5174,13 +5051,6 @@ internal static partial class LocalCityGmlObjectProjection
                 return CreateMaterialBinding(
                     terrainMaterialMeshCodeSource,
                     representativeSurface,
-                    CreateBindingMaterialKey(
-                        terrainMaterialMeshCodeSource,
-                        representativeSurface.Material,
-                        representativeSurface.DepthOffset,
-                        representativeSurface.Material.TextureScale,
-                        representativeSurface.Surface.BaseColor,
-                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .ToArray();
@@ -5189,7 +5059,6 @@ internal static partial class LocalCityGmlObjectProjection
     private static MaterialBinding CreateMaterialBinding(
         string actualMeshCode,
         ResolvedSurfaceMaterial representativeSurface,
-        string materialKey,
         int materialIndex)
     {
         string? terrainMeshCode = representativeSurface.Material.TerrainOverlay is null
@@ -5199,8 +5068,10 @@ internal static partial class LocalCityGmlObjectProjection
         ColorRgba baseColor = representativeSurface.Material.TerrainOverlay is null
             ? ToContractColor(representativeSurface.Surface.BaseColor)
             : new ColorRgba(1.0, 1.0, 1.0, 1.0);
+        DefaultCommonMaterialMember? commonMaterial = ResolveAssignedCommonMaterial(
+            representativeSurface,
+            baseColor);
         return new MaterialBinding(
-            MaterialKey: materialKey,
             BaseColor: baseColor,
             MaterialType: representativeSurface.Material.MaterialType,
             TexturePayload: representativeSurface.Material.TexturePayload is null
@@ -5222,7 +5093,59 @@ internal static partial class LocalCityGmlObjectProjection
             ReuseScope: representativeSurface.Material.ReuseScope,
             TerrainOverlay: representativeSurface.Material.TerrainOverlay,
             BundledVariantIndex: representativeSurface.Material.BundledVariantIndex,
-            TerrainMeshCode: terrainMeshCode);
+            TerrainMeshCode: terrainMeshCode,
+            CommonMaterial: commonMaterial);
+    }
+
+    private static DefaultCommonMaterialMember? ResolveAssignedCommonMaterial(
+        ResolvedSurfaceMaterial representativeSurface,
+        ColorRgba baseColor)
+    {
+        ResolvedMaterial material = representativeSurface.Material;
+        if (material.TerrainOverlay is not null
+            || !IsCanonicalCommonBaseColor(baseColor)
+            || material.Projection != MaterialProjection.Uv && material.CommonMaterial?.Kind is not DefaultCommonMaterialMemberKind.Bundled)
+        {
+            return null;
+        }
+
+        if (material.CommonMaterial is not null)
+        {
+            return representativeSurface.DepthOffset is null
+                && material.TexturePayload is null
+                && material.TerrainOverlay is null
+                ? material.CommonMaterial
+                : null;
+        }
+
+        if (material.MaterialType == MaterialType.Standard
+            && material.Projection == MaterialProjection.Uv
+            && material.Family is null
+            && material.TextureSourceKind == TextureSourceKind.Dataset
+            && material.TextureScale is null
+            && material.TextureOffset is null)
+        {
+            return DefaultCommonMaterialMember.GenericUv(representativeSurface.DepthOffset);
+        }
+
+        if (material.MaterialType == MaterialType.VertexColor
+            && material.Projection == MaterialProjection.Uv
+            && material.TexturePayload is null
+            && material.TextureScale is null
+            && material.TextureOffset is null)
+        {
+            return DefaultCommonMaterialMember.VertexColorUv(representativeSurface.DepthOffset);
+        }
+
+        return null;
+    }
+
+    private static bool IsCanonicalCommonBaseColor(ColorRgba color)
+    {
+        return Math.Abs(color.R - 1.0) < 1e-9
+            && Math.Abs(color.G - 1.0) < 1e-9
+            && Math.Abs(color.B - 1.0) < 1e-9
+            && Math.Abs(color.A - 1.0) < 1e-9;
     }
 
     private static string ResolveTerrainTextureMaterialMeshCodeSource(

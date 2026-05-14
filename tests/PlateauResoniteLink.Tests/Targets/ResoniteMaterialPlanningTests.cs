@@ -23,7 +23,6 @@ public sealed class ResoniteMaterialPlanningTests
         using SceneSinkRecordingClient client = new();
         ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
         ResoniteMaterialBinding material = new(
-            MaterialKey: "facade-common",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -177,7 +176,6 @@ public sealed class ResoniteMaterialPlanningTests
             GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
             MaxTextureSize: 512);
         ResoniteMaterialBinding material = new(
-            MaterialKey: "dem-overlay",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -266,7 +264,6 @@ public sealed class ResoniteMaterialPlanningTests
             GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
             MaxTextureSize: 512);
         ResoniteMaterialBinding material = new(
-            MaterialKey: "dem-overlay",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -295,7 +292,6 @@ public sealed class ResoniteMaterialPlanningTests
     public async Task PlanMainTextureOverrideAsync_UsesPreparedUriWithRoleIdentity()
     {
         ResoniteMaterialBinding firstMaterial = new(
-            MaterialKey: "material-a",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], identity: "payload-a"),
@@ -305,7 +301,6 @@ public sealed class ResoniteMaterialPlanningTests
             SubmeshIndices: [0]);
         ResoniteMaterialBinding secondMaterial = firstMaterial with
         {
-            MaterialKey = "material-b",
         };
         Dictionary<ResoniteTexturePayload, Uri> firstPreparedUris = new(TexturePayloadReferenceComparer.Instance)
         {
@@ -349,7 +344,6 @@ public sealed class ResoniteMaterialPlanningTests
     private static ResoniteMaterialBinding CreateRoadMaterial(ResoniteMaterialProjection projection)
     {
         return new ResoniteMaterialBinding(
-            MaterialKey: $"road-{projection}",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -367,7 +361,6 @@ public sealed class ResoniteMaterialPlanningTests
     private static ResoniteMaterialBinding CreateBundledMaterial(string family, int variantIndex)
     {
         return new ResoniteMaterialBinding(
-            MaterialKey: $"{family}-{variantIndex}",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,

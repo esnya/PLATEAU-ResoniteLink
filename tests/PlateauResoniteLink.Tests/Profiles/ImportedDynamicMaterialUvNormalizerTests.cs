@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -41,7 +42,6 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
     public void NormalizeMaterialBinding_ClearsBundledFamilyUvTransformAfterNormalization()
     {
         MaterialBinding material = new(
-            MaterialKey: "bundled-identity-override",
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             MaterialType: MaterialType.Standard,
             TexturePayload: null,
@@ -80,8 +80,8 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                     new MeshVertex(new Float3(2.0, 1.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 1.0)),
                 ],
                 [
-                    new MeshSubmesh(0, "dynamic-uv-material", [0, 1, 2]),
-                    new MeshSubmesh(1, "bundled-identity-override", [3, 4, 5]),
+                    new MeshSubmesh(0, [0, 1, 2]),
+                    new MeshSubmesh(1, [3, 4, 5]),
                 ]),
             Materials:
             [
@@ -90,7 +90,6 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                     SubmeshIndices = [0],
                 },
                 new MaterialBinding(
-                    MaterialKey: "bundled-identity-override",
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     MaterialType: MaterialType.Standard,
                     TexturePayload: null,
@@ -108,7 +107,9 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         ImportedCityObject normalized = ImportedDynamicMaterialUvNormalizer.Normalize(cityObject);
         MaterialBinding bundledMaterial = Assert.Single(
             normalized.Materials,
-            static material => string.Equals(material.MaterialKey, "bundled-identity-override", StringComparison.Ordinal));
+            static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal)
+                && material.BundledVariantIndex == 0
+                && material.SubmeshIndices.SequenceEqual([1]));
 
         Assert.NotSame(cityObject, normalized);
         Assert.Null(bundledMaterial.TextureScale);
@@ -138,8 +139,8 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                     new MeshVertex(new Float3(2.0, 1.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 1.0)),
                 ],
                 [
-                    new MeshSubmesh(0, "dynamic-uv-material", [0, 1, 2]),
-                    new MeshSubmesh(1, "triplanar-identity-override", [3, 4, 5]),
+                    new MeshSubmesh(0, [0, 1, 2]),
+                    new MeshSubmesh(1, [3, 4, 5]),
                 ]),
             Materials:
             [
@@ -148,7 +149,6 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                     SubmeshIndices = [0],
                 },
                 new MaterialBinding(
-                    MaterialKey: "triplanar-identity-override",
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     MaterialType: MaterialType.Standard,
                     TexturePayload: null,
@@ -164,7 +164,8 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         ImportedCityObject normalized = ImportedDynamicMaterialUvNormalizer.Normalize(cityObject);
         MaterialBinding triplanarMaterial = Assert.Single(
             normalized.Materials,
-            static material => string.Equals(material.MaterialKey, "triplanar-identity-override", StringComparison.Ordinal));
+            static material => material.Projection == MaterialProjection.Triplanar
+                && material.SubmeshIndices.SequenceEqual([1]));
 
         Assert.NotSame(cityObject, normalized);
         Assert.Equal(MaterialProjection.Triplanar, triplanarMaterial.Projection);
@@ -215,7 +216,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                     new MeshVertex(new Float3(0.0, 1.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 1.0)),
                 ],
                 [
-                    new MeshSubmesh(0, "dynamic-uv-material", [0, 1, 2]),
+                    new MeshSubmesh(0, [0, 1, 2]),
                 ]),
             Materials:
             [
@@ -230,7 +231,6 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         TerrainTextureOverlay? terrainOverlay = null)
     {
         return new MaterialBinding(
-            MaterialKey: "dynamic-uv-material",
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             MaterialType: MaterialType.Standard,
             TexturePayload: new TexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic-uv.png"),

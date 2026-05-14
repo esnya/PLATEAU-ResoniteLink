@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -49,7 +50,8 @@ internal sealed class CommonMaterialAssetCache
 {
     public ConcurrentDictionary<string, Task> CommonMaterialFamilyWarmupTasks { get; } = new(StringComparer.Ordinal);
 
-    public ResoniteCommonMaterialAssetSet CommonMaterialAssets { get; } = new();
+    public CommonMaterialCatalog<ResoniteCommonMaterialAsset> CommonMaterialAssets { get; set; } =
+        new CommonMaterialCatalog<ResoniteCommonMaterialAsset>([]);
 
     public AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> BundledTextureImportTasks { get; } = new();
 }

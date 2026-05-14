@@ -138,7 +138,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private async Task<LiveSendRunState> CreateRunStateAsync(
         ResoniteSceneSetupInfo SetupInfo,
         string workRoot,
-        CommonMaterialCatalogSnapshot commonMaterials,
+        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
         PlateauImportRequest normalizedRequest,
         ResoniteLocalOrigin requestLocalOrigin,
         CancellationToken cancellationToken)
@@ -161,7 +161,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 "live",
                 $"Connecting ResoniteLink connection pool to {endpoint} "
                 + $"with {connectionCount} available routed connection(s)."));
-        ResoniteMaterialBinding[] internalCommonMaterials = SceneImportContractMapper.ToInternal(commonMaterials);
         await ClientSessionInternal.EnsureConnectedAsync(
             new LiveSendConnectionRequest(
                 normalizedRequest.Dataset,
@@ -191,7 +190,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ResoniteSceneSetupState setupState = await sceneSetupInterpreter.SetupAsync(
             routedClient,
             runPlan.SetupInfo,
-            internalCommonMaterials,
+            commonMaterials,
             cancellationToken);
         setupStopwatch.Stop();
         ResoniteSharedSlotIndex placement = new(
@@ -212,9 +211,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 + $"location_slot='{setupState.SceneAnchor.LocationSlot.Value}', "
                 + $"anchor_mesh='{setupState.SceneAnchor.MeshCode}', "
                 + $"anchor_source_file_root='{setupState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
-        foreach (ResoniteCommonMaterialAsset materialAsset in setupState.CommonMaterialAssets.Assets)
+        foreach (ResoniteCommonMaterialAsset materialAsset in setupState.CommonMaterialAssets)
         {
-            materials.CommonMaterialAssets.Set(materialAsset);
+            materials.CommonMaterialAssets = ResoniteCommonMaterialAssets.Set(materials.CommonMaterialAssets, materialAsset);
         }
 
         foreach (string family in setupState.CommonMaterialFamilies)
@@ -239,7 +238,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             GetRoutedClient(),
             setupState,
             materials,
-            internalCommonMaterials,
+            commonMaterials,
             cancellationToken);
 
         ReportProgress(
@@ -1186,10 +1185,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         IResoniteLinkClient client,
         ResoniteSceneSetupState setupState,
         CommonMaterialAssetCache materials,
-        IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
+        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<ResoniteCommonMaterialPlan> commonMaterialPlans =
+        CommonMaterialCatalog<ResoniteCommonMaterialPlan> commonMaterialPlans =
             ResoniteCommonMaterialPlans.CreateCatalogPlans(commonMaterials);
         if (commonMaterialPlans.Count == 0)
         {
@@ -1217,7 +1216,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     $"Setup did not create common material family '{familySlotName}' before common asset preparation.");
             }
 
-            if (materials.CommonMaterialAssets.TryGetAsset(material, out _))
+            if (ResoniteCommonMaterialAssets.TryGetAsset(materials.CommonMaterialAssets, materialPlan.Member, out _))
             {
                 preparedCount++;
                 continue;
@@ -1242,7 +1241,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 cancellationToken);
             if (existingComponent is not null)
             {
-                materials.CommonMaterialAssets.Set(new ResoniteCommonMaterialAsset(
+                materials.CommonMaterialAssets = ResoniteCommonMaterialAssets.Set(
+                    materials.CommonMaterialAssets,
+                    new ResoniteCommonMaterialAsset(
+                    materialPlan.Member,
                     material,
                     new CreatedMaterialAsset(existingComponent.Value, null)));
                 preparedCount++;
@@ -1281,6 +1283,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     plannedMaterial,
                     materialContainerSlotId);
             preparedMaterials.Add(new PreparedCommonMaterialBatchEntry(
+                materialPlan,
                 material,
                 pendingMaterialSlot,
                 pendingMaterialComponent));
@@ -1304,7 +1307,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 }
 
                 CreatedComponent createdMaterialComponent = entityMap.ResolveComponent(preparedMaterial.PendingMaterialComponent);
-                materials.CommonMaterialAssets.Set(new ResoniteCommonMaterialAsset(
+                materials.CommonMaterialAssets = ResoniteCommonMaterialAssets.Set(
+                    materials.CommonMaterialAssets,
+                    new ResoniteCommonMaterialAsset(
+                    preparedMaterial.MaterialPlan.Member,
                     preparedMaterial.Material,
                     new CreatedMaterialAsset(createdMaterialComponent.Locator, null)));
             }
@@ -1327,6 +1333,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     }
 
     private readonly record struct PreparedCommonMaterialBatchEntry(
+        ResoniteCommonMaterialPlan MaterialPlan,
         ResoniteMaterialBinding Material,
         ResoniteBatchOperations.PendingBatchSlot? PendingMaterialSlot,
         ResoniteBatchOperations.PendingBatchComponent PendingMaterialComponent);
@@ -1742,13 +1749,14 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 $"Triangle mesh '{cityObject.DisplayName}' contained duplicate submesh indices.");
         }
 
-        Dictionary<int, string> materialKeyBySubmeshIndex = new();
-        foreach (ResoniteMaterialBinding material in cityObject.Materials)
+        Dictionary<int, int> materialOrdinalBySubmeshIndex = new();
+        for (int materialOrdinal = 0; materialOrdinal < cityObject.Materials.Count; materialOrdinal++)
         {
+            ResoniteMaterialBinding material = cityObject.Materials[materialOrdinal];
             if (material.SubmeshIndices.Count == 0)
             {
                 throw new InvalidOperationException(
-                    $"Triangle mesh '{cityObject.DisplayName}' material '{material.MaterialKey}' did not target any submesh.");
+                    $"Triangle mesh '{cityObject.DisplayName}' material #{materialOrdinal} did not target any submesh.");
             }
 
             foreach (int submeshIndex in material.SubmeshIndices)
@@ -1756,22 +1764,22 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 if (!submeshByIndex.ContainsKey(submeshIndex))
                 {
                     throw new InvalidOperationException(
-                        $"Triangle mesh '{cityObject.DisplayName}' material '{material.MaterialKey}' targeted missing submesh index {submeshIndex}.");
+                        $"Triangle mesh '{cityObject.DisplayName}' material #{materialOrdinal} targeted missing submesh index {submeshIndex}.");
                 }
 
-                if (materialKeyBySubmeshIndex.TryGetValue(submeshIndex, out string? existingMaterialKey))
+                if (materialOrdinalBySubmeshIndex.TryGetValue(submeshIndex, out int existingMaterialOrdinal))
                 {
                     throw new InvalidOperationException(
-                        $"Triangle mesh '{cityObject.DisplayName}' assigned submesh index {submeshIndex} to both '{existingMaterialKey}' and '{material.MaterialKey}'.");
+                        $"Triangle mesh '{cityObject.DisplayName}' assigned submesh index {submeshIndex} to both material #{existingMaterialOrdinal} and material #{materialOrdinal}.");
                 }
 
-                materialKeyBySubmeshIndex[submeshIndex] = material.MaterialKey;
+                materialOrdinalBySubmeshIndex[submeshIndex] = materialOrdinal;
             }
         }
 
         foreach (int submeshIndex in submeshByIndex.Keys.OrderBy(static index => index))
         {
-            if (!materialKeyBySubmeshIndex.ContainsKey(submeshIndex))
+            if (!materialOrdinalBySubmeshIndex.ContainsKey(submeshIndex))
             {
                 throw new InvalidOperationException(
                     $"Triangle mesh '{cityObject.DisplayName}' left submesh index {submeshIndex} without a material assignment.");
@@ -1976,8 +1984,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             .ToArray();
         string materialSummary = string.Join(
             ", ",
-            cityObject.Materials.Select(static material =>
-                $"{material.MaterialKey}[{string.Join("/", material.SubmeshIndices.OrderBy(static index => index))}]"));
+            cityObject.Materials.Select(static (material, index) =>
+                $"material#{index}[{string.Join("/", material.SubmeshIndices.OrderBy(static submeshIndex => submeshIndex))}]"));
         return string.Create(
             CultureInfo.InvariantCulture,
             $"mesh_code={cityObject.ActualMeshCode}, vertices={mesh.Vertices.Count}, submeshes={mesh.Submeshes.Count}, "
@@ -2006,19 +2014,16 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             material = ValidateTerrainTextureMaterialContract(material);
             ReportImportStep(
                 cityObject,
-                $"Creating material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
-            if (TryCreateSharedCommonRendererMaterialPlanTask(
+                $"Creating material {materialIndex + 1}/{cityObject.Materials.Count}.");
+            if (material.CommonMaterial is not null)
+            {
+                materialPlanTasks[materialIndex] = PlanSharedCommonRendererMaterialAsync(
                     state,
-                    importClient,
                     material,
                     preparedTextureUrisByPayload,
                     preparedTerrainTextureUrisByOverlay,
-                    preparedTerrainTextureDataByOverlay,
-                    cancellationToken,
-                    out Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>? sharedCommonPlanTask))
-            {
-                materialPlanTasks[materialIndex] = sharedCommonPlanTask
-                    ?? throw new InvalidOperationException("Common renderer material planning task was not created.");
+                    preparedTerrainTextureComponentsByMeshCode,
+                    cancellationToken);
                 continue;
             }
 
@@ -2038,55 +2043,27 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             materialPlans.Select(static plan => plan.MaterialAsset).ToArray(),
             materialPlans.Select(static plan => plan.RendererBinding).ToArray());
 
-        bool TryCreateSharedCommonRendererMaterialPlanTask(
-            LiveSendRunState runState,
-            IResoniteLinkClient client,
-            ResoniteMaterialBinding sourceMaterial,
-            IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
-            IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-            IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTexturesByOverlay,
-            CancellationToken ct,
-            out Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>? sharedPlanTask)
-        {
-            sharedPlanTask = null;
-            if (!ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-                    sourceMaterial,
-                    out ResoniteMaterialBinding normalizedSharedMaterial,
-                    out string familySlotName))
-            {
-                return false;
-            }
-
-            sharedPlanTask = PlanSharedCommonRendererMaterialAsync(
-                runState,
-                client,
-                    sourceMaterial,
-                    normalizedSharedMaterial,
-                    familySlotName,
-                    preparedTextureUrisByPayload,
-                    preparedTerrainTextureUrisByOverlay,
-                    preparedTerrainTextureComponentsByMeshCode,
-                    ct);
-            return true;
-        }
-
         async Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)> PlanSharedCommonRendererMaterialAsync(
             LiveSendRunState runState,
-            IResoniteLinkClient client,
             ResoniteMaterialBinding sourceMaterial,
-            ResoniteMaterialBinding normalizedSharedMaterial,
-            string familySlotName,
             IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
             IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
             IReadOnlyDictionary<string, ResoniteComponentLocator> terrainTextureComponentsByMeshCode,
             CancellationToken ct)
         {
+            DefaultCommonMaterialMember member = sourceMaterial.CommonMaterial
+                ?? throw new InvalidOperationException("Common renderer material requires a typed common material member.");
+            string familySlotName = ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(
+                SceneImportContractMapper.ToInternal(member.CreateBinding([0])));
             if (runState.Materials.CommonMaterialFamilyWarmupTasks.TryGetValue(familySlotName, out Task? familyWarmupTask))
             {
                 await familyWarmupTask.WaitAsync(ct);
             }
 
-            if (!runState.Materials.CommonMaterialAssets.TryGetAsset(normalizedSharedMaterial, out CreatedMaterialAsset existingMaterialAsset))
+            if (!ResoniteCommonMaterialAssets.TryGetAsset(
+                runState.Materials.CommonMaterialAssets,
+                member,
+                out CreatedMaterialAsset existingMaterialAsset))
             {
                 throw new InvalidOperationException(
                     $"Setup did not resolve common material ({ResoniteMaterialComponentPolicy.DescribeForDiagnostics(sourceMaterial)}) before runtime emission.");

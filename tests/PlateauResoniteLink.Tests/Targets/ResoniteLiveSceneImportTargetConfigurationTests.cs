@@ -387,13 +387,11 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             Mesh: new ResoniteImportedMesh(
                 vertices,
                 [
-                    new ResoniteMeshSubmesh(0, "shared-material", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
                 ]),
             Materials:
             [
-                new ResoniteMaterialBinding(
-                    "shared-material",
-                    new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                new ResoniteMaterialBinding(new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     ResoniteMaterialType.Standard,
                     null,
                     ResoniteTextureSourceKind.Bundled,

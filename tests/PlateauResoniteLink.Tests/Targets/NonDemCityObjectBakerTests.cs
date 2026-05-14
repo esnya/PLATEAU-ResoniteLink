@@ -325,7 +325,6 @@ public sealed class NonDemCityObjectBakerTests
             Materials =
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "building-transform-atlas",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: CreatePayload("textures/transform.png", new Rgba32(255, 0, 0, 255), 4, 4),
@@ -334,7 +333,6 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "building-transform-roof-0",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -346,7 +344,6 @@ public sealed class NonDemCityObjectBakerTests
                     TextureOffset: new ResoniteFloat2(0.125, 0.25),
                     BundledVariantIndex: 0),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "building-transform-roof-1",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -421,7 +418,6 @@ public sealed class NonDemCityObjectBakerTests
             Materials =
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "building-prescoped-transform-atlas",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: CreatePayload("textures/prescoped-transform.png", new Rgba32(255, 0, 0, 255), 4, 4),
@@ -430,7 +426,6 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "building-prescoped-transform-roof-0",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -443,7 +438,6 @@ public sealed class NonDemCityObjectBakerTests
                     BundledVariantIndex: 0,
                     AssetScope: ResoniteMaterialAssetScope.Common),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "building-prescoped-transform-roof-1",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -546,7 +540,7 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
-    public async Task FlushAllAsyncKeepsWhiteBundledFamilyMaterialsDedicatedForLod1Batches()
+    public async Task FlushAllAsyncMergesStructurallyIdenticalWhiteBundledFamilyMaterialsForLod1Batches()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
         ResoniteConstructionCityObject source = CreateBundledFamilyPreservedLod2Building(
@@ -558,7 +552,6 @@ public sealed class NonDemCityObjectBakerTests
             Materials =
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "building-lod1-atlas",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: CreatePayload("textures/lod1-roof.png", new Rgba32(255, 0, 0, 255), 4, 4),
@@ -567,7 +560,6 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "building-lod1-roof-0",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -578,7 +570,6 @@ public sealed class NonDemCityObjectBakerTests
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 0),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "building-lod1-roof-1",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -598,12 +589,11 @@ public sealed class NonDemCityObjectBakerTests
             .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal))
             .ToArray();
 
-        Assert.Equal(3, cityObject.Materials.Count);
-        Assert.Equal(3, cityObject.Mesh.Submeshes.Count);
-        Assert.Equal(2, preservedRoofMaterials.Length);
+        Assert.Equal(2, cityObject.Materials.Count);
+        Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
+        ResoniteMaterialBinding preservedRoofMaterial = Assert.Single(preservedRoofMaterials);
         Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
-        Assert.Contains(preservedRoofMaterials, static material => material.MaterialKey == "building-lod1-roof-0");
-        Assert.Contains(preservedRoofMaterials, static material => material.MaterialKey == "building-lod1-roof-1");
+        Assert.Equal([0], preservedRoofMaterial.SubmeshIndices);
     }
 
     [Fact]
@@ -736,7 +726,6 @@ public sealed class NonDemCityObjectBakerTests
             Materials =
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "terrain-overlay-source-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -953,12 +942,11 @@ public sealed class NonDemCityObjectBakerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
                 ],
                 [
-                    new ResoniteMeshSubmesh(0, $"{slotKey}-material", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
                 ]),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: payload,
@@ -1009,13 +997,12 @@ public sealed class NonDemCityObjectBakerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
                 ],
                 [
-                    new ResoniteMeshSubmesh(0, $"{slotKey}-material-0", [0, 1, 2]),
-                    new ResoniteMeshSubmesh(1, $"{slotKey}-material-1", [3, 4, 5]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, [3, 4, 5]),
                 ]),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-material-0",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: firstPayload,
@@ -1024,7 +1011,6 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-material-1",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: secondPayload,
@@ -1056,13 +1042,12 @@ public sealed class NonDemCityObjectBakerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
                 ],
                 [
-                    new ResoniteMeshSubmesh(0, $"{slotKey}-material-0", [0, 1, 2]),
-                    new ResoniteMeshSubmesh(1, $"{slotKey}-material-1", [1, 3, 2]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, [1, 3, 2]),
                 ]),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-material-0",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: payload,
@@ -1071,7 +1056,6 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "shared-bottom",
                     BaseColor: new ResoniteColor(0.4, 0.4, 0.4, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1098,7 +1082,6 @@ public sealed class NonDemCityObjectBakerTests
             Materials =
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: payload,
@@ -1130,12 +1113,11 @@ public sealed class NonDemCityObjectBakerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
                 ],
                 [
-                    new ResoniteMeshSubmesh(0, $"{slotKey}-material", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
                 ]),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1177,12 +1159,11 @@ public sealed class NonDemCityObjectBakerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
                 ],
                 [
-                    new ResoniteMeshSubmesh(0, $"{slotKey}-family-red", [0, 1, 2]),
-                    new ResoniteMeshSubmesh(1, $"{slotKey}-family-green", [3, 4, 5]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, [3, 4, 5]),
                 ]),
             Materials: [
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-family-red",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: redFamilyTexture,
@@ -1192,7 +1173,6 @@ public sealed class NonDemCityObjectBakerTests
                     SubmeshIndices: [0],
                     Family: BundledDefaultMaterialFamilies.Facade),
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-family-green",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: greenFamilyTexture,
@@ -1230,14 +1210,13 @@ public sealed class NonDemCityObjectBakerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(2.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
                 ],
                 [
-                    new ResoniteMeshSubmesh(0, $"{slotKey}-atlas", [0, 1, 2]),
-                    new ResoniteMeshSubmesh(1, $"{slotKey}-common-0", [3, 4, 5]),
-                    new ResoniteMeshSubmesh(2, $"{slotKey}-common-1", [6, 7, 8]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, [3, 4, 5]),
+                    new ResoniteMeshSubmesh(2, [6, 7, 8]),
                 ]),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-atlas",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: payload,
@@ -1246,7 +1225,6 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-common-0",
                     BaseColor: new ResoniteColor(0.5, 0.5, 0.5, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1258,7 +1236,6 @@ public sealed class NonDemCityObjectBakerTests
                     AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: 0),
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-common-1",
                     BaseColor: new ResoniteColor(0.5, 0.5, 0.5, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1298,14 +1275,13 @@ public sealed class NonDemCityObjectBakerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(2.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
                 ],
                 [
-                    new ResoniteMeshSubmesh(0, $"{slotKey}-atlas", [0, 1, 2]),
-                    new ResoniteMeshSubmesh(1, $"{slotKey}-roof-0", [3, 4, 5]),
-                    new ResoniteMeshSubmesh(2, $"{slotKey}-roof-1", [6, 7, 8]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, [3, 4, 5]),
+                    new ResoniteMeshSubmesh(2, [6, 7, 8]),
                 ]),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-atlas",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: payload,
@@ -1314,7 +1290,6 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-roof-0",
                     BaseColor: new ResoniteColor(0.85, 0.85, 0.85, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1325,7 +1300,6 @@ public sealed class NonDemCityObjectBakerTests
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 0),
                 new ResoniteMaterialBinding(
-                    MaterialKey: $"{slotKey}-roof-1",
                     BaseColor: new ResoniteColor(0.75, 0.75, 0.75, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,

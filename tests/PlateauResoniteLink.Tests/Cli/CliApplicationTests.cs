@@ -46,7 +46,7 @@ public sealed class CliApplicationTests
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy()))),
                 new PassthroughImportedObjectUnitOptimizer()),
-            new CommonMaterialCatalog(),
+            new DefaultCommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
     }
 
