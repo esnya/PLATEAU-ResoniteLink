@@ -5068,9 +5068,17 @@ internal static partial class LocalCityGmlObjectProjection
         ColorRgba baseColor = representativeSurface.Material.TerrainOverlay is null
             ? ToContractColor(representativeSurface.Surface.BaseColor)
             : new ColorRgba(1.0, 1.0, 1.0, 1.0);
-        DefaultCommonMaterialMember? commonMaterial = ResolveAssignedCommonMaterial(
-            representativeSurface,
-            baseColor);
+        DefaultCommonMaterialMember? commonMaterial = DefaultCommonMaterialAssignment.Resolve(
+            baseColor,
+            representativeSurface.Material.MaterialType,
+            representativeSurface.Material.TexturePayload,
+            representativeSurface.Material.TextureSourceKind,
+            representativeSurface.Material.Projection,
+            representativeSurface.DepthOffset,
+            representativeSurface.Material.TextureScale,
+            representativeSurface.Material.TextureOffset,
+            representativeSurface.Material.TerrainOverlay,
+            representativeSurface.Material.CommonMaterial);
         return new MaterialBinding(
             BaseColor: baseColor,
             MaterialType: representativeSurface.Material.MaterialType,
@@ -5095,57 +5103,6 @@ internal static partial class LocalCityGmlObjectProjection
             BundledVariantIndex: representativeSurface.Material.BundledVariantIndex,
             TerrainMeshCode: terrainMeshCode,
             CommonMaterial: commonMaterial);
-    }
-
-    private static DefaultCommonMaterialMember? ResolveAssignedCommonMaterial(
-        ResolvedSurfaceMaterial representativeSurface,
-        ColorRgba baseColor)
-    {
-        ResolvedMaterial material = representativeSurface.Material;
-        if (material.TerrainOverlay is not null
-            || !IsCanonicalCommonBaseColor(baseColor)
-            || material.Projection != MaterialProjection.Uv && material.CommonMaterial?.Kind is not DefaultCommonMaterialMemberKind.Bundled)
-        {
-            return null;
-        }
-
-        if (material.CommonMaterial is not null)
-        {
-            return representativeSurface.DepthOffset is null
-                && material.TexturePayload is null
-                && material.TerrainOverlay is null
-                ? material.CommonMaterial
-                : null;
-        }
-
-        if (material.MaterialType == MaterialType.Standard
-            && material.Projection == MaterialProjection.Uv
-            && material.Family is null
-            && material.TextureSourceKind == TextureSourceKind.Dataset
-            && material.TextureScale is null
-            && material.TextureOffset is null)
-        {
-            return DefaultCommonMaterialMember.GenericUv(representativeSurface.DepthOffset);
-        }
-
-        if (material.MaterialType == MaterialType.VertexColor
-            && material.Projection == MaterialProjection.Uv
-            && material.TexturePayload is null
-            && material.TextureScale is null
-            && material.TextureOffset is null)
-        {
-            return DefaultCommonMaterialMember.VertexColorUv(representativeSurface.DepthOffset);
-        }
-
-        return null;
-    }
-
-    private static bool IsCanonicalCommonBaseColor(ColorRgba color)
-    {
-        return Math.Abs(color.R - 1.0) < 1e-9
-            && Math.Abs(color.G - 1.0) < 1e-9
-            && Math.Abs(color.B - 1.0) < 1e-9
-            && Math.Abs(color.A - 1.0) < 1e-9;
     }
 
     private static string ResolveTerrainTextureMaterialMeshCodeSource(

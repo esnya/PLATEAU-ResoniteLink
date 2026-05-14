@@ -476,7 +476,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_DoesNotSetUpTerrainOverlayAsSharedGenericAlbedoOnlyMaterial()
+    public async Task ExecuteAsync_SetsUpTerrainOverlayAsSharedGenericAlbedoOnlyMaterialWhenAssigned()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -515,16 +515,29 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
             sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
+        ResoniteConstructionCityObject demObject = CreateDemCityObject(
+            "dem-setup-generic",
+            "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml",
+            overlay);
+        demObject = demObject with
+        {
+            Materials =
+            [
+                demObject.Materials[0] with
+                {
+                    CommonMaterial = DefaultCommonMaterialMember.GenericUv(),
+                },
+            ],
+        };
         SceneImportExecutionResult executionResult = await importTarget.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
                 metadata,
                 workDirectory.Path,
-                commonMaterials: new CommonMaterialCatalog<DefaultCommonMaterialMember>([])),
-            CreateImportedObjectUnits(
-                CreateDemCityObject("dem-setup-generic", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
+                commonMaterials: new CommonMaterialCatalog<DefaultCommonMaterialMember>([DefaultCommonMaterialMember.GenericUv()])),
+            CreateImportedObjectUnits(demObject));
 
         Assert.Equal(1, executionResult.ProcessedCityObjectCount);
-        Assert.DoesNotContain(
+        Assert.Contains(
             routedClient.AddedComponents,
             request => request.Data.ComponentType == "[FrooxEngine]FrooxEngine.PBS_Metallic"
                 && routedClient.SlotPaths[request.ContainerSlotId].Replace('\\', '/') ==

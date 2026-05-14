@@ -174,6 +174,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "bldg",
             MeshCode,
             roofOverlayWithDifferentUri);
+        terrain = WithGenericCommonMaterial(terrain);
+        roof = WithGenericCommonMaterial(roof);
 
         await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
@@ -190,10 +192,19 @@ public sealed class ResoniteLiveSceneImportTargetTests
             .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))
             .Select(static request => Assert.IsType<Reference>(request.Data.Members["Texture"]).TargetID)
             .ToArray();
+        string[] propertyBlockIds = client.AddedComponents
+            .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))
+            .Select(static request => request.Data.ID!)
+            .ToArray();
 
         Assert.Equal(2, terrainTextureGenerator.RequestedOverlays.Count);
         Assert.Equal(2, propertyBlockTextureIds.Length);
+        Assert.Equal(2, propertyBlockIds.Distinct(StringComparer.Ordinal).Count());
         Assert.All(propertyBlockTextureIds, textureId => Assert.Equal(sharedTextureId, textureId));
+        Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Replace('\\', '/') == "PLATEAU Shared Assets/Common Materials/generic/uv");
         Assert.Single(
             client.AddedSlots,
             request => client.SlotPaths[request.Data.ID!].EndsWith("/Assets/Terrain Textures", StringComparison.Ordinal));
@@ -1772,6 +1783,19 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TerrainMeshCode: meshCode),
             ],
             SourceFileRelativePath: $"udx/{packageName}/{meshCode}/plateau_{DatasetName}_{packageName}_{meshCode}.gml");
+    }
+
+    private static ResoniteConstructionCityObject WithGenericCommonMaterial(ResoniteConstructionCityObject cityObject)
+    {
+        return cityObject with
+        {
+            Materials = cityObject.Materials
+                .Select(static material => material with
+                {
+                    CommonMaterial = DefaultCommonMaterialMember.GenericUv(),
+                })
+                .ToArray(),
+        };
     }
 
     private static void AssertGradientPoint(Member member, float expectedPosition, int expectedX, int expectedY)

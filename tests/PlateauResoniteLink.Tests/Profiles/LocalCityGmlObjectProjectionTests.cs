@@ -335,6 +335,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Null(material.Family);
         Assert.Equal(MaterialProjection.Uv, material.Projection);
         Assert.NotNull(material.TexturePayload);
+        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
 
         Float2[] projectedUvs = projected.Mesh.Vertices.Select(static vertex => vertex.UV0).ToArray();
         foreach (Float2 sourceUv in sourceUvs.SkipLast(1))
@@ -388,6 +389,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Equal(MaterialProjection.Uv, material.Projection);
         Assert.NotNull(material.TexturePayload);
         Assert.Null(material.TerrainOverlay);
+        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
 
         Float2[] projectedUvs = projected.Mesh.Vertices.Select(static vertex => vertex.UV0).ToArray();
         foreach (Float2 sourceUv in sourceUvs.SkipLast(1))
@@ -426,6 +428,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Null(material.Family);
         Assert.Null(material.TexturePayload);
         Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
         Assert.All(projected.Mesh.Vertices, vertex => Assert.DoesNotContain(sourceUvs, sourceUv => ApproximatelyEqualFloat2(vertex.UV0, sourceUv, 1e-9)));
         Assert.Contains(projected.Mesh.Vertices, vertex => vertex.UV0.X is > 0.45 and < 0.55);
         Assert.Contains(projected.Mesh.Vertices, vertex => vertex.UV0.Y is > 0.45 and < 0.55);
@@ -1223,6 +1226,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
         Assert.Equal(MaterialReuseScope.PerObject, material.ReuseScope);
         Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
     }
 
     [Fact]
@@ -1283,6 +1287,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Null(material.Family);
         Assert.Null(material.TexturePayload);
         Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
     }
 
     [Fact]
@@ -1316,6 +1321,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Null(material.Family);
         Assert.Null(material.TexturePayload);
         Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
     }
 
     [Fact]

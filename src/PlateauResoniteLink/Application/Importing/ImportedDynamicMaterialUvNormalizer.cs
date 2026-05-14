@@ -73,20 +73,31 @@ public static class ImportedDynamicMaterialUvNormalizer
 
         if (!HasEffectiveTextureTransform(material))
         {
-            return material with
+            MaterialBinding normalized = material with
             {
                 TextureScale = null,
                 TextureOffset = null,
             };
+            return normalized with
+            {
+                CommonMaterial = ResolveCommonMaterial(normalized),
+            };
         }
 
-        return ShouldNormalizeTextureTransform(material)
-            ? material with
-            {
-                TextureScale = null,
-                TextureOffset = null,
-            }
-            : material;
+        if (!ShouldNormalizeTextureTransform(material))
+        {
+            return material;
+        }
+
+        MaterialBinding transformNormalized = material with
+        {
+            TextureScale = null,
+            TextureOffset = null,
+        };
+        return transformNormalized with
+        {
+            CommonMaterial = ResolveCommonMaterial(transformNormalized),
+        };
     }
 
     public static Float2 ApplyTextureTransform(
@@ -160,6 +171,21 @@ public static class ImportedDynamicMaterialUvNormalizer
         return textureOffset is null
             || (Math.Abs(textureOffset.X) < 1e-9
                 && Math.Abs(textureOffset.Y) < 1e-9);
+    }
+
+    private static DefaultCommonMaterialMember? ResolveCommonMaterial(MaterialBinding material)
+    {
+        return DefaultCommonMaterialAssignment.Resolve(
+            material.BaseColor,
+            material.MaterialType,
+            material.TexturePayload,
+            material.TextureSourceKind,
+            material.Projection,
+            material.DepthOffset,
+            material.TextureScale,
+            material.TextureOffset,
+            material.TerrainOverlay,
+            material.CommonMaterial);
     }
 
     private static void EnsureUniqueMaterialAssignments(ImportedCityObject cityObject)

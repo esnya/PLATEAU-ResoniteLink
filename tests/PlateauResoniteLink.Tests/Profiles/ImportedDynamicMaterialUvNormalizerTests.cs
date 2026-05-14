@@ -197,6 +197,41 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         Assert.Equal(new Float2(0.125, 1.0), normalized.Mesh.Vertices[2].UV0);
     }
 
+    [Fact]
+    public void Normalize_AssignsGenericCommonMaterialAfterDatasetAlbedoUvTransformIsBaked()
+    {
+        ImportedCityObject cityObject = CreateTriangleCityObject(
+            new Float2(0.5, 0.25),
+            new Float2(0.125, 0.75));
+
+        ImportedCityObject normalized = ImportedDynamicMaterialUvNormalizer.Normalize(cityObject);
+
+        MaterialBinding material = Assert.Single(normalized.Materials);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
+    }
+
+    [Fact]
+    public void Normalize_AssignsGenericCommonMaterialToTerrainOverlayAfterUvTransformIsBaked()
+    {
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 17,
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512);
+        ImportedCityObject cityObject = CreateTriangleCityObject(
+            new Float2(0.5, 0.25),
+            new Float2(0.125, 0.75),
+            overlay);
+
+        ImportedCityObject normalized = ImportedDynamicMaterialUvNormalizer.Normalize(cityObject);
+
+        MaterialBinding material = Assert.Single(normalized.Materials);
+        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
+    }
+
     private static ImportedCityObject CreateTriangleCityObject(
         Float2? textureScale,
         Float2? textureOffset,
