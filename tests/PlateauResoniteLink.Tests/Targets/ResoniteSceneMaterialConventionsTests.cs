@@ -95,13 +95,13 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.StartsWith("shared_uv_variant_0_", slotName, StringComparison.Ordinal);
+        Assert.Equal("variant-0", slotName);
         Assert.DoesNotContain(' ', slotName);
         Assert.DoesNotContain(material.MaterialKey, slotName, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void CreateMaterialSlotName_ForCommonMaterialWithNonDefaultScale_AddsScaleDiscriminator()
+    public void CreateMaterialSlotName_ForCommonMaterialWithNonDefaultScale_KeepsSemanticSlotName()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "common-facade-uv-scaled",
@@ -119,8 +119,8 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.StartsWith("shared_uv_variant_0_", slotName, StringComparison.Ordinal);
-        Assert.Contains("_scale_0.5x0.5_", slotName, StringComparison.Ordinal);
+        Assert.Equal("variant-0", slotName);
+        Assert.DoesNotContain("scale", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -143,9 +143,9 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.StartsWith("shared_uv_variant_1_", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("_scale_", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("_offset_", slotName, StringComparison.Ordinal);
+        Assert.Equal("variant-1", slotName);
+        Assert.DoesNotContain("scale", slotName, StringComparison.Ordinal);
+        Assert.DoesNotContain("offset", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -194,7 +194,8 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_generic_offset_0.25x0.75", slotName);
+        Assert.Equal("uv", slotName);
+        Assert.DoesNotContain("offset", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -217,7 +218,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_generic", slotName);
+        Assert.Equal("uv", slotName);
     }
 
     [Fact]
@@ -240,7 +241,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
 
-        Assert.Equal(["shared_uv_generic"], slotLookupNames);
+        Assert.Equal(["uv"], slotLookupNames);
     }
 
     [Fact]
@@ -262,7 +263,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
         IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
 
         Assert.Equal(
-            ["shared_uv_generic_offset_0.25x0.75_depth_2x3"],
+            ["uv-terrain-aligned"],
             slotLookupNames);
     }
 
@@ -284,7 +285,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_vertex-color", slotName);
+        Assert.Equal("uv", slotName);
     }
 
     [Fact]
@@ -747,17 +748,14 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
-    public void CommonMaterialAssetSet_KeysBundledAssetsByFamilyAndMaterialSlot()
+    public void CommonMaterialAssetSet_ResolvesBundledAssetsByMaterialDefinition()
     {
         ResoniteMaterialBinding plaster = CreateBundledCommonMaterial(BundledDefaultMaterialFamilies.WallResidentialPlasterLow);
         ResoniteMaterialBinding tile = CreateBundledCommonMaterial(BundledDefaultMaterialFamilies.WallResidentialTileLow);
 
-        Assert.Equal(
-            ResoniteCommonMaterialSlots.GetSlotName(plaster),
-            ResoniteCommonMaterialSlots.GetSlotName(tile));
         Assert.NotEqual(
-            ResoniteCommonMaterialSlots.GetKey(plaster),
-            ResoniteCommonMaterialSlots.GetKey(tile));
+            ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(plaster),
+            ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(tile));
 
         ResoniteCommonMaterialAssetSet assets = new();
         CreatedMaterialAsset plasterAsset = new(new ResoniteComponentLocator("plaster-component"), null);

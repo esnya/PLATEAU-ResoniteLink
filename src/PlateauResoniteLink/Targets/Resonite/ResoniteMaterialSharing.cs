@@ -40,9 +40,12 @@ public static class ResoniteMaterialSharing
         ResoniteFloat2? textureOffset,
         ResoniteMaterialDepthOffset? depthOffset)
     {
+        _ = textureScale;
+        _ = textureOffset;
+
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"shared-generic-{ProjectionToken(projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-depth-{FormatDepth(depthOffset)}");
+            $"generic/{ProjectionToken(projection)}{TerrainAlignedSuffix(depthOffset)}");
     }
 
     public static string CreateCanonicalVertexColorCommonMaterialKey(
@@ -51,7 +54,7 @@ public static class ResoniteMaterialSharing
     {
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"shared-vertex-{ProjectionToken(projection)}-depth-{FormatDepth(depthOffset)}");
+            $"vertex-color/{ProjectionToken(projection)}{TerrainAlignedSuffix(depthOffset)}");
     }
 
     public static bool IsWhiteBaseColor(ResoniteColor color)
@@ -60,30 +63,6 @@ public static class ResoniteMaterialSharing
             && Math.Abs(color.G - 1.0) < 1e-9
             && Math.Abs(color.B - 1.0) < 1e-9
             && Math.Abs(color.A - 1.0) < 1e-9;
-    }
-
-    private static string FormatFloat2(ResoniteFloat2? value)
-    {
-        return value is null
-            ? "none"
-            : string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
-                $"{FormatRounded(value.X)}-{FormatRounded(value.Y)}");
-    }
-
-    private static string FormatDepth(ResoniteMaterialDepthOffset? value)
-    {
-        return value is null
-            ? "none"
-            : string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
-                $"{FormatRounded(value.Factor)}-{FormatRounded(value.Units)}");
-    }
-
-    private static string FormatRounded(double value)
-    {
-        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
-        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static string ProjectionToken(ResoniteMaterialProjection projection)
@@ -95,4 +74,7 @@ public static class ResoniteMaterialSharing
             _ => projection.ToString().ToLowerInvariant(),
         };
     }
+
+    private static string TerrainAlignedSuffix(ResoniteMaterialDepthOffset? depthOffset) =>
+        depthOffset is null ? string.Empty : "-terrain-aligned";
 }

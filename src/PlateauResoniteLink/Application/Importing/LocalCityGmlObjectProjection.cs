@@ -3403,11 +3403,7 @@ internal static partial class LocalCityGmlObjectProjection
 
         if (material.ReuseScope == MaterialReuseScope.Shared)
         {
-            string family = material.Family ?? throw new InvalidOperationException("Common material must provide a family.");
-            int variantIndex = material.BundledVariantIndex ?? 0;
-            return string.Create(
-                CultureInfo.InvariantCulture,
-                $"common-{family}-{variantIndex}");
+            return CreateSharedMaterialKey(material, depthOffset);
         }
 
         return CreateMaterialKey(
@@ -3421,6 +3417,33 @@ internal static partial class LocalCityGmlObjectProjection
             material.Family,
             color,
             textureOffset);
+    }
+
+    private static string CreateSharedMaterialKey(
+        ResolvedMaterial material,
+        MaterialDepthOffset? depthOffset)
+    {
+        string projectionToken = material.Projection switch
+        {
+            MaterialProjection.Uv => "uv",
+            MaterialProjection.Triplanar => "triplanar",
+            _ => material.Projection.ToString().ToLowerInvariant(),
+        };
+        string semanticSuffix = depthOffset is null ? string.Empty : "-terrain-aligned";
+        if (material.MaterialType == MaterialType.VertexColor)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"vertex-color/{projectionToken}{semanticSuffix}");
+        }
+
+        if (string.IsNullOrWhiteSpace(material.Family))
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"generic/{projectionToken}{semanticSuffix}");
+        }
+
+        int variantIndex = material.BundledVariantIndex ?? 0;
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{material.Family}/{BundledDefaultMaterialFamilies.GetVariantMaterialName(material.Family, variantIndex)}");
     }
 
     private static MaterialGroupingKey CreateMaterialGroupingKey(

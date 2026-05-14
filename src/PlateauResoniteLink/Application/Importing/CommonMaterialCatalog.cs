@@ -80,7 +80,7 @@ public sealed class CommonMaterialCatalog
     {
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"common-{family}-{variantIndex}");
+            $"{family}/{BundledDefaultMaterialFamilies.GetVariantMaterialName(family, variantIndex)}");
     }
 
     private static MaterialProjection GetDefaultProjection(string family)
@@ -158,9 +158,12 @@ public sealed class CommonMaterialCatalog
         Float2? textureOffset,
         MaterialDepthOffset? depthOffset)
     {
+        _ = textureScale;
+        _ = textureOffset;
+
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"shared-generic-{ProjectionToken(projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-depth-{FormatDepth(depthOffset)}");
+            $"generic/{ProjectionToken(projection)}{TerrainAlignedSuffix(depthOffset)}");
     }
 
     private static string CreateCanonicalVertexColorCommonMaterialKey(
@@ -169,7 +172,7 @@ public sealed class CommonMaterialCatalog
     {
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"shared-vertex-{ProjectionToken(projection)}-depth-{FormatDepth(depthOffset)}");
+            $"vertex-color/{ProjectionToken(projection)}{TerrainAlignedSuffix(depthOffset)}");
     }
 
     private static string ProjectionToken(MaterialProjection projection)
@@ -182,30 +185,7 @@ public sealed class CommonMaterialCatalog
         };
     }
 
+    private static string TerrainAlignedSuffix(MaterialDepthOffset? value) => value is null ? string.Empty : "-terrain-aligned";
+
     private static Float2 ToContract(Domain.Importing.ScalarPair value) => new(value.X, value.Y);
-
-    private static string FormatFloat2(Float2? value)
-    {
-        return value is null
-            ? "none"
-            : string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
-                $"{FormatRounded(value.X)}-{FormatRounded(value.Y)}");
-    }
-
-    private static string FormatDepth(MaterialDepthOffset? value)
-    {
-        return value is null
-            ? "none"
-            : string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
-                $"{FormatRounded(value.Factor)}-{FormatRounded(value.Units)}");
-    }
-
-    private static string FormatRounded(double value)
-    {
-        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
-        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
-    }
-
 }

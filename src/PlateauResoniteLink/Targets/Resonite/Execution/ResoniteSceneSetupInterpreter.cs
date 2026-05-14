@@ -438,13 +438,13 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
         ResoniteCommonMaterialAssetSet commonMaterialAssets = new();
         HashSet<string> commonMaterialFamilies = new(StringComparer.Ordinal);
         List<PlannedCommonMaterialBatchEntry> plannedCommonMaterials = [];
-        Dictionary<ResoniteCommonMaterialKey, ResoniteCommonMaterialPlan> canonicalMaterialsByKey = CollectCanonicalCommonMaterials(commonMaterials);
+        List<ResoniteCommonMaterialPlan> canonicalMaterials = CollectCanonicalCommonMaterials(commonMaterials);
         ResoniteSceneSlotSnapshot? commonSlotSnapshot = commonSlot is null ? null : new ResoniteSceneSlotSnapshot(commonSlot);
         string? commonSlotId = commonSlot?.ID;
         Dictionary<string, string> familyParentIds = new(StringComparer.Ordinal);
         int materialSlotIndex = 0;
 
-        foreach ((_, ResoniteCommonMaterialPlan materialPlan) in canonicalMaterialsByKey.OrderBy(static pair => pair.Key.SortKey, StringComparer.Ordinal))
+        foreach (ResoniteCommonMaterialPlan materialPlan in canonicalMaterials)
         {
             ResoniteMaterialBinding material = materialPlan.Material;
             string family = ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(material);
@@ -579,16 +579,15 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
             && material.TerrainOverlay is null;
     }
 
-    private static Dictionary<ResoniteCommonMaterialKey, ResoniteCommonMaterialPlan> CollectCanonicalCommonMaterials(IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
+    private static List<ResoniteCommonMaterialPlan> CollectCanonicalCommonMaterials(IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
     {
-        Dictionary<ResoniteCommonMaterialKey, ResoniteCommonMaterialPlan> canonicalMaterialsByKey = [];
+        List<ResoniteCommonMaterialPlan> canonicalMaterials = [];
         foreach (ResoniteMaterialBinding material in commonMaterials)
         {
             ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
             if (normalizedMaterial.AssetScope == ResoniteMaterialAssetScope.Common)
             {
-                ResoniteCommonMaterialPlan plan = new(normalizedMaterial);
-                canonicalMaterialsByKey.TryAdd(plan.Key, plan);
+                canonicalMaterials.Add(new ResoniteCommonMaterialPlan(normalizedMaterial));
                 continue;
             }
 
@@ -597,12 +596,11 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                     out ResoniteMaterialBinding normalizedSharedMaterial,
                     out _))
             {
-                ResoniteCommonMaterialPlan plan = new(normalizedSharedMaterial);
-                canonicalMaterialsByKey.TryAdd(plan.Key, plan);
+                canonicalMaterials.Add(new ResoniteCommonMaterialPlan(normalizedSharedMaterial));
             }
         }
 
-        return canonicalMaterialsByKey;
+        return canonicalMaterials;
     }
 
     private static Dictionary<string, Member> CreateDatasetLicenseMembers(

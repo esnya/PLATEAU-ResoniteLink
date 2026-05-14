@@ -290,6 +290,17 @@ public static class BundledDefaultMaterialFamilies
         return variants[variantIndex];
     }
 
+    public static string GetVariantMaterialName(string family, int variantIndex)
+    {
+        _ = GetVariantDefinition(family, variantIndex);
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{nameof(CommonMaterialMembers.Variant).ToLowerInvariant()}-{variantIndex}");
+    }
+
+    private static class CommonMaterialMembers
+    {
+        public const string Variant = "";
+    }
+
     public static bool TryGetVariantDefinition(string texturePath, out BundledDefaultMaterialVariant variant)
     {
         return VariantsByTexturePath.TryGetValue(texturePath, out variant!);

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -162,6 +161,11 @@ internal static class ResoniteSceneMaterialConventions
     public static string GetCommonMaterialFamilySlotName(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
+        material = NormalizeCommonMaterialBinding(material);
+        if (TryGetCommonMaterialPathParts(material.MaterialKey, out string familySlotName, out _))
+        {
+            return familySlotName;
+        }
 
         return material.MaterialType == ResoniteMaterialType.VertexColor
             ? "vertex-color"
@@ -310,7 +314,7 @@ internal static class ResoniteSceneMaterialConventions
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"common-{family}-{bundledVariantIndex}");
+            $"{family}/{BundledDefaultMaterialFamilies.GetVariantMaterialName(family, bundledVariantIndex)}");
     }
 
     public static string CreateCanonicalGenericSharedMaterialKey(
@@ -445,79 +449,28 @@ internal static class ResoniteSceneMaterialConventions
 
     private static string CreateCommonMaterialSlotName(ResoniteMaterialBinding material)
     {
-        string projectionName = material.Projection switch
+        if (TryGetCommonMaterialPathParts(material.MaterialKey, out _, out string materialSlotName))
         {
-            ResoniteMaterialProjection.Uv => "uv",
-            ResoniteMaterialProjection.Triplanar => "triplanar",
-            _ => material.Projection.ToString().ToLowerInvariant(),
-        };
+            return materialSlotName;
+        }
+
+        string projectionName = ProjectionToken(material.Projection);
         if (material.MaterialType == ResoniteMaterialType.VertexColor)
         {
-            string depthToken = material.DepthOffset is null
-                ? string.Empty
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"_depth_{material.DepthOffset.Factor:0.######}x{material.DepthOffset.Units:0.######}");
             return string.Create(
                 CultureInfo.InvariantCulture,
-                $"shared_{projectionName}_vertex-color{depthToken}");
+                $"{projectionName}{TerrainAlignedSuffix(material.DepthOffset)}");
         }
 
         if (string.IsNullOrWhiteSpace(material.Family))
         {
-            bool hasNonIdentityScale = material.TextureScale is not null
-                && (Math.Abs(material.TextureScale.X - 1.0) > 1e-9
-                    || Math.Abs(material.TextureScale.Y - 1.0) > 1e-9);
-            string genericScaleToken = !hasNonIdentityScale
-                ? string.Empty
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"_scale_{material.TextureScale!.X:0.######}x{material.TextureScale.Y:0.######}");
-            string offsetToken = IsZeroTextureOffset(material.TextureOffset)
-                ? string.Empty
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"_offset_{material.TextureOffset!.X:0.######}x{material.TextureOffset.Y:0.######}");
-            string depthToken = material.DepthOffset is null
-                ? string.Empty
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"_depth_{material.DepthOffset.Factor:0.######}x{material.DepthOffset.Units:0.######}");
             return string.Create(
                 CultureInfo.InvariantCulture,
-                $"shared_{projectionName}_generic{genericScaleToken}{offsetToken}{depthToken}");
+                $"{projectionName}{TerrainAlignedSuffix(material.DepthOffset)}");
         }
 
         int variantIndex = material.BundledVariantIndex ?? 0;
-        ResoniteFloat2? defaultTextureScale = TryGetBundledDefaultScale(material);
-        ResoniteFloat2? materialTextureScale = material.TextureScale;
-        bool hasNonDefaultScale = materialTextureScale is not null
-            && (defaultTextureScale is null
-                || Math.Abs(materialTextureScale.X - defaultTextureScale.X) > 1e-9
-                || Math.Abs(materialTextureScale.Y - defaultTextureScale.Y) > 1e-9);
-        ResoniteFloat2? defaultTextureOffset = TryGetBundledDefaultOffset(material);
-        ResoniteFloat2? materialTextureOffset = material.TextureOffset ?? defaultTextureOffset;
-        bool hasNonDefaultOffset = !AreEquivalentTextureOffsets(materialTextureOffset, defaultTextureOffset);
-        string scaleToken = hasNonDefaultScale
-            ? string.Create(
-                CultureInfo.InvariantCulture,
-                $"_scale_{materialTextureScale!.X:0.######}x{materialTextureScale.Y:0.######}")
-            : string.Empty;
-        string bundledOffsetToken = hasNonDefaultOffset
-            ? materialTextureOffset is null
-                ? "_offset_none"
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"_offset_{materialTextureOffset.X:0.######}x{materialTextureOffset.Y:0.######}")
-            : string.Empty;
-        string variantNameToken = TryCreateBundledVariantNameToken(material);
-        string variantNameSuffix = string.IsNullOrWhiteSpace(variantNameToken)
-            ? string.Empty
-            : $"_{variantNameToken}";
-
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"shared_{projectionName}_variant_{variantIndex}{scaleToken}{bundledOffsetToken}{variantNameSuffix}");
+        return BundledDefaultMaterialFamilies.GetVariantMaterialName(material.Family!, variantIndex);
     }
 
     private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainTextureOverlay)
@@ -570,6 +523,12 @@ internal static class ResoniteSceneMaterialConventions
         return ResoniteMaterialSharing.IsWhiteBaseColor(color);
     }
 
+    private static BundledDefaultMaterialProfile GetBundledDefaultProfile(ResoniteMaterialBinding material)
+    {
+        string bundledVariantPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
+        return BundledDefaultMaterialProfiles.GetProfile(bundledVariantPath);
+    }
+
     private static ResoniteFloat2? TryGetBundledDefaultScale(ResoniteMaterialBinding material)
     {
         if (string.IsNullOrWhiteSpace(material.Family))
@@ -590,12 +549,6 @@ internal static class ResoniteSceneMaterialConventions
 
         ScalarPair? defaultOffset = GetBundledDefaultProfile(material).TextureOffset;
         return defaultOffset is null ? null : new ResoniteFloat2(defaultOffset.X, defaultOffset.Y);
-    }
-
-    private static BundledDefaultMaterialProfile GetBundledDefaultProfile(ResoniteMaterialBinding material)
-    {
-        string bundledVariantPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
-        return BundledDefaultMaterialProfiles.GetProfile(bundledVariantPath);
     }
 
     private static bool HasNonDefaultBundledTextureTransform(ResoniteMaterialBinding material)
@@ -626,28 +579,26 @@ internal static class ResoniteSceneMaterialConventions
             && Math.Abs(left.Y - right.Y) < 1e-9;
     }
 
-    private static string TryCreateBundledVariantNameToken(ResoniteMaterialBinding material)
+    private static bool TryGetCommonMaterialPathParts(
+        string materialKey,
+        out string familySlotName,
+        out string materialSlotName)
     {
-        if (string.IsNullOrWhiteSpace(material.Family))
+        int separatorIndex = materialKey.IndexOf('/');
+        if (separatorIndex <= 0 || separatorIndex == materialKey.Length - 1)
         {
-            return string.Empty;
+            familySlotName = string.Empty;
+            materialSlotName = string.Empty;
+            return false;
         }
 
-        string fileName = Path.GetFileNameWithoutExtension(
-            BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0));
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            return string.Empty;
-        }
-
-        StringBuilder builder = new(fileName.Length);
-        foreach (char character in fileName)
-        {
-            builder.Append(char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '-');
-        }
-
-        return builder.ToString().Trim('-');
+        familySlotName = materialKey[..separatorIndex];
+        materialSlotName = materialKey[(separatorIndex + 1)..];
+        return true;
     }
+
+    private static string TerrainAlignedSuffix(ResoniteMaterialDepthOffset? depthOffset) =>
+        depthOffset is null ? string.Empty : "-terrain-aligned";
 
     private static ResoniteMaterialBinding NormalizeGenericSharedMaterialBinding(ResoniteMaterialBinding material)
     {

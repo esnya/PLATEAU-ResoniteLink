@@ -1189,8 +1189,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         CancellationToken cancellationToken)
     {
-        Dictionary<ResoniteCommonMaterialKey, ResoniteCommonMaterialPlan> commonMaterialPlansByKey = CollectCanonicalCommonMaterials(commonMaterials);
-        if (commonMaterialPlansByKey.Count == 0)
+        List<ResoniteCommonMaterialPlan> commonMaterialPlans = CollectCanonicalCommonMaterials(commonMaterials);
+        if (commonMaterialPlans.Count == 0)
         {
             ReportProgress(PlateauLog.Info("live", "No common material assets are required during scene setup."));
             return;
@@ -1201,8 +1201,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                $"Preparing {commonMaterialPlansByKey.Count} common material assets during scene setup before object streaming."));
-        foreach ((_, ResoniteCommonMaterialPlan materialPlan) in commonMaterialPlansByKey.OrderBy(static pair => pair.Key.SortKey, StringComparer.Ordinal))
+                $"Preparing {commonMaterialPlans.Count} common material assets during scene setup before object streaming."));
+        foreach (ResoniteCommonMaterialPlan materialPlan in commonMaterialPlans)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ResoniteMaterialBinding material = materialPlan.Material;
@@ -1224,7 +1224,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             ReportProgress(
                 PlateauLog.Info(
                     "live",
-                    $"Preparing common material asset {preparedCount + 1}/{commonMaterialPlansByKey.Count}: "
+                    $"Preparing common material asset {preparedCount + 1}/{commonMaterialPlans.Count}: "
                     + $"family='{familySlotName}', slot='{materialSlotName}'."));
             CreatedSlot familySlot = await FindRequiredCommonMaterialFamilySlotAsync(
                 client,
@@ -1246,7 +1246,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 ReportProgress(
                     PlateauLog.Info(
                         "live",
-                        $"Reused common material asset {preparedCount}/{commonMaterialPlansByKey.Count}: "
+                        $"Reused common material asset {preparedCount}/{commonMaterialPlans.Count}: "
                         + $"family='{familySlotName}', slot='{materialSlotName}', elapsed_s={materialStopwatch.Elapsed.TotalSeconds:F2}."));
                 continue;
             }
@@ -1275,7 +1275,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             ReportProgress(
                 PlateauLog.Info(
                     "live",
-                    $"Prepared common material asset {preparedCount}/{commonMaterialPlansByKey.Count}: "
+                    $"Prepared common material asset {preparedCount}/{commonMaterialPlans.Count}: "
                     + $"family='{familySlotName}', slot='{materialSlotName}', elapsed_s={materialStopwatch.Elapsed.TotalSeconds:F2}."));
         }
 
@@ -1290,16 +1290,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 $"Prepared {preparedCount} common material assets during scene setup in {stopwatch.Elapsed.TotalSeconds:F2}s."));
     }
 
-    private static Dictionary<ResoniteCommonMaterialKey, ResoniteCommonMaterialPlan> CollectCanonicalCommonMaterials(IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
+    private static List<ResoniteCommonMaterialPlan> CollectCanonicalCommonMaterials(IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
     {
-        Dictionary<ResoniteCommonMaterialKey, ResoniteCommonMaterialPlan> commonMaterialPlansByKey = [];
+        List<ResoniteCommonMaterialPlan> commonMaterialPlans = [];
         foreach (ResoniteMaterialBinding material in commonMaterials)
         {
             ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
             if (normalizedMaterial.AssetScope == ResoniteMaterialAssetScope.Common)
             {
-                ResoniteCommonMaterialPlan plan = new(normalizedMaterial);
-                commonMaterialPlansByKey.TryAdd(plan.Key, plan);
+                commonMaterialPlans.Add(new ResoniteCommonMaterialPlan(normalizedMaterial));
                 continue;
             }
 
@@ -1308,12 +1307,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     out ResoniteMaterialBinding normalizedSharedMaterial,
                     out _))
             {
-                ResoniteCommonMaterialPlan plan = new(normalizedSharedMaterial);
-                commonMaterialPlansByKey.TryAdd(plan.Key, plan);
+                commonMaterialPlans.Add(new ResoniteCommonMaterialPlan(normalizedSharedMaterial));
             }
         }
 
-        return commonMaterialPlansByKey;
+        return commonMaterialPlans;
     }
 
     private Task<PreparedTextureReference?> PrepareDirectMaterialTextureReferenceAsync(

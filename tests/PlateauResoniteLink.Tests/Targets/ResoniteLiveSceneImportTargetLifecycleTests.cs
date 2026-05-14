@@ -550,7 +550,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             routedClient.AddedComponents,
             request => request.Data.ComponentType == "[FrooxEngine]FrooxEngine.PBS_Metallic"
                 && routedClient.SlotPaths[request.ContainerSlotId].Replace('\\', '/') ==
-                    "PLATEAU Shared Assets/Common Materials/generic/shared_uv_generic");
+                    "PLATEAU Shared Assets/Common Materials/generic/uv");
         Assert.Contains(
             routedClient.AddedComponents,
             static request => request.Data.ComponentType == "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock");

@@ -451,7 +451,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         SeededCommonMaterialComponent seededCommonMaterial = await SeedCommonMaterialComponentAsync(
             client,
             familySlotName: "generic",
-            materialSlotName: "shared_uv_generic",
+            materialSlotName: "uv",
             componentType: "[FrooxEngine]FrooxEngine.PBS_Metallic");
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "dem-overlay-current-object",

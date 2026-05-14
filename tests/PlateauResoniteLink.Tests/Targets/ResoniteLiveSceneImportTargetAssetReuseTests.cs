@@ -250,12 +250,14 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         Assert.Contains(
             client.SlotsById.Values,
-            slot => string.Equals(slot.Name?.Value, "shared_uv_generic", StringComparison.Ordinal)
+            slot => string.Equals(slot.Name?.Value, "uv", StringComparison.Ordinal)
                 && slot.Parent is not null
                 && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, slot.ID, commonRoot.ID));
         Assert.Contains(
             client.SlotsById.Values,
-            slot => string.Equals(slot.Name?.Value, "shared_uv_vertex-color", StringComparison.Ordinal)
+            slot => string.Equals(slot.Name?.Value, "uv", StringComparison.Ordinal)
+                && slot.Parent is not null
+                && client.SlotPaths[slot.ID!].Replace('\\', '/').Contains("/vertex-color/", StringComparison.Ordinal)
                 && slot.Parent is not null
                 && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, slot.ID, commonRoot.ID));
     }
@@ -328,7 +330,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject empty-current-generic-slot-reuse");
         string currentGenericPath = Assert.Single(
             client.SlotsById.Values,
-            static slot => string.Equals(slot.Name?.Value, "shared_uv_generic", StringComparison.Ordinal)).ID!;
+            slot => string.Equals(slot.Name?.Value, "uv", StringComparison.Ordinal)
+                && client.SlotPaths[slot.ID!].Replace('\\', '/').EndsWith("/generic/uv", StringComparison.Ordinal)).ID!;
         AddComponent materialComponentRequest = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ID, rendererMaterialId, StringComparison.Ordinal));
@@ -337,7 +340,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Assert.Equal(emptyCurrentMaterialSlotId, materialComponentRequest.ContainerSlotId);
         Assert.Equal(
             1,
-            client.SlotsById.Values.Count(static slot => string.Equals(slot.Name?.Value, "shared_uv_generic", StringComparison.Ordinal)));
+            client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "uv", StringComparison.Ordinal)
+                && client.SlotPaths[slot.ID!].Replace('\\', '/').EndsWith("/generic/uv", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -1476,7 +1480,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 Data = new Slot
                 {
                     Parent = new Reference { TargetID = genericFamilySlotId },
-                    Name = new Field_string { Value = "shared_uv_generic" },
+                    Name = new Field_string { Value = "uv" },
                 },
             },
             CancellationToken.None)).Slot.Value;
