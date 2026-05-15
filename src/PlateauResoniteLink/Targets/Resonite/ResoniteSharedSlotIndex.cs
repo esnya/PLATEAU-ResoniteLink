@@ -29,10 +29,12 @@ internal sealed class ResoniteSharedSlotIndex(
     private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<SharedSlotIndexKey, CreatedSlot> sharedSlotIndex = new();
     private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
+    private Slot[]? observedDatasetSourceRoots;
     public SceneAnchor? SceneAnchor { get; private set; } = initialSceneAnchor;
 
     public void IndexSetupHierarchy(ResoniteSceneSetupState setupState)
     {
+        observedDatasetSourceRoots = null;
         if (setupState.DatasetRootSnapshot is not null)
         {
             observedSlotSnapshotsById.Clear();
@@ -283,7 +285,7 @@ internal sealed class ResoniteSharedSlotIndex(
         string sourceFileSlotName,
         string rootMeshCode)
     {
-        Slot[] directSourceRoots = EnumerateObservedDatasetSourceRoots().ToArray();
+        Slot[] directSourceRoots = GetObservedDatasetSourceRoots();
         ObservedSourceRootPlacement[] exactSourceRoots = directSourceRoots
             .Where(slot => string.Equals(slot.Name?.Value, sourceFileSlotName, StringComparison.Ordinal))
             .Select(slot => new ObservedSourceRootPlacement(
@@ -353,6 +355,10 @@ internal sealed class ResoniteSharedSlotIndex(
             .Where(static slot => !string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal));
     }
 
+    private Slot[] GetObservedDatasetSourceRoots()
+    {
+        return observedDatasetSourceRoots ??= EnumerateObservedDatasetSourceRoots().ToArray();
+    }
 
     private static ObservedSourceRootPlacement SelectDeterministicObservedPlacement(
         IReadOnlyCollection<ObservedSourceRootPlacement> candidates,

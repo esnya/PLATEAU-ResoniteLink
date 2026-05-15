@@ -957,11 +957,19 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Slot bldgSourceRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
             client,
             $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
+        Slot bldgObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject bldg-appended");
         ResoniteFloat3 parentToChildOffset = ComputeMeshCodeOffset(ParentMeshCode, MeshCode);
         ResoniteFloat3 expectedBldgRootPosition = Add(existingDemRootPosition, parentToChildOffset);
+        ResoniteFloat3 expectedBldgLocalPosition = ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
+            RequireMeshCodeCenter(MeshCode),
+            MeshCode,
+            expectedBldgRootPosition,
+            secondRunDemWorldPosition);
 
         AssertNear(existingDemRootPosition, GetSlotPosition(appendedDemSourceRoot), 0.2);
         AssertNear(expectedBldgRootPosition, GetSlotPosition(bldgSourceRoot), 0.2);
+        AssertNear(expectedBldgLocalPosition, GetSlotPosition(bldgObjectSlot), 0.2);
+        AssertNear(Add(expectedBldgRootPosition, expectedBldgLocalPosition), GetAccumulatedPosition(client, bldgObjectSlot), 0.2);
     }
 
     [Fact]
