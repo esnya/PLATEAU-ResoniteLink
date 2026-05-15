@@ -145,7 +145,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
-    public void CreateDedicatedMaterialSlotName_ForDedicatedMaterial_UsesOrdinalPresentationName()
+    public void CreateDedicatedMaterialSlotName_ForDedicatedMaterial_UsesZeroBasedMaterialIndexPresentationName()
     {
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(0.1, 0.2, 0.3, 1.0),
@@ -161,13 +161,30 @@ public sealed class ResoniteSceneMaterialConventionsTests
             BundledVariantIndex: 0,
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        string slotName = ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex: 7);
+        string slotName = ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex: 0);
 
-        Assert.Equal("material-007-pbs-uv-uv", slotName);
+        Assert.Equal("material-000-pbs-uv-uv", slotName);
         Assert.DoesNotContain("payload", slotName, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("textures", slotName, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("2x3", slotName, StringComparison.Ordinal);
         Assert.DoesNotContain("0.5", slotName, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateDedicatedMaterialSlotName_ForDedicatedMaterial_RejectsNegativeMaterialIndex()
+    {
+        ResoniteMaterialBinding material = new(
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex: -1));
     }
 
     [Fact]

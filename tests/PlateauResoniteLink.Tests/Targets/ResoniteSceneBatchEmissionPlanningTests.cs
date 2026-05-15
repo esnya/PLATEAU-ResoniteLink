@@ -282,7 +282,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 SubmeshIndices: [0]),
             [new PlannedTextureAsset(new TextureIdentity("albedo"), new Uri("resdb:///texture/albedo"))],
             PreserveDedicatedMaterialSlot: true,
-            DedicatedMaterialSlotName: "material-001-pbs-uv-uv");
+            DedicatedMaterialSlotName: "material-000-pbs-uv-uv");
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("existing-material-id"));
         PlannedSceneObjectEmission emissionPlan = new(
             new PlannedTriangleMeshGeometryAsset(
@@ -314,7 +314,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchSlotEmission dedicatedMaterialSlot = Assert.Single(
             batchPlan.SlotEmissions,
             slot => slot.ParentTarget.Planned == FindAssetSlotIdentity(batchPlan, "Triangle Object")
-                && string.Equals(slot.SlotName, "material-001-pbs-uv-uv", StringComparison.Ordinal));
+                && string.Equals(slot.SlotName, "material-000-pbs-uv-uv", StringComparison.Ordinal));
         PlannedBatchComponentEmission dedicatedMaterialComponent = Assert.Single(
             batchPlan.ComponentEmissions,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal));

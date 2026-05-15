@@ -35,7 +35,7 @@ internal static class ResoniteSceneMaterialConventions
 
         if (!useCommonMaterialAssets)
         {
-            throw new InvalidOperationException("Dedicated material slot names require a material ordinal.");
+            throw new InvalidOperationException("Dedicated material slot names require a material index.");
         }
 
         return CreateCommonMaterialSlotName(normalizedMaterial);
