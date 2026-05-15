@@ -263,9 +263,20 @@ internal sealed class ResoniteSharedSlotIndex(
     {
         ObservedSourceRootPlacement? observedRootPlacement = TryResolveObservedSourceRootPosition(sourceFileSlotName, rootMeshCode);
         ResoniteFloat3 rootPosition = observedRootPlacement?.Position
+            ?? ResolveDatasetRootAnchoredSourceRootPosition(rootMeshCode)
             ?? ResonitePlacementPolicy.ResolveMeshRootPosition(requestLocalOrigin, rootMeshCode);
 
         return new SourceRootPlacement(rootPosition, rootPosition);
+    }
+
+    private ResoniteFloat3? ResolveDatasetRootAnchoredSourceRootPosition(string rootMeshCode)
+    {
+        if (SceneAnchor is not { ReferenceSourceFileRoot: null } anchor)
+        {
+            return null;
+        }
+
+        return ResonitePlacementPolicy.ComputeMeshCodeOffset(anchor.MeshCode, rootMeshCode);
     }
 
     private ObservedSourceRootPlacement? TryResolveObservedSourceRootPosition(
