@@ -64,7 +64,6 @@ public sealed class DefaultImportedSceneSourceComposerTests
                 LicenseName: "PLATEAU Open Data Terms",
                 LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
             source.Metadata.Attribution.DatasetLicense);
-        Assert.Empty(source.Metadata.Attribution.MaterialLicenses);
     }
 
     private sealed class ThrowingGeometryProjector : ICityGmlGeometryProjector

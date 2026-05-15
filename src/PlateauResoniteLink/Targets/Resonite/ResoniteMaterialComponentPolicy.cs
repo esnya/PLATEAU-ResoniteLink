@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -183,53 +182,49 @@ internal static class ResoniteMaterialComponentPolicy
             return false;
         }
 
-        string albedoLogicalPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
-        string stem = Path.GetFileNameWithoutExtension(albedoLogicalPath);
-        if (string.Equals(stem, "basecolor", StringComparison.Ordinal))
-        {
-            string wallSkinDirectory = Path.GetDirectoryName(albedoLogicalPath)?.Replace('\\', '/')
-                ?? throw new InvalidOperationException($"Could not determine bundled texture directory for '{albedoLogicalPath}'.");
-            textureSet = new BundledDefaultMaterialTextureSet(
-                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "emission", ".png", ".jpg"),
-                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "height", ".png", ".jpg"),
-                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "metallic_ao_smoothness", ".png", ".jpg"),
-                TryResolveBundledTexture(bundledDefaultMaterialAssetStore, wallSkinDirectory, "normalGL", ".png", ".jpg"));
-            return true;
-        }
-
-        if (!stem.EndsWith("_Color", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        string directory = Path.GetDirectoryName(albedoLogicalPath)?.Replace('\\', '/')
-            ?? throw new InvalidOperationException($"Could not determine bundled texture directory for '{albedoLogicalPath}'.");
-        string baseStem = stem[..^"_Color".Length];
-
+        BundledDefaultMaterialVariant variant = BundledDefaultMaterialFamilies.GetVariantDefinition(
+            material.Family!,
+            material.BundledVariantIndex ?? 0);
+        BundledDefaultMaterialTextureSources? sources = variant.TextureSources;
+        string family = material.Family!;
+        int variantIndex = material.BundledVariantIndex ?? 0;
         textureSet = new BundledDefaultMaterialTextureSet(
-            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_Emission", ".jpg", ".png"),
-            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_Height", ".jpg", ".png"),
-            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_Metallic", ".png", ".jpg"),
-            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_NormalGL", ".jpg", ".png"));
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Emission, family, variantIndex),
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Height, family, variantIndex),
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Metallic, family, variantIndex),
+            ResolveTextureSource(bundledDefaultMaterialAssetStore, sources?.Normal, family, variantIndex));
         return true;
     }
 
-    private static string? TryResolveBundledTexture(
+    private static BundledDefaultTextureAsset<TRole>? ResolveTextureSource<TRole>(
         BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
-        string directory,
-        string baseFileName,
-        params string[] extensions)
+        BundledDefaultTextureAsset<TRole>? source,
+        string family,
+        int variantIndex)
+        where TRole : IBundledDefaultTextureRole
     {
-        foreach (string extension in extensions)
+        if (source is null)
         {
-            string logicalPath = $"{directory}/{baseFileName}{extension}";
-            if (bundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath))
-            {
-                return absolutePath;
-            }
+            return null;
         }
 
-        return null;
+        EnsureBundledTextureExists<TRole>(bundledDefaultMaterialAssetStore, source, family, variantIndex);
+        return source;
+    }
+
+    private static void EnsureBundledTextureExists<TRole>(
+        BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
+        BundledDefaultTextureAsset asset,
+        string family,
+        int variantIndex)
+        where TRole : IBundledDefaultTextureRole
+    {
+        if (!bundledDefaultMaterialAssetStore.TryGetAbsolutePath(asset, out _))
+        {
+            throw new InvalidOperationException(
+                $"Could not resolve bundled texture source '{asset.LogicalPath}' "
+                + $"for family '{family}' variant {variantIndex} role '{typeof(TRole).Name}'.");
+        }
     }
 
     private static bool ShouldOmitUvTransformMembers(ResoniteMaterialBinding material)
@@ -285,7 +280,7 @@ internal static class ResoniteMaterialComponentPolicy
 }
 
 internal sealed record BundledDefaultMaterialTextureSet(
-    string? EmissionPath,
-    string? HeightPath,
-    string? MetallicPath,
-    string? NormalPath);
+    BundledDefaultTextureAsset<BundledDefaultEmissionTextureRole>? Emission,
+    BundledDefaultTextureAsset<BundledDefaultHeightTextureRole>? Height,
+    BundledDefaultTextureAsset<BundledDefaultMetallicTextureRole>? Metallic,
+    BundledDefaultTextureAsset<BundledDefaultNormalTextureRole>? Normal);

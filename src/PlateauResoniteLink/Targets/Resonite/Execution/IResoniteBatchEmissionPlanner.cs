@@ -478,7 +478,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         if (plannedMaterial.PreserveDedicatedMaterialSlot)
         {
             BatchPlanSlotLocator materialSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
-            string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: false);
+            string materialSlotName = plannedMaterial.DedicatedMaterialSlotName
+                ?? throw new InvalidOperationException("Dedicated material slot preservation requires a planned material-index slot name.");
             slotEmissions.Add(new PlannedBatchSlotEmission(
                 materialSlotId,
                 meshAssetSlotTarget,
@@ -646,6 +647,14 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         PlannedMainTextureOverrideRendererMaterialBinding binding,
         ref int nextComponentLocator)
     {
+        if (binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
+            {
+                SharedMainTexturePropertyBlockComponent: { } sharedMainTexturePropertyBlockComponent,
+            })
+        {
+            return PlannedMembers.Reference(PlannedWorldElementReference.Canonical(sharedMainTexturePropertyBlockComponent));
+        }
+
         PlannedWorldElementReference? sharedTextureTarget = binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
         {
             SharedMainTextureComponent: { } sharedMainTextureComponent,

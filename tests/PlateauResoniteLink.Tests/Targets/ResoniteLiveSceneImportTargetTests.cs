@@ -55,11 +55,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-overlay-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "dem-overlay-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -79,9 +78,12 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [cityObject],
             client,
             terrainTextureGenerator,
-            commonMaterials: []);
+            commonMaterials: CommonMaterialCatalog.Create());
 
-        ResoniteRawTextureImport importedTexture = Assert.Single(client.ImportedRawTextures);
+        ResoniteRawTextureImport importedTexture = Assert.Single(
+            client.ImportedRawTextures,
+            texture => texture.Width == RoundUpToPowerOfTwo(layout.CropWidth)
+                && texture.Height == RoundUpToPowerOfTwo(layout.CropHeight));
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), importedTexture.Width);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), importedTexture.Height);
         Component meshRenderer = Assert.Single(
@@ -105,9 +107,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal("[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", propertyBlock.ComponentType);
         string propertyBlockReferenceId = Assert.IsType<Reference>(Assert.Single(propertyBlocks.Elements)).TargetID;
         AddComponent plannedPropertyBlock = Assert.Single(
-            client.Batches
-                .SelectMany(static operations => operations)
-                .OfType<AddComponent>(),
+            client.AddedComponents,
             operation => string.Equals(operation.Data.ID, propertyBlockReferenceId, StringComparison.Ordinal)
                 && string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
 
@@ -168,15 +168,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "DEM Overlay Shared",
             "dem",
             MeshCode,
-            "dem-shared-material",
             demOverlay);
         ResoniteConstructionCityObject roof = CreateTerrainOverlayCityObject(
             "roof-overlay-shared",
             "Roof Overlay Shared",
             "bldg",
             MeshCode,
-            "roof-shared-material",
             roofOverlayWithDifferentUri);
+        terrain = WithGenericCommonMaterial(terrain);
+        roof = WithGenericCommonMaterial(roof);
 
         await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
@@ -193,10 +193,28 @@ public sealed class ResoniteLiveSceneImportTargetTests
             .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))
             .Select(static request => Assert.IsType<Reference>(request.Data.Members["Texture"]).TargetID)
             .ToArray();
+        string[] propertyBlockIds = client.AddedComponents
+            .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))
+            .Select(static request => request.Data.ID!)
+            .ToArray();
+        string[] rendererPropertyBlockIds = client.AddedComponents
+            .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
+            .Where(request => string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "DEM Overlay Shared", StringComparison.Ordinal)
+                || string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "Roof Overlay Shared", StringComparison.Ordinal))
+            .Select(request => Assert.IsType<Reference>(Assert.Single(Assert.IsType<SyncList>(request.Data.Members["MaterialPropertyBlocks"]).Elements)).TargetID)
+            .ToArray();
 
         Assert.Equal(2, terrainTextureGenerator.RequestedOverlays.Count);
-        Assert.Equal(2, propertyBlockTextureIds.Length);
+        Assert.Single(propertyBlockTextureIds);
+        Assert.Single(propertyBlockIds);
+        Assert.Equal(2, rendererPropertyBlockIds.Length);
+        Assert.Single(rendererPropertyBlockIds.Distinct(StringComparer.Ordinal));
+        Assert.Equal(propertyBlockIds[0], Assert.Single(rendererPropertyBlockIds.Distinct(StringComparer.Ordinal)));
         Assert.All(propertyBlockTextureIds, textureId => Assert.Equal(sharedTextureId, textureId));
+        Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Replace('\\', '/') == "PLATEAU Shared Assets/Common Materials/generic/uv");
         Assert.Single(
             client.AddedSlots,
             request => client.SlotPaths[request.Data.ID!].EndsWith("/Assets/Terrain Textures", StringComparison.Ordinal));
@@ -229,14 +247,12 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "Terrain 53394525",
             "dem",
             "53394525",
-            "terrain-material-53394525",
             firstOverlay);
         ResoniteConstructionCityObject second = CreateTerrainOverlayCityObject(
             "terrain-53394526",
             "Terrain 53394526",
             "dem",
             "53394526",
-            "terrain-material-53394526",
             secondOverlay);
 
         await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
@@ -244,14 +260,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [first, second],
             client,
             terrainTextureGenerator,
-            commonMaterials: []);
+            commonMaterials: CommonMaterialCatalog.Create());
 
         AddComponent[] sharedTextures = client.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
                 && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/", StringComparison.Ordinal))
             .ToArray();
 
-        Assert.Equal(2, client.ImportedRawTextures.Count);
         Assert.Equal(2, sharedTextures.Length);
         Assert.Contains(sharedTextures, request => client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
         Assert.Contains(sharedTextures, request => client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394526", StringComparison.Ordinal));
@@ -283,7 +298,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "Terrain Existing Shared",
             "dem",
             MeshCode,
-            "terrain-existing-shared-material",
             overlay);
 
         await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
@@ -291,11 +305,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [sharedTerrain],
             client,
             terrainTextureGenerator,
-            commonMaterials: []);
+            commonMaterials: CommonMaterialCatalog.Create());
 
         AddComponent sharedTexture = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
+        AddComponent sharedPropertyBlock = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)
                 && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
         Uri originalTextureUri = Assert.IsType<Field_Uri>(sharedTexture.Data.Members["URL"]).Value;
         int addedComponentCountBeforeDedicatedRun = client.AddedComponents.Count;
@@ -307,7 +325,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [
                 sharedTerrain.Materials[0] with
                 {
-                    MaterialKey = "terrain-existing-dedicated-material",
                     BaseColor = new ResoniteColor(0.75, 0.75, 0.75, 1.0),
                 },
             ],
@@ -318,13 +335,23 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [dedicatedTerrain],
             client,
             terrainTextureGenerator,
-            commonMaterials: []);
+            commonMaterials: CommonMaterialCatalog.Create());
 
-        AddComponent propertyBlock = Assert.Single(
+        Assert.DoesNotContain(
             client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
             static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
-        Assert.Equal(sharedTexture.Data.ID, Assert.IsType<Reference>(propertyBlock.Data.Members["Texture"]).TargetID);
-        Assert.Equal(2, client.ImportedRawTextures.Count);
+        Component dedicatedRenderer = Assert.Single(
+            client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "Terrain Existing Dedicated", StringComparison.Ordinal))
+            .Data;
+        string dedicatedPropertyBlockId = Assert.IsType<Reference>(
+            Assert.Single(Assert.IsType<SyncList>(dedicatedRenderer.Members["MaterialPropertyBlocks"]).Elements)).TargetID;
+        Assert.Equal(sharedPropertyBlock.Data.ID, dedicatedPropertyBlockId);
+        Assert.Equal(sharedTexture.Data.ID, Assert.IsType<Reference>(sharedPropertyBlock.Data.Members["Texture"]).TargetID);
+        Assert.Equal(1, client.AddedComponents.Count(request =>
+            string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+            && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/", StringComparison.Ordinal)));
         UpdateComponent textureRefresh = Assert.Single(
             client.UpdatedComponents,
             request => string.Equals(request.Data.ID, sharedTexture.Data.ID, StringComparison.Ordinal));
@@ -363,7 +390,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "Terrain Mismatched Overlay",
             "dem",
             MeshCode,
-            "terrain-mismatched-material",
             mismatchedOverlay);
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -401,7 +427,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "Terrain Missing Mesh Code",
             "dem",
             MeshCode,
-            "terrain-missing-mesh-code-material",
             overlay);
         ResoniteConstructionCityObject cityObject = baseCityObject with
         {
@@ -451,7 +476,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         SeededCommonMaterialComponent seededCommonMaterial = await SeedCommonMaterialComponentAsync(
             client,
             familySlotName: "generic",
-            materialSlotName: "shared_uv_generic",
+            materialSlotName: "uv",
             componentType: "[FrooxEngine]FrooxEngine.PBS_Metallic");
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "dem-overlay-current-object",
@@ -460,11 +485,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-overlay-current-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "dem-overlay-current-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -482,7 +506,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [cityObject],
             client,
             terrainTextureGenerator,
-            commonMaterials: []);
+            commonMaterials: CommonMaterialCatalog.Create());
 
         Component meshRenderer = Assert.Single(
             client.AddedComponents,
@@ -538,7 +562,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "wireframe-terrain-grid",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Wireframe,
                     TexturePayload: null,
@@ -691,7 +714,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Geometry: new ResoniteDynamicTerrainGeometry(
-                new ResoniteTriangleMeshGeometry(ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dynamic-terrain-material")),
+                new ResoniteTriangleMeshGeometry(ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh()),
                 new ResoniteTerrainGridGeometry(
                     Width: 2,
                     Height: 2,
@@ -702,7 +725,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "dynamic-terrain-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Wireframe,
                     TexturePayload: null,
@@ -851,7 +873,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "terrain-grid-overlay-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -869,7 +890,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [cityObject],
             client,
             terrainTextureGenerator,
-            commonMaterials: []);
+            commonMaterials: CommonMaterialCatalog.Create());
 
         Component gridMesh = Assert.Single(
             client.ComponentsById.Values,
@@ -882,7 +903,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal(0.175f, uvOffset.Value.x, 6);
         Assert.Equal(0.425f, uvOffset.Value.y, 6);
         Assert.All(
-            client.ComponentsById.Values.Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)),
+            client.AddedComponents
+                .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                    && !client.SlotPaths[request.ContainerSlotId].Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal))
+                .Select(static request => request.Data),
             materialComponent =>
             {
                 Assert.DoesNotContain("TextureScale", materialComponent.Members.Keys);
@@ -912,11 +936,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("wireframe-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "wireframe-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Wireframe,
                     TexturePayload: null,
@@ -958,11 +981,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: "57403600",
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("terrain-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "terrain-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1002,7 +1024,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 new ResoniteMeshVertex(new ResoniteFloat3(7.0, 5.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
             ],
             [
-                new ResoniteMeshSubmesh(0, "uv-bake-budget", [0, 1, 2]),
+                new ResoniteMeshSubmesh(0, [0, 1, 2]),
             ]);
         ResoniteConstructionCityObject baseline = new(
             SlotKey: "uv-bake-budget-baseline",
@@ -1015,7 +1037,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "uv-bake-budget",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/uv-bake-budget.png"),
@@ -1081,7 +1102,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "shared-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1092,7 +1112,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
                     Family: BundledDefaultMaterialFamilies.RoadUv),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "payload-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "payload/albedo"),
@@ -1129,11 +1148,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: MeshCode,
             LodLevel: 2,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("hierarchy-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "hierarchy-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Wireframe,
                     TexturePayload: null,
@@ -1176,11 +1194,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: MeshCode,
             LodLevel: 2,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("placeholder-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "placeholder-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Wireframe,
                     TexturePayload: null,
@@ -1230,11 +1247,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: MeshCode,
             LodLevel: 1,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("non-baked-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "non-baked-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Wireframe,
                     TexturePayload: null,
@@ -1282,11 +1298,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("bundled-family-scale-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "bundled-family-scale-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1357,11 +1372,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("bundled-family-transform-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "bundled-family-transform-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1437,11 +1451,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("only-submesh"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "only-submesh",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1456,7 +1469,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("targeted missing submesh index 1", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("material_bindings=[only-submesh[1]]", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("material_bindings=[material#0[1]]", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1482,7 +1495,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
             Geometry: new ResoniteDynamicTerrainGeometry(
-                new ResoniteTriangleMeshGeometry(ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("only-submesh")),
+                new ResoniteTriangleMeshGeometry(ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh()),
                 new ResoniteTerrainGridGeometry(
                     Width: 2,
                     Height: 2,
@@ -1493,7 +1506,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "only-submesh",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1508,7 +1520,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("targeted missing submesh index 1", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("material_bindings=[only-submesh[1]]", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("material_bindings=[material#0[1]]", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1537,7 +1549,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "first-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1546,7 +1557,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "second-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1590,7 +1600,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "first-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/duplicate-a.png"),
@@ -1601,7 +1610,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureScale: new ResoniteFloat2(2.0, 0.5),
                     TextureOffset: new ResoniteFloat2(0.25, 0.75)),
                 new ResoniteMaterialBinding(
-                    MaterialKey: "second-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/duplicate-b.png"),
@@ -1645,7 +1653,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "first-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1705,7 +1712,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "unused-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1737,8 +1743,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(0, "first-material", [0, 1, 2]),
-                new ResoniteMeshSubmesh(1, "second-material", [3, 4, 5]),
+                new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                new ResoniteMeshSubmesh(1, [3, 4, 5]),
             ]);
     }
 
@@ -1761,7 +1767,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: string.Concat("wireframe-", slotKey),
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Wireframe,
                     TexturePayload: null,
@@ -1778,7 +1783,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
         string displayName,
         string packageName,
         string meshCode,
-        string materialKey,
         TerrainTextureOverlay overlay)
     {
         return new ResoniteConstructionCityObject(
@@ -1788,11 +1792,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ActualMeshCode: meshCode,
             LodLevel: string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase) ? 0 : 1,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(materialKey),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: materialKey,
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -1806,6 +1809,19 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TerrainMeshCode: meshCode),
             ],
             SourceFileRelativePath: $"udx/{packageName}/{meshCode}/plateau_{DatasetName}_{packageName}_{meshCode}.gml");
+    }
+
+    private static ResoniteConstructionCityObject WithGenericCommonMaterial(ResoniteConstructionCityObject cityObject)
+    {
+        return cityObject with
+        {
+            Materials = cityObject.Materials
+                .Select(static material => material with
+                {
+                    CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
+                })
+                .ToArray(),
+        };
     }
 
     private static void AssertGradientPoint(Member member, float expectedPosition, int expectedX, int expectedY)

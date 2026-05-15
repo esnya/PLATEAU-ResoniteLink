@@ -8,7 +8,7 @@ namespace PlateauResoniteLink.Tests.Profiles;
 
 public sealed class DefaultMaterialResolverTests
 {
-    private readonly DefaultMaterialResolver resolver = new();
+    private readonly DefaultMaterialResolver resolver = new(CommonMaterialCatalog.Create());
 
     [Fact]
     public void ResolveMaterialUsesDatasetTextureWhenPresent()
@@ -447,19 +447,19 @@ public sealed class DefaultMaterialResolverTests
                 "default-materials/ambientcg/facade/Facade005_2K-JPG_Color.jpg",
                 "default-materials/ambientcg/facade/Facade006_2K-JPG_Color.jpg",
             ],
-            BundledDefaultMaterialFamilies.FacadeHighriseGlassVariants.Select(static variant => variant.TexturePath));
+            BundledDefaultMaterialFamilies.FacadeHighriseGlassVariants.Select(static variant => variant.Albedo.LogicalPath));
         Assert.Equal<string>(
             [
                 "default-materials/ambientcg/facade/Facade002_2K-JPG_Color.jpg",
                 "default-materials/ambientcg/facade/Facade011_2K-JPG_Color.jpg",
             ],
-            BundledDefaultMaterialFamilies.FacadeHighriseNightLowVariants.Select(static variant => variant.TexturePath));
+            BundledDefaultMaterialFamilies.FacadeHighriseNightLowVariants.Select(static variant => variant.Albedo.LogicalPath));
         Assert.Equal<string>(
             [
                 "default-materials/ambientcg/facade/Facade014_2K-JPG_Color.jpg",
                 "default-materials/ambientcg/facade/Facade015_2K-JPG_Color.jpg",
             ],
-            BundledDefaultMaterialFamilies.FacadeMidriseGridVariants.Select(static variant => variant.TexturePath));
+            BundledDefaultMaterialFamilies.FacadeMidriseGridVariants.Select(static variant => variant.Albedo.LogicalPath));
     }
 
     [Fact]

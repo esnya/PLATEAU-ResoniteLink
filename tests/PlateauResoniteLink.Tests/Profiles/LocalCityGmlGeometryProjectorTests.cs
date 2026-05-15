@@ -12,7 +12,7 @@ public sealed class LocalCityGmlGeometryProjectorTests
     [Fact]
     public void ProjectCityObjectsValidatesReferenceSystemBeforeProjectingCanonicalObjects()
     {
-        LocalCityGmlGeometryProjector projector = new(new DefaultMaterialResolver());
+        LocalCityGmlGeometryProjector projector = new(new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
         CachedSourceFileDescriptor sourceFile = new(
             new SourceFileDescriptor(
                 RelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 
 using ResoniteLink;
@@ -13,5 +14,5 @@ internal readonly record struct ResoniteSceneSetupState(
     bool DatasetRootExisted,
     SceneAnchor SceneAnchor,
     Slot? DatasetRootSnapshot,
-    ResoniteCommonMaterialAssetSet CommonMaterialAssets,
+    CommonMaterialCatalog<ResoniteCommonMaterialAsset> CommonMaterialAssets,
     IReadOnlyCollection<string> CommonMaterialFamilies);

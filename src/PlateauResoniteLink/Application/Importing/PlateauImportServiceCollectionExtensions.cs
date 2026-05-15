@@ -13,7 +13,7 @@ internal static class PlateauImportServiceCollectionExtensions
 
         services.TryAddSingleton<IArchiveFileLayoutPolicy, ArchiveFileLayoutPolicy>();
         services.TryAddSingleton<IRemoteArchiveDistributionPolicy, RemoteArchiveDistributionPolicy>();
-        services.TryAddSingleton<CommonMaterialCatalog>();
+        services.TryAddSingleton(CommonMaterialCatalog.Create());
         services.TryAddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
         services.TryAddSingleton<IDemTerrainGeoReferencedRasterCatalogFactory, DefaultDemTerrainGeoReferencedRasterCatalogFactory>();
         services.TryAddSingleton<IDemTextureSourcePolicy, DefaultDemTextureSourcePolicy>();

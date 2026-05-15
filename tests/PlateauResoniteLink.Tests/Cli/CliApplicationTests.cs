@@ -34,7 +34,7 @@ public sealed class CliApplicationTests
             new DefaultImportedSceneSourceFactory(
                 documentReader,
                 new DefaultImportedSceneSourceComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                     new DefaultDemTextureSourcePolicy(
                         new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                             new DefaultPlateauDatasetContentSourceFactory(
@@ -46,7 +46,7 @@ public sealed class CliApplicationTests
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy()))),
                 new PassthroughImportedObjectUnitOptimizer()),
-            new CommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
     }
 

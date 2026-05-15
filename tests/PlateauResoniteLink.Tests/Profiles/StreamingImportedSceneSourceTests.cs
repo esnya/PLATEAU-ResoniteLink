@@ -343,8 +343,7 @@ public sealed class StreamingImportedSceneSourceTests
                     RequireCredit: true,
                     CreditText: "credit",
                     LicenseName: "license",
-                    LicenseUrl: "https://example.invalid"),
-                []),
+                    LicenseUrl: "https://example.invalid")),
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 

@@ -11,7 +11,6 @@ public sealed class SceneImportContractMapperTests
         MaterialBinding[] bindings =
         [
             new(
-                MaterialKey: "shared",
                 BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
                 MaterialType: MaterialType.Standard,
                 TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
@@ -28,7 +27,6 @@ public sealed class SceneImportContractMapperTests
 
         ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
 
-        Assert.Equal("shared", mapped.MaterialKey);
         Assert.Equal(0.1, mapped.BaseColor.R, 9);
         Assert.Equal(0.2, mapped.BaseColor.G, 9);
         Assert.Equal("dataset:texture", mapped.TexturePayload!.Identity);

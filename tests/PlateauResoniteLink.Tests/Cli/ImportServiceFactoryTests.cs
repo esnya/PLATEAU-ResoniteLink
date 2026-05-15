@@ -23,7 +23,7 @@ public sealed class ImportServiceFactoryTests
             datasetResolverFactory,
             sceneImportTargetFactory,
             importedSceneSourceFactory,
-            new CommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             archiveFileLayoutPolicy);
 
         ImportCommandOptions firstOptions = CreateOptions("53394525", enableMeshBake: true);
@@ -145,8 +145,7 @@ public sealed class ImportServiceFactoryTests
                 request,
                 new PlateauSourceDataset(["bldg"], [], []),
                 new Attribution(
-                    new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
-                    []),
+                    new LicenseMetadata(true, "credit", "license", "https://example.invalid")),
                 GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
 
             return Task.FromResult<IImportedSceneSource>(new StubImportedSceneSource(metadata));
@@ -179,12 +178,10 @@ public sealed class ImportServiceFactoryTests
                                 new MeshVertex(new Float3(0, 0, 1), new Float3(0, 1, 0), new Float2(0, 1)),
                             ],
                             [
-                                new MeshSubmesh(0, "mat", [0, 1, 2]),
+                                new MeshSubmesh(0, [0, 1, 2]),
                             ])),
                         [
-                            new MaterialBinding(
-                                "mat",
-                                new ColorRgba(1, 1, 1, 1),
+                            new MaterialBinding(new ColorRgba(1, 1, 1, 1),
                                 MaterialType.Standard,
                                 null,
                                 TextureSourceKind.Dataset,

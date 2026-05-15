@@ -36,7 +36,7 @@ public sealed record SceneImportExecutionPlan
         ImportedSceneMetadata metadata,
         string resolvedSourcePath,
         string workRoot,
-        IReadOnlyList<MaterialBinding> commonMaterials)
+        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials)
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedSourcePath);
@@ -51,25 +51,6 @@ public sealed record SceneImportExecutionPlan
                 resolvedSourcePath,
                 workRoot,
                 commonMaterials));
-    }
-
-    public static SceneImportExecutionPlan Create(
-        PlateauImportRequest normalizedRequest,
-        PlateauImportRequest resolvedRequest,
-        ImportedSceneMetadata metadata,
-        string resolvedSourcePath,
-        string workRoot,
-        CommonMaterialCatalog commonMaterialCatalog)
-    {
-        ArgumentNullException.ThrowIfNull(commonMaterialCatalog);
-
-        return Create(
-            normalizedRequest,
-            resolvedRequest,
-            metadata,
-            resolvedSourcePath,
-            workRoot,
-            commonMaterialCatalog.Create());
     }
 
     private static void ValidateRequestConsistency(
