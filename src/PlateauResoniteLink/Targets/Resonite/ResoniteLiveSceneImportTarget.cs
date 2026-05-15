@@ -1395,7 +1395,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 cityObject,
                 uploadedTextureAssets.TextureUrisByPayload,
                 uploadedTextureAssets.TerrainTextureUrisByOverlay,
-                uploadedTextureAssets.TerrainTextureComponentsByMeshCode,
+                uploadedTextureAssets.TerrainTexturePropertyBlockComponentsByMeshCode,
                 uploadedTextureAssets.GeneratedTerrainTexturesByOverlay,
                 importStepCancellation.Token);
             plannedMaterials = await materialPlanningTask;
@@ -1467,7 +1467,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     {
         Dictionary<ResoniteTexturePayload, Uri> textureUrisByPayload = new(TexturePayloadReferenceComparer.Instance);
         Dictionary<TerrainTextureOverlay, Uri> terrainTextureUrisByOverlay = [];
-        Dictionary<string, ResoniteComponentLocator> terrainTextureComponentsByMeshCode = new(StringComparer.Ordinal);
+        Dictionary<string, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode = new(StringComparer.Ordinal);
         HashSet<ResoniteTexturePayload> queuedPayloads = new(TexturePayloadReferenceComparer.Instance);
         List<(PreparedTextureReference Texture, Task<Uri> ImportTask)> textureImportTasks = [];
         List<(PreparedTextureReference Texture, Task<SharedTerrainTextureAsset> ImportTask)> terrainTextureImportTasks = [];
@@ -1516,13 +1516,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             SharedTerrainTextureAsset sharedTexture = await importTask;
             string meshCode = ResolveTerrainTextureMeshCode(texture);
             terrainTextureUrisByOverlay.Add(texture.TerrainOverlay!, sharedTexture.TextureUri);
-            terrainTextureComponentsByMeshCode.TryAdd(meshCode, sharedTexture.TextureComponent.Locator);
+            terrainTexturePropertyBlockComponentsByMeshCode.TryAdd(meshCode, sharedTexture.MainTexturePropertyBlockComponent.Locator);
         }
 
         return new UploadedTextureAssetSet(
             textureUrisByPayload,
             terrainTextureUrisByOverlay,
-            terrainTextureComponentsByMeshCode,
+            terrainTexturePropertyBlockComponentsByMeshCode,
             preparedTerrainTextureDataByOverlay);
     }
 
@@ -1587,9 +1587,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 importedTextureUri,
                 ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride),
             cancellationToken);
+        CreatedComponent propertyBlockComponent = await CreateTerrainMainTexturePropertyBlockAsync(
+            importClient,
+            meshSlot.Locator,
+            textureComponent.Locator,
+            cancellationToken);
         return new SharedTerrainTextureAsset(
             importedTextureUri,
-            textureComponent);
+            textureComponent,
+            propertyBlockComponent);
     }
 
     private static async Task<SharedTerrainTextureAsset?> TryFindSharedTerrainTextureAssetAsync(
@@ -1609,11 +1615,59 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             return null;
         }
 
-        return url.Value is null
-            ? null
-            : new SharedTerrainTextureAsset(
-                url.Value,
-                new CreatedComponent(new ResoniteComponentLocator(textureComponent.ID), textureComponent.ComponentType));
+        if (url.Value is null)
+        {
+            return null;
+        }
+
+        CreatedComponent createdTextureComponent = new(new ResoniteComponentLocator(textureComponent.ID), textureComponent.ComponentType);
+        Component? propertyBlockComponent = slot?.Components?
+            .Where(component => IsSharedTerrainMainTexturePropertyBlockComponent(component, textureComponent.ID))
+            .OrderBy(static component => component.ID, StringComparer.Ordinal)
+            .FirstOrDefault();
+        CreatedComponent createdPropertyBlockComponent = propertyBlockComponent?.ID is null
+            ? await CreateTerrainMainTexturePropertyBlockAsync(
+                importClient,
+                meshSlot.Locator,
+                createdTextureComponent.Locator,
+                cancellationToken)
+            : new CreatedComponent(new ResoniteComponentLocator(propertyBlockComponent.ID), propertyBlockComponent.ComponentType);
+
+        return new SharedTerrainTextureAsset(
+            url.Value,
+            createdTextureComponent,
+            createdPropertyBlockComponent);
+    }
+
+    private static Task<CreatedComponent> CreateTerrainMainTexturePropertyBlockAsync(
+        IResoniteLinkClient importClient,
+        ResoniteSlotLocator meshSlot,
+        ResoniteComponentLocator textureComponent,
+        CancellationToken cancellationToken)
+    {
+        return ResoniteMaterialPlanning.CreateComponentAsync(
+            importClient,
+            meshSlot,
+            "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
+            new Dictionary<string, Member>(StringComparer.Ordinal)
+            {
+                ["Texture"] = new Reference
+                {
+                    TargetID = textureComponent.Value,
+                },
+            },
+            cancellationToken);
+    }
+
+    private static bool IsSharedTerrainMainTexturePropertyBlockComponent(Component component, string textureComponentId)
+    {
+        return string.Equals(
+                component.ComponentType,
+                "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
+                StringComparison.Ordinal)
+            && component.Members.TryGetValue("Texture", out Member? textureMember)
+            && textureMember is Reference { TargetID: string targetId }
+            && string.Equals(targetId, textureComponentId, StringComparison.Ordinal);
     }
 
     private static bool IsSharedTerrainTextureComponent(Component component)
@@ -1995,7 +2049,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ResoniteConstructionCityObject cityObject,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<string, ResoniteComponentLocator> preparedTerrainTextureComponentsByMeshCode,
+        IReadOnlyDictionary<string, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
         IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         CancellationToken cancellationToken)
     {
@@ -2018,7 +2072,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     material,
                     preparedTextureUrisByPayload,
                     preparedTerrainTextureUrisByOverlay,
-                    preparedTerrainTextureComponentsByMeshCode,
+                    preparedTerrainTexturePropertyBlockComponentsByMeshCode,
                     cancellationToken);
                 continue;
             }
@@ -2044,7 +2098,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             ResoniteMaterialBinding sourceMaterial,
             IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
             IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-            IReadOnlyDictionary<string, ResoniteComponentLocator> terrainTextureComponentsByMeshCode,
+            IReadOnlyDictionary<string, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode,
             CancellationToken ct)
         {
             DefaultCommonMaterialMember member = sourceMaterial.CommonMaterial
@@ -2072,7 +2126,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 : CreateMainTextureOverrideRendererBinding(
                     sharedMaterialAsset,
                     mainTextureOverride,
-                    terrainTextureComponentsByMeshCode,
+                    terrainTexturePropertyBlockComponentsByMeshCode,
                     sourceMaterial);
             return (sharedMaterialAsset, rendererBinding);
         }
@@ -2118,7 +2172,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                         CreateMainTextureOverrideRendererBinding(
                             plannedMaterial,
                             mainTextureOverride,
-                            preparedTerrainTextureComponentsByMeshCode,
+                            preparedTerrainTexturePropertyBlockComponentsByMeshCode,
                             sourceMaterial));
                 }
             }
@@ -2130,7 +2184,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private static PlannedMainTextureOverrideRendererMaterialBinding CreateMainTextureOverrideRendererBinding(
         PlannedMaterialAsset materialAsset,
         PlannedTextureAsset mainTexture,
-        IReadOnlyDictionary<string, ResoniteComponentLocator> terrainTextureComponentsByMeshCode,
+        IReadOnlyDictionary<string, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode,
         ResoniteMaterialBinding sourceMaterial)
     {
         if (sourceMaterial.TerrainOverlay is null)
@@ -2141,9 +2195,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
             materialAsset,
             mainTexture,
+            null,
             sourceMaterial.TerrainMeshCode is not null
-            && terrainTextureComponentsByMeshCode.TryGetValue(sourceMaterial.TerrainMeshCode, out ResoniteComponentLocator textureComponent)
-                ? textureComponent
+            && terrainTexturePropertyBlockComponentsByMeshCode.TryGetValue(sourceMaterial.TerrainMeshCode, out ResoniteComponentLocator propertyBlockComponent)
+                ? propertyBlockComponent
                 : null);
     }
 
@@ -2505,7 +2560,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private sealed record UploadedTextureAssetSet(
         Dictionary<ResoniteTexturePayload, Uri> TextureUrisByPayload,
         Dictionary<TerrainTextureOverlay, Uri> TerrainTextureUrisByOverlay,
-        Dictionary<string, ResoniteComponentLocator> TerrainTextureComponentsByMeshCode,
+        Dictionary<string, ResoniteComponentLocator> TerrainTexturePropertyBlockComponentsByMeshCode,
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> GeneratedTerrainTexturesByOverlay);
 
     private sealed class TexturePayloadReferenceComparer : IEqualityComparer<ResoniteTexturePayload>

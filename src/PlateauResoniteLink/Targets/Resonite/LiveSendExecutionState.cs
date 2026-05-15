@@ -61,7 +61,8 @@ internal sealed class TerrainTextureAssetCache
 
 internal sealed record SharedTerrainTextureAsset(
     Uri TextureUri,
-    CreatedComponent TextureComponent);
+    CreatedComponent TextureComponent,
+    CreatedComponent MainTexturePropertyBlockComponent);
 
 internal sealed record LiveSendRunPlan(
     ResoniteSceneSetupInfo SetupInfo,

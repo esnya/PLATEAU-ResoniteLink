@@ -647,6 +647,14 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         PlannedMainTextureOverrideRendererMaterialBinding binding,
         ref int nextComponentLocator)
     {
+        if (binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
+            {
+                SharedMainTexturePropertyBlockComponent: { } sharedMainTexturePropertyBlockComponent,
+            })
+        {
+            return PlannedMembers.Reference(PlannedWorldElementReference.Canonical(sharedMainTexturePropertyBlockComponent));
+        }
+
         PlannedWorldElementReference? sharedTextureTarget = binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
         {
             SharedMainTextureComponent: { } sharedMainTextureComponent,

@@ -514,6 +514,52 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     }
 
     [Fact]
+    public void CreatePlannedBatchEmission_UsesSharedTerrainPropertyBlockWhenProvided()
+    {
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
+            new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
+            "Triangle Object",
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+            null);
+        PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
+        PlannedSceneObjectEmission emissionPlan = new(
+            new PlannedTriangleMeshGeometryAsset(
+                new GeometryIdentity("geom"),
+                "Triangle Object",
+                new Uri("resdb:///mesh/triangle")),
+            [reusableMaterial],
+            new PlannedRenderer(
+                new GeometryIdentity("geom"),
+                [
+                    new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
+                        reusableMaterial,
+                        new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override")),
+                        SharedMainTextureComponent: new ResoniteComponentLocator("shared-terrain-texture-id"),
+                        SharedMainTexturePropertyBlockComponent: new ResoniteComponentLocator("shared-terrain-property-block-id")),
+                ]),
+            new PlannedCollider(
+                new GeometryIdentity("geom"),
+                false));
+
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+
+        PlannedBatchComponentEmission meshRenderer = Assert.Single(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
+        SyncList rendererPropertyBlocks = Assert.IsType<SyncList>(ToMember(meshRenderer.Members["MaterialPropertyBlocks"]));
+        Reference propertyBlockReference = Assert.IsType<Reference>(Assert.Single(rendererPropertyBlocks.Elements));
+
+        Assert.Equal("shared-terrain-property-block-id", propertyBlockReference.TargetID);
+        Assert.DoesNotContain(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void CreatePlannedBatchEmission_UsesDistinctOverrideComponentIdsForSharedMaterialOverrides()
     {
         ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
