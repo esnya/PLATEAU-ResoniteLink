@@ -5178,10 +5178,8 @@ internal static partial class LocalCityGmlObjectProjection
         string actualMeshCode,
         string requestedMeshCode,
         IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
-        TerrainTextureOverlay terrainOverlay,
-        string phase)
+        TerrainTextureOverlay terrainOverlay)
     {
-        _ = phase;
         return ResolveTerrainTextureMeshCode(actualMeshCode, terrainOverlay)
             ?? ResolveTerrainTextureMeshCode(requestedMeshCode, terrainOverlay)
             ?? ResolveTerrainTextureMeshCodeFromRequestedAreas(
@@ -5477,8 +5475,7 @@ internal static partial class LocalCityGmlObjectProjection
                         cityObject.ActualMeshCode,
                         cityObject.ActualMeshCode,
                         requestedMeshAreas,
-                        terrainGroups[0].Key,
-                        "non-dem-terrain-single-split")
+                        terrainGroups[0].Key)
                     ?? throw CreateTerrainOverlayMeshCodeMismatchException(
                         "non-dem-terrain-single-split",
                         cityObject.ActualMeshCode,
@@ -5514,8 +5511,7 @@ internal static partial class LocalCityGmlObjectProjection
                     cityObject.ActualMeshCode,
                     cityObject.ActualMeshCode,
                     requestedMeshAreas,
-                    group.Key,
-                    "non-dem-terrain-split")
+                    group.Key)
                 ?? throw CreateTerrainOverlayMeshCodeMismatchException(
                     "non-dem-terrain-split",
                     cityObject.ActualMeshCode,
@@ -5599,8 +5595,7 @@ internal static partial class LocalCityGmlObjectProjection
                 actualMeshCode,
                 requestedMeshCode,
                 requestedMeshAreas,
-                terrainOverlay,
-                "project-split-check")
+                terrainOverlay)
             is not null;
     }
 

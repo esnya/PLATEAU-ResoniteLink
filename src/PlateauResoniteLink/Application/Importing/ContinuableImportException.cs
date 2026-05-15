@@ -3,7 +3,7 @@ using System.Globalization;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public class ContinuableImportException : Exception
+public sealed class ContinuableImportException : Exception
 {
     public ContinuableImportException(
         string phase,
