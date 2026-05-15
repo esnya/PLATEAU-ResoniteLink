@@ -130,6 +130,33 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public async Task RunAsyncListsAggregateExceptionInnerFailures()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        StubImportServiceFactory importServiceFactory = new(_ => throw new AggregateException(
+            new InvalidOperationException("first terrain overlay failure"),
+            new InvalidOperationException("second terrain overlay failure")));
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            importServiceFactory,
+            CreateDatasetInspectionService());
+
+        int exitCode = await application.RunAsync(
+            CreateImportArgs(fixturePath));
+
+        string error = standardError.ToString();
+        Assert.Equal(1, exitCode);
+        Assert.Contains("Import failed: 2 errors occurred.", error, StringComparison.Ordinal);
+        Assert.Contains("[1] first terrain overlay failure", error, StringComparison.Ordinal);
+        Assert.Contains("[2] second terrain overlay failure", error, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, standardOutput.ToString());
+    }
+
+    [Fact]
     public async Task RunAsyncPassesDocumentedDefaultPackagesWhenPackagesOptionIsOmitted()
     {
         using StringWriter standardOutput = new();

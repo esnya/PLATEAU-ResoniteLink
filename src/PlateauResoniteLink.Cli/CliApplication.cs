@@ -123,9 +123,40 @@ public sealed class CliApplication
         }
         catch (Exception exception)
         {
-            await standardError.WriteLineAsync($"Import failed: {exception.Message}");
+            await WriteImportFailureAsync(exception);
             return 1;
         }
+    }
+
+    private async Task WriteImportFailureAsync(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        if (exception is AggregateException aggregateException)
+        {
+            Exception[] innerExceptions = aggregateException
+                .Flatten()
+                .InnerExceptions
+                .ToArray();
+            if (innerExceptions.Length > 1)
+            {
+                await standardError.WriteLineAsync($"Import failed: {innerExceptions.Length} errors occurred.");
+                for (int index = 0; index < innerExceptions.Length; index++)
+                {
+                    await standardError.WriteLineAsync($"[{index + 1}] {innerExceptions[index].Message}");
+                }
+
+                return;
+            }
+
+            if (innerExceptions.Length == 1)
+            {
+                await standardError.WriteLineAsync($"Import failed: {innerExceptions[0].Message}");
+                return;
+            }
+        }
+
+        await standardError.WriteLineAsync($"Import failed: {exception.Message}");
     }
 
     private async Task WriteSearchResultAsync(
