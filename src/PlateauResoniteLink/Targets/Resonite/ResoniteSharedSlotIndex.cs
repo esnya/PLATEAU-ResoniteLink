@@ -20,6 +20,9 @@ internal sealed class ResoniteSharedSlotIndex(
     SceneAnchor? initialSceneAnchor,
     Func<IResoniteLinkClient, ResoniteSlotLocator, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> createSlotAsync)
 {
+    private const double StrictPlacementEquivalenceTolerance = 0.001;
+    private const double SiblingProjectionDriftTolerance = 0.25;
+
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> sharedSlotCache = new();
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> runScopedSourceFileRootCache = new();
     private readonly AsyncCompletedResultCache<CanonicalParentSourceFile, CanonicalParentScope> canonicalParentScopeCache = new();
@@ -85,7 +88,7 @@ internal sealed class ResoniteSharedSlotIndex(
         string sourceFileRelativePath = ResonitePlacementPolicy.ResolveSourceFileRelativePath(cityObject);
         string sourceFileSlotName = ResonitePlacementPolicy.ResolveSourceFileSlotName(cityObject, sourceFileRelativePath, sourceFileSlotNamesByRelativePath);
         string rootMeshCode = ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(sourceFileSlotName, cityObject.ActualMeshCode);
-        SourceRootPlacement sourceRootPlacement = ResolveSourceRootPlacement(sourceFileSlotName, rootMeshCode, cityObject);
+        SourceRootPlacement sourceRootPlacement = ResolveSourceRootPlacement(sourceFileSlotName, rootMeshCode);
         CanonicalParentScope parentScope = await canonicalParentScopeCache.GetOrCreateAsync(
             new CanonicalParentSourceFile(sourceFileRelativePath, rootMeshCode, cityObject.LodLevel),
             ct => CreateCanonicalParentScopeAsync(client, sourceFileSlotName, rootMeshCode, cityObject.LodLevel, sourceRootPlacement.RootPosition, ct),
@@ -256,18 +259,13 @@ internal sealed class ResoniteSharedSlotIndex(
 
     private SourceRootPlacement ResolveSourceRootPlacement(
         string sourceFileSlotName,
-        string rootMeshCode,
-        ResoniteConstructionCityObject cityObject)
+        string rootMeshCode)
     {
         ObservedSourceRootPlacement? observedRootPlacement = TryResolveObservedSourceRootPosition(sourceFileSlotName, rootMeshCode);
-        ResoniteFloat3 baseRootPosition = observedRootPlacement?.Position
+        ResoniteFloat3 rootPosition = observedRootPlacement?.Position
             ?? ResonitePlacementPolicy.ResolveMeshRootPosition(requestLocalOrigin, rootMeshCode);
-        ResoniteFloat3 terrainResidual = ResolveTerrainResidual(rootMeshCode, cityObject);
-        ResoniteFloat3 rootPosition = IsTerrainDem(cityObject) || observedRootPlacement?.IsExact == true
-            ? baseRootPosition
-            : ResonitePlacementPolicy.Add(baseRootPosition, terrainResidual);
 
-        return new SourceRootPlacement(rootPosition, baseRootPosition);
+        return new SourceRootPlacement(rootPosition, rootPosition);
     }
 
     private ObservedSourceRootPlacement? TryResolveObservedSourceRootPosition(
@@ -279,7 +277,6 @@ internal sealed class ResoniteSharedSlotIndex(
             .Where(slot => string.Equals(slot.Name?.Value, sourceFileSlotName, StringComparison.Ordinal))
             .Select(slot => new ObservedSourceRootPlacement(
                 GetSlotPositionOrDefault(slot),
-                IsExact: true,
                 ReferenceMeshCode: rootMeshCode,
                 SlotId: slot.ID ?? string.Empty))
             .ToArray();
@@ -287,7 +284,8 @@ internal sealed class ResoniteSharedSlotIndex(
         {
             return SelectDeterministicObservedPlacement(
                 exactSourceRoots,
-                $"Dataset root contains multiple observed source roots named '{sourceFileSlotName}' with different placements. Append placement is ambiguous.");
+                $"Dataset root contains multiple observed source roots named '{sourceFileSlotName}' with different placements. Append placement is ambiguous.",
+                StrictPlacementEquivalenceTolerance);
         }
 
         ObservedSourceRootPlacement[] ancestorCandidates = directSourceRoots
@@ -300,7 +298,6 @@ internal sealed class ResoniteSharedSlotIndex(
                 ResonitePlacementPolicy.Add(
                     GetSlotPositionOrDefault(candidate.Slot),
                     ResonitePlacementPolicy.ComputeMeshCodeOffset(candidate.MeshCode, rootMeshCode)),
-                IsExact: false,
                 ReferenceMeshCode: candidate.MeshCode,
                 SlotId: candidate.Slot.ID ?? string.Empty))
             .OrderByDescending(static candidate => candidate.ReferenceMeshCode.Length)
@@ -316,18 +313,15 @@ internal sealed class ResoniteSharedSlotIndex(
                     ResonitePlacementPolicy.Add(
                         GetSlotPositionOrDefault(candidate.Slot),
                         ResonitePlacementPolicy.ComputeMeshCodeOffset(candidate.MeshCode, rootMeshCode)),
-                    IsExact: false,
                     ReferenceMeshCode: candidate.MeshCode,
                     SlotId: candidate.Slot.ID ?? string.Empty))
-                .OrderBy(candidate => ComputeHorizontalDistanceSquared(
-                    ResonitePlacementPolicy.ComputeMeshCodeOffset(candidate.ReferenceMeshCode, rootMeshCode),
-                    new ResoniteFloat3(0.0, 0.0, 0.0)))
-                .ThenBy(static candidate => candidate.ReferenceMeshCode, StringComparer.Ordinal)
-                .ThenBy(static candidate => candidate.SlotId, StringComparer.Ordinal)
                 .ToArray();
             return observedMeshCodeRoots.Length == 0
                 ? null
-                : observedMeshCodeRoots[0];
+                : SelectDeterministicObservedPlacement(
+                    observedMeshCodeRoots,
+                    $"Dataset root contains multiple observed source roots that resolve different placements for meshcode '{rootMeshCode}'. Append placement is ambiguous.",
+                    SiblingProjectionDriftTolerance);
         }
 
         int bestLength = ancestorCandidates[0].ReferenceMeshCode.Length;
@@ -336,61 +330,8 @@ internal sealed class ResoniteSharedSlotIndex(
             .ToArray();
         return SelectDeterministicObservedPlacement(
             bestCandidates,
-            $"Dataset root contains multiple observed source roots for meshcode '{bestCandidates[0].ReferenceMeshCode}' with different placements. Append placement is ambiguous.");
-    }
-
-    private ResoniteFloat3 ResolveTerrainResidual(
-        string rootMeshCode,
-        ResoniteConstructionCityObject cityObject)
-    {
-        return TryResolveObservedTerrainLocalPosition(rootMeshCode, cityObject.Transform.Position, out ResoniteFloat3 observedTerrain)
-            ? CreateVerticalResidual(ResonitePlacementPolicy.Subtract(observedTerrain, cityObject.Transform.Position))
-            : new ResoniteFloat3(0.0, 0.0, 0.0);
-    }
-
-    private static ResoniteFloat3 CreateVerticalResidual(ResoniteFloat3 residual)
-    {
-        return new ResoniteFloat3(0.0, residual.Y, 0.0);
-    }
-
-    private bool TryResolveObservedTerrainLocalPosition(
-        string rootMeshCode,
-        ResoniteFloat3 cityObjectPosition,
-        out ResoniteFloat3 localPosition)
-    {
-        const double maxDistanceSquared = 300.0 * 300.0;
-        localPosition = new ResoniteFloat3(0.0, 0.0, 0.0);
-        (Slot Slot, ResoniteFloat3 LocalPosition, double DistanceSquared)[] candidates = observedSlotSnapshotsById.Values
-            .Where(static slot => !string.IsNullOrWhiteSpace(slot.ID))
-            .Where(slot => !createdSlotIds.ContainsKey(slot.ID!))
-            .Where(HasGridMeshComponent)
-            .Where(slot => !IsDescendantOf(slot.ID!, datasetAssetsRootSlot.Locator.Value))
-            .Where(slot => TryGetDatasetSourceRoot(slot, out Slot? sourceRoot)
-                && IsDemSourceRootForMeshCode(sourceRoot, rootMeshCode))
-            .Select(slot =>
-            {
-                ResoniteFloat3 candidateLocalPosition = GetAccumulatedPositionRelativeToDatasetRoot(slot);
-                return (Slot: slot, LocalPosition: candidateLocalPosition, DistanceSquared: ComputeHorizontalDistanceSquared(candidateLocalPosition, cityObjectPosition));
-            })
-            .Where(static candidate => candidate.DistanceSquared <= maxDistanceSquared)
-            .OrderBy(static candidate => candidate.DistanceSquared)
-            .ThenBy(static candidate => candidate.Slot.ID ?? string.Empty, StringComparer.Ordinal)
-            .ToArray();
-        if (candidates.Length == 0)
-        {
-            return false;
-        }
-
-        if (candidates.Length > 1
-            && Math.Abs(candidates[0].DistanceSquared - candidates[1].DistanceSquared) < 0.000001
-            && !AreEquivalentPositions(candidates[0].LocalPosition, candidates[1].LocalPosition))
-        {
-            throw new InvalidOperationException(
-                $"Dataset root contains multiple observed terrain grid slots for meshcode '{rootMeshCode}'. Append placement is ambiguous.");
-        }
-
-        localPosition = candidates[0].LocalPosition;
-        return true;
+            $"Dataset root contains multiple observed source roots for meshcode '{bestCandidates[0].ReferenceMeshCode}' with different placements. Append placement is ambiguous.",
+            StrictPlacementEquivalenceTolerance);
     }
 
     private IEnumerable<Slot> EnumerateObservedDatasetSourceRoots()
@@ -401,110 +342,17 @@ internal sealed class ResoniteSharedSlotIndex(
             .Where(static slot => !string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal));
     }
 
-    private static bool IsTerrainDem(ResoniteConstructionCityObject cityObject)
-    {
-        return string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            && cityObject.Geometry is ResoniteTerrainGridGeometry or ResoniteDynamicTerrainGeometry;
-    }
-
-    private static bool HasGridMeshComponent(Slot slot)
-    {
-        return slot.Components?.Any(static component =>
-            string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal)) == true;
-    }
-
-    private bool TryGetDatasetSourceRoot(Slot slot, out Slot sourceRoot)
-    {
-        sourceRoot = slot;
-        Slot current = slot;
-        while (current.Parent is not null
-               && !string.IsNullOrWhiteSpace(current.Parent.TargetID)
-               && observedSlotSnapshotsById.TryGetValue(current.Parent.TargetID, out Slot? parent))
-        {
-            if (string.Equals(parent.ID, datasetRootSlot.Locator.Value, StringComparison.Ordinal))
-            {
-                sourceRoot = current;
-                return true;
-            }
-
-            current = parent;
-        }
-
-        return false;
-    }
-
-    private static bool IsDemSourceRootForMeshCode(Slot sourceRoot, string requestedMeshCode)
-    {
-        string sourceRootName = sourceRoot.Name?.Value ?? string.Empty;
-        return sourceRootName.Contains("dem", StringComparison.OrdinalIgnoreCase)
-            && ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(sourceRootName, out string sourceRootMeshCode)
-            && requestedMeshCode.StartsWith(sourceRootMeshCode, StringComparison.Ordinal);
-    }
-
-    private bool IsDescendantOf(string slotId, string ancestorSlotId)
-    {
-        string? currentSlotId = slotId;
-        while (!string.IsNullOrWhiteSpace(currentSlotId)
-               && observedSlotSnapshotsById.TryGetValue(currentSlotId, out Slot? slot)
-               && slot.Parent is not null)
-        {
-            if (string.Equals(slot.Parent.TargetID, ancestorSlotId, StringComparison.Ordinal))
-            {
-                return true;
-            }
-
-            currentSlotId = slot.Parent.TargetID;
-        }
-
-        return false;
-    }
-
-    private ResoniteFloat3 GetAccumulatedPosition(Slot slot)
-    {
-        ResoniteFloat3 accumulated = new(0.0, 0.0, 0.0);
-        Slot? current = slot;
-        while (current is not null)
-        {
-            accumulated = ResonitePlacementPolicy.Add(accumulated, GetSlotPositionOrDefault(current));
-            if (current.Parent is null
-                || string.IsNullOrWhiteSpace(current.Parent.TargetID)
-                || !observedSlotSnapshotsById.TryGetValue(current.Parent.TargetID, out current))
-            {
-                break;
-            }
-        }
-
-        return accumulated;
-    }
-
-    private ResoniteFloat3 GetAccumulatedPositionRelativeToDatasetRoot(Slot slot)
-    {
-        ResoniteFloat3 accumulated = new(0.0, 0.0, 0.0);
-        Slot? current = slot;
-        while (current is not null
-               && !string.Equals(current.ID, datasetRootSlot.Locator.Value, StringComparison.Ordinal))
-        {
-            accumulated = ResonitePlacementPolicy.Add(accumulated, GetSlotPositionOrDefault(current));
-            if (current.Parent is null
-                || string.IsNullOrWhiteSpace(current.Parent.TargetID)
-                || !observedSlotSnapshotsById.TryGetValue(current.Parent.TargetID, out current))
-            {
-                break;
-            }
-        }
-
-        return accumulated;
-    }
 
     private static ObservedSourceRootPlacement SelectDeterministicObservedPlacement(
         IReadOnlyCollection<ObservedSourceRootPlacement> candidates,
-        string ambiguousMessage)
+        string ambiguousMessage,
+        double tolerance)
     {
         ObservedSourceRootPlacement selected = candidates
             .OrderBy(static candidate => candidate.ReferenceMeshCode, StringComparer.Ordinal)
             .ThenBy(static candidate => candidate.SlotId, StringComparer.Ordinal)
             .First();
-        if (candidates.Any(candidate => !AreEquivalentPositions(candidate.Position, selected.Position)))
+        if (candidates.Any(candidate => !AreEquivalentPositions(candidate.Position, selected.Position, tolerance)))
         {
             throw new InvalidOperationException(ambiguousMessage);
         }
@@ -512,19 +360,11 @@ internal sealed class ResoniteSharedSlotIndex(
         return selected;
     }
 
-    private static bool AreEquivalentPositions(ResoniteFloat3 left, ResoniteFloat3 right)
+    private static bool AreEquivalentPositions(ResoniteFloat3 left, ResoniteFloat3 right, double tolerance)
     {
-        const double tolerance = 0.001;
         return Math.Abs(left.X - right.X) <= tolerance
             && Math.Abs(left.Y - right.Y) <= tolerance
             && Math.Abs(left.Z - right.Z) <= tolerance;
-    }
-
-    private static double ComputeHorizontalDistanceSquared(ResoniteFloat3 left, ResoniteFloat3 right)
-    {
-        double x = left.X - right.X;
-        double z = left.Z - right.Z;
-        return (x * x) + (z * z);
     }
 
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)
@@ -569,7 +409,6 @@ internal sealed class ResoniteSharedSlotIndex(
 
     private readonly record struct ObservedSourceRootPlacement(
         ResoniteFloat3 Position,
-        bool IsExact,
         string ReferenceMeshCode,
         string SlotId);
 
