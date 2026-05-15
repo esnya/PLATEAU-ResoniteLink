@@ -78,7 +78,7 @@ internal sealed class DefaultImportServiceFactory(
     IPlateauDatasetSourceResolverFactory datasetSourceResolverFactory,
     ISceneSinkFactory sceneSinkFactory,
     IImportedSceneSourceFactory importedSceneSourceFactory,
-    DefaultCommonMaterialCatalog commonMaterialCatalog,
+    CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IImportServiceFactory
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -93,7 +93,7 @@ internal sealed class DefaultImportServiceFactory(
             sceneSinkFactory.Create(options, progressReporter),
             datasetSourceResolverFactory.Create(),
             importedSceneSourceFactory,
-            commonMaterialCatalog,
+            commonMaterials,
             archiveFileLayoutPolicy,
             progressReporter);
     }

@@ -606,7 +606,7 @@ internal sealed class NonDemCityObjectBaker(
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     TexturePayload: ResoniteTextureImportFactory.CreatePayloadFromImage(atlasImage!, identity: textureIdentity),
-                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()));
+                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv));
         }
 
         foreach (IGrouping<PreservedMaterialGroupingKey, OrderedPreservedSubmeshEntry> preservedGroup in candidates
@@ -1128,9 +1128,9 @@ internal sealed class NonDemCityObjectBaker(
             TerrainOverlay = null,
             AssetScope = ResoniteMaterialAssetScope.Common,
             SubmeshIndices = [submeshIndex],
-            CommonMaterial = DefaultCommonMaterialMember.VertexColorUv(material.DepthOffset is null
-                ? null
-                : new MaterialDepthOffset(material.DepthOffset.Factor, material.DepthOffset.Units)),
+            CommonMaterial = material.DepthOffset is null
+                ? CommonMaterialCatalog.Create().VertexColor.Uv
+                : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv,
         };
     }
 

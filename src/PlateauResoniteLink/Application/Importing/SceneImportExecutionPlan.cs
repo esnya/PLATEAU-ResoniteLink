@@ -53,25 +53,6 @@ public sealed record SceneImportExecutionPlan
                 commonMaterials));
     }
 
-    public static SceneImportExecutionPlan Create(
-        PlateauImportRequest normalizedRequest,
-        PlateauImportRequest resolvedRequest,
-        ImportedSceneMetadata metadata,
-        string resolvedSourcePath,
-        string workRoot,
-        DefaultCommonMaterialCatalog commonMaterialCatalog)
-    {
-        ArgumentNullException.ThrowIfNull(commonMaterialCatalog);
-
-        return Create(
-            normalizedRequest,
-            resolvedRequest,
-            metadata,
-            resolvedSourcePath,
-            workRoot,
-            commonMaterialCatalog.Create());
-    }
-
     private static void ValidateRequestConsistency(
         PlateauImportRequest normalizedRequest,
         PlateauImportRequest resolvedRequest,

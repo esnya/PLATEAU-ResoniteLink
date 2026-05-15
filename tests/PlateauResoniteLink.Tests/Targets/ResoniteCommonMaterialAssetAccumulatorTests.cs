@@ -9,8 +9,8 @@ public sealed class ResoniteCommonMaterialAssetAccumulatorTests
     [Fact]
     public void Set_ReplacesExistingTypedMemberWithoutDuplicatingCatalogEntry()
     {
-        DefaultCommonMaterialMember generic = DefaultCommonMaterialMember.GenericUv();
-        DefaultCommonMaterialMember vertexColor = DefaultCommonMaterialMember.VertexColorUv();
+        DefaultCommonMaterialMember generic = CommonMaterialCatalog.Create().Generic.Uv;
+        DefaultCommonMaterialMember vertexColor = CommonMaterialCatalog.Create().VertexColor.Uv;
         ResoniteMaterialBinding genericMaterial = SceneImportContractMapper.ToInternal(generic.CreateBinding([0]));
         ResoniteMaterialBinding vertexColorMaterial = SceneImportContractMapper.ToInternal(vertexColor.CreateBinding([1]));
         ResoniteCommonMaterialAssetAccumulator accumulator = new();
@@ -30,10 +30,10 @@ public sealed class ResoniteCommonMaterialAssetAccumulatorTests
 
         CommonMaterialCatalog<ResoniteCommonMaterialAsset> catalog = accumulator.ToCatalog();
 
-        Assert.Equal(2, catalog.Count);
-        Assert.Equal(generic, catalog[0].Member);
-        Assert.Equal("new-generic", catalog[0].Asset.MaterialComponent.Value);
-        Assert.Equal(vertexColor, catalog[1].Member);
-        Assert.Equal("vertex-color", catalog[1].Asset.MaterialComponent.Value);
+        Assert.Equal(2, accumulator.Count);
+        Assert.Equal(generic, catalog.Generic.Uv.Member);
+        Assert.Equal("new-generic", catalog.Generic.Uv.Asset.MaterialComponent.Value);
+        Assert.Equal(vertexColor, catalog.VertexColor.Uv.Member);
+        Assert.Equal("vertex-color", catalog.VertexColor.Uv.Asset.MaterialComponent.Value);
     }
 }

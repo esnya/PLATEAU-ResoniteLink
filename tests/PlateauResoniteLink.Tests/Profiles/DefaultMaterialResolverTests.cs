@@ -8,7 +8,7 @@ namespace PlateauResoniteLink.Tests.Profiles;
 
 public sealed class DefaultMaterialResolverTests
 {
-    private readonly DefaultMaterialResolver resolver = new();
+    private readonly DefaultMaterialResolver resolver = new(CommonMaterialCatalog.Create());
 
     [Fact]
     public void ResolveMaterialUsesDatasetTextureWhenPresent()

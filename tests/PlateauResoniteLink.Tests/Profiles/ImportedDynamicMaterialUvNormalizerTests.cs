@@ -209,7 +209,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         MaterialBinding material = Assert.Single(normalized.Materials);
         Assert.Null(material.TextureScale);
         Assert.Null(material.TextureOffset);
-        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
+        Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, material.CommonMaterial);
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         ImportedCityObject normalized = ImportedDynamicMaterialUvNormalizer.Normalize(cityObject);
 
         MaterialBinding material = Assert.Single(normalized.Materials);
-        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
+        Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, material.CommonMaterial);
     }
 
     private static ImportedCityObject CreateTriangleCityObject(

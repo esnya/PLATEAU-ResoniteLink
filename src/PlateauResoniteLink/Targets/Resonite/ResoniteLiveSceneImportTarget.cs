@@ -211,9 +211,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 + $"location_slot='{setupState.SceneAnchor.LocationSlot.Value}', "
                 + $"anchor_mesh='{setupState.SceneAnchor.MeshCode}', "
                 + $"anchor_source_file_root='{setupState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
-        foreach (ResoniteCommonMaterialAsset materialAsset in setupState.CommonMaterialAssets)
+        foreach (CommonMaterialCatalogMember<ResoniteCommonMaterialAsset> materialAsset in setupState.CommonMaterialAssets.EnumerateMembers())
         {
-            materials.CommonMaterialAssets.Set(materialAsset);
+            materials.CommonMaterialAssets.Set(materialAsset.Item);
         }
 
         foreach (string family in setupState.CommonMaterialFamilies)
@@ -1204,8 +1204,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 $"Preparing {commonMaterialPlans.Count} common material assets during scene setup before object streaming."));
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
         List<PreparedCommonMaterialBatchEntry> preparedMaterials = [];
-        foreach (ResoniteCommonMaterialPlan materialPlan in commonMaterialPlans)
+        foreach (CommonMaterialCatalogMember<ResoniteCommonMaterialPlan> catalogMember in commonMaterialPlans.EnumerateMembers())
         {
+            ResoniteCommonMaterialPlan materialPlan = catalogMember.Item;
             cancellationToken.ThrowIfCancellationRequested();
             ResoniteMaterialBinding material = materialPlan.Material;
             string familySlotName = ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(material);

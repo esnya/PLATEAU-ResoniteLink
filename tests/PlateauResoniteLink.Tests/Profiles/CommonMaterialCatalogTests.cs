@@ -181,9 +181,8 @@ public sealed class CommonMaterialCatalogTests
     [Fact]
     public void Create_AssignsStableAndDistinctDefinitionsToCodebaseReachableCommonMaterials()
     {
-        DefaultCommonMaterialCatalog catalog = new();
-        IReadOnlyList<MaterialBinding> firstMaterials = catalog.Create().Select(static member => member.CreateBinding([0]));
-        IReadOnlyList<MaterialBinding> secondMaterials = catalog.Create().Select(static member => member.CreateBinding([0]));
+        IReadOnlyList<MaterialBinding> firstMaterials = CommonMaterialCatalog.Create().Map(static member => member.CreateBinding([0])).EnumerateItems();
+        IReadOnlyList<MaterialBinding> secondMaterials = CommonMaterialCatalog.Create().Map(static member => member.CreateBinding([0])).EnumerateItems();
 
         MaterialBinding sharedGeneric = Assert.Single(
             firstMaterials,
@@ -260,37 +259,37 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
-    public void Catalog_CopiesCallerListBeforeValidationBoundaryEscapes()
+    public void Catalog_IsTypedTreeAndNotReadOnlyList()
     {
-        List<DefaultCommonMaterialMember> sourceMaterials = [new DefaultCommonMaterialCatalog().Create()[0]];
-        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = new(sourceMaterials);
+        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
 
-        sourceMaterials.Clear();
-
-        DefaultCommonMaterialMember material = Assert.Single(catalog);
-        Assert.Equal(sourceMaterials.Count + 1, catalog.Count);
-        Assert.Equal(DefaultCommonMaterialMemberKind.Bundled, material.Kind);
+        Assert.IsNotAssignableFrom<IReadOnlyList<DefaultCommonMaterialMember>>(catalog);
+        Assert.Same(catalog.Generic.Uv, catalog.Get(catalog.Generic.Uv.Definition));
+        Assert.Same(catalog.FacadeMidriseGrid.Facade014, catalog.Get(catalog.FacadeMidriseGrid.Facade014.Definition));
     }
 
     [Fact]
-    public void Select_PreservesCatalogCountAndOrder()
+    public void Map_PreservesTypedMemberShapeAndTraversalCount()
     {
-        CommonMaterialCatalog<int> catalog = new([3, 1, 4]);
+        int index = 0;
+        CommonMaterialCatalog<int> catalog = new(_ => ++index);
 
-        CommonMaterialCatalog<string> selected = catalog.Select(static value => string.Create(
+        CommonMaterialCatalog<string> selected = catalog.Map(static value => string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
             $"item-{value}"));
 
-        Assert.Equal(3, selected.Count);
-        Assert.Equal(["item-3", "item-1", "item-4"], selected);
+        Assert.Equal(catalog.Count, selected.Count);
+        Assert.Equal($"item-{catalog.CityFurniture.Plaster002}", selected.CityFurniture.Plaster002);
+        Assert.Equal($"item-{catalog.Generic.Uv}", selected.Generic.Uv);
     }
 
     [Fact]
-    public async Task SelectAsync_PreservesCatalogCountAndOrder()
+    public async Task MapAsync_PreservesTypedMemberShapeAndTraversalCount()
     {
-        CommonMaterialCatalog<int> catalog = new([3, 1, 4]);
+        int index = 0;
+        CommonMaterialCatalog<int> catalog = new(_ => ++index);
 
-        CommonMaterialCatalog<string> selected = await catalog.SelectAsync(
+        CommonMaterialCatalog<string> selected = await catalog.MapAsync(
             static (value, cancellationToken) =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -300,8 +299,9 @@ public sealed class CommonMaterialCatalogTests
             },
             CancellationToken.None);
 
-        Assert.Equal(3, selected.Count);
-        Assert.Equal(["item-3", "item-1", "item-4"], selected);
+        Assert.Equal(catalog.Count, selected.Count);
+        Assert.Equal($"item-{catalog.CityFurniture.Plaster002}", selected.CityFurniture.Plaster002);
+        Assert.Equal($"item-{catalog.Generic.Uv}", selected.Generic.Uv);
     }
 
     [Fact]
@@ -350,8 +350,8 @@ public sealed class CommonMaterialCatalogTests
             + $"{material.ReuseScope}|{material.BundledVariantIndex}|{material.TerrainMeshCode}|{submeshes}");
     }
 
-    private static CommonMaterialCatalog<MaterialBinding> CreateMaterialCatalog()
+    private static IReadOnlyList<MaterialBinding> CreateMaterialCatalog()
     {
-        return new DefaultCommonMaterialCatalog().Create().Select(static member => member.CreateBinding([0]));
+        return CommonMaterialCatalog.Create().Map(static member => member.CreateBinding([0])).EnumerateItems();
     }
 }

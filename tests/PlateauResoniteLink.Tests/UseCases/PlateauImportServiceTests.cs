@@ -55,7 +55,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new DefaultCommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
 
         ImportExecutionResult result = await service.ExecuteAsync(rawRequest, workRoot.Path);
@@ -80,8 +80,8 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(readResult.DocumentSet.SelectedMeshCodes, sceneSink.BeginRequest.Metadata.SourceDataset.SelectedMeshCodes);
         Assert.NotNull(sceneSink.BeginRequest.CommonMaterials);
         Assert.Equal(
-            new DefaultCommonMaterialCatalog().Create().Select(CreateMaterialSignature),
-            sceneSink.BeginRequest.CommonMaterials.Select(CreateMaterialSignature));
+            CommonMaterialCatalog.Create().Map(CreateMaterialSignature).EnumerateItems(),
+            sceneSink.BeginRequest.CommonMaterials.Map(CreateMaterialSignature).EnumerateItems());
         Assert.Single(sceneSink.ProcessedCityObjects);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(1, sceneSink.ExecuteCallCount);
@@ -133,7 +133,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new DefaultCommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
@@ -176,7 +176,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new DefaultCommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -213,7 +213,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new DefaultCommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -255,7 +255,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new DefaultCommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -296,7 +296,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new DefaultCommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
@@ -352,7 +352,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new DefaultCommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
 
         _ = await service.ExecuteAsync(request, workRoot.Path);
@@ -396,7 +396,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new DefaultCommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(

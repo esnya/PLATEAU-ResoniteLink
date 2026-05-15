@@ -16,7 +16,7 @@ internal sealed class PlateauImportService(
     ISceneSink sceneSink,
     IPlateauDatasetSourceResolver datasetSourceResolver,
     IImportedSceneSourceFactory importedSceneSourceFactory,
-    DefaultCommonMaterialCatalog commonMaterialCatalog,
+    CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
 {
@@ -27,8 +27,8 @@ internal sealed class PlateauImportService(
     private readonly Action<string>? progressReporter = progressReporter;
     private readonly IImportedSceneSourceFactory importedSceneSourceFactory =
         importedSceneSourceFactory ?? throw new ArgumentNullException(nameof(importedSceneSourceFactory));
-    private readonly DefaultCommonMaterialCatalog commonMaterialCatalog =
-        commonMaterialCatalog ?? throw new ArgumentNullException(nameof(commonMaterialCatalog));
+    private readonly CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
+        commonMaterials ?? throw new ArgumentNullException(nameof(commonMaterials));
     private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
         archiveFileLayoutPolicy ?? throw new ArgumentNullException(nameof(archiveFileLayoutPolicy));
 
@@ -64,11 +64,10 @@ internal sealed class PlateauImportService(
                 PlateauLog.Debug("import", $"Prepared imported scene source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             ImportedSceneMetadata metadata = source.Metadata;
-            CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials = commonMaterialCatalog.Create();
             ReportProgress(
                 PlateauLog.Info(
                     "import",
-                    $"Setup will use {commonMaterials.Count} codebase-reachable common materials."));
+                    $"Setup will use {this.commonMaterials.Count} codebase-reachable common materials."));
 
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
@@ -76,7 +75,7 @@ internal sealed class PlateauImportService(
                 metadata,
                 resolvedRequest.LocalSourcePath!,
                 datasetWorkRoot,
-                commonMaterials);
+                this.commonMaterials);
             ReportProgress(
                 PlateauLog.Info(
                     "import",

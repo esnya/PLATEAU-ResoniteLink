@@ -41,7 +41,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             metadata,
             workDirectory.Path,
             cityObjects,
-            commonMaterials: commonMaterials ?? new DefaultCommonMaterialCatalog().Create());
+            commonMaterials: commonMaterials ?? CommonMaterialCatalog.Create());
     }
 
     public static ResoniteImportedMesh CreateTriangleMesh(
@@ -126,7 +126,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 metadata,
                 firstWorkDirectory.Path,
                 firstRunCityObjects,
-                commonMaterials: new DefaultCommonMaterialCatalog().Create());
+                commonMaterials: CommonMaterialCatalog.Create());
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
@@ -137,7 +137,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 metadata,
                 secondWorkDirectory.Path,
                 secondRunCityObjects,
-                commonMaterials: new DefaultCommonMaterialCatalog().Create());
+                commonMaterials: CommonMaterialCatalog.Create());
         }
     }
 
@@ -153,7 +153,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             CreateExecutionPlan(
                 metadata,
                 workDirectory,
-                commonMaterials: commonMaterials ?? new DefaultCommonMaterialCatalog().Create()),
+                commonMaterials: commonMaterials ?? CommonMaterialCatalog.Create()),
             CreateImportedObjectUnitsAsync(cityObjects, cancellationToken),
             cancellationToken);
     }
@@ -181,7 +181,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             effectiveMetadata,
             GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
-            commonMaterials ?? new DefaultCommonMaterialCatalog().Create());
+            commonMaterials ?? CommonMaterialCatalog.Create());
     }
 
     private static PlateauImportRequest CreateImportRequest(

@@ -78,9 +78,12 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [cityObject],
             client,
             terrainTextureGenerator,
-            commonMaterials: new CommonMaterialCatalog<DefaultCommonMaterialMember>([]));
+            commonMaterials: CommonMaterialCatalog.Create());
 
-        ResoniteRawTextureImport importedTexture = Assert.Single(client.ImportedRawTextures);
+        ResoniteRawTextureImport importedTexture = Assert.Single(
+            client.ImportedRawTextures,
+            texture => texture.Width == RoundUpToPowerOfTwo(layout.CropWidth)
+                && texture.Height == RoundUpToPowerOfTwo(layout.CropHeight));
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), importedTexture.Width);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), importedTexture.Height);
         Component meshRenderer = Assert.Single(
@@ -257,14 +260,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [first, second],
             client,
             terrainTextureGenerator,
-            commonMaterials: new CommonMaterialCatalog<DefaultCommonMaterialMember>([]));
+            commonMaterials: CommonMaterialCatalog.Create());
 
         AddComponent[] sharedTextures = client.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
                 && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/", StringComparison.Ordinal))
             .ToArray();
 
-        Assert.Equal(2, client.ImportedRawTextures.Count);
         Assert.Equal(2, sharedTextures.Length);
         Assert.Contains(sharedTextures, request => client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
         Assert.Contains(sharedTextures, request => client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394526", StringComparison.Ordinal));
@@ -303,7 +305,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [sharedTerrain],
             client,
             terrainTextureGenerator,
-            commonMaterials: new CommonMaterialCatalog<DefaultCommonMaterialMember>([]));
+            commonMaterials: CommonMaterialCatalog.Create());
 
         AddComponent sharedTexture = Assert.Single(
             client.AddedComponents,
@@ -333,7 +335,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [dedicatedTerrain],
             client,
             terrainTextureGenerator,
-            commonMaterials: new CommonMaterialCatalog<DefaultCommonMaterialMember>([]));
+            commonMaterials: CommonMaterialCatalog.Create());
 
         Assert.DoesNotContain(
             client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
@@ -347,7 +349,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Assert.Single(Assert.IsType<SyncList>(dedicatedRenderer.Members["MaterialPropertyBlocks"]).Elements)).TargetID;
         Assert.Equal(sharedPropertyBlock.Data.ID, dedicatedPropertyBlockId);
         Assert.Equal(sharedTexture.Data.ID, Assert.IsType<Reference>(sharedPropertyBlock.Data.Members["Texture"]).TargetID);
-        Assert.Equal(2, client.ImportedRawTextures.Count);
+        Assert.Equal(1, client.AddedComponents.Count(request =>
+            string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+            && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/", StringComparison.Ordinal)));
         UpdateComponent textureRefresh = Assert.Single(
             client.UpdatedComponents,
             request => string.Equals(request.Data.ID, sharedTexture.Data.ID, StringComparison.Ordinal));
@@ -502,7 +506,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [cityObject],
             client,
             terrainTextureGenerator,
-            commonMaterials: new CommonMaterialCatalog<DefaultCommonMaterialMember>([]));
+            commonMaterials: CommonMaterialCatalog.Create());
 
         Component meshRenderer = Assert.Single(
             client.AddedComponents,
@@ -886,7 +890,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [cityObject],
             client,
             terrainTextureGenerator,
-            commonMaterials: new CommonMaterialCatalog<DefaultCommonMaterialMember>([]));
+            commonMaterials: CommonMaterialCatalog.Create());
 
         Component gridMesh = Assert.Single(
             client.ComponentsById.Values,
@@ -899,7 +903,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal(0.175f, uvOffset.Value.x, 6);
         Assert.Equal(0.425f, uvOffset.Value.y, 6);
         Assert.All(
-            client.ComponentsById.Values.Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)),
+            client.AddedComponents
+                .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                    && !client.SlotPaths[request.ContainerSlotId].Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal))
+                .Select(static request => request.Data),
             materialComponent =>
             {
                 Assert.DoesNotContain("TextureScale", materialComponent.Members.Keys);
@@ -1811,7 +1818,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials = cityObject.Materials
                 .Select(static material => material with
                 {
-                    CommonMaterial = DefaultCommonMaterialMember.GenericUv(),
+                    CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
                 })
                 .ToArray(),
         };

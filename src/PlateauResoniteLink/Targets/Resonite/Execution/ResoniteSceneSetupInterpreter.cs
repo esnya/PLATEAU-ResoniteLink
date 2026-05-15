@@ -160,7 +160,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                 license.Members);
         }
 
-        (CommonMaterialCatalog<ResoniteCommonMaterialAsset> commonMaterialAssets, HashSet<string> commonMaterialFamilies, CommonMaterialCatalog<PlannedCommonMaterialBatchEntry> plannedCommonMaterials)
+        (CommonMaterialCatalog<ResoniteCommonMaterialAsset> commonMaterialAssets, HashSet<string> commonMaterialFamilies, IReadOnlyList<PlannedCommonMaterialBatchEntry> plannedCommonMaterials)
             = PlanCommonMaterialOperations(
                 commonMaterials,
                 sharedCommonMaterialsSlot,
@@ -326,7 +326,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
                 datasetLicense.Members);
         }
 
-        (CommonMaterialCatalog<ResoniteCommonMaterialAsset> commonMaterialAssets, HashSet<string> commonMaterialFamilies, CommonMaterialCatalog<PlannedCommonMaterialBatchEntry> plannedCommonMaterials)
+        (CommonMaterialCatalog<ResoniteCommonMaterialAsset> commonMaterialAssets, HashSet<string> commonMaterialFamilies, IReadOnlyList<PlannedCommonMaterialBatchEntry> plannedCommonMaterials)
             = PlanCommonMaterialOperations(
                 commonMaterials,
                 commonSlot: existingSharedCommonMaterialsSlot,
@@ -437,7 +437,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
         return string.Equals(existingCreditString.Value, expectedCreditString.Value, StringComparison.Ordinal);
     }
 
-    private static (CommonMaterialCatalog<ResoniteCommonMaterialAsset> CommonMaterialAssets, HashSet<string> CommonMaterialFamilies, CommonMaterialCatalog<PlannedCommonMaterialBatchEntry> PlannedCommonMaterials) PlanCommonMaterialOperations(
+    private static (CommonMaterialCatalog<ResoniteCommonMaterialAsset> CommonMaterialAssets, HashSet<string> CommonMaterialFamilies, IReadOnlyList<PlannedCommonMaterialBatchEntry> PlannedCommonMaterials) PlanCommonMaterialOperations(
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
         Slot? commonSlot,
         string commonParentId,
@@ -454,8 +454,9 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
         Dictionary<string, string> familyParentIds = new(StringComparer.Ordinal);
         int materialSlotIndex = 0;
 
-        foreach (ResoniteCommonMaterialPlan materialPlan in canonicalMaterials)
+        foreach (CommonMaterialCatalogMember<ResoniteCommonMaterialPlan> catalogMember in canonicalMaterials.EnumerateMembers())
         {
+            ResoniteCommonMaterialPlan materialPlan = catalogMember.Item;
             ResoniteMaterialBinding material = materialPlan.Material;
             string family = ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(material);
             commonMaterialFamilies.Add(family);
@@ -587,7 +588,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
             plannedCommonMaterials.Add(new PlannedCommonMaterialBatchEntry(materialPlan, family, pendingMaterialComponent));
         }
 
-        return (commonMaterialAssets.ToCatalog(), commonMaterialFamilies, new CommonMaterialCatalog<PlannedCommonMaterialBatchEntry>(plannedCommonMaterials));
+        return (commonMaterialAssets.ToCatalog(), commonMaterialFamilies, plannedCommonMaterials);
     }
 
     private static bool CanCreateCommonMaterialDuringSetup(ResoniteMaterialBinding material)

@@ -35,7 +35,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.NotNull(atlasPayload.Height);
         Assert.InRange(atlasPayload.Width!.Value, 1, 32);
         Assert.InRange(atlasPayload.Height!.Value, 1, 32);
-        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), cityObject.Materials[0].CommonMaterial);
+        Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, cityObject.Materials[0].CommonMaterial);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(1, atlasPayload.Height);
         Assert.Null(cityObject.Materials[0].TextureScale);
         Assert.Null(cityObject.Materials[0].TextureOffset);
-        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), cityObject.Materials[0].CommonMaterial);
+        Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, cityObject.Materials[0].CommonMaterial);
         Assert.Equal(new Rgba32(0, 0, 255, 255), ReadPixel(atlasPayload, 0, 0));
     }
 
@@ -148,7 +148,7 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
 
-        Assert.Equal(DefaultCommonMaterialMember.GenericUv(), material.CommonMaterial);
+        Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, material.CommonMaterial);
         Assert.NotSame(payload, material.TexturePayload);
         Assert.NotNull(material.TexturePayload);
         Assert.Contains("atlastex-", material.TexturePayload.Identity, StringComparison.Ordinal);
@@ -1138,7 +1138,7 @@ public sealed class NonDemCityObjectBakerTests
         double x,
         string sourceUnitKey)
     {
-        DefaultCommonMaterialMember commonMaterial = DefaultCommonMaterialMember.GenericUv();
+        DefaultCommonMaterialMember commonMaterial = CommonMaterialCatalog.Create().Generic.Uv;
         return CreateLod2Building(slotKey, payload, x, sourceUnitKey) with
         {
             Materials =
@@ -1175,7 +1175,7 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()),
+                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
             ],
         };
     }

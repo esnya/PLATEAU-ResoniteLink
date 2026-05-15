@@ -46,7 +46,7 @@ internal static class DefaultCommonMaterialAssignment
                 textureScale,
                 textureOffset))
         {
-            return DefaultCommonMaterialMember.GenericUv(depthOffset);
+            return ResolveGenericUv(depthOffset);
         }
 
         if (materialType == MaterialType.VertexColor
@@ -55,7 +55,7 @@ internal static class DefaultCommonMaterialAssignment
             && textureScale is null
             && textureOffset is null)
         {
-            return DefaultCommonMaterialMember.VertexColorUv(depthOffset);
+            return ResolveVertexColorUv(depthOffset);
         }
 
         return null;
@@ -84,14 +84,14 @@ internal static class DefaultCommonMaterialAssignment
                     projection,
                     textureScale,
                     textureOffset)
-                ? DefaultCommonMaterialMember.GenericUv(depthOffset)
+                ? ResolveGenericUv(depthOffset)
                 : null,
             DefaultCommonMaterialMemberKind.VertexColor => materialType == MaterialType.VertexColor
                 && projection == MaterialProjection.Uv
                 && texturePayload is null
                 && textureScale is null
                 && textureOffset is null
-                    ? DefaultCommonMaterialMember.VertexColorUv(depthOffset)
+                    ? ResolveVertexColorUv(depthOffset)
                     : null,
             _ => throw new InvalidOperationException($"Unsupported common material member kind '{existingCommonMaterial.Kind}'."),
         };
@@ -109,6 +109,18 @@ internal static class DefaultCommonMaterialAssignment
             && projection == MaterialProjection.Uv
             && textureSourceKind == TextureSourceKind.Dataset
             && (texturePayload is not null || textureScale is null && textureOffset is null);
+    }
+
+    private static DefaultCommonMaterialMember ResolveGenericUv(MaterialDepthOffset? depthOffset)
+    {
+        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
+        return depthOffset is null ? catalog.Generic.Uv : catalog.Generic.TerrainAlignedUv;
+    }
+
+    private static DefaultCommonMaterialMember ResolveVertexColorUv(MaterialDepthOffset? depthOffset)
+    {
+        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
+        return depthOffset is null ? catalog.VertexColor.Uv : catalog.VertexColor.TerrainAlignedUv;
     }
 
     private static bool IsCanonicalCommonBaseColor(ColorRgba color)

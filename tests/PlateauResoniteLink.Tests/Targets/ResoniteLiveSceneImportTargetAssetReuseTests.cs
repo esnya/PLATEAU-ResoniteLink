@@ -1107,7 +1107,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         int? lodLevel = 0)
     {
         DefaultCommonMaterialMember? commonMaterial = textureScale is null
-            ? DefaultCommonMaterialMember.Bundled(family, 0)
+            ? SelectTestBundledMember(family, 0)
             : null;
         return new ResoniteConstructionCityObject(
             SlotKey: $"slot-{objectIdentity}",
@@ -1167,7 +1167,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Family: null,
                     TextureOffset: textureOffset,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()),
+                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1198,7 +1198,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     SubmeshIndices: [0],
                     Family: null,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()),
+                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1209,7 +1209,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     SubmeshIndices: [1],
                     Family: null,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()),
+                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1271,7 +1271,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     AssetScope: ResoniteMaterialAssetScope.Common,
-                    CommonMaterial: DefaultCommonMaterialMember.VertexColorUv()),
+                    CommonMaterial: CommonMaterialCatalog.Create().VertexColor.Uv),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1302,7 +1302,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Family: BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
                     AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: 0,
-                    CommonMaterial: DefaultCommonMaterialMember.Bundled(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 0)),
+                    CommonMaterial: CommonMaterialCatalog.Create().WallResidentialPlasterLow.ResidentialPlasterLow),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1313,7 +1313,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     SubmeshIndices: [1],
                     Family: null,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()),
+                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1335,6 +1335,17 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 new ResoniteMeshSubmesh(0, [0, 1, 2]),
                 new ResoniteMeshSubmesh(1, [3, 4, 5]),
             ]);
+    }
+
+    private static DefaultCommonMaterialMember SelectTestBundledMember(string family, int variantIndex)
+    {
+        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
+        return family switch
+        {
+            BundledDefaultMaterialFamilies.Roof when variantIndex == 0 => catalog.Roof.Concrete012,
+            BundledDefaultMaterialFamilies.WallResidentialPlasterLow when variantIndex == 0 => catalog.WallResidentialPlasterLow.ResidentialPlasterLow,
+            _ => throw new InvalidOperationException($"Unexpected bundled material fixture '{family}' variant '{variantIndex}'."),
+        };
     }
 
     private static ResoniteFloat3 GetSlotPosition(Slot slot)

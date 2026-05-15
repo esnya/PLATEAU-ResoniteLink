@@ -260,7 +260,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
-        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials = new DefaultCommonMaterialCatalog().Create();
+        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials = CommonMaterialCatalog.Create();
         SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
             request,
             request,
@@ -316,13 +316,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             metadata,
             request.LocalSourcePath!,
             workDirectory.Path,
-            commonMaterials: new CommonMaterialCatalog<DefaultCommonMaterialMember>([]));
+            commonMaterials: CommonMaterialCatalog.Create());
 
         InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() => importTarget.ExecuteAsync(
             plan,
             CreateImportedObjectUnits(CreateVertexColorTriangleCityObject("runtime-common-material"))));
 
-        Assert.Contains("Setup did not resolve common material", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Setup did not create common material family", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -387,7 +387,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             metadata,
             request.LocalSourcePath!,
             workDirectory.Path,
-            new DefaultCommonMaterialCatalog().Create());
+            CommonMaterialCatalog.Create());
 
         _ = await importTarget.ExecuteAsync(
             plan,
@@ -451,7 +451,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             metadata,
             request.LocalSourcePath!,
             workDirectory.Path,
-            new DefaultCommonMaterialCatalog().Create());
+            CommonMaterialCatalog.Create());
 
         _ = await importTarget.ExecuteAsync(
             plan,
@@ -525,7 +525,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             [
                 demObject.Materials[0] with
                 {
-                    CommonMaterial = DefaultCommonMaterialMember.GenericUv(),
+                    CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
                 },
             ],
         };
@@ -533,7 +533,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
                 metadata,
                 workDirectory.Path,
-                commonMaterials: new CommonMaterialCatalog<DefaultCommonMaterialMember>([DefaultCommonMaterialMember.GenericUv()])),
+                commonMaterials: CommonMaterialCatalog.Create()),
             CreateImportedObjectUnits(demObject));
 
         Assert.Equal(1, executionResult.ProcessedCityObjectCount);
@@ -919,7 +919,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             cancellationToken: default);
         ImportedSceneMetadata metadata = new DefaultImportedSceneSourceComposer(
-                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
+                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                 new DefaultDemTextureSourcePolicy(
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                         new DefaultPlateauDatasetContentSourceFactory(
@@ -1118,7 +1118,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
     private static ResoniteConstructionCityObject CreateBundledFacadeCityObject(string objectKey)
     {
-        string family = BundledDefaultMaterialFamilies.Facade;
+        string family = BundledDefaultMaterialFamilies.FacadeHighriseGlass;
         int variantIndex = 0;
         string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, variantIndex);
         ResoniteFloat2 textureScale = CreateTilesPerMeter(texturePath);
@@ -1144,7 +1144,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     TextureOffset: textureOffset,
                     AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: variantIndex,
-                    CommonMaterial: DefaultCommonMaterialMember.Bundled(family, variantIndex)),
+                    CommonMaterial: CommonMaterialCatalog.Create().FacadeHighriseGlass.Facade001),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
@@ -1173,9 +1173,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     DepthOffset: depthOffset,
                     SubmeshIndices: [0],
                     AssetScope: ResoniteMaterialAssetScope.Common,
-                    CommonMaterial: DefaultCommonMaterialMember.VertexColorUv(depthOffset is null
-                        ? null
-                        : new MaterialDepthOffset(depthOffset.Factor, depthOffset.Units))),
+                    CommonMaterial: depthOffset is null
+                        ? CommonMaterialCatalog.Create().VertexColor.Uv
+                        : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
@@ -1204,9 +1204,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     DepthOffset: payloadDepthOffset,
                     SubmeshIndices: [0],
                     AssetScope: ResoniteMaterialAssetScope.Common,
-                    CommonMaterial: DefaultCommonMaterialMember.VertexColorUv(payloadDepthOffset is null
-                        ? null
-                        : new MaterialDepthOffset(payloadDepthOffset.Factor, payloadDepthOffset.Units))),
+                    CommonMaterial: payloadDepthOffset is null
+                        ? CommonMaterialCatalog.Create().VertexColor.Uv
+                        : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1219,7 +1219,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
-                    CommonMaterial: DefaultCommonMaterialMember.GenericUv()),
+                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
@@ -1303,7 +1303,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 DatasetRootExisted: false,
                 new SceneAnchor(new ResoniteSlotLocator(datasetRootId), "53394525", new ResoniteFloat3(0.0, 0.0, 0.0), null),
                 DatasetRootSnapshot: null,
-                CommonMaterialAssets: new CommonMaterialCatalog<ResoniteCommonMaterialAsset>([]),
+                CommonMaterialAssets: CommonMaterialCatalog.Create().Map(static member => new ResoniteCommonMaterialAsset(member, SceneImportContractMapper.ToInternal(member.CreateBinding([0])), default)),
                 CommonMaterialFamilies: []);
         }
     }

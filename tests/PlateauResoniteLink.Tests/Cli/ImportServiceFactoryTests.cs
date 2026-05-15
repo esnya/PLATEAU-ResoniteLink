@@ -23,7 +23,7 @@ public sealed class ImportServiceFactoryTests
             datasetResolverFactory,
             sceneImportTargetFactory,
             importedSceneSourceFactory,
-            new DefaultCommonMaterialCatalog(),
+            CommonMaterialCatalog.Create(),
             archiveFileLayoutPolicy);
 
         ImportCommandOptions firstOptions = CreateOptions("53394525", enableMeshBake: true);

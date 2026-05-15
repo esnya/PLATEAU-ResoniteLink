@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
 
@@ -26,7 +25,7 @@ internal static class ResoniteCommonMaterialPlans
     public static CommonMaterialCatalog<ResoniteCommonMaterialPlan> CreateCatalogPlans(
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials)
     {
-        return commonMaterials.Select(static member =>
+        return commonMaterials.Map(static member =>
         {
             ResoniteMaterialBinding material = SceneImportContractMapper.ToInternal(member.CreateBinding([0]));
             if (material.AssetScope != ResoniteMaterialAssetScope.Common)
@@ -42,38 +41,44 @@ internal static class ResoniteCommonMaterialPlans
 
 internal sealed class ResoniteCommonMaterialAssetAccumulator
 {
-    private readonly Dictionary<DefaultCommonMaterialMember, ResoniteCommonMaterialAsset> assetsByMember = [];
-    private readonly List<DefaultCommonMaterialMember> memberOrder = [];
+    private readonly Dictionary<CommonMaterialDefinition, ResoniteCommonMaterialAsset> assetsByDefinition = new(ReferenceEqualityComparer.Instance);
+    private readonly CommonMaterialCatalog<DefaultCommonMaterialMember> members;
 
     public ResoniteCommonMaterialAssetAccumulator()
+        : this(CommonMaterialCatalog.Create())
     {
     }
 
     public ResoniteCommonMaterialAssetAccumulator(CommonMaterialCatalog<ResoniteCommonMaterialAsset> assets)
+        : this(CommonMaterialCatalog.Create())
     {
         ArgumentNullException.ThrowIfNull(assets);
-        foreach (ResoniteCommonMaterialAsset asset in assets)
+        foreach (CommonMaterialCatalogMember<ResoniteCommonMaterialAsset> asset in assets.EnumerateMembers())
         {
-            Set(asset);
+            if (!IsMissing(asset.Item.Asset))
+            {
+                assetsByDefinition[asset.Definition] = asset.Item;
+            }
         }
     }
 
-    public int Count => memberOrder.Count;
+    private ResoniteCommonMaterialAssetAccumulator(CommonMaterialCatalog<DefaultCommonMaterialMember> members)
+    {
+        this.members = members;
+    }
+
+    public int Count => assetsByDefinition.Count;
 
     public void Set(ResoniteCommonMaterialAsset asset)
     {
-        if (!assetsByMember.ContainsKey(asset.Member))
-        {
-            memberOrder.Add(asset.Member);
-        }
-
-        assetsByMember[asset.Member] = asset;
+        assetsByDefinition[asset.Member.Definition] = asset;
     }
 
     public bool TryGetAsset(DefaultCommonMaterialMember member, out CreatedMaterialAsset asset)
     {
         ArgumentNullException.ThrowIfNull(member);
-        if (assetsByMember.TryGetValue(member, out ResoniteCommonMaterialAsset entry))
+        if (assetsByDefinition.TryGetValue(member.Definition, out ResoniteCommonMaterialAsset entry)
+            && !IsMissing(entry.Asset))
         {
             asset = entry.Asset;
             return true;
@@ -85,8 +90,23 @@ internal sealed class ResoniteCommonMaterialAssetAccumulator
 
     public CommonMaterialCatalog<ResoniteCommonMaterialAsset> ToCatalog()
     {
-        return new CommonMaterialCatalog<ResoniteCommonMaterialAsset>(
-            memberOrder.Select(member => assetsByMember[member]).ToArray());
+        return members.Map(member =>
+        {
+            if (assetsByDefinition.TryGetValue(member.Definition, out ResoniteCommonMaterialAsset asset))
+            {
+                return asset;
+            }
+
+            return new ResoniteCommonMaterialAsset(
+                member,
+                SceneImportContractMapper.ToInternal(member.CreateBinding([0])),
+                default);
+        });
+    }
+
+    private static bool IsMissing(CreatedMaterialAsset asset)
+    {
+        return string.IsNullOrWhiteSpace(asset.MaterialComponent.Value);
     }
 }
 

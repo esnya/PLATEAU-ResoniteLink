@@ -1,36 +1,52 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed record DefaultCommonMaterialMember(
-    DefaultCommonMaterialMemberKind Kind,
-    MaterialProjection Projection,
-    MaterialDepthOffset? DepthOffset = null,
-    string? Family = null,
-    int? BundledVariantIndex = null)
+public sealed class DefaultCommonMaterialMember : IEquatable<DefaultCommonMaterialMember>
 {
     private static readonly ColorRgba CanonicalBaseColor = new(1.0, 1.0, 1.0, 1.0);
 
-    public static DefaultCommonMaterialMember Bundled(string family, int variantIndex)
+    private DefaultCommonMaterialMember(CommonMaterialDefinition definition)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(family);
-        _ = BundledDefaultMaterialFamilies.GetVariantDefinition(family, variantIndex);
-        return new DefaultCommonMaterialMember(
-            DefaultCommonMaterialMemberKind.Bundled,
-            GetBundledProjection(family),
-            Family: family,
-            BundledVariantIndex: variantIndex);
+        Definition = definition ?? throw new ArgumentNullException(nameof(definition));
     }
 
-    public static DefaultCommonMaterialMember GenericUv(MaterialDepthOffset? depthOffset = null) =>
-        new(DefaultCommonMaterialMemberKind.GenericAlbedo, MaterialProjection.Uv, depthOffset);
+    public DefaultCommonMaterialMemberKind Kind => Definition.Kind;
 
-    public static DefaultCommonMaterialMember VertexColorUv(MaterialDepthOffset? depthOffset = null) =>
-        new(DefaultCommonMaterialMemberKind.VertexColor, MaterialProjection.Uv, depthOffset);
+    public MaterialProjection Projection => Definition.Projection;
+
+    public MaterialDepthOffset? DepthOffset => Definition.DepthOffset;
+
+    public string? Family => Definition.Family;
+
+    public int? BundledVariantIndex => Definition.BundledVariantIndex;
+
+    internal CommonMaterialDefinition Definition { get; }
+
+    internal BundledDefaultMaterialVariant? BundledVariant => Definition.BundledVariant;
+
+    internal static DefaultCommonMaterialMember Create(CommonMaterialDefinition definition)
+    {
+        return new DefaultCommonMaterialMember(definition);
+    }
+
+    public bool Equals(DefaultCommonMaterialMember? other)
+    {
+        return other is not null && ReferenceEquals(Definition, other.Definition);
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return Equals(obj as DefaultCommonMaterialMember);
+    }
+
+    public override int GetHashCode()
+    {
+        return Definition.GetHashCode();
+    }
 
     public MaterialBinding CreateBinding(IReadOnlyList<int> submeshIndices)
     {
@@ -67,7 +83,8 @@ public sealed record DefaultCommonMaterialMember(
     {
         string family = Family ?? throw new InvalidOperationException("Bundled common material member requires a family.");
         int variantIndex = BundledVariantIndex ?? 0;
-        BundledDefaultMaterialVariant variant = BundledDefaultMaterialFamilies.GetVariantDefinition(family, variantIndex);
+        BundledDefaultMaterialVariant variant = BundledVariant
+            ?? throw new InvalidOperationException("Bundled common material member requires a variant.");
         Float2 textureScale = ToContract(variant.TextureSet.TextureScale);
         Float2? textureOffset = variant.TextureSet.TextureOffset is null
             ? null
@@ -86,14 +103,6 @@ public sealed record DefaultCommonMaterialMember(
             ReuseScope: MaterialReuseScope.Shared,
             BundledVariantIndex: variantIndex,
             CommonMaterial: this);
-    }
-
-    private static MaterialProjection GetBundledProjection(string family)
-    {
-        return string.Equals(family, BundledDefaultMaterialFamilies.RoadUv, StringComparison.Ordinal)
-            || BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(family, StringComparer.Ordinal)
-            ? MaterialProjection.Uv
-            : MaterialProjection.Triplanar;
     }
 
     private static Float2 ToContract(ScalarPair value) => new(value.X, value.Y);
