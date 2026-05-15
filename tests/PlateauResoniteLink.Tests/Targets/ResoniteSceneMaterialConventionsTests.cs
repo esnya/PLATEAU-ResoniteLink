@@ -79,7 +79,6 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateMaterialSlotName_ForCommonMaterial_UsesStableSharedDiscriminators()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "common-facade-uv",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -95,16 +94,14 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.StartsWith("shared_uv_variant_0_", slotName, StringComparison.Ordinal);
+        Assert.Equal("variant-0", slotName);
         Assert.DoesNotContain(' ', slotName);
-        Assert.DoesNotContain(material.MaterialKey, slotName, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void CreateMaterialSlotName_ForCommonMaterialWithNonDefaultScale_AddsScaleDiscriminator()
+    public void CreateMaterialSlotName_ForCommonMaterialWithNonDefaultScale_KeepsSemanticSlotName()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "common-facade-uv-scaled",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -119,15 +116,14 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.StartsWith("shared_uv_variant_0_", slotName, StringComparison.Ordinal);
-        Assert.Contains("_scale_0.5x0.5_", slotName, StringComparison.Ordinal);
+        Assert.Equal("variant-0", slotName);
+        Assert.DoesNotContain("scale", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
     public void CreateMaterialSlotName_ForVariantSpecificFacadeDefault_DoesNotAddScaleDiscriminator()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "common|facade|variant:1|Uv|scale:0.166667x0.166667|offset:0x0.083333",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -143,20 +139,19 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.StartsWith("shared_uv_variant_1_", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("_scale_", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("_offset_", slotName, StringComparison.Ordinal);
+        Assert.Equal("variant-1", slotName);
+        Assert.DoesNotContain("scale", slotName, StringComparison.Ordinal);
+        Assert.DoesNotContain("offset", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void CreateMaterialSlotName_ForDedicatedMaterial_KeepsDetailedIdentity()
+    public void CreateDedicatedMaterialSlotName_ForDedicatedMaterial_UsesOrdinalPresentationName()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "dedicated-material",
             BaseColor: new ResoniteColor(0.1, 0.2, 0.3, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/payload-a.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: new ResoniteMaterialDepthOffset(2.0, 3.0),
             SubmeshIndices: [0],
@@ -166,19 +161,19 @@ public sealed class ResoniteSceneMaterialConventionsTests
             BundledVariantIndex: 0,
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: false);
+        string slotName = ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex: 7);
 
-        Assert.Contains("pbs-uv_uv_", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("_0.5x0.25_", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("_0.125x0.75_", slotName, StringComparison.Ordinal);
-        Assert.Contains("_2x3_", slotName, StringComparison.Ordinal);
+        Assert.Equal("material-007-pbs-uv-uv", slotName);
+        Assert.DoesNotContain("payload", slotName, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("textures", slotName, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("2x3", slotName, StringComparison.Ordinal);
+        Assert.DoesNotContain("0.5", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
     public void CreateMaterialSlotName_ForGenericSharedMaterial_UsesOnlyRenderingDiscriminators()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "generic-shared-offset",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -194,14 +189,14 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_generic_offset_0.25x0.75", slotName);
+        Assert.Equal("uv", slotName);
+        Assert.DoesNotContain("offset", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
     public void CreateMaterialSlotName_ForGenericSharedMaterial_OmitsExplicitZeroOffset()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "generic-shared-zero-offset",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -217,14 +212,13 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_generic", slotName);
+        Assert.Equal("uv", slotName);
     }
 
     [Fact]
     public void CreateCommonMaterialSlotLookupNames_ForIdentityGenericCommonMaterial_UsesCanonicalNameOnly()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "generic-shared-identity",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -240,14 +234,13 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
 
-        Assert.Equal(["shared_uv_generic"], slotLookupNames);
+        Assert.Equal(["uv"], slotLookupNames);
     }
 
     [Fact]
     public void CreateCommonMaterialSlotLookupNames_ForIdentityScaleGenericOffsetMaterial_UsesCanonicalNameOnly()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "generic-shared-offset-depth",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -262,7 +255,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
         IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
 
         Assert.Equal(
-            ["shared_uv_generic_offset_0.25x0.75_depth_2x3"],
+            ["uv-terrain-aligned"],
             slotLookupNames);
     }
 
@@ -270,7 +263,6 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateMaterialSlotName_ForVertexColorCommonMaterial_UsesVertexColorName()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "vertex-color-shared",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.VertexColor,
             TexturePayload: null,
@@ -284,83 +276,16 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_vertex-color", slotName);
+        Assert.Equal("uv", slotName);
     }
 
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsTerrainOverlayAsGenericSharedMaterial()
-    {
-        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "dem-overlay-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TerrainOverlay: overlay,
-            TerrainMeshCode: "53394525",
-            Family: null,
-            AssetScope: ResoniteMaterialAssetScope.Common);
 
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out ResoniteMaterialBinding normalizedMaterial,
-            out string familySlotName);
-
-        Assert.False(normalized);
-        Assert.Equal(string.Empty, familySlotName);
-        Assert.Same(material, normalizedMaterial);
-    }
-
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_DoesNotSharePayloadAndTerrainOverlayAlbedoOnlyMaterials()
-    {
-        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        ResoniteMaterialBinding payloadMaterial = new(
-            MaterialKey: "payload-albedo-only",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/albedo-only.png"),
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            AssetScope: ResoniteMaterialAssetScope.Common);
-        ResoniteMaterialBinding terrainMaterial = payloadMaterial with
-        {
-            MaterialKey = "terrain-overlay-albedo-only",
-            TexturePayload = null,
-            TerrainOverlay = overlay,
-            TerrainMeshCode = "53394525",
-        };
-
-        bool payloadNormalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            payloadMaterial,
-            out ResoniteMaterialBinding normalizedPayloadMaterial,
-            out string payloadFamilySlotName);
-        bool terrainNormalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            terrainMaterial,
-            out ResoniteMaterialBinding normalizedTerrainMaterial,
-            out string terrainFamilySlotName);
-
-        Assert.True(payloadNormalized);
-        Assert.False(terrainNormalized);
-        Assert.Equal("generic", payloadFamilySlotName);
-        Assert.Equal(string.Empty, terrainFamilySlotName);
-        Assert.NotEqual(normalizedPayloadMaterial.MaterialKey, normalizedTerrainMaterial.MaterialKey);
-        Assert.Null(normalizedPayloadMaterial.TexturePayload);
-        Assert.Same(overlay, normalizedTerrainMaterial.TerrainOverlay);
-    }
 
     [Fact]
     public void NormalizeBatchGroupedMaterialBinding_KeepsTerrainOverlayProviderPresentationScoped()
     {
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         ResoniteMaterialBinding material = new(
-            MaterialKey: "terrain-overlay-albedo-only",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -381,403 +306,26 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal("53394525", normalized.TerrainMeshCode);
     }
 
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsTerrainOverlayWithoutMatchingMeshCode()
-    {
-        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "dem-overlay-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TerrainOverlay: overlay,
-            Family: null,
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out _,
-            out _);
 
-        Assert.False(normalized);
-    }
 
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_AllowsPayloadMaterialWithExplicitNoOpTextureTransform()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "payload-noop-transform",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/noop-transform.png"),
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(1.0, 1.0),
-            TextureOffset: new ResoniteFloat2(0.0, 0.0),
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out ResoniteMaterialBinding normalizedMaterial,
-            out string familySlotName);
 
-        Assert.True(normalized);
-        Assert.Equal("generic", familySlotName);
-        Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
-        Assert.Null(normalizedMaterial.TextureScale);
-        Assert.Null(normalizedMaterial.TextureOffset);
-        Assert.Equal(
-            ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
-                normalizedMaterial.Projection,
-                normalizedMaterial.TextureScale,
-                normalizedMaterial.TextureOffset,
-                normalizedMaterial.DepthOffset),
-            normalizedMaterial.MaterialKey);
-        Assert.Null(normalizedMaterial.TerrainOverlay);
-    }
 
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_AllowsVertexColorSharedCommonMaterial()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "vertex-color-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.VertexColor,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out ResoniteMaterialBinding normalizedMaterial,
-            out string familySlotName);
 
-        Assert.True(normalized);
-        Assert.Equal("vertex-color", familySlotName);
-        Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
-        Assert.Equal(
-            ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
-                normalizedMaterial.Projection,
-                normalizedMaterial.DepthOffset),
-            normalizedMaterial.MaterialKey);
-        Assert.Equal(ResoniteMaterialType.VertexColor, normalizedMaterial.MaterialType);
-    }
 
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsTintedVertexColorMaterial()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "vertex-color-tinted-material",
-            BaseColor: new ResoniteColor(0.8, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.VertexColor,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out _,
-            out _);
 
-        Assert.False(normalized);
-    }
 
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsTransformedVertexColorMaterial()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "vertex-color-transformed-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.VertexColor,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(2.0, 1.0),
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out _,
-            out _);
 
-        Assert.False(normalized);
-    }
 
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsTransformedGenericSharedMaterial()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "generic-shared-transformed-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/transformed-generic.png"),
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(1.0, 1.0),
-            TextureOffset: new ResoniteFloat2(0.25, 0.75),
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
-
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out _,
-            out _);
-
-        Assert.False(normalized);
-    }
-
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsTransformedGenericCommonMaterialWithoutTerrainOverlay()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "generic-shared-transformed-common-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(1.0, 1.0),
-            TextureOffset: new ResoniteFloat2(0.25, 0.75),
-            AssetScope: ResoniteMaterialAssetScope.Common);
-
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out _,
-            out _);
-
-        Assert.False(normalized);
-    }
-
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsTintedBundledFamilySharedMaterial()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "bundled-family-tinted-material",
-            BaseColor: new ResoniteColor(0.8, 0.7, 0.6, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TextureScale: FacadeDefaultTilesPerMeter(),
-            Family: BundledDefaultMaterialFamilies.Facade,
-            BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
-
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out _,
-            out _);
-
-        Assert.False(normalized);
-    }
-
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsPresentationScopedBundledFamilyMaterial()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "bundled-family-presentation-scoped-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TextureScale: FacadeDefaultTilesPerMeter(),
-            Family: BundledDefaultMaterialFamilies.Facade,
-            BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
-
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out _,
-            out _);
-
-        Assert.False(normalized);
-    }
-
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsBundledFamilySharedMaterialWithUvOrDepthTransform()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "bundled-family-transformed-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
-            SubmeshIndices: [0],
-            TextureScale: FacadeDefaultTilesPerMeter(),
-            TextureOffset: new ResoniteFloat2(0.125, 0.25),
-            Family: BundledDefaultMaterialFamilies.Facade,
-            BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
-
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out _,
-            out _);
-
-        Assert.False(normalized);
-    }
-
-    [Fact]
-    public void NormalizeCommonMaterialBinding_DemotesTintedBundledFamilyCommonMaterial()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "bundled-family-tinted-common-material",
-            BaseColor: new ResoniteColor(0.8, 0.7, 0.6, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TextureScale: FacadeDefaultTilesPerMeter(),
-            Family: BundledDefaultMaterialFamilies.Facade,
-            BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.Common);
-
-        ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
-
-        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
-        Assert.Equal(new ResoniteColor(0.8, 0.7, 0.6, 1.0), normalized.BaseColor);
-        Assert.Equal(BundledDefaultMaterialFamilies.Facade, normalized.Family);
-    }
-
-    [Fact]
-    public void NormalizeCommonMaterialBinding_DemotesWhiteBundledFamilyCommonMaterialWithUvOrDepthTransform()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "bundled-family-white-transformed-common-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
-            SubmeshIndices: [0],
-            TextureScale: FacadeDefaultTilesPerMeter(),
-            TextureOffset: new ResoniteFloat2(0.125, 0.25),
-            Family: BundledDefaultMaterialFamilies.Facade,
-            BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.Common);
-
-        ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
-
-        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
-        Assert.Equal(new ResoniteMaterialDepthOffset(1.0, 1.0), normalized.DepthOffset);
-        Assert.Equal(new ResoniteFloat2(0.125, 0.25), normalized.TextureOffset);
-    }
-
-    [Fact]
-    public void NormalizeCommonMaterialBinding_DemotesLegacyFacadeFamilyCommonMaterial()
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "legacy-facade-common-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TextureScale: FacadeDefaultTilesPerMeter(),
-            TextureOffset: new ResoniteFloat2(0.0, 0.5 / 6.0),
-            Family: BundledDefaultMaterialFamilies.Facade,
-            BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.Common);
-
-        ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
-
-        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
-        Assert.Equal(BundledDefaultMaterialFamilies.Facade, normalized.Family);
-    }
-
-    [Theory]
-    [InlineData(BundledDefaultMaterialFamilies.Roof, ResoniteMaterialProjection.Uv, ResoniteMaterialProjection.Triplanar)]
-    [InlineData(BundledDefaultMaterialFamilies.RoadUv, ResoniteMaterialProjection.Triplanar, ResoniteMaterialProjection.Uv)]
-    [InlineData(BundledDefaultMaterialFamilies.RoadTriplanar, ResoniteMaterialProjection.Uv, ResoniteMaterialProjection.Triplanar)]
-    [InlineData(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, ResoniteMaterialProjection.Triplanar, ResoniteMaterialProjection.Uv)]
-    public void NormalizeCommonMaterialBinding_UsesFamilyCanonicalProjectionForBundledCommonMaterial(
-        string family,
-        ResoniteMaterialProjection inputProjection,
-        ResoniteMaterialProjection expectedProjection)
-    {
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "common-material-with-noncanonical-projection",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: inputProjection,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            Family: family,
-            BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.Common);
-
-        ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
-
-        Assert.Equal(ResoniteMaterialAssetScope.Common, normalized.AssetScope);
-        Assert.Equal(expectedProjection, normalized.Projection);
-        Assert.Equal(
-            ResoniteSceneMaterialConventions.CreateMaterialSlotName(normalized, useCommonMaterialAssets: true),
-            ResoniteCommonMaterialSlots.GetSlotName(material));
-    }
-
-    [Fact]
-    public void CommonMaterialAssetSet_KeysBundledAssetsByFamilyAndMaterialSlot()
-    {
-        ResoniteMaterialBinding plaster = CreateBundledCommonMaterial(BundledDefaultMaterialFamilies.WallResidentialPlasterLow);
-        ResoniteMaterialBinding tile = CreateBundledCommonMaterial(BundledDefaultMaterialFamilies.WallResidentialTileLow);
-
-        Assert.Equal(
-            ResoniteCommonMaterialSlots.GetSlotName(plaster),
-            ResoniteCommonMaterialSlots.GetSlotName(tile));
-        Assert.NotEqual(
-            ResoniteCommonMaterialSlots.GetKey(plaster),
-            ResoniteCommonMaterialSlots.GetKey(tile));
-
-        ResoniteCommonMaterialAssetSet assets = new();
-        CreatedMaterialAsset plasterAsset = new(new ResoniteComponentLocator("plaster-component"), null);
-        CreatedMaterialAsset tileAsset = new(new ResoniteComponentLocator("tile-component"), null);
-
-        assets.Set(new ResoniteCommonMaterialAsset(plaster, plasterAsset));
-        assets.Set(new ResoniteCommonMaterialAsset(tile, tileAsset));
-
-        Assert.Equal(2, assets.Count);
-        Assert.True(assets.TryGetAsset(plaster, out CreatedMaterialAsset resolvedPlaster));
-        Assert.True(assets.TryGetAsset(tile, out CreatedMaterialAsset resolvedTile));
-        Assert.Equal(plasterAsset, resolvedPlaster);
-        Assert.Equal(tileAsset, resolvedTile);
-    }
 
     [Fact]
     public void NormalizeBatchGroupedMaterialBinding_DemotesTintedBundledFamilyCommonMaterial()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "bundled-family-tinted-batch-material",
             BaseColor: new ResoniteColor(0.8, 0.7, 0.6, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -800,7 +348,6 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void NormalizeBatchGroupedMaterialBinding_DemotesWhiteBundledFamilyCommonMaterialWithUvOrDepthTransform()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "bundled-family-white-transformed-batch-material",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -821,34 +368,6 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal(new ResoniteFloat2(0.125, 0.25), normalized.TextureOffset);
     }
 
-    [Fact]
-    public void TryNormalizeSharedMaterialBinding_RejectsTransformedTerrainOverlayMaterial()
-    {
-        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        ResoniteMaterialBinding material = new(
-            MaterialKey: "dem-overlay-transformed-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(0.5, 0.25),
-            TextureOffset: new ResoniteFloat2(0.125, 0.375),
-            TerrainOverlay: overlay,
-            TerrainMeshCode: "53394525",
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
-
-        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
-            material,
-            out ResoniteMaterialBinding normalizedMaterial,
-            out string familySlotName);
-
-        Assert.False(normalized);
-        Assert.Equal(string.Empty, familySlotName);
-        Assert.Same(material, normalizedMaterial);
-    }
 
     private static TerrainTextureOverlay CreateThirdMeshOverlay(string meshCode)
     {
@@ -876,7 +395,6 @@ public sealed class ResoniteSceneMaterialConventionsTests
     private static ResoniteMaterialBinding CreateBundledCommonMaterial(string family)
     {
         return new ResoniteMaterialBinding(
-            MaterialKey: string.Concat("common-", family),
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -886,6 +404,19 @@ public sealed class ResoniteSceneMaterialConventionsTests
             SubmeshIndices: [0],
             Family: family,
             BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+    }
+
+    private static ResoniteMaterialBinding CreateGenericCommonMaterial(ResoniteMaterialDepthOffset? depthOffset)
+    {
+        return new ResoniteMaterialBinding(
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: depthOffset,
+            SubmeshIndices: [0],
             AssetScope: ResoniteMaterialAssetScope.Common);
     }
 

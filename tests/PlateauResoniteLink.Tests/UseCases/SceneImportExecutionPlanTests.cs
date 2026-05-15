@@ -29,7 +29,7 @@ public sealed class SceneImportExecutionPlanTests
         SceneImportExecutionPlan plan = new(
             normalizedRequest,
             resolvedRequest,
-            new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, []));
+            new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, new CommonMaterialCatalog<DefaultCommonMaterialMember>([])));
 
         Assert.Equal(normalizedRequest, plan.NormalizedRequest);
         Assert.Equal(resolvedRequest, plan.ResolvedRequest);
@@ -53,7 +53,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 mismatchedRequest,
-                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
+                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", new CommonMaterialCatalog<DefaultCommonMaterialMember>([]))));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 mismatchedRequest,
-                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
+                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", new CommonMaterialCatalog<DefaultCommonMaterialMember>([]))));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 mismatchedRequest,
-                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
+                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", new CommonMaterialCatalog<DefaultCommonMaterialMember>([]))));
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public sealed class SceneImportExecutionPlanTests
         SceneImportExecutionPlan plan = new(
             normalizedRequest,
             resolvedRequest,
-            new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, []));
+            new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, new CommonMaterialCatalog<DefaultCommonMaterialMember>([])));
 
         Assert.Equal(
             RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho"),
@@ -145,7 +145,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 resolvedRequest,
-                new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, [])));
+                new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, new CommonMaterialCatalog<DefaultCommonMaterialMember>([]))));
     }
 
     private static ImportedSceneMetadata CreateMetadata(PlateauImportRequest request)
@@ -156,8 +156,7 @@ public sealed class SceneImportExecutionPlanTests
             Request: request,
             SourceDataset: new PlateauSourceDataset(["bldg"], [], ["53394525"]),
             Attribution: new Attribution(
-                new LicenseMetadata(true, "credit", "license", "https://example.invalid/license"),
-                []),
+                new LicenseMetadata(true, "credit", "license", "https://example.invalid/license")),
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 }

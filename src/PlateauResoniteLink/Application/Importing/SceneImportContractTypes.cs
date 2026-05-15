@@ -15,12 +15,7 @@ public sealed record ImportedSceneMetadata(
     GeodeticOrigin GeodeticOrigin);
 
 public sealed record Attribution(
-    LicenseMetadata DatasetLicense,
-    IReadOnlyList<MaterialAttribution> MaterialLicenses);
-
-public sealed record MaterialAttribution(
-    string MaterialKey,
-    LicenseMetadata? License);
+    LicenseMetadata DatasetLicense);
 
 public sealed record LicenseMetadata(
     bool RequireCredit,
@@ -92,7 +87,6 @@ public sealed record MeshVertex(
 
 public sealed record MeshSubmesh(
     int Index,
-    string MaterialKey,
     IReadOnlyList<int> TriangleVertexIndices);
 
 public enum TexturePayloadFormat
@@ -171,7 +165,6 @@ public enum MaterialReuseScope
 }
 
 public sealed record MaterialBinding(
-    string MaterialKey,
     ColorRgba BaseColor,
     MaterialType MaterialType,
     TexturePayload? TexturePayload,
@@ -185,4 +178,5 @@ public sealed record MaterialBinding(
     MaterialReuseScope ReuseScope = MaterialReuseScope.PerObject,
     TerrainTextureOverlay? TerrainOverlay = null,
     int? BundledVariantIndex = null,
-    string? TerrainMeshCode = null);
+    string? TerrainMeshCode = null,
+    DefaultCommonMaterialMember? CommonMaterial = null);

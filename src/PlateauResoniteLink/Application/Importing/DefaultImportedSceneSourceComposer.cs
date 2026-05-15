@@ -57,7 +57,6 @@ internal sealed class DefaultImportedSceneSourceComposer(
                 RequireCredit: true,
                 CreditText: $"Contains PLATEAU dataset content for {request.Dataset}. Follow the original PLATEAU dataset terms and provide source attribution when redistributing derived content.",
                 LicenseName: PlateauLicenseName,
-                LicenseUrl: PlateauLicenseUrl),
-            MaterialLicenses: []);
+                LicenseUrl: PlateauLicenseUrl));
     }
 }

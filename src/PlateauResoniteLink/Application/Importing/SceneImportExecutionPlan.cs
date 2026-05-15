@@ -36,7 +36,7 @@ public sealed record SceneImportExecutionPlan
         ImportedSceneMetadata metadata,
         string resolvedSourcePath,
         string workRoot,
-        IReadOnlyList<MaterialBinding> commonMaterials)
+        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials)
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedSourcePath);
@@ -59,7 +59,7 @@ public sealed record SceneImportExecutionPlan
         ImportedSceneMetadata metadata,
         string resolvedSourcePath,
         string workRoot,
-        CommonMaterialCatalog commonMaterialCatalog)
+        DefaultCommonMaterialCatalog commonMaterialCatalog)
     {
         ArgumentNullException.ThrowIfNull(commonMaterialCatalog);
 

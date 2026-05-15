@@ -45,38 +45,6 @@ public sealed class PlateauImportServiceTests
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(resolvedSourcePath);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
-        IReadOnlyList<MaterialBinding> sourceCommonMaterials = [
-            new MaterialBinding(
-                MaterialKey: "shared-mat-a",
-                BaseColor: new ColorRgba(1, 1, 1, 1),
-                MaterialType: MaterialType.Standard,
-                TexturePayload: null,
-                TextureSourceKind: TextureSourceKind.Dataset,
-                Projection: MaterialProjection.Uv,
-                DepthOffset: null,
-                SubmeshIndices: [0],
-                ReuseScope: MaterialReuseScope.Shared),
-            new MaterialBinding(
-                MaterialKey: "shared-mat-b",
-                BaseColor: new ColorRgba(1, 1, 1, 1),
-                MaterialType: MaterialType.Standard,
-                TexturePayload: null,
-                TextureSourceKind: TextureSourceKind.Dataset,
-                Projection: MaterialProjection.Uv,
-                DepthOffset: null,
-                SubmeshIndices: [1],
-                ReuseScope: MaterialReuseScope.Shared),
-            new MaterialBinding(
-                MaterialKey: "shared-mat-a",
-                BaseColor: new ColorRgba(1, 1, 1, 1),
-                MaterialType: MaterialType.Standard,
-                TexturePayload: null,
-                TextureSourceKind: TextureSourceKind.Dataset,
-                Projection: MaterialProjection.Uv,
-                DepthOffset: null,
-                SubmeshIndices: [2],
-                ReuseScope: MaterialReuseScope.Shared),
-        ];
         RecordingSceneSink sceneSink = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
         StubImportedSceneSource source = new(
@@ -87,7 +55,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new CommonMaterialCatalog(),
+            new DefaultCommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         ImportExecutionResult result = await service.ExecuteAsync(rawRequest, workRoot.Path);
@@ -112,11 +80,8 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(readResult.DocumentSet.SelectedMeshCodes, sceneSink.BeginRequest.Metadata.SourceDataset.SelectedMeshCodes);
         Assert.NotNull(sceneSink.BeginRequest.CommonMaterials);
         Assert.Equal(
-            new CommonMaterialCatalog().Create().Select(static material => material.MaterialKey).OrderBy(static key => key),
-            [.. sceneSink.BeginRequest.CommonMaterials.Select(material => material.MaterialKey).OrderBy(materialKey => materialKey)]);
-        Assert.All(
-            sourceCommonMaterials.Select(static material => material.MaterialKey),
-            materialKey => Assert.DoesNotContain(materialKey, sceneSink.BeginRequest.CommonMaterials.Select(material => material.MaterialKey)));
+            new DefaultCommonMaterialCatalog().Create().Select(CreateMaterialSignature),
+            sceneSink.BeginRequest.CommonMaterials.Select(CreateMaterialSignature));
         Assert.Single(sceneSink.ProcessedCityObjects);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(1, sceneSink.ExecuteCallCount);
@@ -168,7 +133,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new CommonMaterialCatalog(),
+            new DefaultCommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
@@ -211,7 +176,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new CommonMaterialCatalog(),
+            new DefaultCommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -248,7 +213,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new CommonMaterialCatalog(),
+            new DefaultCommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -290,7 +255,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new CommonMaterialCatalog(),
+            new DefaultCommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -331,7 +296,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new CommonMaterialCatalog(),
+            new DefaultCommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
@@ -387,7 +352,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new CommonMaterialCatalog(),
+            new DefaultCommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         _ = await service.ExecuteAsync(request, workRoot.Path);
@@ -431,7 +396,7 @@ public sealed class PlateauImportServiceTests
             sceneSink,
             datasetSourceResolver,
             importedSceneSourceFactory,
-            new CommonMaterialCatalog(),
+            new DefaultCommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -471,8 +436,7 @@ public sealed class PlateauImportServiceTests
             Request: request,
             SourceDataset: new PlateauSourceDataset(packageNames, sourceFiles, ["53394525"]),
             Attribution: new Attribution(
-                new LicenseMetadata(false, "credit", "license", "https://example.invalid/license"),
-                []),
+                new LicenseMetadata(false, "credit", "license", "https://example.invalid/license")),
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 
@@ -491,7 +455,7 @@ public sealed class PlateauImportServiceTests
                     new MeshVertex(new Float3(1.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(1.0, 0.0)),
                     new MeshVertex(new Float3(0.0, 0.0, 1.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 1.0)),
                 ],
-                [new MeshSubmesh(0, "material", [0, 1, 2])])),
+                [new MeshSubmesh(0, [0, 1, 2])])),
             Materials: [],
             SourceFileRelativePath: "udx/bldg/53394525/building.gml");
     }
@@ -503,6 +467,24 @@ public sealed class PlateauImportServiceTests
             cityObject.PackageName,
             1,
             [cityObject]);
+    }
+
+    private static string CreateMaterialSignature(MaterialBinding material)
+    {
+        string submeshes = string.Join("/", material.SubmeshIndices);
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{material.BaseColor.R},{material.BaseColor.G},{material.BaseColor.B},{material.BaseColor.A}|"
+            + $"{material.MaterialType}|{material.TextureSourceKind}|{material.Projection}|"
+            + $"{material.DepthOffset?.Factor}:{material.DepthOffset?.Units}|"
+            + $"{material.TextureScale?.X}:{material.TextureScale?.Y}|"
+            + $"{material.Family}|{material.TextureOffset?.X}:{material.TextureOffset?.Y}|"
+            + $"{material.ReuseScope}|{material.BundledVariantIndex}|{material.TerrainMeshCode}|{submeshes}");
+    }
+
+    private static string CreateMaterialSignature(DefaultCommonMaterialMember material)
+    {
+        return CreateMaterialSignature(material.CreateBinding([0]));
     }
 
     private sealed class RecordingSceneSink : ISceneSink

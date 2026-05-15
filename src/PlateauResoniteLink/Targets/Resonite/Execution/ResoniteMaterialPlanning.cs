@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,7 +16,7 @@ internal interface IResoniteMaterialPlanning
     Task<PlannedDedicatedMaterialAsset> PlanCommonMaterialAssetAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
-        AsyncInFlightResultCache<string, Uri> bundledTextureImportTasks,
+        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> bundledTextureImportTasks,
         CancellationToken cancellationToken);
 
     Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
@@ -46,7 +45,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
     public async Task<PlannedDedicatedMaterialAsset> PlanCommonMaterialAssetAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
-        AsyncInFlightResultCache<string, Uri> bundledTextureImportTasks,
+        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(importClient);
@@ -56,16 +55,10 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         Task<Uri?> albedoTextureTask = Task.FromResult<Uri?>(null);
         if (!string.IsNullOrWhiteSpace(material.Family))
         {
-            string albedoPath = bundledDefaultMaterialAssetStore.GetAbsolutePath(
-                BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0));
-            ResoniteRawTextureImport albedoTexture = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
-                albedoPath,
-                ResoniteTextureColorProfiles.Srgb,
-                cancellationToken);
-            albedoTextureTask = ImportOptionalTextureAsync(
+            albedoTextureTask = ImportBundledTextureAsync(
                 importClient,
-                albedoTexture,
-                CreateBundledTextureImportKey(albedoPath, ResoniteTextureColorProfiles.Srgb),
+                GetBundledAlbedoTextureAsset(material),
+                ResoniteTextureColorProfiles.Srgb,
                 bundledTextureImportTasks,
                 cancellationToken);
         }
@@ -118,7 +111,10 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return new PlannedDedicatedMaterialAsset(
             material,
             textures,
-            preserveDedicatedMaterialSlot);
+            preserveDedicatedMaterialSlot,
+            DedicatedMaterialSlotName: preserveDedicatedMaterialSlot
+                ? ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex)
+                : null);
     }
 
     public static Uri? TryGetPlannedTextureUri(
@@ -158,89 +154,46 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             textureUri);
     }
 
-    public static async Task<CreatedMaterialAsset> EmitCommonMaterialAsync(
-        IResoniteLinkClient client,
+    public static ResoniteBatchOperations.PendingBatchComponent AddCommonMaterialComponents(
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder,
         PlannedDedicatedMaterialAsset plannedMaterial,
-        ResoniteSlotLocator commonAssetsSlot,
-        string materialSlotName,
-        Func<IResoniteLinkClient, ResoniteSlotLocator, string, CancellationToken, Task<CreatedSlot>> getOrCreateSharedChildSlotAsync,
-        Func<IResoniteLinkClient, ResoniteSlotLocator, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> createComponentAsync,
-        CancellationToken cancellationToken)
+        string materialContainerSlotId)
     {
-        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(batchBuilder);
         ArgumentNullException.ThrowIfNull(plannedMaterial);
-        ArgumentException.ThrowIfNullOrWhiteSpace(commonAssetsSlot.Value);
-        ArgumentException.ThrowIfNullOrWhiteSpace(materialSlotName);
-        ArgumentNullException.ThrowIfNull(getOrCreateSharedChildSlotAsync);
-        ArgumentNullException.ThrowIfNull(createComponentAsync);
+        ArgumentException.ThrowIfNullOrWhiteSpace(materialContainerSlotId);
 
-        CreatedSlot materialSlot = await getOrCreateSharedChildSlotAsync(
-            client,
-            commonAssetsSlot,
-            materialSlotName,
-            cancellationToken);
-        ResoniteSlotLocator materialContainerSlot = materialSlot.Locator;
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(plannedMaterial.Material);
 
-        Uri? albedoTextureUri = TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo);
-        if (albedoTextureUri is not null)
+        AddTextureComponentReference(
+            batchBuilder,
+            plannedMaterial,
+            materialContainerSlotId,
+            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
+            "AlbedoTexture",
+            materialMembers);
+        if (AddTextureComponentReference(
+                batchBuilder,
+                plannedMaterial,
+                materialContainerSlotId,
+                ResoniteSceneMaterialConventions.TextureMemberRole.Normal,
+                "NormalMap",
+                materialMembers))
         {
-            CreatedComponent albedoTexture = await createComponentAsync(
-                client,
-                materialContainerSlot,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    albedoTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
-                cancellationToken);
-            materialMembers["AlbedoTexture"] = new Reference
-            {
-                TargetID = albedoTexture.Locator.Value,
-            };
-        }
-
-        Uri? normalTextureUri = TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Normal);
-        if (normalTextureUri is not null)
-        {
-            CreatedComponent normalTexture = await createComponentAsync(
-                client,
-                materialContainerSlot,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    normalTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Normal),
-                cancellationToken);
-            materialMembers["NormalMap"] = new Reference
-            {
-                TargetID = normalTexture.Locator.Value,
-            };
             materialMembers["NormalScale"] = new Field_float
             {
                 Value = DefaultNormalScale,
             };
         }
 
-        Uri? heightTextureUri = TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Height);
-        if (heightTextureUri is not null)
+        if (AddTextureComponentReference(
+                batchBuilder,
+                plannedMaterial,
+                materialContainerSlotId,
+                ResoniteSceneMaterialConventions.TextureMemberRole.Height,
+                "HeightMap",
+                materialMembers))
         {
-            CreatedComponent heightTexture = await createComponentAsync(
-                client,
-                materialContainerSlot,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    heightTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Height),
-                cancellationToken);
-            materialMembers["HeightMap"] = new Reference
-            {
-                TargetID = heightTexture.Locator.Value,
-            };
             materialMembers["HeightScale"] = new Field_float
             {
                 Value = DefaultBundledHeightScale,
@@ -252,52 +205,63 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             ResoniteSceneMaterialConventions.TextureMemberRole.Metallic);
         if (metallicTextureUri is not null)
         {
-            CreatedComponent metallicTexture = await createComponentAsync(
-                client,
-                materialContainerSlot,
+            ResoniteBatchOperations.PendingBatchComponent metallicTexture = batchBuilder.AddComponent(
+                materialContainerSlotId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     metallicTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic),
-                cancellationToken);
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic));
             materialMembers["MetallicMap"] = new Reference
             {
-                TargetID = metallicTexture.Locator.Value,
+                TargetID = metallicTexture.LocalId.Value,
             };
             materialMembers["OcclusionMap"] = new Reference
             {
-                TargetID = metallicTexture.Locator.Value,
+                TargetID = metallicTexture.LocalId.Value,
             };
         }
 
-        Uri? emissionTextureUri = TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Emission);
-        if (emissionTextureUri is not null)
+        if (AddTextureComponentReference(
+                batchBuilder,
+                plannedMaterial,
+                materialContainerSlotId,
+                ResoniteSceneMaterialConventions.TextureMemberRole.Emission,
+                "EmissiveMap",
+                materialMembers))
         {
-            CreatedComponent emissionTexture = await createComponentAsync(
-                client,
-                materialContainerSlot,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    emissionTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Emission),
-                cancellationToken);
-            materialMembers["EmissiveMap"] = new Reference
-            {
-                TargetID = emissionTexture.Locator.Value,
-            };
             materialMembers["EmissiveColor"] = ResoniteMaterialComponentPolicy.CreateColorMember(
                 new ResoniteColor(1.0, 1.0, 1.0, 1.0));
         }
 
-        CreatedComponent materialComponent = await createComponentAsync(
-            client,
-            materialContainerSlot,
+        return batchBuilder.AddComponent(
+            materialContainerSlotId,
             ResoniteMaterialComponentPolicy.GetComponentType(plannedMaterial.Material),
-            materialMembers,
-            cancellationToken);
-        return new CreatedMaterialAsset(materialComponent.Locator, null);
+            materialMembers);
+    }
+
+    private static bool AddTextureComponentReference(
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder,
+        PlannedDedicatedMaterialAsset plannedMaterial,
+        string materialContainerSlotId,
+        ResoniteSceneMaterialConventions.TextureMemberRole textureRole,
+        string materialMemberName,
+        Dictionary<string, Member> materialMembers)
+    {
+        Uri? textureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, textureRole);
+        if (textureUri is null)
+        {
+            return false;
+        }
+
+        ResoniteBatchOperations.PendingBatchComponent textureComponent = batchBuilder.AddComponent(
+            materialContainerSlotId,
+            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+            ResoniteSceneMaterialConventions.CreateTextureMembers(textureUri, textureRole));
+        materialMembers[materialMemberName] = new Reference
+        {
+            TargetID = textureComponent.LocalId.Value,
+        };
+        return true;
     }
 
     public static async Task<CreatedSlot?> TryGetExistingSharedChildSlotAsync(
@@ -368,7 +332,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
         Task<Uri?> albedoTextureTask,
-        AsyncInFlightResultCache<string, Uri>? bundledTextureImportTasks,
+        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri>? bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
         Task<Uri?> normalTextureTask = Task.FromResult<Uri?>(null);
@@ -382,42 +346,42 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 out BundledDefaultMaterialTextureSet? textureSet)
             && textureSet is not null)
         {
-            if (textureSet.NormalPath is not null)
+            if (textureSet.Normal is not null)
             {
-                normalTextureTask = ImportTextureFromFileAsync(
+                normalTextureTask = ImportBundledTextureAsync(
                     importClient,
-                    textureSet.NormalPath,
+                    textureSet.Normal,
                     ResoniteTextureColorProfiles.Linear,
                     bundledTextureImportTasks,
                     cancellationToken);
             }
 
-            if (textureSet.HeightPath is not null
+            if (textureSet.Height is not null
                 && material.Projection == ResoniteMaterialProjection.Uv)
             {
-                heightTextureTask = ImportTextureFromFileAsync(
+                heightTextureTask = ImportBundledTextureAsync(
                     importClient,
-                    textureSet.HeightPath,
+                    textureSet.Height,
                     ResoniteTextureColorProfiles.Linear,
                     bundledTextureImportTasks,
                     cancellationToken);
             }
 
-            if (textureSet.MetallicPath is not null)
+            if (textureSet.Metallic is not null)
             {
-                metallicTextureTask = ImportTextureFromFileAsync(
+                metallicTextureTask = ImportBundledTextureAsync(
                     importClient,
-                    textureSet.MetallicPath,
+                    textureSet.Metallic,
                     ResoniteTextureColorProfiles.Linear,
                     bundledTextureImportTasks,
                     cancellationToken);
             }
 
-            if (textureSet.EmissionPath is not null)
+            if (textureSet.Emission is not null)
             {
-                emissionTextureTask = ImportTextureFromFileAsync(
+                emissionTextureTask = ImportBundledTextureAsync(
                     importClient,
-                    textureSet.EmissionPath,
+                    textureSet.Emission,
                     ResoniteTextureColorProfiles.Srgb,
                     bundledTextureImportTasks,
                     cancellationToken);
@@ -455,13 +419,14 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return textures;
     }
 
-    private static async Task<Uri?> ImportTextureFromFileAsync(
+    private async Task<Uri?> ImportBundledTextureAsync(
         IResoniteLinkClient importClient,
-        string absolutePath,
+        BundledDefaultTextureAsset asset,
         string colorProfile,
-        AsyncInFlightResultCache<string, Uri>? bundledTextureImportTasks,
+        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri>? bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
+        string absolutePath = bundledDefaultMaterialAssetStore.GetAbsolutePath(asset);
         ResoniteRawTextureImport textureImport = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
             absolutePath,
             colorProfile,
@@ -469,7 +434,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return await ImportOptionalTextureAsync(
             importClient,
             textureImport,
-            bundledTextureImportTasks is null ? null : CreateBundledTextureImportKey(absolutePath, colorProfile),
+            asset,
             bundledTextureImportTasks,
             cancellationToken);
     }
@@ -477,17 +442,17 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
     private static async Task<Uri?> ImportOptionalTextureAsync(
         IResoniteLinkClient importClient,
         ResoniteTextureImport textureImport,
-        string? bundledTextureImportKey,
-        AsyncInFlightResultCache<string, Uri>? bundledTextureImportTasks,
+        BundledDefaultTextureAsset? bundledTextureImportAsset,
+        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri>? bundledTextureImportTasks,
         CancellationToken cancellationToken)
     {
-        if (bundledTextureImportTasks is null || string.IsNullOrWhiteSpace(bundledTextureImportKey))
+        if (bundledTextureImportTasks is null || bundledTextureImportAsset is null)
         {
             return await importClient.ImportTextureAsync(textureImport, cancellationToken);
         }
 
         return await bundledTextureImportTasks.GetOrCreateAsync(
-            bundledTextureImportKey,
+            bundledTextureImportAsset,
             () => importClient.ImportTextureAsync(textureImport, cancellationToken),
             cancellationToken);
     }
@@ -502,21 +467,20 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             return Task.FromResult<Uri?>(null);
         }
 
-        string albedoPath = bundledDefaultMaterialAssetStore.GetAbsolutePath(
-            BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0));
-        return ImportTextureFromFileAsync(
+        return ImportBundledTextureAsync(
             importClient,
-            albedoPath,
+            GetBundledAlbedoTextureAsset(material),
             ResoniteTextureColorProfiles.Srgb,
             bundledTextureImportTasks: null,
             cancellationToken);
     }
 
-    private static string CreateBundledTextureImportKey(string absolutePath, string colorProfile)
+    private static BundledDefaultTextureAsset<BundledDefaultAlbedoTextureRole> GetBundledAlbedoTextureAsset(ResoniteMaterialBinding material)
     {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{colorProfile}|{System.IO.Path.GetFullPath(absolutePath)}");
+        BundledDefaultMaterialVariant variant = BundledDefaultMaterialFamilies.GetVariantDefinition(
+            material.Family!,
+            material.BundledVariantIndex ?? 0);
+        return variant.TextureSources?.Albedo ?? variant.Albedo;
     }
 
     private static void AddPlannedTextureAsset(

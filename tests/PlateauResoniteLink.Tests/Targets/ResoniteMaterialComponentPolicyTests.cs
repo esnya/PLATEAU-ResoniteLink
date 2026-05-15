@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
@@ -18,7 +19,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersBuildsUvStandardMaterialFields()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "facade",
             BaseColor: new ResoniteColor(0.1, 0.2, 0.3, 0.4),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -59,7 +59,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersUsesSrgbProfileForVertexColorMaterialFields()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "vertex-color",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.VertexColor,
             TexturePayload: null,
@@ -79,7 +78,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersRejectsRawNonCommonUvTransformBeforeNormalization()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "dynamic-overlay",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
@@ -102,7 +100,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersBuildsTriplanarAndWireframeFields()
     {
         ResoniteMaterialBinding triplanarMaterial = new(
-            MaterialKey: "road",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -114,7 +111,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Family: BundledDefaultMaterialFamilies.RoadTriplanar,
             BundledVariantIndex: 0);
         ResoniteMaterialBinding wireframeMaterial = new(
-            MaterialKey: "overlay",
             BaseColor: new ResoniteColor(0.2, 0.4, 0.6, 0.5),
             MaterialType: ResoniteMaterialType.Wireframe,
             TexturePayload: null,
@@ -148,7 +144,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersCreatesUvMaterialWithoutTransformAfterNormalization()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "direct-terrain-grid-style-material",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/direct-terrain-grid-style.png"),
@@ -172,7 +167,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersRejectsOffsetOnlyUvTransformBeforeNormalization()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "offset-only-material",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -199,7 +193,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void TryGetBundledCompanionTextureSetResolvesSiblingTextures()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "facade",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -217,10 +210,37 @@ public sealed class ResoniteMaterialComponentPolicyTests
 
         Assert.True(resolved);
         Assert.NotNull(textureSet);
-        Assert.True(textureSet.EmissionPath is null || textureSet.EmissionPath.EndsWith("_Emission.jpg", StringComparison.Ordinal));
-        Assert.EndsWith("_Height.jpg", textureSet.HeightPath, StringComparison.Ordinal);
-        Assert.EndsWith("_Metallic.png", textureSet.MetallicPath, StringComparison.Ordinal);
-        Assert.EndsWith("_NormalGL.jpg", textureSet.NormalPath, StringComparison.Ordinal);
+        string? emissionPath = GetPath(textureSet.Emission);
+        Assert.True(emissionPath is null || emissionPath.EndsWith("_Emission.jpg", StringComparison.Ordinal));
+        Assert.EndsWith("_Height.jpg", GetPath(textureSet.Height), StringComparison.Ordinal);
+        Assert.EndsWith("_Metallic.png", GetPath(textureSet.Metallic), StringComparison.Ordinal);
+        Assert.EndsWith("_NormalGL.jpg", GetPath(textureSet.Normal), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MissingBundledTextureDiagnosticIncludesMaterialAndTextureContext()
+    {
+        BundledDefaultTextureAsset<BundledDefaultNormalTextureRole> missingAsset = new(
+            "default-materials/ambientcg/facade/Missing_NormalGL.jpg");
+        MethodInfo method = typeof(ResoniteMaterialComponentPolicy)
+            .GetMethod("EnsureBundledTextureExists", BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(typeof(BundledDefaultNormalTextureRole));
+
+        TargetInvocationException error = Assert.Throws<TargetInvocationException>(
+            () => method.Invoke(
+                null,
+                [
+                    new BundledDefaultMaterialAssetStore(),
+                    missingAsset,
+                    BundledDefaultMaterialFamilies.Facade,
+                    2,
+                ]));
+        InvalidOperationException inner = Assert.IsType<InvalidOperationException>(error.InnerException);
+
+        Assert.Contains("default-materials/ambientcg/facade/Missing_NormalGL.jpg", inner.Message, StringComparison.Ordinal);
+        Assert.Contains("family 'facade'", inner.Message, StringComparison.Ordinal);
+        Assert.Contains("variant 2", inner.Message, StringComparison.Ordinal);
+        Assert.Contains("role 'BundledDefaultNormalTextureRole'", inner.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -230,7 +250,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
         for (int variantIndex = 0; variantIndex < variants.Count; variantIndex++)
         {
             ResoniteMaterialBinding material = new(
-                MaterialKey: $"facade:{variantIndex}",
                 BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
@@ -248,9 +267,9 @@ public sealed class ResoniteMaterialComponentPolicyTests
 
             Assert.True(resolved);
             Assert.NotNull(textureSet);
-            Assert.True(textureSet.HeightPath is not null && File.Exists(textureSet.HeightPath), $"Missing height companion for facade variant '{variants[variantIndex]}'.");
-            Assert.True(textureSet.MetallicPath is not null && File.Exists(textureSet.MetallicPath), $"Missing packed metallic companion for facade variant '{variants[variantIndex]}'.");
-            Assert.True(textureSet.NormalPath is not null && File.Exists(textureSet.NormalPath), $"Missing normal companion for facade variant '{variants[variantIndex]}'.");
+            Assert.True(GetPath(textureSet.Height) is not null && File.Exists(GetPath(textureSet.Height)), $"Missing height companion for facade variant '{variants[variantIndex]}'.");
+            Assert.True(GetPath(textureSet.Metallic) is not null && File.Exists(GetPath(textureSet.Metallic)), $"Missing packed metallic companion for facade variant '{variants[variantIndex]}'.");
+            Assert.True(GetPath(textureSet.Normal) is not null && File.Exists(GetPath(textureSet.Normal)), $"Missing normal companion for facade variant '{variants[variantIndex]}'.");
         }
     }
 
@@ -258,7 +277,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void TryGetBundledCompanionTextureSetResolvesCityFurnitureCompanions()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "city-furniture",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -276,10 +294,10 @@ public sealed class ResoniteMaterialComponentPolicyTests
 
         Assert.True(resolved);
         Assert.NotNull(textureSet);
-        Assert.Null(textureSet.EmissionPath);
-        Assert.EndsWith("Plaster002_2K-JPG_Height.jpg", textureSet.HeightPath, StringComparison.Ordinal);
-        Assert.EndsWith("Plaster002_2K-JPG_Metallic.png", textureSet.MetallicPath, StringComparison.Ordinal);
-        Assert.EndsWith("Plaster002_2K-JPG_NormalGL.jpg", textureSet.NormalPath, StringComparison.Ordinal);
+        Assert.Null(GetPath(textureSet.Emission));
+        Assert.EndsWith("Plaster002_2K-JPG_Height.jpg", GetPath(textureSet.Height), StringComparison.Ordinal);
+        Assert.EndsWith("Plaster002_2K-JPG_Metallic.png", GetPath(textureSet.Metallic), StringComparison.Ordinal);
+        Assert.EndsWith("Plaster002_2K-JPG_NormalGL.jpg", GetPath(textureSet.Normal), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -298,7 +316,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void BundledGeneratedFacadeCompanionTextureSetUsesResonitePackageNaming()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "wall-skin",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -318,18 +335,83 @@ public sealed class ResoniteMaterialComponentPolicyTests
 
         Assert.True(resolved);
         Assert.NotNull(textureSet);
-        string normalizedEmissionPath = textureSet.EmissionPath!.Replace('\\', '/');
-        string normalizedHeightPath = textureSet.HeightPath!.Replace('\\', '/');
-        string normalizedMetallicPath = textureSet.MetallicPath!.Replace('\\', '/');
-        string normalizedNormalPath = textureSet.NormalPath!.Replace('\\', '/');
+        string normalizedEmissionPath = GetPath(textureSet.Emission)!.Replace('\\', '/');
+        string normalizedHeightPath = GetPath(textureSet.Height)!.Replace('\\', '/');
+        string normalizedMetallicPath = GetPath(textureSet.Metallic)!.Replace('\\', '/');
+        string normalizedNormalPath = GetPath(textureSet.Normal)!.Replace('\\', '/');
         Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedEmissionPath, StringComparison.Ordinal);
         Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedHeightPath, StringComparison.Ordinal);
         Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedMetallicPath, StringComparison.Ordinal);
         Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedNormalPath, StringComparison.Ordinal);
-        Assert.EndsWith("emission.png", textureSet.EmissionPath, StringComparison.Ordinal);
-        Assert.EndsWith("height.png", textureSet.HeightPath, StringComparison.Ordinal);
-        Assert.EndsWith("metallic_ao_smoothness.png", textureSet.MetallicPath, StringComparison.Ordinal);
-        Assert.EndsWith("normalGL.png", textureSet.NormalPath, StringComparison.Ordinal);
+        Assert.EndsWith("emission.png", GetPath(textureSet.Emission), StringComparison.Ordinal);
+        Assert.EndsWith("height.png", GetPath(textureSet.Height), StringComparison.Ordinal);
+        Assert.EndsWith("metallic_ao_smoothness.png", GetPath(textureSet.Metallic), StringComparison.Ordinal);
+        Assert.EndsWith("normalGL.png", GetPath(textureSet.Normal), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BundledGeneratedFacadeColorVariantCompanionTextureSetSharesOnlyEmissionTexture()
+    {
+        ResoniteMaterialBinding material = new(
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            Family: BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
+            BundledVariantIndex: 1,
+            TextureScale: new ResoniteFloat2(1.0 / 3.0, 1.0 / 3.0),
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
+            new BundledDefaultMaterialAssetStore(),
+            material,
+            out BundledDefaultMaterialTextureSet? textureSet);
+
+        Assert.True(resolved);
+        Assert.NotNull(textureSet);
+        string normalizedEmissionPath = GetPath(textureSet.Emission)!.Replace('\\', '/');
+        string normalizedHeightPath = GetPath(textureSet.Height)!.Replace('\\', '/');
+        string normalizedMetallicPath = GetPath(textureSet.Metallic)!.Replace('\\', '/');
+        string normalizedNormalPath = GetPath(textureSet.Normal)!.Replace('\\', '/');
+        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedEmissionPath, StringComparison.Ordinal);
+        Assert.Contains("/default-materials/wallskins/wall_res_plaster_dark/", normalizedHeightPath, StringComparison.Ordinal);
+        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedMetallicPath, StringComparison.Ordinal);
+        Assert.Contains("/default-materials/wallskins/wall_res_plaster_dark/", normalizedNormalPath, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BundledFacadeHighriseNightCompanionTextureSetSharesOnlyIdenticalMaterialMaps()
+    {
+        ResoniteMaterialBinding material = new(
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            Family: BundledDefaultMaterialFamilies.FacadeHighriseNightLow,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
+            new BundledDefaultMaterialAssetStore(),
+            material,
+            out BundledDefaultMaterialTextureSet? textureSet);
+
+        Assert.True(resolved);
+        Assert.NotNull(textureSet);
+        string normalizedEmissionPath = GetPath(textureSet.Emission)!.Replace('\\', '/');
+        string normalizedHeightPath = GetPath(textureSet.Height)!.Replace('\\', '/');
+        string normalizedMetallicPath = GetPath(textureSet.Metallic)!.Replace('\\', '/');
+        string normalizedNormalPath = GetPath(textureSet.Normal)!.Replace('\\', '/');
+        Assert.Contains("/default-materials/ambientcg/facade/Facade002_2K-JPG_Emission.jpg", normalizedEmissionPath, StringComparison.Ordinal);
+        Assert.Contains("/default-materials/ambientcg/facade/Facade001_2K-JPG_Height.jpg", normalizedHeightPath, StringComparison.Ordinal);
+        Assert.Contains("/default-materials/ambientcg/facade/Facade001_2K-JPG_Metallic.png", normalizedMetallicPath, StringComparison.Ordinal);
+        Assert.Contains("/default-materials/ambientcg/facade/Facade001_2K-JPG_NormalGL.jpg", normalizedNormalPath, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -407,6 +489,13 @@ public sealed class ResoniteMaterialComponentPolicyTests
         return metallicLogicalPath.Contains("/ambientcg/facade/Facade018A_", StringComparison.Ordinal)
             || metallicLogicalPath.Contains("/ambientcg/facade/Facade019A_", StringComparison.Ordinal)
             || metallicLogicalPath.Contains("/ambientcg/facade/Facade020A_", StringComparison.Ordinal);
+    }
+
+    private static string? GetPath(BundledDefaultTextureAsset? asset)
+    {
+        return asset is null
+            ? null
+            : new BundledDefaultMaterialAssetStore().GetAbsolutePath(asset);
     }
 
     private static IEnumerable<string> EnumerateBundledDefaultMaterialVariants()

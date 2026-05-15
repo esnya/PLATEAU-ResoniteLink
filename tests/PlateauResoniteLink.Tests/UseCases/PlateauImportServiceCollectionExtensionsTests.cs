@@ -201,8 +201,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             new PlateauImportRequest("stub", "53394525", DatasetLocation.Local("/tmp")),
             new PlateauSourceDataset([], [], []),
             new Attribution(
-                new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
-                []),
+                new LicenseMetadata(true, "credit", "license", "https://example.invalid")),
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
 
         public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(

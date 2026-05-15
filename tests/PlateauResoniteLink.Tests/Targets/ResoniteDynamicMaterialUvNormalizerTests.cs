@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
@@ -41,7 +42,6 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     public void NormalizeMaterialBinding_ClearsBundledFamilyUvTransformAfterNormalization()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "bundled-identity-override",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -88,8 +88,8 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(2.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
                 ],
                 [
-                    new ResoniteMeshSubmesh(0, "dynamic-uv-material", [0, 1, 2]),
-                    new ResoniteMeshSubmesh(1, "bundled-identity-override", [3, 4, 5]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, [3, 4, 5]),
                 ]),
             Materials:
             [
@@ -98,7 +98,6 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     SubmeshIndices = [0],
                 },
                 new ResoniteMaterialBinding(
-                    MaterialKey: "bundled-identity-override",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -117,7 +116,9 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         ResoniteConstructionCityObject normalized = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         ResoniteMaterialBinding bundledMaterial = Assert.Single(
             normalized.Materials,
-            static material => string.Equals(material.MaterialKey, "bundled-identity-override", StringComparison.Ordinal));
+            material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal)
+                && material.BundledVariantIndex == bundledVariantIndex
+                && material.SubmeshIndices.SequenceEqual([1]));
 
         Assert.NotSame(cityObject, normalized);
         Assert.Null(bundledMaterial.TextureScale);
@@ -148,7 +149,6 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             [
                 CreateDynamicUvMaterial(null, null) with
                 {
-                    MaterialKey = "wallskin",
                     TexturePayload = null,
                     TextureSourceKind = ResoniteTextureSourceKind.Bundled,
                     Family = BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
@@ -189,8 +189,8 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(2.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
                 ],
                 [
-                    new ResoniteMeshSubmesh(0, "dynamic-uv-material", [0, 1, 2]),
-                    new ResoniteMeshSubmesh(1, "triplanar-identity-override", [3, 4, 5]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, [3, 4, 5]),
                 ]),
             Materials:
             [
@@ -199,7 +199,6 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     SubmeshIndices = [0],
                 },
                 new ResoniteMaterialBinding(
-                    MaterialKey: "triplanar-identity-override",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -218,7 +217,8 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         ResoniteConstructionCityObject normalized = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         ResoniteMaterialBinding triplanarMaterial = Assert.Single(
             normalized.Materials,
-            static material => string.Equals(material.MaterialKey, "triplanar-identity-override", StringComparison.Ordinal));
+            static material => material.Projection == ResoniteMaterialProjection.Triplanar
+                && material.SubmeshIndices.SequenceEqual([1]));
 
         Assert.NotSame(cityObject, normalized);
         Assert.Equal(ResoniteMaterialProjection.Triplanar, triplanarMaterial.Projection);
@@ -269,7 +269,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
                 ],
                 [
-                    new ResoniteMeshSubmesh(0, "dynamic-uv-material", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
                 ]),
             Materials:
             [
@@ -284,7 +284,6 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         TerrainTextureOverlay? terrainOverlay = null)
     {
         return new ResoniteMaterialBinding(
-            MaterialKey: "dynamic-uv-material",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic-uv.png"),

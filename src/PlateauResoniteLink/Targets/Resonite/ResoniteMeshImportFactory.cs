@@ -143,13 +143,13 @@ internal static class ResoniteMeshImportFactory
             if (submesh.TriangleVertexIndices.Count == 0)
             {
                 throw new InvalidOperationException(
-                    $"Triangle mesh submesh '{submesh.MaterialKey}' did not contain any index.");
+                    $"Triangle mesh submesh index {submesh.Index} did not contain any index.");
             }
 
             if (submesh.TriangleVertexIndices.Count % 3 != 0)
             {
                 throw new InvalidOperationException(
-                    $"Triangle mesh submesh '{submesh.MaterialKey}' had {submesh.TriangleVertexIndices.Count} indices, which is not divisible by three.");
+                    $"Triangle mesh submesh index {submesh.Index} had {submesh.TriangleVertexIndices.Count} indices, which is not divisible by three.");
             }
 
             for (int triangleIndex = 0; triangleIndex < submesh.TriangleVertexIndices.Count; triangleIndex++)
@@ -158,7 +158,7 @@ internal static class ResoniteMeshImportFactory
                 if ((uint)vertexIndex >= (uint)mesh.Vertices.Count)
                 {
                     throw new InvalidOperationException(
-                        $"Triangle mesh submesh '{submesh.MaterialKey}' referenced vertex index {vertexIndex}, but vertex_count={mesh.Vertices.Count}.");
+                        $"Triangle mesh submesh index {submesh.Index} referenced vertex index {vertexIndex}, but vertex_count={mesh.Vertices.Count}.");
                 }
             }
 
@@ -170,7 +170,7 @@ internal static class ResoniteMeshImportFactory
                 if (ComputeTriangleArea(first.Position, second.Position, third.Position) <= 1e-12)
                 {
                     throw new InvalidOperationException(
-                        $"Triangle mesh submesh '{submesh.MaterialKey}' contained degenerate triangle at triangle_index={triangleIndex / 3}.");
+                        $"Triangle mesh submesh index {submesh.Index} contained degenerate triangle at triangle_index={triangleIndex / 3}.");
                 }
             }
         }

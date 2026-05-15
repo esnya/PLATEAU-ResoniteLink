@@ -273,7 +273,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
             new ResoniteMaterialBinding(
-                MaterialKey: "dedicated-material",
                 BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
@@ -282,7 +281,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 DepthOffset: null,
                 SubmeshIndices: [0]),
             [new PlannedTextureAsset(new TextureIdentity("albedo"), new Uri("resdb:///texture/albedo"))],
-            PreserveDedicatedMaterialSlot: true);
+            PreserveDedicatedMaterialSlot: true,
+            DedicatedMaterialSlotName: "material-001-pbs-uv-uv");
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("existing-material-id"));
         PlannedSceneObjectEmission emissionPlan = new(
             new PlannedTriangleMeshGeometryAsset(
@@ -314,7 +314,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchSlotEmission dedicatedMaterialSlot = Assert.Single(
             batchPlan.SlotEmissions,
             slot => slot.ParentTarget.Planned == FindAssetSlotIdentity(batchPlan, "Triangle Object")
-                && slot.SlotName.Contains("pbs", StringComparison.Ordinal));
+                && string.Equals(slot.SlotName, "material-001-pbs-uv-uv", StringComparison.Ordinal));
         PlannedBatchComponentEmission dedicatedMaterialComponent = Assert.Single(
             batchPlan.ComponentEmissions,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal));
@@ -341,7 +341,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
             new ResoniteMaterialBinding(
-                MaterialKey: "dedicated-material",
                 BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
@@ -512,6 +511,52 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(ToMember(overrideTexture.Members["WrapModeU"])).Value);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(ToMember(overrideTexture.Members["WrapModeV"])).Value);
         Assert.DoesNotContain("PreferredProfile", overrideTexture.Members.Keys);
+    }
+
+    [Fact]
+    public void CreatePlannedBatchEmission_UsesSharedTerrainPropertyBlockWhenProvided()
+    {
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
+            new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
+            "Triangle Object",
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+            null);
+        PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
+        PlannedSceneObjectEmission emissionPlan = new(
+            new PlannedTriangleMeshGeometryAsset(
+                new GeometryIdentity("geom"),
+                "Triangle Object",
+                new Uri("resdb:///mesh/triangle")),
+            [reusableMaterial],
+            new PlannedRenderer(
+                new GeometryIdentity("geom"),
+                [
+                    new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
+                        reusableMaterial,
+                        new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override")),
+                        SharedMainTextureComponent: new ResoniteComponentLocator("shared-terrain-texture-id"),
+                        SharedMainTexturePropertyBlockComponent: new ResoniteComponentLocator("shared-terrain-property-block-id")),
+                ]),
+            new PlannedCollider(
+                new GeometryIdentity("geom"),
+                false));
+
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+
+        PlannedBatchComponentEmission meshRenderer = Assert.Single(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
+        SyncList rendererPropertyBlocks = Assert.IsType<SyncList>(ToMember(meshRenderer.Members["MaterialPropertyBlocks"]));
+        Reference propertyBlockReference = Assert.IsType<Reference>(Assert.Single(rendererPropertyBlocks.Elements));
+
+        Assert.Equal("shared-terrain-property-block-id", propertyBlockReference.TargetID);
+        Assert.DoesNotContain(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
     }
 
     [Fact]

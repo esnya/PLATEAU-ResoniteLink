@@ -5,6 +5,8 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 
+using PlateauResoniteLink.Domain.Importing;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -66,6 +68,12 @@ internal sealed class BundledDefaultMaterialAssetStore
         return absolutePath;
     }
 
+    public string GetAbsolutePath(BundledDefaultTextureAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return GetAbsolutePath(asset.LogicalPath);
+    }
+
     public bool TryGetAbsolutePath(string logicalPath, out string absolutePath)
     {
         if (!TryGetResourceName(logicalPath, out _))
@@ -76,6 +84,12 @@ internal sealed class BundledDefaultMaterialAssetStore
 
         absolutePath = GetAbsolutePath(logicalPath);
         return true;
+    }
+
+    public bool TryGetAbsolutePath(BundledDefaultTextureAsset asset, out string absolutePath)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return TryGetAbsolutePath(asset.LogicalPath, out absolutePath);
     }
 
     internal IDisposable PushExtractionRootOverride(string extractionRoot)

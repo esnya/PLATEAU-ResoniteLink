@@ -16,7 +16,7 @@ internal sealed class PlateauImportService(
     ISceneSink sceneSink,
     IPlateauDatasetSourceResolver datasetSourceResolver,
     IImportedSceneSourceFactory importedSceneSourceFactory,
-    CommonMaterialCatalog commonMaterialCatalog,
+    DefaultCommonMaterialCatalog commonMaterialCatalog,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
 {
@@ -27,7 +27,7 @@ internal sealed class PlateauImportService(
     private readonly Action<string>? progressReporter = progressReporter;
     private readonly IImportedSceneSourceFactory importedSceneSourceFactory =
         importedSceneSourceFactory ?? throw new ArgumentNullException(nameof(importedSceneSourceFactory));
-    private readonly CommonMaterialCatalog commonMaterialCatalog =
+    private readonly DefaultCommonMaterialCatalog commonMaterialCatalog =
         commonMaterialCatalog ?? throw new ArgumentNullException(nameof(commonMaterialCatalog));
     private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
         archiveFileLayoutPolicy ?? throw new ArgumentNullException(nameof(archiveFileLayoutPolicy));
@@ -64,7 +64,7 @@ internal sealed class PlateauImportService(
                 PlateauLog.Debug("import", $"Prepared imported scene source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             ImportedSceneMetadata metadata = source.Metadata;
-            IReadOnlyList<MaterialBinding> commonMaterials = commonMaterialCatalog.Create();
+            CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials = commonMaterialCatalog.Create();
             ReportProgress(
                 PlateauLog.Info(
                     "import",

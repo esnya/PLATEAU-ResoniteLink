@@ -51,7 +51,8 @@ internal sealed record PlannedReusableMaterialAsset(
 internal sealed record PlannedDedicatedMaterialAsset(
     ResoniteMaterialBinding Material,
     IReadOnlyList<PlannedTextureAsset> Textures,
-    bool PreserveDedicatedMaterialSlot)
+    bool PreserveDedicatedMaterialSlot,
+    string? DedicatedMaterialSlotName = null)
     : PlannedMaterialAsset;
 
 internal abstract record PlannedRendererMaterialBinding(PlannedMaterialAsset MaterialAsset);
@@ -72,7 +73,8 @@ internal sealed record PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
 internal sealed record PlannedTerrainMainTextureOverrideRendererMaterialBinding(
     PlannedMaterialAsset MaterialAsset,
     PlannedTextureAsset MainTexture,
-    ResoniteComponentLocator? SharedMainTextureComponent = null)
+    ResoniteComponentLocator? SharedMainTextureComponent = null,
+    ResoniteComponentLocator? SharedMainTexturePropertyBlockComponent = null)
     : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture);
 
 internal sealed record PlannedRenderer(

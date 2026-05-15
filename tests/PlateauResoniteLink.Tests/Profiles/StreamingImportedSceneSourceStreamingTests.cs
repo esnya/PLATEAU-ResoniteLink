@@ -105,8 +105,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
                 ],
                 []),
             Attribution: new Attribution(
-                new LicenseMetadata(false, string.Empty, string.Empty, string.Empty),
-                []),
+                new LicenseMetadata(false, string.Empty, string.Empty, string.Empty)),
             GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         RecordingGeometryProjector geometryProjector = new();
 
@@ -218,8 +217,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
                 sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 []),
             Attribution: new Attribution(
-                new LicenseMetadata(false, string.Empty, string.Empty, string.Empty),
-                []),
+                new LicenseMetadata(false, string.Empty, string.Empty, string.Empty)),
             GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         ImportedSceneSourceSnapshot readResult = new(
             new ImportedSceneSourceDataset(
@@ -345,7 +343,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
                                 new MeshVertex(new Float3(1.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(1.0, 0.0)),
                                 new MeshVertex(new Float3(0.0, 0.0, 1.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 1.0)),
                             ],
-                            [new MeshSubmesh(0, $"{cityObject.PackageName}_material", [0, 1, 2])])),
+                            [new MeshSubmesh(0, [0, 1, 2])])),
                     [],
                     SourceFileRelativePath: sourceFile.RelativePath);
             }
