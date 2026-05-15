@@ -1069,6 +1069,123 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void ProjectParsedCityObjectAllowsSelectedAdjacentDemOverlayWhenRequestMeshIsExact()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay selectedRequestOverlay = CreateThirdMeshOverlay("53394525");
+        TerrainTextureOverlay selectedAdjacentOverlay = CreateThirdMeshOverlay("53394526");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
+        ParsedSurface demSurface = CreateParsedSurface(
+            "selected-adjacent-dem",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null) with
+        {
+            UsesGeneratedDemTexture = true,
+        };
+        ParsedCityObject cityObject = CreateParsedCityObject("dem", [demSurface], referenceSystem) with
+        {
+            ActualMeshCode = "53394526",
+        };
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem"],
+            TerrainMeshMode: TerrainMeshMode.Grid);
+
+        ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: null,
+            demTerrainTextureOverlays: [selectedRequestOverlay, selectedAdjacentOverlay],
+            requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Same(selectedAdjacentOverlay, material.TerrainOverlay);
+        Assert.Equal("53394526", material.TerrainMeshCode);
+    }
+
+    [Fact]
+    public void ProjectParsedCityObjectAssignsSelectedAdjacentOverlayToTexturelessBuildingRoof()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay selectedRequestOverlay = CreateThirdMeshOverlay("53394525");
+        TerrainTextureOverlay selectedAdjacentOverlay = CreateThirdMeshOverlay("53394526");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
+        ParsedSurface roofSurface = CreateParsedSurface(
+            "selected-adjacent-textureless-roof",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem) with
+        {
+            ActualMeshCode = "53394525",
+        };
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem", "bldg"]);
+
+        ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(origin),
+            globalCartesian: null,
+            demTerrainTextureOverlays: [selectedRequestOverlay, selectedAdjacentOverlay],
+            requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Same(selectedAdjacentOverlay, material.TerrainOverlay);
+        Assert.Equal("53394526", material.TerrainMeshCode);
+    }
+
+    [Fact]
+    public void ProjectParsedCityObjectRejectsUnrequestedTerrainOverlayWithTraceableContext()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay unrequestedOverlay = CreateThirdMeshOverlay("53394526");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
+        ParsedSurface roofSurface = CreateParsedSurface(
+            "unrequested-textureless-roof",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem) with
+        {
+            ActualMeshCode = "53394525",
+        };
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem", "bldg"]);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            LocalCityGmlObjectProjection.ProjectParsedCityObject(
+                cityObject,
+                GeodeticPoint.FromProjectionModel(origin),
+                globalCartesian: null,
+                demTerrainTextureOverlays: [unrequestedOverlay],
+                requestedMeshAreas: [MeshCodeBounds.TryParse("53394525")!],
+                terrainHeightSampler: null,
+                request,
+                new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray());
+
+        Assert.Contains("phase='non-dem-terrain-candidate'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("actual_mesh='53394525'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("requested_mesh='53394525'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("overlay=package='dem'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("sources='tile-z17-https://terrain.example/53394526/{z}/{x}/{y}.png'", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EnumerateCommonMaterialsForParsedCityObjectExcludesTerrainOverlayBuildingRoofs()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");

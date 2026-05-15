@@ -683,7 +683,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     private static bool IsRecoverableCityObjectSendFailure(Exception exception)
     {
-        return FindResoniteLinkOperationException(exception) is { OperationName: "ImportMesh" or "ImportTexture" or "GetSlot" or "GetComponent" };
+        return exception is ContinuableImportException
+            || FindResoniteLinkOperationException(exception) is { OperationName: "ImportMesh" or "ImportTexture" or "GetSlot" or "GetComponent" };
     }
 
     private static Task<T> AwaitWithSlowCityObjectWarningAsync<T>(
@@ -985,10 +986,16 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             }
         }
         (string TerrainMeshCode, TerrainTextureOverlay TerrainOverlay)[] distinctTerrainOverlays = cityObject.Materials
-            .Where(static material => material.TerrainOverlay is not null && material.TerrainMeshCode is not null)
-            .Select(material => (
-                TerrainMeshCode: ValidateTerrainTextureMeshCode(material.TerrainMeshCode!, material.TerrainOverlay!),
-                TerrainOverlay: material.TerrainOverlay!))
+            .Select((material, materialIndex) => (Material: material, MaterialIndex: materialIndex))
+            .Where(static entry => entry.Material.TerrainOverlay is not null && entry.Material.TerrainMeshCode is not null)
+            .Select(entry => (
+                TerrainMeshCode: ValidateTerrainTextureMeshCode(
+                    cityObject,
+                    entry.MaterialIndex,
+                    entry.Material,
+                    entry.Material.TerrainMeshCode!,
+                    entry.Material.TerrainOverlay!),
+                TerrainOverlay: entry.Material.TerrainOverlay!))
             .Distinct()
             .OrderBy(static entry => entry.TerrainMeshCode, StringComparer.Ordinal)
             .ThenBy(static entry => entry.TerrainOverlay.PackageName, StringComparer.Ordinal)
@@ -1691,13 +1698,18 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             || meshCode.Length != 8
             || !PlateauMeshCode.TryGetBounds(meshCode, out _))
         {
-            throw new InvalidOperationException("Terrain texture overlay preparation requires a valid third-level mesh code.");
+            throw new InvalidOperationException(
+                "Terrain texture overlay preparation requires a valid third-level mesh code. "
+                + $"provided_mesh='{texture.TerrainMeshCode ?? "<null>"}'.");
         }
 
         return meshCode;
     }
 
-    private static ResoniteMaterialBinding ValidateTerrainTextureMaterialContract(ResoniteMaterialBinding material)
+    private static ResoniteMaterialBinding ValidateTerrainTextureMaterialContract(
+        ResoniteConstructionCityObject cityObject,
+        int materialIndex,
+        ResoniteMaterialBinding material)
     {
         if (material.TerrainOverlay is null)
         {
@@ -1706,13 +1718,30 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
         if (material.TerrainMeshCode is null)
         {
-            throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
+            throw CreateTerrainOverlayMaterialContractException(
+                cityObject,
+                materialIndex,
+                material,
+                "missing terrain mesh code");
         }
 
-        return material with { TerrainMeshCode = ValidateTerrainTextureMeshCode(material.TerrainMeshCode, material.TerrainOverlay) };
+        return material with
+        {
+            TerrainMeshCode = ValidateTerrainTextureMeshCode(
+                cityObject,
+                materialIndex,
+                material,
+                material.TerrainMeshCode,
+                material.TerrainOverlay),
+        };
     }
 
-    private static string ValidateTerrainTextureMeshCode(string meshCode, TerrainTextureOverlay terrainOverlay)
+    private static string ValidateTerrainTextureMeshCode(
+        ResoniteConstructionCityObject cityObject,
+        int materialIndex,
+        ResoniteMaterialBinding material,
+        string meshCode,
+        TerrainTextureOverlay terrainOverlay)
     {
         if (meshCode.Length == 8
             && PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds)
@@ -1721,7 +1750,42 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             return meshCode;
         }
 
-        throw new InvalidOperationException("Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds.");
+        throw CreateTerrainOverlayMaterialContractException(
+            cityObject,
+            materialIndex,
+            material,
+            "mesh code bounds do not match overlay bounds");
+    }
+
+    private static InvalidOperationException CreateTerrainOverlayMaterialContractException(
+        ResoniteConstructionCityObject cityObject,
+        int materialIndex,
+        ResoniteMaterialBinding material,
+        string reason)
+    {
+        TerrainTextureOverlay? overlay = material.TerrainOverlay;
+        string overlaySummary = overlay is null
+            ? "<null>"
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"package='{overlay.PackageName}', bounds='{FormatGeographicBounds(overlay.GeographicBounds)}', sources='{overlay.SourceDescriptorKey}'");
+        return new InvalidOperationException(
+            "Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds. "
+            + $"reason='{reason}', object_slot='{cityObject.SlotKey}', object_name='{cityObject.DisplayName}', "
+            + $"package='{cityObject.PackageName}', actual_mesh='{cityObject.ActualMeshCode}', source_file='{cityObject.SourceFileRelativePath ?? "<null>"}', "
+            + $"material_index='{materialIndex}', terrain_mesh='{material.TerrainMeshCode ?? "<null>"}', overlay={overlaySummary}.");
+    }
+
+    private static string FormatGeographicBounds(GeographicRectangle bounds)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
+    }
+
+    private static string FormatRounded(double value)
+    {
+        return value.ToString("G17", CultureInfo.InvariantCulture);
     }
 
     private static bool BoundsApproximatelyEqual(
@@ -2062,7 +2126,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 cityObject,
                 cityObject.Materials[materialIndex],
                 preparedTerrainTextureDataByOverlay);
-            material = ValidateTerrainTextureMaterialContract(material);
+            material = ValidateTerrainTextureMaterialContract(cityObject, materialIndex, material);
             ReportImportStep(
                 cityObject,
                 $"Creating material {materialIndex + 1}/{cityObject.Materials.Count}.");
