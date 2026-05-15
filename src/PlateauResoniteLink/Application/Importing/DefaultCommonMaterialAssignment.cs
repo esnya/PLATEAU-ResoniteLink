@@ -6,6 +6,8 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class DefaultCommonMaterialAssignment
 {
+    private static readonly CommonMaterialCatalog<DefaultCommonMaterialMember> CommonMaterials = CommonMaterialCatalog.Create();
+
     public static DefaultCommonMaterialMember? Resolve(
         ColorRgba baseColor,
         MaterialType materialType,
@@ -113,14 +115,12 @@ internal static class DefaultCommonMaterialAssignment
 
     private static DefaultCommonMaterialMember ResolveGenericUv(MaterialDepthOffset? depthOffset)
     {
-        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
-        return depthOffset is null ? catalog.Generic.Uv : catalog.Generic.TerrainAlignedUv;
+        return depthOffset is null ? CommonMaterials.Generic.Uv : CommonMaterials.Generic.TerrainAlignedUv;
     }
 
     private static DefaultCommonMaterialMember ResolveVertexColorUv(MaterialDepthOffset? depthOffset)
     {
-        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
-        return depthOffset is null ? catalog.VertexColor.Uv : catalog.VertexColor.TerrainAlignedUv;
+        return depthOffset is null ? CommonMaterials.VertexColor.Uv : CommonMaterials.VertexColor.TerrainAlignedUv;
     }
 
     private static bool IsCanonicalCommonBaseColor(ColorRgba color)
