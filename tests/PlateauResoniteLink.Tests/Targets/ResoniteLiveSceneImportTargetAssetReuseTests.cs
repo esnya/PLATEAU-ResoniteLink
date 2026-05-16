@@ -27,6 +27,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     private const string SecondarySourceFile = $"udx/bldg/{SecondaryMeshCode}/plateau_{DatasetName}_bldg_{SecondaryMeshCode}.gml";
     private const string PrimaryDemSourceFile = $"udx/dem/{MeshCode}/plateau_{DatasetName}_dem_{MeshCode}.gml";
     private const string SecondaryDemSourceFile = $"udx/dem/{SecondaryMeshCode}/plateau_{DatasetName}_dem_{SecondaryMeshCode}.gml";
+    private const string ThirdMeshCode = "53394527";
+    private const string ThirdSourceFile = $"udx/bldg/{ThirdMeshCode}/plateau_{DatasetName}_bldg_{ThirdMeshCode}.gml";
+    private const string ParentMeshCode = "533945";
+    private const string ParentDemSourceFile = $"udx/dem/{ParentMeshCode}/plateau_{DatasetName}_dem_{ParentMeshCode}.gml";
     private static readonly ResoniteLocalOrigin LocalOrigin = new(35.6875, 139.69375, 0.0);
 
     [Fact]
@@ -881,6 +885,299 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncAppendPlacesBldgFromExistingParentSourceRoot()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata firstRunMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            ParentMeshCode,
+            datasetDirectory.Path,
+            RequireMeshCodeCenter(ParentMeshCode),
+            packageNames: ["dem"],
+            sourceFiles: [ParentDemSourceFile]);
+        ImportedSceneMetadata secondRunMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            RequireMeshCodeCenter(MeshCode),
+            packageNames: ["dem", "bldg"],
+            sourceFiles: [ParentDemSourceFile, PrimarySourceFile]);
+        using SceneSinkRecordingClient client = new();
+        using TemporaryDirectory firstWorkDirectory = new();
+        using TemporaryDirectory secondWorkDirectory = new();
+        ResoniteFloat3 firstRunDemWorldPosition = new(250.0, 4.0, 400.0);
+        ResoniteFloat3 secondRunDemWorldPosition = new(230.0, 9.0, 390.0);
+        ResoniteFloat3 sourceRootCorrection = new(16.5, 0.0, -47.25);
+
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
+        {
+            _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+                importTarget,
+                firstRunMetadata,
+                firstWorkDirectory.Path,
+                [
+                    CreateTerrainGridDemCityObject(
+                        "parent-existing",
+                        actualMeshCode: MeshCode,
+                        sourceFileRelativePath: ParentDemSourceFile,
+                        worldPosition: firstRunDemWorldPosition),
+                ]);
+        }
+
+        Slot existingDemSourceRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(ParentDemSourceFile)}");
+        ResoniteFloat3 existingDemRootPosition = Add(GetSlotPosition(existingDemSourceRoot), sourceRootCorrection);
+        existingDemSourceRoot.Position = CreateFloat3(existingDemRootPosition);
+
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
+        {
+            _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+                importTarget,
+                secondRunMetadata,
+                secondWorkDirectory.Path,
+                [
+                    CreateTerrainGridDemCityObject(
+                        "parent-appended",
+                        actualMeshCode: MeshCode,
+                        sourceFileRelativePath: ParentDemSourceFile,
+                        worldPosition: secondRunDemWorldPosition),
+                    CreateBundledTriangleCityObject(
+                        "bldg-appended",
+                        actualMeshCode: MeshCode,
+                        sourceFileRelativePath: PrimarySourceFile,
+                        worldPosition: secondRunDemWorldPosition),
+                ]);
+        }
+
+        Slot appendedDemSourceRoot = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(ParentDemSourceFile)}")
+            .Single(slot => !string.Equals(slot.ID, existingDemSourceRoot.ID, StringComparison.Ordinal));
+        Slot bldgSourceRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
+        Slot bldgObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject bldg-appended");
+        ResoniteFloat3 parentToChildOffset = ComputeMeshCodeOffset(ParentMeshCode, MeshCode);
+        ResoniteFloat3 expectedBldgRootPosition = Add(existingDemRootPosition, parentToChildOffset);
+        ResoniteFloat3 expectedBldgLocalPosition = ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
+            RequireMeshCodeCenter(MeshCode),
+            MeshCode,
+            expectedBldgRootPosition,
+            secondRunDemWorldPosition);
+
+        AssertNear(existingDemRootPosition, GetSlotPosition(appendedDemSourceRoot), 0.2);
+        AssertNear(expectedBldgRootPosition, GetSlotPosition(bldgSourceRoot), 0.2);
+        AssertNear(expectedBldgLocalPosition, GetSlotPosition(bldgObjectSlot), 0.2);
+        AssertNear(Add(expectedBldgRootPosition, expectedBldgLocalPosition), GetAccumulatedPosition(client, bldgObjectSlot), 0.2);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncRepeatedBldgAppendUsesExactObservedRootPosition()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata bldgMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile]);
+        using SceneSinkRecordingClient client = new();
+        using TemporaryDirectory firstWorkDirectory = new();
+        using TemporaryDirectory secondWorkDirectory = new();
+        ResoniteFloat3 bldgWorldPosition = new(100.0, 9.0, 100.0);
+
+        await ExecuteImportAsync(
+            client,
+            bldgMetadata,
+            firstWorkDirectory.Path,
+            [CreateBundledTriangleCityObject("exact-root-bldg-one", worldPosition: bldgWorldPosition)]);
+
+        Slot firstBldgRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
+        ResoniteFloat3 correctedRootPosition = new(14.0, 6.0, -9.0);
+        firstBldgRoot.Position = CreateFloat3(correctedRootPosition);
+
+        await ExecuteImportAsync(
+            client,
+            bldgMetadata,
+            secondWorkDirectory.Path,
+            [CreateBundledTriangleCityObject("exact-root-bldg-two", worldPosition: bldgWorldPosition)]);
+
+        Slot secondBldgRoot = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}")
+            .Single(slot => !string.Equals(slot.ID, firstBldgRoot.ID, StringComparison.Ordinal));
+
+        AssertNear(correctedRootPosition, GetSlotPosition(secondBldgRoot), 0.2);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncThirdAppendToleratesDuplicateExactSourceRootsWithSamePlacement()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile]);
+        using SceneSinkRecordingClient client = new();
+        using TemporaryDirectory firstWorkDirectory = new();
+        using TemporaryDirectory secondWorkDirectory = new();
+        using TemporaryDirectory thirdWorkDirectory = new();
+        ResoniteFloat3 worldPosition = new(10.0, 3.0, 20.0);
+
+        await ExecuteImportAsync(
+            client,
+            metadata,
+            firstWorkDirectory.Path,
+            [CreateBundledTriangleCityObject("duplicate-exact-one", worldPosition: worldPosition)]);
+        await ExecuteImportAsync(
+            client,
+            metadata,
+            secondWorkDirectory.Path,
+            [CreateBundledTriangleCityObject("duplicate-exact-two", worldPosition: worldPosition)]);
+        await ExecuteImportAsync(
+            client,
+            metadata,
+            thirdWorkDirectory.Path,
+            [CreateBundledTriangleCityObject("duplicate-exact-three", worldPosition: worldPosition)]);
+
+        Slot[] sourceRoots = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
+
+        Assert.Equal(3, sourceRoots.Length);
+        Assert.All(sourceRoots, sourceRoot => AssertNear(GetSlotPosition(sourceRoots[0]), GetSlotPosition(sourceRoot), 0.2));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncAppendToleratesDuplicateParentAncestorRootsWithSamePlacement()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata demMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            ParentMeshCode,
+            datasetDirectory.Path,
+            RequireMeshCodeCenter(ParentMeshCode),
+            packageNames: ["dem"],
+            sourceFiles: [ParentDemSourceFile]);
+        ImportedSceneMetadata bldgMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile]);
+        using SceneSinkRecordingClient client = new();
+        using TemporaryDirectory firstWorkDirectory = new();
+        using TemporaryDirectory secondWorkDirectory = new();
+        using TemporaryDirectory thirdWorkDirectory = new();
+        ResoniteFloat3 parentPosition = new(20.0, 8.0, 30.0);
+
+        await ExecuteImportAsync(
+            client,
+            demMetadata,
+            firstWorkDirectory.Path,
+            [CreateTerrainGridDemCityObject("duplicate-parent-one", actualMeshCode: MeshCode, sourceFileRelativePath: ParentDemSourceFile, worldPosition: parentPosition)]);
+        Slot firstParentRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(ParentDemSourceFile)}");
+        await ExecuteImportAsync(
+            client,
+            demMetadata,
+            secondWorkDirectory.Path,
+            [CreateTerrainGridDemCityObject("duplicate-parent-two", actualMeshCode: MeshCode, sourceFileRelativePath: ParentDemSourceFile, worldPosition: parentPosition)]);
+        Slot secondParentRoot = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(ParentDemSourceFile)}")
+            .Single(slot => !string.Equals(slot.ID, firstParentRoot.ID, StringComparison.Ordinal));
+        secondParentRoot.Position = CreateFloat3(GetSlotPosition(firstParentRoot));
+
+        await ExecuteImportAsync(
+            client,
+            bldgMetadata,
+            thirdWorkDirectory.Path,
+            [CreateBundledTriangleCityObject("duplicate-parent-bldg", worldPosition: new ResoniteFloat3(20.0, 8.0, 30.0))]);
+
+        Slot bldgRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
+        ResoniteFloat3 expectedPosition = Add(GetSlotPosition(firstParentRoot), ComputeMeshCodeOffset(ParentMeshCode, MeshCode));
+        AssertNear(expectedPosition, GetSlotPosition(bldgRoot), 0.2);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncSiblingAppendUsesObservedRootWhenNoAncestorExists()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata firstRunMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata secondRunMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            ThirdMeshCode,
+            datasetDirectory.Path,
+            RequireMeshCodeCenter(ThirdMeshCode),
+            packageNames: ["bldg"],
+            sourceFiles: [ThirdSourceFile]);
+        using SceneSinkRecordingClient client = new();
+        using TemporaryDirectory firstWorkDirectory = new();
+        using TemporaryDirectory secondWorkDirectory = new();
+
+        await ExecuteImportAsync(
+            client,
+            firstRunMetadata,
+            firstWorkDirectory.Path,
+            [
+                CreateBundledTriangleCityObject("sibling-base-primary", actualMeshCode: MeshCode, sourceFileRelativePath: PrimarySourceFile),
+                CreateBundledTriangleCityObject("sibling-base-secondary", actualMeshCode: SecondaryMeshCode, sourceFileRelativePath: SecondarySourceFile),
+            ]);
+        await ExecuteImportAsync(
+            client,
+            secondRunMetadata,
+            secondWorkDirectory.Path,
+            [CreateBundledTriangleCityObject("sibling-append-third", actualMeshCode: ThirdMeshCode, sourceFileRelativePath: ThirdSourceFile)]);
+
+        Slot primaryRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
+        Slot secondaryRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
+        Slot thirdRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(ThirdSourceFile)}");
+        ResoniteFloat3 expectedFromPrimary = Add(GetSlotPosition(primaryRoot), ComputeMeshCodeOffset(MeshCode, ThirdMeshCode));
+        ResoniteFloat3 expectedFromSecondary = Add(GetSlotPosition(secondaryRoot), ComputeMeshCodeOffset(SecondaryMeshCode, ThirdMeshCode));
+
+        AssertNear(expectedFromPrimary, expectedFromSecondary, 0.25);
+        AssertNear(expectedFromPrimary, GetSlotPosition(thirdRoot), 0.2);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncSiblingAppendRejectsObservedRootsWithDifferentCoordinateFrames()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata firstRunMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata secondRunMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            ThirdMeshCode,
+            datasetDirectory.Path,
+            RequireMeshCodeCenter(ThirdMeshCode),
+            packageNames: ["bldg"],
+            sourceFiles: [ThirdSourceFile]);
+        using SceneSinkRecordingClient client = new();
+        using TemporaryDirectory firstWorkDirectory = new();
+        using TemporaryDirectory secondWorkDirectory = new();
+
+        await ExecuteImportAsync(
+            client,
+            firstRunMetadata,
+            firstWorkDirectory.Path,
+            [
+                CreateBundledTriangleCityObject("sibling-ambiguous-primary", actualMeshCode: MeshCode, sourceFileRelativePath: PrimarySourceFile),
+                CreateBundledTriangleCityObject("sibling-ambiguous-secondary", actualMeshCode: SecondaryMeshCode, sourceFileRelativePath: SecondarySourceFile),
+            ]);
+        Slot secondaryRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
+        ResoniteFloat3 shiftedSecondaryRoot = Add(GetSlotPosition(secondaryRoot), new ResoniteFloat3(1.0, 0.0, 0.0));
+        secondaryRoot.Position = CreateFloat3(shiftedSecondaryRoot);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => ExecuteImportAsync(
+            client,
+            secondRunMetadata,
+            secondWorkDirectory.Path,
+            [CreateBundledTriangleCityObject("sibling-ambiguous-third", actualMeshCode: ThirdMeshCode, sourceFileRelativePath: ThirdSourceFile)]));
+        Assert.Contains("Append placement is ambiguous", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CompleteAsyncReturnsLocationAnchoredToResolvedSourceFileRoot()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -914,18 +1211,24 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncAppendsIntoAssetsOnlyDatasetRootAndAnchorsFirstActualSourceFileRootAtDatasetRoot()
+    public async Task ExecuteAsyncAppendsIntoAssetsOnlyDatasetRootUsingDatasetRootLocalAnchor()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneSinkRecordingClient client = new();
         using TemporaryDirectory firstWorkDirectory = new();
         using TemporaryDirectory secondWorkDirectory = new();
+        ResoniteFloat3 datasetRootPosition = new(25.0, 6.0, -14.0);
+        ResoniteFloat3 primaryObjectPosition = new(4.0, 1.0, 8.0);
+        ResoniteFloat3 secondaryObjectPosition = new(10.0, 2.0, 20.0);
 
         await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(importTarget, metadata, firstWorkDirectory.Path, []);
         }
+
+        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, $"PLATEAU {DatasetName}");
+        datasetRoot.Position = CreateFloat3(datasetRootPosition);
 
         await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
         {
@@ -935,27 +1238,38 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 secondWorkDirectory.Path,
                 [
                     CreateBundledTriangleCityObject(
-                        "assets-only-append",
+                        "assets-only-primary",
+                        actualMeshCode: MeshCode,
+                        sourceFileRelativePath: PrimarySourceFile,
+                        worldPosition: primaryObjectPosition),
+                    CreateBundledTriangleCityObject(
+                        "assets-only-secondary",
                         actualMeshCode: SecondaryMeshCode,
                         sourceFileRelativePath: SecondarySourceFile,
-                        worldPosition: new ResoniteFloat3(10.0, 0.0, 20.0)),
+                        worldPosition: secondaryObjectPosition),
                 ]);
+            Slot primarySourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+                client,
+                $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
             Slot sourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
                 client,
                 $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
             ResoniteFloat3 expectedRootOffset = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
-            Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject assets-only-append");
+            Slot primaryObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject assets-only-primary");
+            Slot secondaryObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject assets-only-secondary");
 
+            AssertNear(new ResoniteFloat3(0.0, 0.0, 0.0), GetSlotPosition(primarySourceFileRoot), 0.001);
             Assert.Equal(expectedRootOffset.X, GetSlotPosition(sourceFileRoot).X, 3);
             Assert.Equal(expectedRootOffset.Z, GetSlotPosition(sourceFileRoot).Z, 3);
-            AssertNear(new ResoniteFloat3(10.0, 0.0, 20.0), GetAccumulatedPosition(client, objectSlot), 0.2);
+            AssertNear(Add(datasetRootPosition, primaryObjectPosition), GetAccumulatedPosition(client, primaryObjectSlot), 0.2);
+            AssertNear(Add(datasetRootPosition, secondaryObjectPosition), GetAccumulatedPosition(client, secondaryObjectSlot), 0.2);
             string destination = Assert.Single(executionResult.Destinations);
             Assert.StartsWith("ws://localhost:12345/#", destination, StringComparison.Ordinal);
             string destinationAnchorId = GetDestinationAnchorId(destination);
             Assert.True(client.SlotsById.ContainsKey(destinationAnchorId));
             Assert.True(
-                string.Equals(destinationAnchorId, sourceFileRoot.ID, StringComparison.Ordinal)
-                || ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, sourceFileRoot.ID, destinationAnchorId));
+                string.Equals(destinationAnchorId, primarySourceFileRoot.ID, StringComparison.Ordinal)
+                || ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, primarySourceFileRoot.ID, destinationAnchorId));
         }
     }
 
@@ -1094,6 +1408,20 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             LocalOrigin,
             packageNames: ["dem"],
             sourceFiles: sourceFiles ?? [PrimaryDemSourceFile]);
+    }
+
+    private static async Task ExecuteImportAsync(
+        SceneSinkRecordingClient client,
+        ImportedSceneMetadata metadata,
+        string workDirectory,
+        IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
+    {
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client);
+        _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            importTarget,
+            metadata,
+            workDirectory,
+            cityObjects);
     }
 
     private static ResoniteConstructionCityObject CreateBundledTriangleCityObject(
@@ -1353,6 +1681,19 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         return slot.Position is Field_float3 position
             ? new ResoniteFloat3(position.Value.x, position.Value.y, position.Value.z)
             : new ResoniteFloat3(0.0, 0.0, 0.0);
+    }
+
+    private static Field_float3 CreateFloat3(ResoniteFloat3 value)
+    {
+        return new Field_float3
+        {
+            Value = new float3
+            {
+                x = (float)value.X,
+                y = (float)value.Y,
+                z = (float)value.Z,
+            },
+        };
     }
 
     private static ResoniteFloat3 GetAccumulatedPosition(SceneSinkRecordingClient client, Slot slot)
