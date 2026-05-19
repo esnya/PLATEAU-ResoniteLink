@@ -1144,7 +1144,7 @@ internal sealed class NonDemCityObjectBaker(
         {
             throw new InvalidOperationException(
                 $"Non-DEM batch candidate '{cityObject.DisplayName}' did not provide source scope. "
-                + "Source-owned batching requires SourceFileRelativePath.");
+                + "source-file-owned batching requires SourceFileRelativePath.");
         }
 
         return new SourceFileBatchKey(

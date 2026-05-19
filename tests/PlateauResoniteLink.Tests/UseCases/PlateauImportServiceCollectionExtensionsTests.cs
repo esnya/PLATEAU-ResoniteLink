@@ -19,10 +19,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDataset")));
+            CityGmlSource: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDataset")));
         ImportedSceneSourceSnapshot expectedReadResult = new(
             new ImportedSceneSourceDataset(
-                new StubDatasetContentSource(request.LocalSourcePath!),
+                new StubDatasetContentSource(request.CityGmlLocalSourcePath!),
                 [],
                 ["bldg"],
                 [],

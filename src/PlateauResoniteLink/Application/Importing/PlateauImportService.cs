@@ -52,10 +52,10 @@ internal sealed class PlateauImportService(
                     datasetWorkRoot,
                     cancellationToken)).ToImportRequest();
             ReportProgress(
-                PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
+                PlateauLog.Debug("import", $"Resolved CityGML source for '{resolvedRequest.Dataset}' mesh-code '{resolvedRequest.MeshCode}'."));
 
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
-            IImportedSceneSource source = await importedSceneSourceFactory.CreateAsync(
+            IImportedSceneSource importedSceneSource = await importedSceneSourceFactory.CreateAsync(
                 resolvedRequest,
                 progressReporter,
                 cancellationToken);
@@ -63,7 +63,7 @@ internal sealed class PlateauImportService(
             ReportProgress(
                 PlateauLog.Debug("import", $"Prepared imported scene source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
-            ImportedSceneMetadata metadata = source.Metadata;
+            ImportedSceneMetadata metadata = importedSceneSource.Metadata;
             ReportProgress(
                 PlateauLog.Info(
                     "import",
@@ -73,7 +73,7 @@ internal sealed class PlateauImportService(
                 normalizedRequest,
                 resolvedRequest,
                 metadata,
-                resolvedRequest.LocalSourcePath!,
+                resolvedRequest.CityGmlLocalSourcePath!,
                 datasetWorkRoot,
                 this.commonMaterials);
             ReportProgress(
@@ -86,7 +86,7 @@ internal sealed class PlateauImportService(
             ReportProgress(PlateauLog.Info("import", "Handing object unit stream to sink."));
             SceneImportExecutionResult executionResult = await sceneSink.ExecuteAsync(
                 executionPlan,
-                CountImportedObjectUnitsAsync(source.ReadObjectUnitsAsync(cancellationToken), cityObjectCount => sourceCityObjectCount += cityObjectCount, cancellationToken),
+                CountImportedObjectUnitsAsync(importedSceneSource.ReadObjectUnitsAsync(cancellationToken), cityObjectCount => sourceCityObjectCount += cityObjectCount, cancellationToken),
                 cancellationToken);
 
             cityObjectStopwatch.Stop();
@@ -100,7 +100,7 @@ internal sealed class PlateauImportService(
             if (sourceCityObjectCount == 0)
             {
                 throw new PlateauImportValidationException(
-                    [$"No triangulated CityGML geometry was produced for mesh code '{resolvedRequest.MeshCode}'."]);
+                    [$"No triangulated CityGML geometry was produced for mesh-code '{resolvedRequest.MeshCode}'."]);
             }
 
             if (executionResult.ProcessedCityObjectCount == 0

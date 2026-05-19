@@ -65,7 +65,7 @@ internal static partial class LocalCityGmlObjectProjection
         ICityGmlAppearanceStore appearanceStore,
         ICityGmlLodSelector lodSelector,
         CoordinateReferenceSystem coordinateReferenceSystem,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         LodFilteringStrategy lodFilteringStrategy)
     {
         string objectTypeName = cityObjectElement.Name.LocalName;
@@ -119,15 +119,15 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        if (requestedMeshAreas is not null
-            && requestedMeshAreas.Count > 0
+        if (requestedMeshCodeBounds is not null
+            && requestedMeshCodeBounds.Count > 0
             && coordinateReferenceSystem.IsGeographic)
         {
-            bool intersectsRequestedMeshArea = sharedAcrossMeshCodes
-                && TryCreateMeshCodeBounds(resolvedActualMeshCode, out MeshCodeBounds? resolvedActualMeshArea)
-                    ? IntersectsMeshCodeBounds(resolvedActualMeshArea!, requestedMeshAreas)
-                    : IntersectsMeshCodeBounds(surfaces, requestedMeshAreas);
-            if (!intersectsRequestedMeshArea)
+            bool intersectsRequestedMeshCodeBounds = sharedAcrossMeshCodes
+                && TryCreateMeshCodeBounds(resolvedActualMeshCode, out MeshCodeBounds? resolvedActualMeshCodeBounds)
+                    ? IntersectsMeshCodeBounds(resolvedActualMeshCodeBounds!, requestedMeshCodeBounds)
+                    : IntersectsMeshCodeBounds(surfaces, requestedMeshCodeBounds);
+            if (!intersectsRequestedMeshCodeBounds)
             {
                 return null;
             }
@@ -263,14 +263,14 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static bool IntersectsMeshCodeBounds(
         MeshCodeBounds meshCodeArea,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas)
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds)
     {
         return IntersectsMeshCodeBounds(
             meshCodeArea.SouthLatitude,
             meshCodeArea.NorthLatitude,
             meshCodeArea.WestLongitude,
             meshCodeArea.EastLongitude,
-            requestedMeshAreas);
+            requestedMeshCodeBounds);
     }
 
     private static bool IntersectsMeshCodeBounds(
@@ -1352,19 +1352,19 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static GeodeticPoint ComputeGlobalOrigin(IEnumerable<ParsedCityObject> cityObjects)
     {
-        return CreateGlobalOrigin(GetBounds(cityObjects), requestedMeshArea: null, isGeographicReferenceSystem: false);
+        return CreateGlobalOrigin(GetBounds(cityObjects), requestedMeshCodeBounds: null, isGeographicReferenceSystem: false);
     }
 
     private static GeodeticPoint CreateGlobalOrigin(
         (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) bounds,
-        MeshCodeBounds? requestedMeshArea,
+        MeshCodeBounds? requestedMeshCodeBounds,
         bool isGeographicReferenceSystem)
     {
-        if (isGeographicReferenceSystem && requestedMeshArea is not null)
+        if (isGeographicReferenceSystem && requestedMeshCodeBounds is not null)
         {
             return new GeodeticPoint(
-                Latitude: (requestedMeshArea.SouthLatitude + requestedMeshArea.NorthLatitude) / 2.0,
-                Longitude: (requestedMeshArea.WestLongitude + requestedMeshArea.EastLongitude) / 2.0,
+                Latitude: (requestedMeshCodeBounds.SouthLatitude + requestedMeshCodeBounds.NorthLatitude) / 2.0,
+                Longitude: (requestedMeshCodeBounds.WestLongitude + requestedMeshCodeBounds.EastLongitude) / 2.0,
                 Altitude: bounds.minAltitude);
         }
 
@@ -3360,7 +3360,7 @@ internal static partial class LocalCityGmlObjectProjection
                     "material-grouping",
                     actualMeshCode,
                     actualMeshCode,
-                    requestedMeshAreas: null,
+                    requestedMeshCodeBounds: null,
                     material.TerrainOverlay);
             }
 
@@ -3917,7 +3917,7 @@ internal static partial class LocalCityGmlObjectProjection
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
         Func<global::PlateauResoniteLink.Application.Importing.ParsedCityObject, bool>? predicate = null,
@@ -3953,7 +3953,7 @@ internal static partial class LocalCityGmlObjectProjection
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
-                         requestedMeshAreas,
+                         requestedMeshCodeBounds,
                          terrainHeightSampler: null,
                          request,
                          materialResolver,
@@ -3970,7 +3970,7 @@ internal static partial class LocalCityGmlObjectProjection
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
@@ -3995,7 +3995,7 @@ internal static partial class LocalCityGmlObjectProjection
                  in SplitParsedCityObjectForTerrainProjection(
                      terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
-                     requestedMeshAreas,
+                     requestedMeshCodeBounds,
                      progressReporter,
                      cancellationToken))
         {
@@ -4003,14 +4003,14 @@ internal static partial class LocalCityGmlObjectProjection
             if (!ShouldProjectTerrainOverlaySplit(
                     splitCityObject.CityObject.ActualMeshCode,
                     request.MeshCode,
-                    requestedMeshAreas,
+                    requestedMeshCodeBounds,
                     splitCityObject.Overlay))
             {
                 throw CreateTerrainOverlayMeshCodeMismatchException(
                     "project",
                     splitCityObject.CityObject.ActualMeshCode,
                     request.MeshCode,
-                    requestedMeshAreas,
+                    requestedMeshCodeBounds,
                     splitCityObject.Overlay);
             }
 
@@ -4020,7 +4020,7 @@ internal static partial class LocalCityGmlObjectProjection
                 globalCartesian,
                 splitCityObject.Overlay,
                 request,
-                requestedMeshAreas,
+                requestedMeshCodeBounds,
                 materialResolver,
                 progressReporter,
                 cancellationToken);
@@ -4086,7 +4086,7 @@ internal static partial class LocalCityGmlObjectProjection
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver)
@@ -4107,19 +4107,19 @@ internal static partial class LocalCityGmlObjectProjection
                  in SplitParsedCityObjectForTerrainProjection(
                      terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
-                     requestedMeshAreas))
+                     requestedMeshCodeBounds))
         {
             if (!ShouldProjectTerrainOverlaySplit(
                     splitCityObject.CityObject.ActualMeshCode,
                     request.MeshCode,
-                    requestedMeshAreas ?? [],
+                    requestedMeshCodeBounds ?? [],
                     splitCityObject.Overlay))
             {
                 throw CreateTerrainOverlayMeshCodeMismatchException(
                     "common-material-enumeration",
                     splitCityObject.CityObject.ActualMeshCode,
                     request.MeshCode,
-                    requestedMeshAreas,
+                    requestedMeshCodeBounds,
                     splitCityObject.Overlay);
             }
 
@@ -4140,7 +4140,7 @@ internal static partial class LocalCityGmlObjectProjection
                                 cityObjectCartesian,
                                 splitCityObject.Overlay,
                                 request.MeshCode,
-                                requestedMeshAreas,
+                                requestedMeshCodeBounds,
                                 materialResolver)
                             : CreateCommonMaterialBindings(
                                 splitCityObject.CityObject,
@@ -4160,7 +4160,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         PlateauImportRequest request,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
@@ -4177,7 +4177,7 @@ internal static partial class LocalCityGmlObjectProjection
             globalCartesian,
             demTerrainTextureOverlay,
             request,
-            requestedMeshAreas,
+            requestedMeshCodeBounds,
             materialResolver,
             progressReporter,
             cancellationToken,
@@ -4643,7 +4643,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         PlateauImportRequest request,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver,
         out ImportedCityObject? heightMapCityObject)
     {
@@ -4748,7 +4748,7 @@ internal static partial class LocalCityGmlObjectProjection
             cityObjectCartesian,
             demTerrainTextureOverlay,
             request.MeshCode,
-            requestedMeshAreas,
+            requestedMeshCodeBounds,
             materialResolver);
         if (materials.Length == 0)
         {
@@ -4806,7 +4806,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         PlateauImportRequest request,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver,
         Action<string>? progressReporter,
         CancellationToken cancellationToken,
@@ -4926,7 +4926,7 @@ internal static partial class LocalCityGmlObjectProjection
             cityObjectCartesian,
             demTerrainTextureOverlay,
             request.MeshCode,
-            requestedMeshAreas,
+            requestedMeshCodeBounds,
             materialResolver);
         if (materials.Length == 0)
         {
@@ -4982,7 +4982,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver)
     {
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
@@ -5013,7 +5013,7 @@ internal static partial class LocalCityGmlObjectProjection
                     ResolveTerrainTextureMaterialMeshCodeSource(
                         cityObject.ActualMeshCode,
                         requestedMeshCode,
-                        requestedMeshAreas,
+                        requestedMeshCodeBounds,
                         resolvedSurface.Material.TerrainOverlay),
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
@@ -5027,7 +5027,7 @@ internal static partial class LocalCityGmlObjectProjection
                 string terrainMaterialMeshCodeSource = ResolveTerrainTextureMaterialMeshCodeSource(
                     cityObject.ActualMeshCode,
                     requestedMeshCode,
-                    requestedMeshAreas,
+                    requestedMeshCodeBounds,
                     representativeSurface.Material.TerrainOverlay);
                 return CreateMaterialBinding(
                     terrainMaterialMeshCodeSource,
@@ -5043,7 +5043,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver)
     {
         ParsedSurface[] projectionSurfaces = cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray();
@@ -5075,7 +5075,7 @@ internal static partial class LocalCityGmlObjectProjection
                     ResolveTerrainTextureMaterialMeshCodeSource(
                         cityObject.ActualMeshCode,
                         requestedMeshCode,
-                        requestedMeshAreas,
+                        requestedMeshCodeBounds,
                         resolvedSurface.Material.TerrainOverlay),
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
@@ -5089,7 +5089,7 @@ internal static partial class LocalCityGmlObjectProjection
                 string terrainMaterialMeshCodeSource = ResolveTerrainTextureMaterialMeshCodeSource(
                     cityObject.ActualMeshCode,
                     requestedMeshCode,
-                    requestedMeshAreas,
+                    requestedMeshCodeBounds,
                     representativeSurface.Material.TerrainOverlay);
                 return CreateMaterialBinding(
                     terrainMaterialMeshCodeSource,
@@ -5111,7 +5111,7 @@ internal static partial class LocalCityGmlObjectProjection
                     "material-binding",
                     actualMeshCode,
                     actualMeshCode,
-                    requestedMeshAreas: null,
+                    requestedMeshCodeBounds: null,
                     representativeSurface.Material.TerrainOverlay);
         ColorRgba baseColor = representativeSurface.Material.TerrainOverlay is null
             ? ToContractColor(representativeSurface.Surface.BaseColor)
@@ -5156,7 +5156,7 @@ internal static partial class LocalCityGmlObjectProjection
     private static string ResolveTerrainTextureMaterialMeshCodeSource(
         string actualMeshCode,
         string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         TerrainTextureOverlay? terrainOverlay)
     {
         if (terrainOverlay is null
@@ -5166,10 +5166,10 @@ internal static partial class LocalCityGmlObjectProjection
         }
 
         return ResolveTerrainTextureMeshCode(requestedMeshCode, terrainOverlay)
-            ?? ResolveTerrainTextureMeshCodeFromRequestedAreas(
+            ?? ResolveTerrainTextureMeshCodeFromRequestedMeshCodeBounds(
                 actualMeshCode,
                 requestedMeshCode,
-                requestedMeshAreas,
+                requestedMeshCodeBounds,
                 terrainOverlay)
             ?? requestedMeshCode;
     }
@@ -5177,25 +5177,25 @@ internal static partial class LocalCityGmlObjectProjection
     private static string? ResolveTerrainTextureMeshCodeForOverlay(
         string actualMeshCode,
         string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         TerrainTextureOverlay terrainOverlay)
     {
         return ResolveTerrainTextureMeshCode(actualMeshCode, terrainOverlay)
             ?? ResolveTerrainTextureMeshCode(requestedMeshCode, terrainOverlay)
-            ?? ResolveTerrainTextureMeshCodeFromRequestedAreas(
+            ?? ResolveTerrainTextureMeshCodeFromRequestedMeshCodeBounds(
                 actualMeshCode,
                 requestedMeshCode,
-                requestedMeshAreas,
+                requestedMeshCodeBounds,
                 terrainOverlay);
     }
 
-    private static string? ResolveTerrainTextureMeshCodeFromRequestedAreas(
+    private static string? ResolveTerrainTextureMeshCodeFromRequestedMeshCodeBounds(
         string actualMeshCode,
         string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         TerrainTextureOverlay terrainOverlay)
     {
-        if (!IsRequestedTerrainOverlay(terrainOverlay, requestedMeshAreas))
+        if (!IsRequestedTerrainOverlay(terrainOverlay, requestedMeshCodeBounds))
         {
             return null;
         }
@@ -5277,10 +5277,10 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static bool IsRequestedTerrainOverlay(
         TerrainTextureOverlay terrainOverlay,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas)
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds)
     {
-        return requestedMeshAreas is { Count: > 0 }
-            && requestedMeshAreas.Any(area => BoundsApproximatelyEqual(area, terrainOverlay.GeographicBounds)
+        return requestedMeshCodeBounds is { Count: > 0 }
+            && requestedMeshCodeBounds.Any(area => BoundsApproximatelyEqual(area, terrainOverlay.GeographicBounds)
                 || ContainsBounds(area, terrainOverlay.GeographicBounds));
     }
 
@@ -5296,13 +5296,13 @@ internal static partial class LocalCityGmlObjectProjection
         string phase,
         string actualMeshCode,
         string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         TerrainTextureOverlay? terrainOverlay)
     {
-        string requestedAreaSummary = requestedMeshAreas is { Count: > 0 }
+        string requestedMeshCodeBoundsSummary = requestedMeshCodeBounds is { Count: > 0 }
             ? string.Join(
                 ",",
-                requestedMeshAreas.Select(static area => string.Create(
+                requestedMeshCodeBounds.Select(static area => string.Create(
                     CultureInfo.InvariantCulture,
                     $"{FormatRounded(area.SouthLatitude)}-{FormatRounded(area.NorthLatitude)}-{FormatRounded(area.WestLongitude)}-{FormatRounded(area.EastLongitude)}")))
             : "<none>";
@@ -5312,15 +5312,15 @@ internal static partial class LocalCityGmlObjectProjection
                 CultureInfo.InvariantCulture,
                 $"package='{terrainOverlay.PackageName}', bounds='{FormatBounds(terrainOverlay.GeographicBounds)}', sources='{terrainOverlay.SourceDescriptorKey}'");
         return new InvalidOperationException(
-            $"Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds. "
-            + $"phase='{phase}', actual_mesh='{actualMeshCode}', requested_mesh='{requestedMeshCode}', "
-            + $"requested_areas='{requestedAreaSummary}', overlay={overlaySummary}.");
+            $"Terrain overlay material requires a third-level mesh-code that matches the overlay geographic bounds. "
+            + $"phase='{phase}', actual_mesh_code='{actualMeshCode}', requested_mesh_code='{requestedMeshCode}', "
+            + $"requested_mesh_code_bounds='{requestedMeshCodeBoundsSummary}', overlay={overlaySummary}.");
     }
 
     private static IEnumerable<(global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObjectForTerrainProjection(
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
@@ -5328,7 +5328,7 @@ internal static partial class LocalCityGmlObjectProjection
                  in DemTerrainOverlayAssignment.SplitParsedCityObject(
                      cityObject,
                      demTerrainTextureOverlays,
-                     requestedMeshAreas,
+                     requestedMeshCodeBounds,
                      progressReporter,
                      cancellationToken))
         {
@@ -5344,7 +5344,7 @@ internal static partial class LocalCityGmlObjectProjection
                      in SplitNonDemCityObjectByTerrainOverlay(
                          splitCityObject.CityObject,
                          demTerrainTextureOverlays,
-                         requestedMeshAreas,
+                         requestedMeshCodeBounds,
                          progressReporter,
                          cancellationToken))
             {
@@ -5356,7 +5356,7 @@ internal static partial class LocalCityGmlObjectProjection
     private static IEnumerable<(global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitNonDemCityObjectByTerrainOverlay(
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
@@ -5402,7 +5402,7 @@ internal static partial class LocalCityGmlObjectProjection
                 NormalizeNonDemTerrainTextureSurface(surface);
 
             TerrainTextureOverlay[] candidateOverlays = demTerrainTextureOverlays
-                .Where(overlay => IsRequestedTerrainOverlay(overlay, requestedMeshAreas)
+                .Where(overlay => IsRequestedTerrainOverlay(overlay, requestedMeshCodeBounds)
                     || ResolveTerrainTextureMeshCode(cityObject.ActualMeshCode, overlay) is not null)
                 .Where(overlay => BoundsOverlap(surfaceBounds, overlay.GeographicBounds))
                 .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
@@ -5418,7 +5418,7 @@ internal static partial class LocalCityGmlObjectProjection
                         "non-dem-terrain-candidate",
                         cityObject.ActualMeshCode,
                         cityObject.ActualMeshCode,
-                        requestedMeshAreas,
+                        requestedMeshCodeBounds,
                         overlappingOverlay);
                 }
 
@@ -5474,13 +5474,13 @@ internal static partial class LocalCityGmlObjectProjection
                 string terrainMeshCode = ResolveTerrainTextureMeshCodeForOverlay(
                         cityObject.ActualMeshCode,
                         cityObject.ActualMeshCode,
-                        requestedMeshAreas,
+                        requestedMeshCodeBounds,
                         terrainGroups[0].Key)
                     ?? throw CreateTerrainOverlayMeshCodeMismatchException(
                         "non-dem-terrain-single-split",
                         cityObject.ActualMeshCode,
                         cityObject.ActualMeshCode,
-                        requestedMeshAreas,
+                        requestedMeshCodeBounds,
                         terrainGroups[0].Key);
                 yield return (
                     cityObject with
@@ -5510,13 +5510,13 @@ internal static partial class LocalCityGmlObjectProjection
             string terrainMeshCode = ResolveTerrainTextureMeshCodeForOverlay(
                     cityObject.ActualMeshCode,
                     cityObject.ActualMeshCode,
-                    requestedMeshAreas,
+                    requestedMeshCodeBounds,
                     group.Key)
                 ?? throw CreateTerrainOverlayMeshCodeMismatchException(
                     "non-dem-terrain-split",
                     cityObject.ActualMeshCode,
                     cityObject.ActualMeshCode,
-                    requestedMeshAreas,
+                    requestedMeshCodeBounds,
                     group.Key);
             yield return (
                 cityObject with
@@ -5578,7 +5578,7 @@ internal static partial class LocalCityGmlObjectProjection
     private static bool ShouldProjectTerrainOverlaySplit(
         string actualMeshCode,
         string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         TerrainTextureOverlay? terrainOverlay)
     {
         if (terrainOverlay is null)
@@ -5586,15 +5586,15 @@ internal static partial class LocalCityGmlObjectProjection
             return true;
         }
 
-        if (requestedMeshAreas.Count > 0)
+        if (requestedMeshCodeBounds.Count > 0)
         {
-            return IsRequestedTerrainOverlay(terrainOverlay, requestedMeshAreas);
+            return IsRequestedTerrainOverlay(terrainOverlay, requestedMeshCodeBounds);
         }
 
         return ResolveTerrainTextureMeshCodeForOverlay(
                 actualMeshCode,
                 requestedMeshCode,
-                requestedMeshAreas,
+                requestedMeshCodeBounds,
                 terrainOverlay)
             is not null;
     }
@@ -6313,7 +6313,7 @@ internal static partial class LocalCityGmlObjectProjection
         string RelativePath,
         string PackageName,
         string MatchedMeshCode,
-        bool RequiresMeshAreaFilter);
+        bool RequiresMeshCodeBoundsFilter);
 
     internal sealed record CachedSourceFileDescriptor(
         SourceFileDescriptor SourceFile,

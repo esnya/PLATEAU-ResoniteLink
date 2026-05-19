@@ -38,11 +38,11 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
         _ = TryCreateSafePathSegment(request.MeshCode, out _);
 
         ValidatedDatasetLocation resolvedSource = await ResolveOptionalRemoteDatasetLocationAsync(
-            request.Source,
+            request.CityGmlSource,
             workRoot,
             resourcePrefix: "source-archive",
             invalidateLocalFileCache: true,
-            cancellationToken) ?? throw new InvalidOperationException("The normalized CityGML source must resolve to a local or remote source.");
+            cancellationToken) ?? throw new InvalidOperationException("The normalized CityGML source must resolve to a local or remote location.");
         ValidatedDatasetLocation? resolvedDemTextureSource = await ResolveOptionalRemoteDatasetLocationAsync(
             request.DemTextureSource,
             workRoot,
@@ -52,7 +52,7 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
 
         return request with
         {
-            Source = resolvedSource,
+            CityGmlSource = resolvedSource,
             DemTextureSource = resolvedDemTextureSource!,
         };
     }

@@ -30,18 +30,18 @@ public sealed class PlateauImportServiceTests
         PlateauImportRequest rawRequest = new(
             Dataset: " tokyo23ku ",
             MeshCode: "53394525",
-            Source: DatasetLocation.Remote(rawSourceUri),
+            CityGmlSource: DatasetLocation.Remote(rawSourceUri),
             PackageNames: ["bldg"]);
         PlateauImportRequest resolvedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(resolvedSourcePath),
+            CityGmlSource: DatasetLocation.Local(resolvedSourcePath),
             PackageNames: ["bldg"]);
         ValidatedPlateauImportRequest validatedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
-            Source: new ValidatedLocalDatasetLocation(resolvedSourcePath),
+            CityGmlSource: new ValidatedLocalDatasetLocation(resolvedSourcePath),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(resolvedSourcePath);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
@@ -64,15 +64,15 @@ public sealed class PlateauImportServiceTests
         Assert.NotNull(sceneSink.ConnectedRequest);
         Assert.Equal("tokyo23ku", sceneSink.ConnectedRequest!.Dataset);
         Assert.Equal("53394525", sceneSink.ConnectedRequest.MeshCode);
-        Assert.Equal(rawSourceUri, sceneSink.ConnectedRequest.ServerUri);
+        Assert.Equal(rawSourceUri, sceneSink.ConnectedRequest.CityGmlServerUri);
         Assert.Equal(["bldg"], sceneSink.ConnectedRequest.PackageNames);
         Assert.NotNull(importedSceneSourceFactory.LastRequest);
         Assert.Equal("tokyo23ku", importedSceneSourceFactory.LastRequest!.Dataset);
         Assert.Equal("53394525", importedSceneSourceFactory.LastRequest.MeshCode);
-        Assert.Equal(resolvedSourcePath, importedSceneSourceFactory.LastRequest.LocalSourcePath);
+        Assert.Equal(resolvedSourcePath, importedSceneSourceFactory.LastRequest.CityGmlLocalSourcePath);
         Assert.Equal(["bldg"], importedSceneSourceFactory.LastRequest.PackageNames);
         Assert.NotNull(sceneSink.BeginRequest);
-        Assert.Equal(resolvedSourcePath, sceneSink.BeginRequest!.Metadata.Request.LocalSourcePath);
+        Assert.Equal(resolvedSourcePath, sceneSink.BeginRequest!.Metadata.Request.CityGmlLocalSourcePath);
         Assert.Equal(resolvedSourcePath, sceneSink.BeginRequest.ResolvedSourcePath);
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneSink.BeginRequest.WorkRoot);
         Assert.Equal(["bldg"], sceneSink.BeginRequest.Metadata.SourceDataset.PackageNames);
@@ -112,13 +112,13 @@ public sealed class PlateauImportServiceTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            CityGmlSource: DatasetLocation.Local(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         ValidatedPlateauImportRequest validatedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
-            Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            CityGmlSource: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
@@ -158,13 +158,13 @@ public sealed class PlateauImportServiceTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            CityGmlSource: DatasetLocation.Local(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         ValidatedPlateauImportRequest validatedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
-            Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            CityGmlSource: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingSceneSink sceneSink = new();
         ThrowingDatasetSourceResolver datasetSourceResolver = new();
@@ -198,7 +198,7 @@ public sealed class PlateauImportServiceTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            CityGmlSource: DatasetLocation.Local(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingSceneSink sceneSink = new()
         {
@@ -232,13 +232,13 @@ public sealed class PlateauImportServiceTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            CityGmlSource: DatasetLocation.Local(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         ValidatedPlateauImportRequest validatedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
-            Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            CityGmlSource: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
@@ -275,13 +275,13 @@ public sealed class PlateauImportServiceTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            CityGmlSource: DatasetLocation.Local(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         ValidatedPlateauImportRequest validatedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
-            Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            CityGmlSource: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
@@ -318,13 +318,13 @@ public sealed class PlateauImportServiceTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            CityGmlSource: DatasetLocation.Local(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         ValidatedPlateauImportRequest validatedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
-            Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            CityGmlSource: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
@@ -371,13 +371,13 @@ public sealed class PlateauImportServiceTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            CityGmlSource: DatasetLocation.Local(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         ValidatedPlateauImportRequest validatedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
-            Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            CityGmlSource: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
         ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);

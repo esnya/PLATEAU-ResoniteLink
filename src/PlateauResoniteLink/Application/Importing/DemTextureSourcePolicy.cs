@@ -245,7 +245,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
             .OrderByDescending(static candidate => candidate.IsExplicit)
             .ThenBy(static candidate => candidate.EffectiveResolutionMeters)
             .ThenBy(static candidate => (int)candidate.Preference)
-            .Select(static candidate => candidate.Source)
+            .Select(static candidate => candidate.TerrainTextureSource)
             .ToArray();
     }
 
@@ -268,7 +268,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
 
     private sealed record DemTextureSourceCandidate(
         DemTextureSourcePreference Preference,
-        TerrainTextureSource Source,
+        TerrainTextureSource TerrainTextureSource,
         bool IsExplicit,
         double EffectiveResolutionMeters);
 }

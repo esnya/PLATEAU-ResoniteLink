@@ -47,7 +47,7 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
                     descriptor.RelativePath,
                     descriptor.PackageName,
                     descriptor.MatchedMeshCode,
-                    descriptor.RequiresMeshAreaFilter))
+                    descriptor.RequiresMeshCodeBoundsFilter))
                 .ToArray();
 
             return new DatasetSearchResult(
@@ -723,7 +723,7 @@ public sealed record DatasetSearchEntry(
     string RelativePath,
     string PackageName,
     string MatchedMeshCode,
-    bool RequiresMeshAreaFilter);
+    bool RequiresMeshCodeBoundsFilter);
 
 public sealed record DatasetStatsResult(
     int RecognizedSourceFileCount,

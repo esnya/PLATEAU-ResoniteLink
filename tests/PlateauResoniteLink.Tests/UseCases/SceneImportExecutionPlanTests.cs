@@ -18,11 +18,11 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Remote(remoteCityGmlUri),
+            CityGmlSource: DatasetLocation.Remote(remoteCityGmlUri),
             PackageNames: ["bldg"]);
         PlateauImportRequest resolvedRequest = normalizedRequest with
         {
-            Source = DatasetLocation.Local(
+            CityGmlSource = DatasetLocation.Local(
                 RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, remoteCityGmlUri, "source-archive")),
         };
 
@@ -33,7 +33,7 @@ public sealed class SceneImportExecutionPlanTests
 
         Assert.Equal(normalizedRequest, plan.NormalizedRequest);
         Assert.Equal(resolvedRequest, plan.ResolvedRequest);
-        Assert.Equal(resolvedRequest.LocalSourcePath, plan.SceneImportRequest.Metadata.Request.LocalSourcePath);
+        Assert.Equal(resolvedRequest.CityGmlLocalSourcePath, plan.SceneImportRequest.Metadata.Request.CityGmlLocalSourcePath);
     }
 
     [Fact]
@@ -42,11 +42,11 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Remote(new Uri("https://example.test/tokyo23ku.zip")),
+            CityGmlSource: DatasetLocation.Remote(new Uri("https://example.test/tokyo23ku.zip")),
             PackageNames: ["bldg"]);
         PlateauImportRequest mismatchedRequest = normalizedRequest with
         {
-            Source = DatasetLocation.Remote(new Uri("https://example.test/other.zip")),
+            CityGmlSource = DatasetLocation.Remote(new Uri("https://example.test/other.zip")),
         };
 
         Assert.Throws<ArgumentException>(
@@ -62,7 +62,7 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("raw-source"),
+            CityGmlSource: DatasetLocation.Local("raw-source"),
             DemTextureSource: DatasetLocation.Local("ortho-a.tif"),
             PackageNames: ["bldg"]);
         PlateauImportRequest mismatchedRequest = normalizedRequest with
@@ -83,7 +83,7 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("raw-source"),
+            CityGmlSource: DatasetLocation.Local("raw-source"),
             TerrainMeshMode: TerrainMeshMode.Static,
             PackageNames: ["bldg"]);
         PlateauImportRequest mismatchedRequest = normalizedRequest with
@@ -106,7 +106,7 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("raw-source"),
+            CityGmlSource: DatasetLocation.Local("raw-source"),
             DemTextureSource: DatasetLocation.Remote(remoteDemTextureUri),
             PackageNames: ["bldg"]);
         PlateauImportRequest resolvedRequest = normalizedRequest with
@@ -133,7 +133,7 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("raw-source"),
+            CityGmlSource: DatasetLocation.Local("raw-source"),
             DemTextureSource: DatasetLocation.Remote(remoteDemTextureUri),
             PackageNames: ["bldg"]);
         PlateauImportRequest resolvedRequest = normalizedRequest with

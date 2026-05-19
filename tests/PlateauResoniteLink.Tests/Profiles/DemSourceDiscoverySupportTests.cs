@@ -14,7 +14,7 @@ public sealed class DemSourceDiscoverySupportTests
             "udx/dem/53394525/sample.gml",
             "dem",
             "53394525",
-            RequiresMeshAreaFilter: false);
+            RequiresMeshCodeBoundsFilter: false);
 
         ParsedCityObject cityObject = CreateCityObject();
         ParsedSourceFileResult parsedWithCityObject = new(

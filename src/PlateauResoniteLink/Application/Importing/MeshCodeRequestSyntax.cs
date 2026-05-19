@@ -26,7 +26,7 @@ internal static class MeshCodeRequestSyntax
 
         if (meshCodeRequest.All(char.IsDigit))
         {
-            error = $"The mesh code value '{meshCodeRequest}' is not a supported literal mesh code.";
+            error = $"The mesh-code value '{meshCodeRequest}' is not a supported literal mesh-code.";
             return false;
         }
 
@@ -40,7 +40,7 @@ internal static class MeshCodeRequestSyntax
         }
         catch (ArgumentException exception)
         {
-            error = $"The mesh code value '{meshCodeRequest}' is not a valid regular expression: {exception.Message}";
+            error = $"The mesh-code value '{meshCodeRequest}' is not a valid regular expression: {exception.Message}";
             return false;
         }
     }

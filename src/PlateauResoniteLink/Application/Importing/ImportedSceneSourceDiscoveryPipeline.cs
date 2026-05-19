@@ -25,7 +25,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
         ArgumentNullException.ThrowIfNull(lodSelector);
 
-        if (request.Source is not LocalDatasetLocation localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
+        if (request.CityGmlSource is not LocalDatasetLocation localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
             throw new PlateauImportValidationException(
                 [LocalCityGmlImportErrorMessages.MissingLocalSourcePath()]);
@@ -34,7 +34,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(
             localSource.LocalSourcePath!,
             cancellationToken);
-        MeshCodeBounds? requestedMeshArea =
+        MeshCodeBounds? requestedMeshCodeBoundsForExactSelector =
             MeshCodeBounds.TryParse(request.MeshCode);
         Stopwatch totalStopwatch = Stopwatch.StartNew();
         Stopwatch scanStopwatch = Stopwatch.StartNew();
@@ -48,13 +48,13 @@ internal static class ImportedSceneSourceDiscoveryPipeline
                 descriptor.RelativePath,
                 descriptor.PackageName,
                 descriptor.MatchedMeshCode,
-                descriptor.RequiresMeshAreaFilter))
+                descriptor.RequiresMeshCodeBoundsFilter))
             .ToArray();
-        MeshCodeBounds[] requestedMeshAreas = requestedMeshArea is null
+        MeshCodeBounds[] requestedMeshCodeBounds = requestedMeshCodeBoundsForExactSelector is null
             ? MeshCodeBounds.CreateManyFromSelectedMeshCodes(discoveryResult.SelectedMeshCodes)
-            : [requestedMeshArea];
-        MeshCodeBounds? effectiveRequestedMeshArea =
-            MeshCodeBounds.TryMerge(requestedMeshAreas);
+            : [requestedMeshCodeBoundsForExactSelector];
+        MeshCodeBounds? effectiveRequestedMeshCodeBounds =
+            MeshCodeBounds.TryMerge(requestedMeshCodeBounds);
         scanStopwatch.Stop();
         progressReporter?.Invoke(
             PlateauLog.Info("import", $"Scanned {sourceFiles.Length} matching CityGML files in {scanStopwatch.Elapsed.TotalSeconds:F3}s."));
@@ -75,7 +75,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
             await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
                 sourceFiles,
                 datasetSource,
-                requestedMeshAreas,
+                requestedMeshCodeBounds,
                 progressReporter,
                 lodFilteringStrategy,
                 appearanceStoreFactory,
@@ -85,11 +85,11 @@ internal static class ImportedSceneSourceDiscoveryPipeline
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
         GeodeticCoordinate? resolvedGeodeticCenter =
-            LocalCityGmlObjectProjection.ResolveGeodeticCenter(effectiveRequestedMeshArea);
+            LocalCityGmlObjectProjection.ResolveGeodeticCenter(effectiveRequestedMeshCodeBounds);
         if (resolvedGeodeticCenter is null)
         {
             throw new PlateauImportValidationException(
-                [$"The mesh code selector '{request.MeshCode}' did not resolve a supported geographic center."]);
+                [$"The mesh-code selector '{request.MeshCode}' did not resolve a supported geographic center."]);
         }
 
         GeodeticPoint globalOriginPoint = new(

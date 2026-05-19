@@ -34,7 +34,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             new PlateauImportRequest(
                 Dataset: dataset,
                 MeshCode: meshCode,
-                Source: DatasetLocation.Remote(new Uri(serverUri, UriKind.Absolute))));
+                CityGmlSource: DatasetLocation.Remote(new Uri(serverUri, UriKind.Absolute))));
     }
 
     private static ValidatedPlateauImportRequest CreateValidatedRemoteRequest(
@@ -46,7 +46,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             new PlateauImportRequest(
                 Dataset: dataset,
                 MeshCode: meshCode,
-                Source: DatasetLocation.Remote(serverUri)));
+                CityGmlSource: DatasetLocation.Remote(serverUri)));
     }
 
     [Theory]
@@ -88,8 +88,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", @"^533944\d$", "https://example.test/direct.zip"),
             workRoot.Path);
 
-        Assert.NotNull(resolved.LocalSourcePath);
-        Assert.True(File.Exists(resolved.LocalSourcePath));
+        Assert.NotNull(resolved.CityGmlLocalSourcePath);
+        Assert.True(File.Exists(resolved.CityGmlLocalSourcePath));
     }
 
     [Fact]
@@ -108,8 +108,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944|533945/branch", "https://example.test/direct.zip"),
             workRoot.Path);
 
-        Assert.NotNull(resolved.LocalSourcePath);
-        Assert.True(File.Exists(resolved.LocalSourcePath));
+        Assert.NotNull(resolved.CityGmlLocalSourcePath);
+        Assert.True(File.Exists(resolved.CityGmlLocalSourcePath));
     }
 
     [Fact]
@@ -151,21 +151,21 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example-b.test/533944.zip"),
             workRoot.Path);
 
-        Assert.NotNull(firstRequest.LocalSourcePath);
-        Assert.NotNull(secondRequest.LocalSourcePath);
-        Assert.NotEqual(firstRequest.LocalSourcePath, secondRequest.LocalSourcePath);
-        Assert.StartsWith(workRoot.Path, firstRequest.LocalSourcePath, StringComparison.Ordinal);
-        Assert.StartsWith(workRoot.Path, secondRequest.LocalSourcePath, StringComparison.Ordinal);
-        Assert.StartsWith("source-archive-", Path.GetFileNameWithoutExtension(firstRequest.LocalSourcePath), StringComparison.Ordinal);
-        Assert.StartsWith("source-archive-", Path.GetFileNameWithoutExtension(secondRequest.LocalSourcePath), StringComparison.Ordinal);
-        Assert.True(File.Exists(firstRequest.LocalSourcePath));
-        Assert.True(File.Exists(secondRequest.LocalSourcePath));
+        Assert.NotNull(firstRequest.CityGmlLocalSourcePath);
+        Assert.NotNull(secondRequest.CityGmlLocalSourcePath);
+        Assert.NotEqual(firstRequest.CityGmlLocalSourcePath, secondRequest.CityGmlLocalSourcePath);
+        Assert.StartsWith(workRoot.Path, firstRequest.CityGmlLocalSourcePath, StringComparison.Ordinal);
+        Assert.StartsWith(workRoot.Path, secondRequest.CityGmlLocalSourcePath, StringComparison.Ordinal);
+        Assert.StartsWith("source-archive-", Path.GetFileNameWithoutExtension(firstRequest.CityGmlLocalSourcePath), StringComparison.Ordinal);
+        Assert.StartsWith("source-archive-", Path.GetFileNameWithoutExtension(secondRequest.CityGmlLocalSourcePath), StringComparison.Ordinal);
+        Assert.True(File.Exists(firstRequest.CityGmlLocalSourcePath));
+        Assert.True(File.Exists(secondRequest.CityGmlLocalSourcePath));
         Assert.Equal(
             "<CityModel>source-a</CityModel>",
-            ReadZipEntry(firstRequest.LocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
+            ReadZipEntry(firstRequest.CityGmlLocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
         Assert.Equal(
             "<CityModel>source-b</CityModel>",
-            ReadZipEntry(secondRequest.LocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
+            ReadZipEntry(secondRequest.CityGmlLocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
     }
 
     [Fact]
@@ -195,8 +195,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", "53394525", archiveUri),
             workRoot.Path);
 
-        Assert.NotNull(firstRequest.LocalSourcePath);
-        Assert.Equal(firstRequest.LocalSourcePath, secondRequest.LocalSourcePath);
+        Assert.NotNull(firstRequest.CityGmlLocalSourcePath);
+        Assert.Equal(firstRequest.CityGmlLocalSourcePath, secondRequest.CityGmlLocalSourcePath);
         Assert.Equal(2, requestCount);
     }
 
@@ -218,7 +218,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
-        Assert.Equal(archivePath, resolvedRequest.LocalSourcePath);
+        Assert.Equal(archivePath, resolvedRequest.CityGmlLocalSourcePath);
         Assert.True(File.Exists(archivePath));
         Assert.True(File.Exists($"{archivePath}.meta.json"));
     }
@@ -248,7 +248,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
-        Assert.Equal(archivePath, resolvedRequest.LocalSourcePath);
+        Assert.Equal(archivePath, resolvedRequest.CityGmlLocalSourcePath);
         Assert.True(File.Exists(metadataPath));
         Assert.False(File.Exists(RemoteDatasetResourceLayout.GetRemoteResourceMetadataPath(archivePath)));
     }
@@ -301,10 +301,10 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
-        Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(resolvedRequest.LocalSourcePath));
+        Assert.NotNull(resolvedRequest.CityGmlLocalSourcePath);
+        Assert.True(File.Exists(resolvedRequest.CityGmlLocalSourcePath));
         IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
-            resolvedRequest.LocalSourcePath,
+            resolvedRequest.CityGmlLocalSourcePath,
             new RemoteArchiveDistributionPolicy(),
             new ArchiveFileLayoutPolicy());
         Assert.Contains("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", datasetSource.EnumerateFiles());
@@ -369,21 +369,21 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
-        Assert.NotNull(firstRequest.LocalSourcePath);
+        Assert.NotNull(firstRequest.CityGmlLocalSourcePath);
         string localFileCachePath = CreateStaleLocalFileCacheDirectory(
             workRoot.Path,
-            firstRequest.LocalSourcePath);
+            firstRequest.CityGmlLocalSourcePath);
 
         ValidatedPlateauImportRequest secondRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
-        Assert.NotNull(firstRequest.LocalSourcePath);
-        Assert.NotNull(secondRequest.LocalSourcePath);
-        Assert.Equal(firstRequest.LocalSourcePath, secondRequest.LocalSourcePath);
+        Assert.NotNull(firstRequest.CityGmlLocalSourcePath);
+        Assert.NotNull(secondRequest.CityGmlLocalSourcePath);
+        Assert.Equal(firstRequest.CityGmlLocalSourcePath, secondRequest.CityGmlLocalSourcePath);
         Assert.Equal(
             "<CityModel>version-b</CityModel>",
-            ReadZipEntry(secondRequest.LocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
+            ReadZipEntry(secondRequest.CityGmlLocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
         Assert.Equal(2, requestIndex);
         Assert.False(Directory.Exists(localFileCachePath));
         Assert.False(Directory.Exists(Path.Combine(localFileCachePath, "udx")));
@@ -425,8 +425,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
-        Assert.NotNull(firstRequest.LocalSourcePath);
-        string firstArchivePath = firstRequest.LocalSourcePath;
+        Assert.NotNull(firstRequest.CityGmlLocalSourcePath);
+        string firstArchivePath = firstRequest.CityGmlLocalSourcePath;
         DateTime firstWriteUtc = File.GetLastWriteTimeUtc(firstArchivePath);
 
         string localFileCachePath = CreateStaleLocalFileCacheDirectory(
@@ -437,9 +437,9 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
-        Assert.Equal(firstArchivePath, secondRequest.LocalSourcePath);
-        Assert.NotNull(secondRequest.LocalSourcePath);
-        string secondArchivePath = secondRequest.LocalSourcePath;
+        Assert.Equal(firstArchivePath, secondRequest.CityGmlLocalSourcePath);
+        Assert.NotNull(secondRequest.CityGmlLocalSourcePath);
+        string secondArchivePath = secondRequest.CityGmlLocalSourcePath;
         Assert.Equal(
             "<CityModel>version-a</CityModel>",
             ReadZipEntry(secondArchivePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
@@ -470,8 +470,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
-        Assert.Equal(archivePath, resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(resolvedRequest.LocalSourcePath));
+        Assert.Equal(archivePath, resolvedRequest.CityGmlLocalSourcePath);
+        Assert.True(File.Exists(resolvedRequest.CityGmlLocalSourcePath));
     }
 
     private static byte[] CreateZipArchive(params (string path, string content)[] entries)

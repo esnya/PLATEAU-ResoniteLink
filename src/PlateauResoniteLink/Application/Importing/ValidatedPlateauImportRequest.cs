@@ -11,7 +11,7 @@ public sealed record ValidatedPlateauImportRequest(
     string Dataset,
     string MeshCode,
     Regex MeshCodePattern,
-    ValidatedDatasetLocation Source,
+    ValidatedDatasetLocation CityGmlSource,
     ValidatedDatasetLocation? DemTextureSource = null,
     IReadOnlyList<string>? PackageNames = null,
     IReadOnlySet<int>? GlobalExcludeLodLevels = null,
@@ -22,11 +22,11 @@ public sealed record ValidatedPlateauImportRequest(
     double TerrainGridMetersPerVertex = 2.0,
     int TerrainGridMaxResolution = 1024)
 {
-    public DatasetSourceKind SourceKind => Source.SourceKind;
+    public DatasetSourceKind CityGmlSourceKind => CityGmlSource.SourceKind;
 
-    public string? LocalSourcePath => Source is ValidatedLocalDatasetLocation localSource ? localSource.LocalSourcePath : null;
+    public string? CityGmlLocalSourcePath => CityGmlSource is ValidatedLocalDatasetLocation localSource ? localSource.LocalSourcePath : null;
 
-    public Uri? ServerUri => Source is ValidatedRemoteDatasetLocation remoteSource ? remoteSource.ServerUri : null;
+    public Uri? CityGmlServerUri => CityGmlSource is ValidatedRemoteDatasetLocation remoteSource ? remoteSource.ServerUri : null;
 
     public DatasetSourceKind? DemTextureSourceKind => DemTextureSource?.SourceKind;
 
@@ -36,11 +36,11 @@ public sealed record ValidatedPlateauImportRequest(
 
     public PlateauImportRequest ToImportRequest()
     {
-        DatasetLocation rawSource = Source switch
+        DatasetLocation rawCityGmlSource = CityGmlSource switch
         {
             ValidatedLocalDatasetLocation localSource => new LocalDatasetLocation(localSource.LocalSourcePath),
             ValidatedRemoteDatasetLocation remoteSource => new RemoteDatasetLocation(remoteSource.ServerUri),
-            _ => throw new InvalidOperationException($"Unsupported validated source kind '{SourceKind}'."),
+            _ => throw new InvalidOperationException($"Unsupported validated CityGML source kind '{CityGmlSourceKind}'."),
         };
         DatasetLocation? rawDemTextureSource = DemTextureSource switch
         {
@@ -53,7 +53,7 @@ public sealed record ValidatedPlateauImportRequest(
         return new PlateauImportRequest(
             Dataset,
             MeshCode,
-            rawSource,
+            rawCityGmlSource,
             rawDemTextureSource,
             PackageNames,
             GlobalExcludeLodLevels,

@@ -27,7 +27,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
         bool parseTaskInvoked = false;
 
         SourceFilePipeline bldgPipeline = CreatePipeline(
-            new SourceFileDescriptor("udx/bldg/53394525/building.gml", "bldg", "53394525", RequiresMeshAreaFilter: false),
+            new SourceFileDescriptor("udx/bldg/53394525/building.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false),
             [CreateParsedCityObject("bldg", "building", "Building", referenceSystem, lodLevel: 1)],
             streamFactory: static (sourceFile, cityObjects, beforeYield, cancellationToken) =>
                 StreamSingleParsedCityObjectAsync(sourceFile, cityObjects, beforeYield, cancellationToken),
@@ -62,13 +62,13 @@ public sealed class StreamingImportedSceneSourceStreamingTests
         TaskCompletionSource demReleaseSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         SourceFilePipeline bldgPipeline = CreatePipeline(
-            new SourceFileDescriptor("udx/bldg/53394525/building.gml", "bldg", "53394525", RequiresMeshAreaFilter: false),
+            new SourceFileDescriptor("udx/bldg/53394525/building.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false),
             [CreateParsedCityObject("bldg", "building", "Building", referenceSystem, lodLevel: 1)]);
         SourceFilePipeline tranPipeline = CreatePipeline(
-            new SourceFileDescriptor("udx/tran/53394525/road.gml", "tran", "53394525", RequiresMeshAreaFilter: false),
+            new SourceFileDescriptor("udx/tran/53394525/road.gml", "tran", "53394525", RequiresMeshCodeBoundsFilter: false),
             [CreateParsedCityObject("tran", "road", "Road", referenceSystem, lodLevel: 1)]);
         SourceFilePipeline demPipeline = CreatePipeline(
-            new SourceFileDescriptor("udx/dem/53394525/terrain.gml", "dem", "53394525", RequiresMeshAreaFilter: false),
+            new SourceFileDescriptor("udx/dem/53394525/terrain.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
             [CreateParsedCityObject("dem", "terrain", "Terrain", referenceSystem, lodLevel: 1)],
             beforeYield: demReleaseSignal.Task);
 
@@ -90,7 +90,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/streaming"),
+            CityGmlSource: DatasetLocation.Local("/tmp/streaming"),
             PackageNames: ["bldg", "dem", "tran"]);
         ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",
@@ -206,7 +206,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/streaming"),
+            CityGmlSource: DatasetLocation.Local("/tmp/streaming"),
             PackageNames: packageNames);
         ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",
@@ -307,7 +307,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             GeodeticPoint globalOriginPoint,
             LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-            IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+            IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
             PlateauImportRequest request,
             Func<ParsedCityObject, bool>? predicate = null,
             Action<string>? progressReporter = null,
@@ -317,7 +317,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             _ = globalOriginPoint;
             _ = globalCartesian;
             _ = demTerrainTextureOverlays;
-            _ = requestedMeshAreas;
+            _ = requestedMeshCodeBounds;
             _ = request;
             _ = progressReporter;
             _ = cancellationToken;
