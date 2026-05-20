@@ -62,6 +62,7 @@ public sealed class ImportServiceFactoryTests
             enableMeshBake,
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: false,
+            CanonicalSceneDumpPath: null,
             EnableSendMetrics: false,
             VerboseLogging: false);
     }

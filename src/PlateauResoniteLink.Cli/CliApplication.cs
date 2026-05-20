@@ -73,12 +73,24 @@ public sealed class CliApplication
                             options.WorkRoot,
                             cancellationToken);
 
-                        await standardOutput.WriteLineAsync("Resonite import completed.");
+                        if (options.CanonicalSceneDumpPath is null)
+                        {
+                            await standardOutput.WriteLineAsync("Resonite import completed.");
+                        }
+                        else
+                        {
+                            await standardOutput.WriteLineAsync("Canonical scene dump completed.");
+                            await standardOutput.WriteLineAsync($"Dump: {Path.GetFullPath(options.CanonicalSceneDumpPath)}");
+                        }
+
                         await standardOutput.WriteLineAsync($"World: {result.Metadata.SceneName}");
 
-                        foreach (string destination in result.Destinations)
+                        if (options.CanonicalSceneDumpPath is null)
                         {
-                            await standardOutput.WriteLineAsync($"Resonite location: {destination}");
+                            foreach (string destination in result.Destinations)
+                            {
+                                await standardOutput.WriteLineAsync($"Resonite location: {destination}");
+                            }
                         }
 
                         await WriteDataSourceUsagesAsync(result.DataSourceUsages, cancellationToken);

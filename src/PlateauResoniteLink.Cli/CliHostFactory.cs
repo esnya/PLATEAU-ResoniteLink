@@ -12,6 +12,9 @@ using Microsoft.Extensions.Logging;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Targets.Resonite.Execution;
+using PlateauResoniteLink.Targets.Resonite.Diagnostics;
+using PlateauResoniteLink.Transport.ResoniteLink;
 namespace PlateauResoniteLink.Cli;
 
 internal static class CliHostFactory
@@ -119,6 +122,10 @@ internal sealed class DefaultSceneSinkFactory(
     IServiceScopeFactory serviceScopeFactory)
     : ISceneSinkFactory
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "The returned ScopedSceneSink owns the target and associated service scope for the import run.")]
     public ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -126,6 +133,27 @@ internal sealed class DefaultSceneSinkFactory(
         AsyncServiceScope scope = serviceScopeFactory.CreateAsyncScope();
         try
         {
+            if (!string.IsNullOrWhiteSpace(options.CanonicalSceneDumpPath))
+            {
+                SceneSinkRecordingClient recordingClient = new();
+                try
+                {
+                    ResoniteLiveSceneImportTarget dumpTarget = CreateCanonicalDumpTarget(
+                        scope,
+                        recordingClient,
+                        options,
+                        progressReporter);
+                    return new ScopedSceneSink(
+                        scope,
+                        new CanonicalSceneDumpSink(dumpTarget, recordingClient, options.CanonicalSceneDumpPath));
+                }
+                catch
+                {
+                    recordingClient.Dispose();
+                    throw;
+                }
+            }
+
             ResoniteLiveSceneImportTargetOptions targetOptions = new(
                 options.ResoniteLinkUri!,
                 options.ResoniteLinkConnectionCount,
@@ -152,6 +180,45 @@ internal sealed class DefaultSceneSinkFactory(
             scope.Dispose();
             throw;
         }
+    }
+
+    private static ResoniteLiveSceneImportTarget CreateCanonicalDumpTarget(
+        AsyncServiceScope scope,
+        SceneSinkRecordingClient recordingClient,
+        ImportCommandOptions options,
+        Action<string>? progressReporter)
+    {
+        ResoniteLiveSceneImportTargetOptions targetOptions = new(
+            new Uri("ws://localhost:1/"),
+            ConnectionCount: 1,
+            EnableSendMetrics: false,
+            options.MemoryProfile switch
+            {
+                PlateauImportMemoryProfile.Small => ResoniteImportMemoryProfile.Small,
+                PlateauImportMemoryProfile.Large => ResoniteImportMemoryProfile.Large,
+                _ => throw new ArgumentOutOfRangeException(nameof(options), options.MemoryProfile, "Unsupported memory profile."),
+            },
+            options.EnableMeshBake,
+            TerrainTileCacheRoot: null,
+            DisableTerrainTileCache: true,
+            progressReporter);
+
+        IServiceProvider serviceProvider = scope.ServiceProvider;
+        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
+        return new ResoniteLiveSceneImportTarget(
+            targetOptions,
+            new ResoniteLiveSceneImportDependencies(
+                new SingleRecordingClientSession(recordingClient),
+                diagnostics,
+                new DeterministicTerrainTextureAssetGenerator(),
+                serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
+                serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>(),
+                serviceProvider.GetRequiredService<IResoniteGeometryAssetAssembler>(),
+                serviceProvider.GetRequiredService<IResoniteMaterialPlanning>(),
+                serviceProvider.GetRequiredService<IResoniteBatchEmissionPlanner>(),
+                serviceProvider.GetRequiredService<IResoniteSceneBatchEmitter>(),
+                serviceProvider.GetRequiredService<IResoniteSlotCreator>(),
+                serviceProvider.GetRequiredService<IResoniteBufferedCityObjectBakerFactory>()));
     }
 }
 
