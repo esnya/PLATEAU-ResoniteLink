@@ -13,12 +13,12 @@ internal static class LocalCityGmlImportErrorMessages
         return "Local CityGML import requires --citygml-source pointing to either an extracted PLATEAU dataset directory or a .zip/.7z archive.";
     }
 
-    public static string NoMatchingFiles(PlateauImportRequest request, string CityGmlLocalSourcePath)
+    public static string NoMatchingFiles(PlateauImportRequest request, string cityGmlLocalSourcePath)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(CityGmlLocalSourcePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(cityGmlLocalSourcePath);
 
-        string fullPath = Path.GetFullPath(CityGmlLocalSourcePath);
+        string fullPath = Path.GetFullPath(cityGmlLocalSourcePath);
         string baseMessage =
             $"No local PLATEAU CityGML files were found for mesh-code '{request.MeshCode}' in '{fullPath}'. "
             + "Expected files under udx/<package>/<mesh-code>/.";

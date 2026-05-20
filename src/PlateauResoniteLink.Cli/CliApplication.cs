@@ -179,7 +179,7 @@ public sealed class CliApplication
         {
             cancellationToken.ThrowIfCancellationRequested();
             await standardOutput.WriteLineAsync(
-                $"{entry.RelativePath} | package={entry.PackageName} | matched={entry.MatchedMeshCode} | RequiresMeshCodeBoundsFilter={entry.RequiresMeshCodeBoundsFilter.ToString(CultureInfo.InvariantCulture).ToLowerInvariant()}");
+                $"{entry.RelativePath} | package={entry.PackageName} | matched={entry.MatchedMeshCode} | requiresMeshCodeBoundsFilter={entry.RequiresMeshCodeBoundsFilter.ToString(CultureInfo.InvariantCulture).ToLowerInvariant()}");
         }
     }
 
@@ -198,7 +198,7 @@ public sealed class CliApplication
 
         await standardOutput.WriteLineAsync($"Recognized CityGML source files: {result.RecognizedSourceFileCount}");
         await standardOutput.WriteLineAsync($"Package counts: {FormatCounts(result.PackageCounts)}");
-        await standardOutput.WriteLineAsync($"Mesh code counts: {FormatCounts(result.MeshCodeCounts)}");
+        await standardOutput.WriteLineAsync($"Mesh-code counts: {FormatCounts(result.MeshCodeCounts)}");
         await standardOutput.WriteLineAsync($"LOD coverage counts: {FormatCounts(result.LodCoverageCounts)}");
         await standardOutput.WriteLineAsync($"Files without detected LOD: {result.FilesWithoutDetectedLod}");
         await standardOutput.WriteLineAsync(
