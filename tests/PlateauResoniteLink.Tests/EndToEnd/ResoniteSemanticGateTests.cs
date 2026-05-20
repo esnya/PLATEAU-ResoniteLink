@@ -28,9 +28,9 @@ public sealed class ResoniteSemanticGateTests
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
         PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            Source: DatasetLocation.Local(fixturePath),
+            "tokyo23ku",
+            "53394525",
+            DatasetLocation.Local(fixturePath),
             PackageNames: ["bldg", "dem", "tran", "luse"]);
         IImportedSceneSource source = await CreateImportedSceneSourceFactory().CreateAsync(request);
         using TemporaryDirectory workDirectory = new();
