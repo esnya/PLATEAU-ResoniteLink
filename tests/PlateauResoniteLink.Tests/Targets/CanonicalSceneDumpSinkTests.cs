@@ -25,7 +25,7 @@ public sealed class CanonicalSceneDumpSinkTests
     {
         using TemporaryDirectory outputDirectory = new();
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
-        using SceneSinkRecordingClient client = new();
+        SceneSinkRecordingClient client = new();
         await using CanonicalSceneDumpSink sink = new(
             ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
                 client,
@@ -82,7 +82,7 @@ public sealed class CanonicalSceneDumpSinkTests
     {
         using TemporaryDirectory outputDirectory = new();
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
-        using SceneSinkRecordingClient client = new();
+        SceneSinkRecordingClient client = new();
         await using CanonicalSceneDumpSink sink = new(
             ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
                 client,

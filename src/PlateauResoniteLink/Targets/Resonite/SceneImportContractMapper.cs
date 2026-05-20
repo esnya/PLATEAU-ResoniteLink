@@ -123,6 +123,7 @@ internal static class SceneImportContractMapper
             binding.Family,
             binding.TextureOffset is null ? null : ToInternal(binding.TextureOffset),
             binding.ReuseScope == MaterialReuseScope.Shared
+                && (binding.TerrainOverlay is null || binding.CommonMaterial is not null)
                 ? ResoniteMaterialAssetScope.Common
                 : ResoniteMaterialAssetScope.PresentationSlotScoped,
             binding.TerrainOverlay,

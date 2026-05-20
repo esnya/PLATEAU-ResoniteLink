@@ -35,7 +35,7 @@ public sealed class ResoniteSemanticGateTests
         IImportedSceneSource source = await CreateImportedSceneSourceFactory().CreateAsync(request);
         using TemporaryDirectory workDirectory = new();
         string actualPath = Path.Combine(workDirectory.Path, "canonical-scene.json");
-        using SceneSinkRecordingClient client = new();
+        SceneSinkRecordingClient client = new();
         await using CanonicalSceneDumpSink dumpSink = new(
             ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
                 client,
