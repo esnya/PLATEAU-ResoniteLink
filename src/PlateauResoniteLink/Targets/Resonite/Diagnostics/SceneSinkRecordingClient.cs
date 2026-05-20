@@ -32,6 +32,8 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
 
     public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
 
+    public List<ResoniteTextureImport> ImportedTextures { get; } = [];
+
     public List<IReadOnlyList<DataModelOperation>> Batches { get; } = [];
 
     public List<UpdateComponent> UpdatedComponents { get; } = [];
@@ -224,15 +226,17 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
             {
                 case ResoniteRawTextureImport rawImport:
                     ImportedRawTextures.Add(rawImport);
+                    ImportedTextures.Add(rawImport);
                     break;
                 case ResoniteRawHdrTextureImport rawHdrImport:
                     ImportedRawHdrTextures.Add(rawHdrImport);
+                    ImportedTextures.Add(rawHdrImport);
                     break;
                 default:
                     throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'.");
             }
 
-            return Task.FromResult(new Uri($"resdb:///texture/{ImportedRawTextures.Count + ImportedRawHdrTextures.Count - 1}", UriKind.Absolute));
+            return Task.FromResult(new Uri($"resdb:///texture/{ImportedTextures.Count - 1}", UriKind.Absolute));
         }
     }
 

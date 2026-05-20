@@ -349,15 +349,14 @@ internal static class SceneSinkRecordingClientCanonicalDump
         if (value.StartsWith("resdb:///texture/", StringComparison.Ordinal)
             && int.TryParse(value["resdb:///texture/".Length..], NumberStyles.None, CultureInfo.InvariantCulture, out int textureIndex))
         {
-            if (textureIndex >= 0 && textureIndex < client.ImportedRawTextures.Count)
+            if (textureIndex >= 0 && textureIndex < client.ImportedTextures.Count)
             {
-                return CreateTextureToken(client.ImportedRawTextures[textureIndex]);
-            }
-
-            int hdrIndex = textureIndex - client.ImportedRawTextures.Count;
-            if (hdrIndex >= 0 && hdrIndex < client.ImportedRawHdrTextures.Count)
-            {
-                return CreateHdrTextureToken(client.ImportedRawHdrTextures[hdrIndex]);
+                return client.ImportedTextures[textureIndex] switch
+                {
+                    ResoniteRawTextureImport rawTexture => CreateTextureToken(rawTexture),
+                    ResoniteRawHdrTextureImport hdrTexture => CreateHdrTextureToken(hdrTexture),
+                    _ => value,
+                };
             }
         }
 

@@ -131,13 +131,19 @@ public sealed class CanonicalSceneDumpSinkTests
                 },
             },
         };
-        ResoniteRawTextureImport texture = new(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 255]);
+        ResoniteRawTextureImport firstTexture = new(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 255]);
+        ResoniteRawHdrTextureImport hdrTexture = new(1, 1, [1, 0, 0, 0, 2, 0, 0, 0]);
+        ResoniteRawTextureImport secondTexture = new(1, 1, ResoniteTextureColorProfiles.Srgb, [4, 5, 6, 255]);
 
-        Uri batchedTextureUri = await batchedClient.ImportTextureAsync(texture, CancellationToken.None);
+        _ = await batchedClient.ImportTextureAsync(firstTexture, CancellationToken.None);
+        _ = await batchedClient.ImportTextureAsync(hdrTexture, CancellationToken.None);
+        Uri batchedTextureUri = await batchedClient.ImportTextureAsync(secondTexture, CancellationToken.None);
         childComponent.Data.Members["URL"] = new Field_Uri { Value = batchedTextureUri };
         _ = await batchedClient.RunDataModelOperationBatchAsync([childSlot, childComponent], CancellationToken.None);
 
-        Uri individualTextureUri = await individualClient.ImportTextureAsync(texture, CancellationToken.None);
+        _ = await individualClient.ImportTextureAsync(firstTexture, CancellationToken.None);
+        _ = await individualClient.ImportTextureAsync(hdrTexture, CancellationToken.None);
+        Uri individualTextureUri = await individualClient.ImportTextureAsync(secondTexture, CancellationToken.None);
         ResoniteTransportSlotCreationResult individualSlot = await individualClient.AddSlotAsync(new AddSlot
         {
             Data = new Slot
