@@ -495,7 +495,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 Slot[] children = client.SlotsById.Values
                     .Where(slot => string.Equals(slot.Parent?.TargetID, parentId, StringComparison.Ordinal))
                     .OrderBy(static slot => slot.Name?.Value ?? string.Empty, StringComparer.Ordinal)
-                    .ThenBy(CreateSlotSemanticSortKey, StringComparer.Ordinal)
+                    .ThenBy(slot => CreateSlotSemanticSortKey(client, slot), StringComparer.Ordinal)
                     .ToArray();
                 Dictionary<string, int> siblingNameCounts = children
                     .GroupBy(static slot => slot.Name?.Value ?? string.Empty, StringComparer.Ordinal)
@@ -551,7 +551,12 @@ internal static class SceneSinkRecordingClientCanonicalDump
             return references;
         }
 
-        private static string CreateSlotSemanticSortKey(Slot slot)
+        private static string CreateSlotSemanticSortKey(SceneSinkRecordingClient client, Slot slot)
+        {
+            return CreateSlotSemanticSortKey(client, slot, []);
+        }
+
+        private static string CreateSlotSemanticSortKey(SceneSinkRecordingClient client, Slot slot, HashSet<string> visitedSlotIds)
         {
             string componentTypes = slot.Components is null
                 ? string.Empty
@@ -560,19 +565,23 @@ internal static class SceneSinkRecordingClientCanonicalDump
                     slot.Components
                         .Select(static component => component.ComponentType ?? string.Empty)
                         .Order(StringComparer.Ordinal));
-            string childNames = slot.Children is null
+            string childKeys = string.IsNullOrWhiteSpace(slot.ID) || !visitedSlotIds.Add(slot.ID)
                 ? string.Empty
                 : string.Join(
                     "|",
-                    slot.Children
-                        .Select(static child => child.Name?.Value ?? string.Empty)
+                    client.SlotsById.Values
+                        .Where(child => string.Equals(child.Parent?.TargetID, slot.ID, StringComparison.Ordinal))
+                        .Select(child => string.Join(
+                            "\u001e",
+                            child.Name?.Value ?? string.Empty,
+                            CreateSlotSemanticSortKey(client, child, [.. visitedSlotIds])))
                         .Order(StringComparer.Ordinal));
             return string.Join(
                 "\u001f",
                 slot.Name?.Value ?? string.Empty,
                 slot.Tag?.Value ?? string.Empty,
                 componentTypes,
-                childNames);
+                childKeys);
         }
 
         private string CreateComponentSemanticSortKey(Component component)

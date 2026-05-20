@@ -221,6 +221,22 @@ public sealed class CanonicalSceneDumpSinkTests
         Assert.Contains("component:Child:FrooxEngine.SemanticTarget#1", alphaFirstDump, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task CreateCanonicalJsonOrdersDuplicateSiblingSlotsByActualDescendants()
+    {
+        using SceneSinkRecordingClient alphaFirstClient = new();
+        using SceneSinkRecordingClient betaFirstClient = new();
+
+        await AddDuplicateSiblingWithChildReferenceAsync(alphaFirstClient, createAlphaFirst: true);
+        await AddDuplicateSiblingWithChildReferenceAsync(betaFirstClient, createAlphaFirst: false);
+
+        string alphaFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(alphaFirstClient);
+        string betaFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(betaFirstClient);
+        Assert.Equal(alphaFirstDump, betaFirstDump);
+        Assert.Contains("slot:Duplicate#0", alphaFirstDump, StringComparison.Ordinal);
+        Assert.Contains("\"path\": \"Duplicate#0/Alpha\"", alphaFirstDump, StringComparison.Ordinal);
+    }
+
     private static GeneratedTerrainTexture CreateDeterministicTerrainTexture(TerrainTextureOverlay overlay)
     {
         return new GeneratedTerrainTexture(
@@ -378,6 +394,46 @@ public sealed class CanonicalSceneDumpSinkTests
                 {
                     ["Name"] = new Field_string { Value = name },
                 },
+            },
+        }, CancellationToken.None);
+    }
+
+    private static async Task AddDuplicateSiblingWithChildReferenceAsync(
+        SceneSinkRecordingClient client,
+        bool createAlphaFirst)
+    {
+        ResoniteTransportSlotCreationResult alphaParent;
+        ResoniteTransportSlotCreationResult betaParent;
+        if (createAlphaFirst)
+        {
+            alphaParent = await AddNamedSlotAsync(client, "Duplicate");
+            _ = await AddChildSlotAsync(client, alphaParent.Slot.Value, "Alpha");
+            betaParent = await AddNamedSlotAsync(client, "Duplicate");
+            _ = await AddChildSlotAsync(client, betaParent.Slot.Value, "Beta");
+        }
+        else
+        {
+            betaParent = await AddNamedSlotAsync(client, "Duplicate");
+            _ = await AddChildSlotAsync(client, betaParent.Slot.Value, "Beta");
+            alphaParent = await AddNamedSlotAsync(client, "Duplicate");
+            _ = await AddChildSlotAsync(client, alphaParent.Slot.Value, "Alpha");
+        }
+
+        ResoniteTransportSlotCreationResult holder = await AddNamedSlotAsync(client, "Holder");
+        await AddSlotReferenceComponentAsync(client, holder.Slot.Value, alphaParent.Slot.Value);
+    }
+
+    private static Task<ResoniteTransportSlotCreationResult> AddChildSlotAsync(
+        SceneSinkRecordingClient client,
+        string parentSlotId,
+        string name)
+    {
+        return client.AddSlotAsync(new AddSlot
+        {
+            Data = new Slot
+            {
+                Parent = new Reference { TargetID = parentSlotId },
+                Name = new Field_string { Value = name },
             },
         }, CancellationToken.None);
     }
