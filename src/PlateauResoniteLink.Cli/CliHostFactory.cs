@@ -133,17 +133,25 @@ internal sealed class DefaultSceneSinkFactory(
         AsyncServiceScope scope = serviceScopeFactory.CreateAsyncScope();
         try
         {
-            if (options.CanonicalSceneDumpPath is not null)
+            if (!string.IsNullOrWhiteSpace(options.CanonicalSceneDumpPath))
             {
                 SceneSinkRecordingClient recordingClient = new();
-                ResoniteLiveSceneImportTarget dumpTarget = CreateCanonicalDumpTarget(
-                    scope,
-                    recordingClient,
-                    options,
-                    progressReporter);
-                return new ScopedSceneSink(
-                    scope,
-                    new CanonicalSceneDumpSink(dumpTarget, recordingClient, options.CanonicalSceneDumpPath));
+                try
+                {
+                    ResoniteLiveSceneImportTarget dumpTarget = CreateCanonicalDumpTarget(
+                        scope,
+                        recordingClient,
+                        options,
+                        progressReporter);
+                    return new ScopedSceneSink(
+                        scope,
+                        new CanonicalSceneDumpSink(dumpTarget, recordingClient, options.CanonicalSceneDumpPath));
+                }
+                catch
+                {
+                    recordingClient.Dispose();
+                    throw;
+                }
             }
 
             ResoniteLiveSceneImportTargetOptions targetOptions = new(

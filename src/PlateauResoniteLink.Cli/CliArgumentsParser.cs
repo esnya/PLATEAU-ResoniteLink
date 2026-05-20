@@ -369,6 +369,11 @@ public static class CliArgumentsParser
             return CliParseResult.Failure(demTextureSourceError!);
         }
 
+        if (canonicalSceneDumpPath is not null && string.IsNullOrWhiteSpace(canonicalSceneDumpPath))
+        {
+            return CliParseResult.Failure("Specify a non-empty --canonical-scene-dump path.");
+        }
+
         PlateauImportRequest request = new(
             Dataset: dataset ?? string.Empty,
             MeshCode: meshCode ?? string.Empty,
@@ -383,13 +388,13 @@ public static class CliArgumentsParser
             TerrainGridMetersPerVertex: terrainGridMetersPerVertex,
             TerrainGridMaxResolution: terrainGridMaxResolution);
 
-        if (!string.IsNullOrWhiteSpace(canonicalSceneDumpPath) && resoniteLinkUri is not null)
+        if (canonicalSceneDumpPath is not null && resoniteLinkUri is not null)
         {
             return CliParseResult.Failure(
                 "Do not specify --resonitelink-port or --resonitelink-url when --canonical-scene-dump is used.");
         }
 
-        if (resoniteLinkUri is null && string.IsNullOrWhiteSpace(canonicalSceneDumpPath))
+        if (resoniteLinkUri is null && canonicalSceneDumpPath is null)
         {
             return CliParseResult.Failure(
                 "Specify either --resonitelink-port or --resonitelink-url.");

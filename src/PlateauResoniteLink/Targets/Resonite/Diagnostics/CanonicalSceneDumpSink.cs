@@ -98,25 +98,26 @@ internal sealed class SingleRecordingClientSession(SceneSinkRecordingClient clie
 
 internal sealed class DeterministicTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
 {
+    private static readonly byte[] RawTextureBytes =
+    [
+        128, 160, 192, 255,
+        128, 160, 192, 255,
+        128, 160, 192, 255,
+        128, 160, 192, 255,
+    ];
+
     public Task<GeneratedTerrainTexture> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        byte[] rawBytes =
-        [
-            128, 160, 192, 255,
-            128, 160, 192, 255,
-            128, 160, 192, 255,
-            128, 160, 192, 255,
-        ];
         TerrainTextureSource? usedSource = terrainTextureOverlay.GetRequiredPrimaryTileSource();
         return Task.FromResult(new GeneratedTerrainTexture(
             new ResoniteRawTextureImport(
                 2,
                 2,
                 ResoniteTextureColorProfiles.Srgb,
-                rawBytes),
+                RawTextureBytes),
             new ResoniteFloat2(1.0, 1.0),
             new ResoniteFloat2(0.0, 0.0),
             usedSource));

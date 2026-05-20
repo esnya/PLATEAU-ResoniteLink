@@ -118,6 +118,21 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseRejectsWhitespaceCanonicalSceneDumpPath()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--canonical-scene-dump", " ",
+            ]);
+
+        Assert.Equal("Specify a non-empty --canonical-scene-dump path.", result.Error);
+    }
+
+    [Fact]
     public void ParseParsesRequestedPackages()
     {
         CliParseResult result = CliArgumentsParser.Parse(
