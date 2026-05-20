@@ -1,4 +1,5 @@
 using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -37,5 +38,41 @@ public sealed class SceneImportContractMapperTests
         Assert.Equal(0.125, mapped.TextureOffset!.Y, 9);
         Assert.Equal(ResoniteMaterialAssetScope.Common, mapped.AssetScope);
         Assert.Equal(3, mapped.BundledVariantIndex);
+    }
+
+    [Fact]
+    public void ToInternalMaterialBindingsKeepsTerrainOverlaySharedScopeIndependentFromProvider()
+    {
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            MaxTextureSize: 512,
+            Sources:
+            [
+                new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 17),
+            ]);
+        DefaultCommonMaterialMember commonMaterial = CommonMaterialCatalog.Create().Generic.Uv;
+        MaterialBinding[] bindings =
+        [
+            new(
+                BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+                MaterialType: MaterialType.Standard,
+                TexturePayload: null,
+                TextureSourceKind: TextureSourceKind.Dataset,
+                Projection: MaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [0],
+                ReuseScope: MaterialReuseScope.Shared,
+                TerrainOverlay: overlay,
+                TerrainMeshCode: "53394525",
+                CommonMaterial: commonMaterial),
+        ];
+
+        ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
+
+        Assert.Equal(ResoniteMaterialAssetScope.Common, mapped.AssetScope);
+        Assert.Same(overlay, mapped.TerrainOverlay);
+        Assert.Equal("53394525", mapped.TerrainMeshCode);
+        Assert.Equal(commonMaterial, mapped.CommonMaterial);
     }
 }

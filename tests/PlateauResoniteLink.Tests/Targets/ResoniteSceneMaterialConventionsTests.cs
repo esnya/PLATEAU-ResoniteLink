@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
@@ -299,7 +300,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
 
     [Fact]
-    public void NormalizeBatchGroupedMaterialBinding_KeepsTerrainOverlayProviderPresentationScoped()
+    public void NormalizeBatchGroupedMaterialBinding_KeepsTerrainOverlayProviderIndependentFromCommonIdentity()
     {
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
         ResoniteMaterialBinding material = new(
@@ -313,14 +314,19 @@ public sealed class ResoniteSceneMaterialConventionsTests
             TerrainOverlay: overlay,
             TerrainMeshCode: "53394525",
             Family: null,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetScope: ResoniteMaterialAssetScope.Common,
+            CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv);
 
         ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
 
-        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, normalized.AssetScope);
+        Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, normalized.CommonMaterial);
         Assert.Null(normalized.TexturePayload);
         Assert.Same(overlay, normalized.TerrainOverlay);
         Assert.Equal("53394525", normalized.TerrainMeshCode);
+        Assert.Equal(
+            ["uv"],
+            ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(normalized));
     }
 
 

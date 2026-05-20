@@ -13,5 +13,6 @@ public sealed record ImportCommandOptions(
     bool EnableMeshBake,
     string? TerrainTileCacheRoot,
     bool DisableTerrainTileCache,
+    string? CanonicalSceneDumpPath,
     bool EnableSendMetrics,
     bool VerboseLogging) : CliCommandOptions;

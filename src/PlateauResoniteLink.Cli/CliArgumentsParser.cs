@@ -48,6 +48,9 @@ public static class CliArgumentsParser
                                 Optional. Override the persistent terrain tile cache root.
           --disable-terrain-tile-cache
                                 Optional. Disable persistent terrain tile caching across runs.
+          --canonical-scene-dump <path>
+                                Optional. Developer semantic verification mode. Apply the import to a fake ResoniteLink sink
+                                and write the canonical final scene JSON instead of connecting to ResoniteLink.
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and import live into Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink imports.
           --resonitelink-connections <count>
@@ -95,6 +98,7 @@ public static class CliArgumentsParser
         string workRoot = "local";
         string? terrainTileCacheRoot = null;
         bool disableTerrainTileCache = false;
+        string? canonicalSceneDumpPath = null;
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
         PlateauImportMemoryProfile memoryProfile = CliDefaultOptions.MemoryProfile;
@@ -153,6 +157,9 @@ public static class CliArgumentsParser
                         break;
                     case "--disable-terrain-tile-cache":
                         disableTerrainTileCache = true;
+                        break;
+                    case "--canonical-scene-dump":
+                        canonicalSceneDumpPath = ReadValue(args, ref index, token);
                         break;
                     case "--resonitelink-port":
                         {
@@ -376,7 +383,13 @@ public static class CliArgumentsParser
             TerrainGridMetersPerVertex: terrainGridMetersPerVertex,
             TerrainGridMaxResolution: terrainGridMaxResolution);
 
-        if (resoniteLinkUri is null)
+        if (!string.IsNullOrWhiteSpace(canonicalSceneDumpPath) && resoniteLinkUri is not null)
+        {
+            return CliParseResult.Failure(
+                "Do not specify --resonitelink-port or --resonitelink-url when --canonical-scene-dump is used.");
+        }
+
+        if (resoniteLinkUri is null && string.IsNullOrWhiteSpace(canonicalSceneDumpPath))
         {
             return CliParseResult.Failure(
                 "Specify either --resonitelink-port or --resonitelink-url.");
@@ -392,6 +405,7 @@ public static class CliArgumentsParser
                 enableMeshBake,
                 terrainTileCacheRoot,
                 disableTerrainTileCache,
+                canonicalSceneDumpPath,
                 enableSendMetrics,
                 verboseLogging));
     }

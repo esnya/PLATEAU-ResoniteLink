@@ -10,6 +10,7 @@ using GeographicLib;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
