@@ -188,7 +188,9 @@ internal static class SceneSinkRecordingClientCanonicalDump
         {
             Reference reference => CreateReferenceNode(context, reference),
             SyncList syncList => CreateSyncListNode(context, syncList),
-            Field_Uri uri => CreateValueNode("uri", NormalizeUri(context.Client, uri.Value)),
+            Field_Uri uri => CreateValueNode(
+                "uri",
+                uri.Value is null ? null : NormalizeUri(context.Client, uri.Value)),
             _ => CreateReflectiveMemberNode(context, member),
         };
     }

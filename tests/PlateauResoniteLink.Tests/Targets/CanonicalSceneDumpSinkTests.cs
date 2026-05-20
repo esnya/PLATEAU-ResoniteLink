@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -155,6 +156,47 @@ public sealed class CanonicalSceneDumpSinkTests
 
         Assert.Contains("texture:1x1:sRGB:", dump, StringComparison.Ordinal);
         Assert.DoesNotContain("resdb:///texture/0", dump, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreateCanonicalJsonPreservesNullUriMemberValue()
+    {
+        using SceneSinkRecordingClient client = new();
+        ResoniteTransportSlotCreationResult slot = await client.AddSlotAsync(new AddSlot
+        {
+            Data = new Slot
+            {
+                Parent = new Reference { TargetID = "Root" },
+                Name = new Field_string { Value = "Child" },
+            },
+        }, CancellationToken.None);
+        _ = await client.AddComponentAsync(new AddComponent
+        {
+            ContainerSlotId = slot.Slot.Value,
+            Data = new Component
+            {
+                ComponentType = "FrooxEngine.StaticTexture2D",
+                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+                {
+                    ["URL"] = new Field_Uri
+                    {
+                        Value = null,
+                    },
+                },
+            },
+        }, CancellationToken.None);
+
+        string dump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(client);
+
+        using JsonDocument document = JsonDocument.Parse(dump);
+        JsonElement urlMember = document.RootElement
+            .GetProperty("root")
+            .GetProperty("children")[0]
+            .GetProperty("components")[0]
+            .GetProperty("members")
+            .GetProperty("URL");
+        Assert.Equal("uri", urlMember.GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, urlMember.GetProperty("value").ValueKind);
     }
 
     [Fact]
