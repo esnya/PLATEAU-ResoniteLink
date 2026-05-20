@@ -104,78 +104,6 @@ public sealed class CanonicalSceneDumpSinkTests
     }
 
     [Fact]
-    public async Task CreateCanonicalJsonIsIndependentFromBatchOrIndividualMutationApplication()
-    {
-        using SceneSinkRecordingClient batchedClient = new();
-        using SceneSinkRecordingClient individualClient = new();
-        AddSlot childSlot = new()
-        {
-            Data = new Slot
-            {
-                ID = "local_slot",
-                Parent = new Reference { TargetID = "Root" },
-                Name = new Field_string { Value = "Child" },
-            },
-        };
-        AddComponent childComponent = new()
-        {
-            ContainerSlotId = "local_slot",
-            Data = new Component
-            {
-                ID = "local_component",
-                ComponentType = "FrooxEngine.StaticTexture2D",
-                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
-                {
-                    ["URL"] = new Field_Uri
-                    {
-                        Value = new Uri("resdb:///texture/0", UriKind.Absolute),
-                    },
-                },
-            },
-        };
-        ResoniteRawTextureImport firstTexture = new(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 255]);
-        ResoniteRawHdrTextureImport hdrTexture = new(1, 1, [1, 0, 0, 0, 2, 0, 0, 0]);
-        ResoniteRawTextureImport secondTexture = new(1, 1, ResoniteTextureColorProfiles.Srgb, [4, 5, 6, 255]);
-
-        _ = await batchedClient.ImportTextureAsync(firstTexture, CancellationToken.None);
-        _ = await batchedClient.ImportTextureAsync(hdrTexture, CancellationToken.None);
-        Uri batchedTextureUri = await batchedClient.ImportTextureAsync(secondTexture, CancellationToken.None);
-        childComponent.Data.Members["URL"] = new Field_Uri { Value = batchedTextureUri };
-        _ = await batchedClient.RunDataModelOperationBatchAsync([childSlot, childComponent], CancellationToken.None);
-
-        _ = await individualClient.ImportTextureAsync(firstTexture, CancellationToken.None);
-        _ = await individualClient.ImportTextureAsync(hdrTexture, CancellationToken.None);
-        Uri individualTextureUri = await individualClient.ImportTextureAsync(secondTexture, CancellationToken.None);
-        ResoniteTransportSlotCreationResult individualSlot = await individualClient.AddSlotAsync(new AddSlot
-        {
-            Data = new Slot
-            {
-                Parent = new Reference { TargetID = "Root" },
-                Name = new Field_string { Value = "Child" },
-            },
-        }, CancellationToken.None);
-        _ = await individualClient.AddComponentAsync(new AddComponent
-        {
-            ContainerSlotId = individualSlot.Slot.Value,
-            Data = new Component
-            {
-                ComponentType = "FrooxEngine.StaticTexture2D",
-                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
-                {
-                    ["URL"] = new Field_Uri
-                    {
-                        Value = individualTextureUri,
-                    },
-                },
-            },
-        }, CancellationToken.None);
-
-        Assert.Equal(
-            SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(individualClient),
-            SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(batchedClient));
-    }
-
-    [Fact]
     public async Task CreateCanonicalJsonSortsDictionaryMembersAsObjects()
     {
         using SceneSinkRecordingClient firstClient = new();
@@ -193,64 +121,40 @@ public sealed class CanonicalSceneDumpSinkTests
     }
 
     [Fact]
-    public async Task CreateCanonicalJsonDisambiguatesDuplicateSiblingSlotReferenceTargets()
+    public async Task CreateCanonicalJsonNormalizesImportedTextureUriToSemanticToken()
     {
-        using SceneSinkRecordingClient targetFirstClient = new();
-        using SceneSinkRecordingClient holderFirstClient = new();
+        using SceneSinkRecordingClient client = new();
+        Uri textureUri = await client.ImportTextureAsync(
+            new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 255]),
+            CancellationToken.None);
+        ResoniteTransportSlotCreationResult slot = await client.AddSlotAsync(new AddSlot
+        {
+            Data = new Slot
+            {
+                Parent = new Reference { TargetID = "Root" },
+                Name = new Field_string { Value = "Child" },
+            },
+        }, CancellationToken.None);
+        _ = await client.AddComponentAsync(new AddComponent
+        {
+            ContainerSlotId = slot.Slot.Value,
+            Data = new Component
+            {
+                ComponentType = "FrooxEngine.StaticTexture2D",
+                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+                {
+                    ["URL"] = new Field_Uri
+                    {
+                        Value = textureUri,
+                    },
+                },
+            },
+        }, CancellationToken.None);
 
-        await AddDuplicateSiblingReferenceAsync(targetFirstClient, createTargetFirst: true);
-        await AddDuplicateSiblingReferenceAsync(holderFirstClient, createTargetFirst: false);
+        string dump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(client);
 
-        string targetFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(targetFirstClient);
-        string holderFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(holderFirstClient);
-        Assert.Equal(targetFirstDump, holderFirstDump);
-        Assert.Contains("slot:Duplicate#0", targetFirstDump, StringComparison.Ordinal);
-        Assert.Contains("\"path\": \"Duplicate#1\"", targetFirstDump, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task CreateCanonicalJsonOrdersSameTypeComponentReferencesByContent()
-    {
-        using SceneSinkRecordingClient alphaFirstClient = new();
-        using SceneSinkRecordingClient betaFirstClient = new();
-
-        await AddSameTypeComponentReferenceAsync(alphaFirstClient, createAlphaFirst: true);
-        await AddSameTypeComponentReferenceAsync(betaFirstClient, createAlphaFirst: false);
-
-        string alphaFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(alphaFirstClient);
-        string betaFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(betaFirstClient);
-        Assert.Equal(alphaFirstDump, betaFirstDump);
-        Assert.Contains("component:Child:FrooxEngine.SemanticTarget#1", alphaFirstDump, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task CreateCanonicalJsonOrdersSameTypeComponentsByReferencedComponentContent()
-    {
-        using SceneSinkRecordingClient alphaHolderFirstClient = new();
-        using SceneSinkRecordingClient betaHolderFirstClient = new();
-
-        await AddSameTypeReferenceHolderComponentsAsync(alphaHolderFirstClient, createAlphaHolderFirst: true);
-        await AddSameTypeReferenceHolderComponentsAsync(betaHolderFirstClient, createAlphaHolderFirst: false);
-
-        string alphaHolderFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(alphaHolderFirstClient);
-        string betaHolderFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(betaHolderFirstClient);
-        Assert.Equal(alphaHolderFirstDump, betaHolderFirstDump);
-    }
-
-    [Fact]
-    public async Task CreateCanonicalJsonOrdersDuplicateSiblingSlotsByActualDescendants()
-    {
-        using SceneSinkRecordingClient alphaFirstClient = new();
-        using SceneSinkRecordingClient betaFirstClient = new();
-
-        await AddDuplicateSiblingWithChildReferenceAsync(alphaFirstClient, createAlphaFirst: true);
-        await AddDuplicateSiblingWithChildReferenceAsync(betaFirstClient, createAlphaFirst: false);
-
-        string alphaFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(alphaFirstClient);
-        string betaFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(betaFirstClient);
-        Assert.Equal(alphaFirstDump, betaFirstDump);
-        Assert.Contains("slot:Duplicate#0", alphaFirstDump, StringComparison.Ordinal);
-        Assert.Contains("\"path\": \"Duplicate#0/Alpha\"", alphaFirstDump, StringComparison.Ordinal);
+        Assert.Contains("texture:1x1:sRGB:", dump, StringComparison.Ordinal);
+        Assert.DoesNotContain("resdb:///texture/0", dump, StringComparison.Ordinal);
     }
 
     private static GeneratedTerrainTexture CreateDeterministicTerrainTexture(TerrainTextureOverlay overlay)
@@ -308,190 +212,4 @@ public sealed class CanonicalSceneDumpSinkTests
         }, CancellationToken.None);
     }
 
-    private static async Task AddDuplicateSiblingReferenceAsync(
-        SceneSinkRecordingClient client,
-        bool createTargetFirst)
-    {
-        if (createTargetFirst)
-        {
-            ResoniteTransportSlotCreationResult targetSlot = await AddNamedSlotAsync(client, "Duplicate");
-            ResoniteTransportSlotCreationResult holderSlot = await AddNamedSlotAsync(client, "Duplicate");
-            await AddSlotReferenceComponentAsync(client, holderSlot.Slot.Value, targetSlot.Slot.Value);
-            return;
-        }
-
-        ResoniteTransportSlotCreationResult holder = await AddNamedSlotAsync(client, "Duplicate");
-        ResoniteTransportSlotCreationResult target = await AddNamedSlotAsync(client, "Duplicate");
-        await AddSlotReferenceComponentAsync(client, holder.Slot.Value, target.Slot.Value);
-    }
-
-    private static Task<ResoniteTransportSlotCreationResult> AddNamedSlotAsync(
-        SceneSinkRecordingClient client,
-        string name)
-    {
-        return client.AddSlotAsync(new AddSlot
-        {
-            Data = new Slot
-            {
-                Parent = new Reference { TargetID = "Root" },
-                Name = new Field_string { Value = name },
-            },
-        }, CancellationToken.None);
-    }
-
-    private static async Task AddSlotReferenceComponentAsync(
-        SceneSinkRecordingClient client,
-        string holderSlotId,
-        string targetSlotId)
-    {
-        _ = await client.AddComponentAsync(new AddComponent
-        {
-            ContainerSlotId = holderSlotId,
-            Data = new Component
-            {
-                ComponentType = "FrooxEngine.ReferenceHolder",
-                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
-                {
-                    ["Target"] = new Reference { TargetID = targetSlotId },
-                },
-            },
-        }, CancellationToken.None);
-    }
-
-    private static async Task AddSameTypeComponentReferenceAsync(
-        SceneSinkRecordingClient client,
-        bool createAlphaFirst)
-    {
-        ResoniteTransportSlotCreationResult slot = await AddNamedSlotAsync(client, "Child");
-        ResoniteTransportComponentCreationResult alpha;
-        ResoniteTransportComponentCreationResult beta;
-        if (createAlphaFirst)
-        {
-            alpha = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Alpha");
-            beta = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Beta");
-        }
-        else
-        {
-            beta = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Beta");
-            alpha = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Alpha");
-        }
-
-        _ = alpha;
-        _ = await client.AddComponentAsync(new AddComponent
-        {
-            ContainerSlotId = slot.Slot.Value,
-            Data = new Component
-            {
-                ComponentType = "FrooxEngine.ComponentReferenceHolder",
-                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
-                {
-                    ["Target"] = new Reference
-                    {
-                        TargetID = beta.Component.Value,
-                        TargetType = "FrooxEngine.SemanticTarget",
-                    },
-                },
-            },
-        }, CancellationToken.None);
-    }
-
-    private static Task<ResoniteTransportComponentCreationResult> AddSemanticTargetComponentAsync(
-        SceneSinkRecordingClient client,
-        string slotId,
-        string name)
-    {
-        return client.AddComponentAsync(new AddComponent
-        {
-            ContainerSlotId = slotId,
-            Data = new Component
-            {
-                ComponentType = "FrooxEngine.SemanticTarget",
-                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
-                {
-                    ["Name"] = new Field_string { Value = name },
-                },
-            },
-        }, CancellationToken.None);
-    }
-
-    private static async Task AddSameTypeReferenceHolderComponentsAsync(
-        SceneSinkRecordingClient client,
-        bool createAlphaHolderFirst)
-    {
-        ResoniteTransportSlotCreationResult slot = await AddNamedSlotAsync(client, "Child");
-        ResoniteTransportComponentCreationResult alpha = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Alpha");
-        ResoniteTransportComponentCreationResult beta = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Beta");
-        if (createAlphaHolderFirst)
-        {
-            await AddComponentReferenceHolderAsync(client, slot.Slot.Value, alpha.Component.Value);
-            await AddComponentReferenceHolderAsync(client, slot.Slot.Value, beta.Component.Value);
-            return;
-        }
-
-        await AddComponentReferenceHolderAsync(client, slot.Slot.Value, beta.Component.Value);
-        await AddComponentReferenceHolderAsync(client, slot.Slot.Value, alpha.Component.Value);
-    }
-
-    private static async Task AddComponentReferenceHolderAsync(
-        SceneSinkRecordingClient client,
-        string slotId,
-        string targetComponentId)
-    {
-        _ = await client.AddComponentAsync(new AddComponent
-        {
-            ContainerSlotId = slotId,
-            Data = new Component
-            {
-                ComponentType = "FrooxEngine.ComponentReferenceHolder",
-                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
-                {
-                    ["Target"] = new Reference
-                    {
-                        TargetID = targetComponentId,
-                        TargetType = "FrooxEngine.SemanticTarget",
-                    },
-                },
-            },
-        }, CancellationToken.None);
-    }
-
-    private static async Task AddDuplicateSiblingWithChildReferenceAsync(
-        SceneSinkRecordingClient client,
-        bool createAlphaFirst)
-    {
-        ResoniteTransportSlotCreationResult alphaParent;
-        ResoniteTransportSlotCreationResult betaParent;
-        if (createAlphaFirst)
-        {
-            alphaParent = await AddNamedSlotAsync(client, "Duplicate");
-            _ = await AddChildSlotAsync(client, alphaParent.Slot.Value, "Alpha");
-            betaParent = await AddNamedSlotAsync(client, "Duplicate");
-            _ = await AddChildSlotAsync(client, betaParent.Slot.Value, "Beta");
-        }
-        else
-        {
-            betaParent = await AddNamedSlotAsync(client, "Duplicate");
-            _ = await AddChildSlotAsync(client, betaParent.Slot.Value, "Beta");
-            alphaParent = await AddNamedSlotAsync(client, "Duplicate");
-            _ = await AddChildSlotAsync(client, alphaParent.Slot.Value, "Alpha");
-        }
-
-        ResoniteTransportSlotCreationResult holder = await AddNamedSlotAsync(client, "Holder");
-        await AddSlotReferenceComponentAsync(client, holder.Slot.Value, alphaParent.Slot.Value);
-    }
-
-    private static Task<ResoniteTransportSlotCreationResult> AddChildSlotAsync(
-        SceneSinkRecordingClient client,
-        string parentSlotId,
-        string name)
-    {
-        return client.AddSlotAsync(new AddSlot
-        {
-            Data = new Slot
-            {
-                Parent = new Reference { TargetID = parentSlotId },
-                Name = new Field_string { Value = name },
-            },
-        }, CancellationToken.None);
-    }
 }

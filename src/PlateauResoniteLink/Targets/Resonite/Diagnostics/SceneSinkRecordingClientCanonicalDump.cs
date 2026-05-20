@@ -422,7 +422,6 @@ internal static class SceneSinkRecordingClientCanonicalDump
     {
         private readonly Dictionary<string, Slot[]> childrenByParentId;
         private readonly Dictionary<string, string> canonicalSlotPathsById;
-        private readonly Dictionary<string, string> componentOwnerPathsById;
         private readonly Dictionary<string, string> componentReferencesById;
 
         public CanonicalDumpContext(SceneSinkRecordingClient client)
@@ -430,7 +429,6 @@ internal static class SceneSinkRecordingClientCanonicalDump
             Client = client;
             childrenByParentId = CreateChildrenByParentId(client);
             canonicalSlotPathsById = CreateCanonicalSlotPaths(client, childrenByParentId);
-            componentOwnerPathsById = CreateComponentOwnerPaths(client, canonicalSlotPathsById);
             componentReferencesById = CreateComponentReferences(client);
         }
 
@@ -446,8 +444,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
         public string[] GetChildSlotIds(string slotId)
         {
             return childrenByParentId.GetValueOrDefault(slotId, [])
-                .OrderBy(slot => slot.Name?.Value ?? string.Empty, StringComparer.Ordinal)
-                .ThenBy(slot => GetSlotPath(slot.ID!), StringComparer.Ordinal)
+                .OrderBy(slot => GetSlotPath(slot.ID ?? string.Empty), StringComparer.Ordinal)
                 .Select(static slot => slot.ID!)
                 .ToArray();
         }
@@ -455,10 +452,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
         public Component[] GetSlotComponents(string slotId)
         {
             return Client.SlotsById.TryGetValue(slotId, out Slot? slot) && slot.Components is not null
-                ? slot.Components
-                    .OrderBy(static component => component.ComponentType, StringComparer.Ordinal)
-                    .ThenBy(CreateComponentSemanticSortKey, StringComparer.Ordinal)
-                    .ToArray()
+                ? [.. slot.Components]
                 : [];
         }
 
@@ -479,7 +473,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 return componentReference;
             }
 
-            return $"external:{targetId}";
+            return "external";
         }
 
         private static Dictionary<string, Slot[]> CreateChildrenByParentId(SceneSinkRecordingClient client)
@@ -505,7 +499,6 @@ internal static class SceneSinkRecordingClientCanonicalDump
             {
                 Slot[] children = childrenByParentId.GetValueOrDefault(parentId, [])
                     .OrderBy(static slot => slot.Name?.Value ?? string.Empty, StringComparer.Ordinal)
-                    .ThenBy(slot => CreateSlotSemanticSortKey(childrenByParentId, slot), StringComparer.Ordinal)
                     .ToArray();
                 Dictionary<string, int> siblingNameCounts = children
                     .GroupBy(static slot => slot.Name?.Value ?? string.Empty, StringComparer.Ordinal)
@@ -544,9 +537,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 }
 
                 Dictionary<string, int> typeIndexes = new(StringComparer.Ordinal);
-                foreach (Component component in slot.Components
-                             .OrderBy(static component => component.ComponentType, StringComparer.Ordinal)
-                             .ThenBy(CreateComponentSemanticSortKey, StringComparer.Ordinal))
+                foreach (Component component in slot.Components)
                 {
                     string componentType = component.ComponentType ?? string.Empty;
                     int index = typeIndexes.GetValueOrDefault(componentType);
@@ -561,31 +552,6 @@ internal static class SceneSinkRecordingClientCanonicalDump
             return references;
         }
 
-        private static Dictionary<string, string> CreateComponentOwnerPaths(
-            SceneSinkRecordingClient client,
-            IReadOnlyDictionary<string, string> canonicalSlotPathsById)
-        {
-            Dictionary<string, string> ownerPaths = new(StringComparer.Ordinal);
-            foreach (Slot slot in client.SlotsById.Values.OrderBy(slot => GetSlotPath(client, canonicalSlotPathsById, slot.ID ?? string.Empty), StringComparer.Ordinal))
-            {
-                if (slot.Components is null)
-                {
-                    continue;
-                }
-
-                string ownerPath = GetSlotPath(client, canonicalSlotPathsById, slot.ID ?? string.Empty);
-                foreach (Component component in slot.Components)
-                {
-                    if (!string.IsNullOrWhiteSpace(component.ID))
-                    {
-                        ownerPaths[component.ID] = ownerPath;
-                    }
-                }
-            }
-
-            return ownerPaths;
-        }
-
         private static string GetSlotPath(
             SceneSinkRecordingClient client,
             IReadOnlyDictionary<string, string> canonicalSlotPathsById,
@@ -594,214 +560,6 @@ internal static class SceneSinkRecordingClientCanonicalDump
             return canonicalSlotPathsById.GetValueOrDefault(
                 slotId,
                 client.SlotPaths.GetValueOrDefault(slotId, slotId).Replace('\\', '/'));
-        }
-
-        private static string CreateSlotSemanticSortKey(IReadOnlyDictionary<string, Slot[]> childrenByParentId, Slot slot)
-        {
-            return CreateSlotSemanticSortKey(childrenByParentId, slot, []);
-        }
-
-        private static string CreateSlotSemanticSortKey(
-            IReadOnlyDictionary<string, Slot[]> childrenByParentId,
-            Slot slot,
-            HashSet<string> visitedSlotIds)
-        {
-            string componentTypes = slot.Components is null
-                ? string.Empty
-                : string.Join(
-                    "|",
-                    slot.Components
-                        .Select(static component => component.ComponentType ?? string.Empty)
-                        .Order(StringComparer.Ordinal));
-            string childKeys = string.IsNullOrWhiteSpace(slot.ID) || !visitedSlotIds.Add(slot.ID)
-                ? string.Empty
-                : string.Join(
-                    "|",
-                    childrenByParentId.GetValueOrDefault(slot.ID, [])
-                        .Select(child => string.Join(
-                            "\u001e",
-                            child.Name?.Value ?? string.Empty,
-                            CreateSlotSemanticSortKey(childrenByParentId, child, [.. visitedSlotIds])))
-                        .Order(StringComparer.Ordinal));
-            return string.Join(
-                "\u001f",
-                slot.Name?.Value ?? string.Empty,
-                slot.Tag?.Value ?? string.Empty,
-                componentTypes,
-                childKeys);
-        }
-
-        private string CreateComponentSemanticSortKey(Component component)
-        {
-            return CreateComponentSemanticSortKey(component, []);
-        }
-
-        private string CreateComponentSemanticSortKey(Component component, HashSet<string> visitedComponentIds)
-        {
-            if (!string.IsNullOrWhiteSpace(component.ID) && !visitedComponentIds.Add(component.ID))
-            {
-                return component.ComponentType ?? string.Empty;
-            }
-
-            string members = string.Join(
-                "\u001e",
-                component.Members
-                    .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-                    .Select(pair => string.Join(
-                        "\u001f",
-                        pair.Key,
-                        CreateMemberSemanticSortKey(pair.Value, [.. visitedComponentIds]))));
-            return string.Join("\u001f", component.ComponentType ?? string.Empty, members);
-        }
-
-        private string CreateMemberSemanticSortKey(Member member, HashSet<string> visitedComponentIds)
-        {
-            return member switch
-            {
-                Reference reference => string.Join(
-                    "\u001f",
-                    "reference",
-                    ResolveReferenceSemanticSortKey(reference.TargetID, visitedComponentIds),
-                    reference.TargetType ?? string.Empty),
-                SyncList syncList => string.Join(
-                    "\u001f",
-                    "sync-list",
-                    string.Join("\u001e", syncList.Elements.Select(element => CreateObjectSemanticSortKey(element, [.. visitedComponentIds])))),
-                Field_Uri uri => string.Join("\u001f", "uri", NormalizeUri(Client, uri.Value).ToJsonString()),
-                _ => CreateReflectiveMemberSemanticSortKey(member, visitedComponentIds),
-            };
-        }
-
-        private string CreateReflectiveMemberSemanticSortKey(Member member, HashSet<string> visitedComponentIds)
-        {
-            PropertyInfo? boxedValueProperty = member.GetType().GetProperty("BoxedValue", BindingFlags.Public | BindingFlags.Instance);
-            if (boxedValueProperty is not null)
-            {
-                return string.Join(
-                    "\u001f",
-                    member.GetType().Name,
-                    CreateObjectSemanticSortKey(boxedValueProperty.GetValue(member), visitedComponentIds));
-            }
-
-            string properties = string.Join(
-                "\u001e",
-                member.GetType()
-                    .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                    .Where(static property => property.GetIndexParameters().Length == 0)
-                    .Where(static property => !string.Equals(property.Name, "ID", StringComparison.Ordinal))
-                    .OrderBy(static property => property.Name, StringComparer.Ordinal)
-                    .Select(property => string.Join(
-                        "\u001f",
-                        property.Name,
-                        CreateObjectSemanticSortKey(property.GetValue(member), [.. visitedComponentIds]))));
-            return string.Join("\u001f", member.GetType().Name, properties);
-        }
-
-        private string CreateObjectSemanticSortKey(object? value, HashSet<string> visitedComponentIds)
-        {
-            if (value is null)
-            {
-                return "null";
-            }
-
-            if (value is Member member)
-            {
-                return CreateMemberSemanticSortKey(member, visitedComponentIds);
-            }
-
-            if (value is Uri uri)
-            {
-                return NormalizeUri(Client, uri).ToJsonString();
-            }
-
-            if (value is string stringValue)
-            {
-                return stringValue;
-            }
-
-            if (value is bool boolValue)
-            {
-                return boolValue ? "true" : "false";
-            }
-
-            if (value is int or long)
-            {
-                return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
-            }
-
-            if (value is float floatValue)
-            {
-                return FormatNumber(floatValue);
-            }
-
-            if (value is double doubleValue)
-            {
-                return FormatNumber(doubleValue);
-            }
-
-            if (value is System.Collections.IDictionary dictionary)
-            {
-                return string.Join(
-                    "\u001e",
-                    dictionary.Keys
-                        .Cast<object?>()
-                        .Where(static key => key is not null)
-                        .OrderBy(static key => Convert.ToString(key, CultureInfo.InvariantCulture), StringComparer.Ordinal)
-                        .Select(key => string.Join(
-                            "\u001f",
-                            Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty,
-                            CreateObjectSemanticSortKey(dictionary[key!], [.. visitedComponentIds]))));
-            }
-
-            if (value is System.Collections.IEnumerable enumerable && value is not string)
-            {
-                return string.Join("\u001e", enumerable.Cast<object?>().Select(element => CreateObjectSemanticSortKey(element, [.. visitedComponentIds])));
-            }
-
-            Type type = value.GetType();
-            if (type.IsPrimitive || type.IsEnum)
-            {
-                return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
-            }
-
-            string properties = string.Join(
-                "\u001e",
-                type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                    .Where(static property => property.GetIndexParameters().Length == 0)
-                    .Where(static property => !string.Equals(property.Name, "ID", StringComparison.Ordinal))
-                    .OrderBy(static property => property.Name, StringComparer.Ordinal)
-                    .Select(property => string.Join(
-                        "\u001f",
-                        property.Name,
-                        CreateObjectSemanticSortKey(property.GetValue(value), [.. visitedComponentIds]))));
-            return string.IsNullOrEmpty(properties)
-                ? Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
-                : properties;
-        }
-
-        private string ResolveReferenceSemanticSortKey(string? targetId, HashSet<string> visitedComponentIds)
-        {
-            if (string.IsNullOrWhiteSpace(targetId))
-            {
-                return string.Empty;
-            }
-
-            if (Client.SlotsById.ContainsKey(targetId))
-            {
-                return $"slot:{GetSlotPath(targetId)}";
-            }
-
-            if (Client.ComponentsById.TryGetValue(targetId, out Component? component))
-            {
-                return $"component:{GetComponentOwnerPath(component)}:{CreateComponentSemanticSortKey(component, [.. visitedComponentIds])}";
-            }
-
-            return "external";
-        }
-
-        private string GetComponentOwnerPath(Component targetComponent)
-        {
-            return componentOwnerPathsById.GetValueOrDefault(targetComponent.ID ?? string.Empty, string.Empty);
         }
     }
 }
