@@ -190,6 +190,22 @@ public sealed class CanonicalSceneDumpSinkTests
         Assert.DoesNotContain("\"Key\"", firstDump, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task CreateCanonicalJsonDisambiguatesDuplicateSiblingSlotReferenceTargets()
+    {
+        using SceneSinkRecordingClient targetFirstClient = new();
+        using SceneSinkRecordingClient holderFirstClient = new();
+
+        await AddDuplicateSiblingReferenceAsync(targetFirstClient, createTargetFirst: true);
+        await AddDuplicateSiblingReferenceAsync(holderFirstClient, createTargetFirst: false);
+
+        string targetFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(targetFirstClient);
+        string holderFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(holderFirstClient);
+        Assert.Equal(targetFirstDump, holderFirstDump);
+        Assert.Contains("slot:Duplicate#0", targetFirstDump, StringComparison.Ordinal);
+        Assert.Contains("\"path\": \"Duplicate#1\"", targetFirstDump, StringComparison.Ordinal);
+    }
+
     private static GeneratedTerrainTexture CreateDeterministicTerrainTexture(TerrainTextureOverlay overlay)
     {
         return new GeneratedTerrainTexture(
@@ -240,6 +256,56 @@ public sealed class CanonicalSceneDumpSinkTests
                             },
                         ],
                     },
+                },
+            },
+        }, CancellationToken.None);
+    }
+
+    private static async Task AddDuplicateSiblingReferenceAsync(
+        SceneSinkRecordingClient client,
+        bool createTargetFirst)
+    {
+        if (createTargetFirst)
+        {
+            ResoniteTransportSlotCreationResult targetSlot = await AddNamedSlotAsync(client, "Duplicate");
+            ResoniteTransportSlotCreationResult holderSlot = await AddNamedSlotAsync(client, "Duplicate");
+            await AddSlotReferenceComponentAsync(client, holderSlot.Slot.Value, targetSlot.Slot.Value);
+            return;
+        }
+
+        ResoniteTransportSlotCreationResult holder = await AddNamedSlotAsync(client, "Duplicate");
+        ResoniteTransportSlotCreationResult target = await AddNamedSlotAsync(client, "Duplicate");
+        await AddSlotReferenceComponentAsync(client, holder.Slot.Value, target.Slot.Value);
+    }
+
+    private static Task<ResoniteTransportSlotCreationResult> AddNamedSlotAsync(
+        SceneSinkRecordingClient client,
+        string name)
+    {
+        return client.AddSlotAsync(new AddSlot
+        {
+            Data = new Slot
+            {
+                Parent = new Reference { TargetID = "Root" },
+                Name = new Field_string { Value = name },
+            },
+        }, CancellationToken.None);
+    }
+
+    private static async Task AddSlotReferenceComponentAsync(
+        SceneSinkRecordingClient client,
+        string holderSlotId,
+        string targetSlotId)
+    {
+        _ = await client.AddComponentAsync(new AddComponent
+        {
+            ContainerSlotId = holderSlotId,
+            Data = new Component
+            {
+                ComponentType = "FrooxEngine.ReferenceHolder",
+                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+                {
+                    ["Target"] = new Reference { TargetID = targetSlotId },
                 },
             },
         }, CancellationToken.None);

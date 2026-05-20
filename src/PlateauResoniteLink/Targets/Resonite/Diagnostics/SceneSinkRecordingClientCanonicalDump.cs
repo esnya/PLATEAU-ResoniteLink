@@ -420,11 +420,13 @@ internal static class SceneSinkRecordingClientCanonicalDump
 
     private sealed class CanonicalDumpContext
     {
+        private readonly Dictionary<string, string> canonicalSlotPathsById;
         private readonly Dictionary<string, string> componentReferencesById;
 
         public CanonicalDumpContext(SceneSinkRecordingClient client)
         {
             Client = client;
+            canonicalSlotPathsById = CreateCanonicalSlotPaths(client);
             componentReferencesById = CreateComponentReferences(client);
         }
 
@@ -434,7 +436,9 @@ internal static class SceneSinkRecordingClientCanonicalDump
         {
             return slotId == "Root"
                 ? "Root"
-                : Client.SlotPaths.GetValueOrDefault(slotId, slotId).Replace('\\', '/');
+                : canonicalSlotPathsById.GetValueOrDefault(
+                    slotId,
+                    Client.SlotPaths.GetValueOrDefault(slotId, slotId).Replace('\\', '/'));
         }
 
         public string[] GetChildSlotIds(string slotId)
@@ -477,10 +481,54 @@ internal static class SceneSinkRecordingClientCanonicalDump
             return $"external:{targetId}";
         }
 
-        private static Dictionary<string, string> CreateComponentReferences(SceneSinkRecordingClient client)
+        private static Dictionary<string, string> CreateCanonicalSlotPaths(SceneSinkRecordingClient client)
+        {
+            Dictionary<string, string> paths = new(StringComparer.Ordinal)
+            {
+                ["Root"] = "Root",
+            };
+            AddChildPaths("Root", string.Empty);
+            return paths;
+
+            void AddChildPaths(string parentId, string parentPath)
+            {
+                Slot[] children = client.SlotsById.Values
+                    .Where(slot => string.Equals(slot.Parent?.TargetID, parentId, StringComparison.Ordinal))
+                    .OrderBy(static slot => slot.Name?.Value ?? string.Empty, StringComparer.Ordinal)
+                    .ThenBy(CreateSlotSemanticSortKey, StringComparer.Ordinal)
+                    .ThenBy(slot => client.SlotPaths.GetValueOrDefault(slot.ID ?? string.Empty, string.Empty), StringComparer.Ordinal)
+                    .ThenBy(static slot => slot.ID, StringComparer.Ordinal)
+                    .ToArray();
+                Dictionary<string, int> siblingNameCounts = children
+                    .GroupBy(static slot => slot.Name?.Value ?? string.Empty, StringComparer.Ordinal)
+                    .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
+                Dictionary<string, int> siblingNameIndexes = new(StringComparer.Ordinal);
+                foreach (Slot child in children)
+                {
+                    if (string.IsNullOrWhiteSpace(child.ID))
+                    {
+                        continue;
+                    }
+
+                    string slotName = child.Name?.Value ?? string.Empty;
+                    int siblingIndex = siblingNameIndexes.GetValueOrDefault(slotName);
+                    siblingNameIndexes[slotName] = siblingIndex + 1;
+                    string segment = siblingNameCounts[slotName] > 1
+                        ? string.Create(CultureInfo.InvariantCulture, $"{slotName}#{siblingIndex}")
+                        : slotName;
+                    string childPath = string.IsNullOrEmpty(parentPath)
+                        ? segment.Replace('\\', '/')
+                        : $"{parentPath}/{segment}".Replace('\\', '/');
+                    paths[child.ID] = childPath;
+                    AddChildPaths(child.ID, childPath);
+                }
+            }
+        }
+
+        private Dictionary<string, string> CreateComponentReferences(SceneSinkRecordingClient client)
         {
             Dictionary<string, string> references = new(StringComparer.Ordinal);
-            foreach (Slot slot in client.SlotsById.Values.OrderBy(slot => client.SlotPaths.GetValueOrDefault(slot.ID ?? string.Empty, string.Empty), StringComparer.Ordinal))
+            foreach (Slot slot in client.SlotsById.Values.OrderBy(slot => GetSlotPath(slot.ID ?? string.Empty), StringComparer.Ordinal))
             {
                 if (slot.Components is null)
                 {
@@ -497,13 +545,36 @@ internal static class SceneSinkRecordingClientCanonicalDump
                     typeIndexes[componentType] = index + 1;
                     if (!string.IsNullOrWhiteSpace(component.ID))
                     {
-                        string slotPath = client.SlotPaths.GetValueOrDefault(slot.ID ?? string.Empty, slot.ID ?? string.Empty).Replace('\\', '/');
-                        references[component.ID] = $"component:{slotPath}:{componentType}#{index}";
+                        references[component.ID] = $"component:{GetSlotPath(slot.ID ?? string.Empty)}:{componentType}#{index}";
                     }
                 }
             }
 
             return references;
+        }
+
+        private static string CreateSlotSemanticSortKey(Slot slot)
+        {
+            string componentTypes = slot.Components is null
+                ? string.Empty
+                : string.Join(
+                    "|",
+                    slot.Components
+                        .Select(static component => component.ComponentType ?? string.Empty)
+                        .Order(StringComparer.Ordinal));
+            string childNames = slot.Children is null
+                ? string.Empty
+                : string.Join(
+                    "|",
+                    slot.Children
+                        .Select(static child => child.Name?.Value ?? string.Empty)
+                        .Order(StringComparer.Ordinal));
+            return string.Join(
+                "\u001f",
+                slot.Name?.Value ?? string.Empty,
+                slot.Tag?.Value ?? string.Empty,
+                componentTypes,
+                childNames);
         }
     }
 }
