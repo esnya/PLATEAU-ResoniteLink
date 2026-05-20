@@ -157,6 +157,38 @@ public sealed class CanonicalSceneDumpSinkTests
         Assert.DoesNotContain("resdb:///texture/0", dump, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task CreateCanonicalJsonEscapesSlotPathReservedCharacters()
+    {
+        using SceneSinkRecordingClient client = new();
+        ResoniteTransportSlotCreationResult slashSlot = await client.AddSlotAsync(new AddSlot
+        {
+            Data = new Slot
+            {
+                Parent = new Reference { TargetID = "Root" },
+                Name = new Field_string { Value = "A/B#0%1" },
+            },
+        }, CancellationToken.None);
+        _ = await client.AddComponentAsync(new AddComponent
+        {
+            ContainerSlotId = slashSlot.Slot.Value,
+            Data = new Component
+            {
+                ComponentType = "FrooxEngine.ReferenceHolder",
+                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+                {
+                    ["Target"] = new Reference { TargetID = slashSlot.Slot.Value },
+                },
+            },
+        }, CancellationToken.None);
+
+        string dump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(client);
+
+        Assert.Contains("A%2FB%230%251", dump, StringComparison.Ordinal);
+        Assert.Contains("slot:A%2FB%230%251", dump, StringComparison.Ordinal);
+        Assert.DoesNotContain("slot:A/B#0%1", dump, StringComparison.Ordinal);
+    }
+
     private static GeneratedTerrainTexture CreateDeterministicTerrainTexture(TerrainTextureOverlay overlay)
     {
         return new GeneratedTerrainTexture(

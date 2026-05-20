@@ -514,16 +514,26 @@ internal static class SceneSinkRecordingClientCanonicalDump
                     string slotName = child.Name?.Value ?? string.Empty;
                     int siblingIndex = siblingNameIndexes.GetValueOrDefault(slotName);
                     siblingNameIndexes[slotName] = siblingIndex + 1;
+                    string escapedSlotName = EscapeSlotPathSegment(slotName);
                     string segment = siblingNameCounts[slotName] > 1
-                        ? string.Create(CultureInfo.InvariantCulture, $"{slotName}#{siblingIndex}")
-                        : slotName;
+                        ? string.Create(CultureInfo.InvariantCulture, $"{escapedSlotName}#{siblingIndex}")
+                        : escapedSlotName;
                     string childPath = string.IsNullOrEmpty(parentPath)
-                        ? segment.Replace('\\', '/')
-                        : $"{parentPath}/{segment}".Replace('\\', '/');
+                        ? segment
+                        : $"{parentPath}/{segment}";
                     paths[child.ID] = childPath;
                     AddChildPaths(child.ID, childPath);
                 }
             }
+        }
+
+        private static string EscapeSlotPathSegment(string segment)
+        {
+            return segment
+                .Replace("%", "%25", StringComparison.Ordinal)
+                .Replace("\\", "%5C", StringComparison.Ordinal)
+                .Replace("/", "%2F", StringComparison.Ordinal)
+                .Replace("#", "%23", StringComparison.Ordinal);
         }
 
         private Dictionary<string, string> CreateComponentReferences(SceneSinkRecordingClient client)

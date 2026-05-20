@@ -6777,7 +6777,7 @@
                     "name": "LOD2",
                     "children": [
                       {
-                        "path": "PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]",
+                        "path": "PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]",
                         "name": "AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]",
                         "components": [
                           {
@@ -6861,7 +6861,7 @@
                               },
                               "AlbedoTexture": {
                                 "kind": "reference",
-                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#0",
+                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#0",
                                 "targetType": null
                               },
                               "EmissiveColor": {
@@ -6876,12 +6876,12 @@
                               },
                               "EmissiveMap": {
                                 "kind": "reference",
-                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#4",
+                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#4",
                                 "targetType": null
                               },
                               "HeightMap": {
                                 "kind": "reference",
-                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#2",
+                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#2",
                                 "targetType": null
                               },
                               "HeightScale": {
@@ -6890,12 +6890,12 @@
                               },
                               "MetallicMap": {
                                 "kind": "reference",
-                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#3",
+                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#3",
                                 "targetType": null
                               },
                               "NormalMap": {
                                 "kind": "reference",
-                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#1",
+                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#1",
                                 "targetType": null
                               },
                               "NormalScale": {
@@ -6904,7 +6904,7 @@
                               },
                               "OcclusionMap": {
                                 "kind": "reference",
-                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#3",
+                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticTexture2D#3",
                                 "targetType": null
                               },
                               "Smoothness": {
@@ -7133,7 +7133,7 @@
                 "name": "LOD2",
                 "children": [
                   {
-                    "path": "PLATEAU tokyo23ku/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]",
+                    "path": "PLATEAU tokyo23ku/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]",
                     "name": "AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]",
                     "position": {
                       "kind": "Field_float3",
@@ -7161,14 +7161,14 @@
                               },
                               {
                                 "kind": "reference",
-                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.PBS_Metallic#0",
+                                "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.PBS_Metallic#0",
                                 "targetType": null
                               }
                             ]
                           },
                           "Mesh": {
                             "kind": "reference",
-                            "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticMesh#0",
+                            "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticMesh#0",
                             "targetType": null
                           }
                         }
@@ -7182,7 +7182,7 @@
                           },
                           "Mesh": {
                             "kind": "reference",
-                            "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 #1 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticMesh#0",
+                            "target": "component:PLATEAU tokyo23ku/Assets/plateau_tokyo23ku_bldg_53394525/LOD2/AtlasBake bldg LOD2 %231 [atlasbake-plateau_tokyo23ku_bldg_53394525-bldg-lod2-1]:[FrooxEngine]FrooxEngine.StaticMesh#0",
                             "targetType": null
                           },
                           "Type": {
