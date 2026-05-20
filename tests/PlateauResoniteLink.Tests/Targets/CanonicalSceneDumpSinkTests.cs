@@ -69,6 +69,8 @@ public sealed class CanonicalSceneDumpSinkTests
         Assert.Contains("\"root\"", dump, StringComparison.Ordinal);
         Assert.Contains("\"imports\"", dump, StringComparison.Ordinal);
         Assert.Contains("\"Building 1\"", dump, StringComparison.Ordinal);
+        Assert.EndsWith("\n", dump, StringComparison.Ordinal);
+        Assert.DoesNotContain("\r\n", dump, StringComparison.Ordinal);
     }
 
     [Fact]
