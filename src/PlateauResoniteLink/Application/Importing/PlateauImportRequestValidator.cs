@@ -33,7 +33,7 @@ public static class PlateauImportRequestValidator
         IReadOnlyList<string>? normalizedPackageNames = null;
         IReadOnlyDictionary<string, IReadOnlySet<int>>? normalizedPackageExclusions = null;
         IReadOnlyDictionary<string, string>? normalizedPackagePatterns = null;
-        ValidatedDatasetLocation? validatedSource = null;
+        ValidatedDatasetLocation? validatedCityGmlSource = null;
         ValidatedDatasetLocation? validatedDemTextureSource = null;
 
         if (string.IsNullOrWhiteSpace(normalizedRequest.Dataset))
@@ -43,7 +43,7 @@ public static class PlateauImportRequestValidator
 
         if (string.IsNullOrWhiteSpace(normalizedRequest.MeshCode))
         {
-            validationErrors.Add("The mesh code value is required.");
+            validationErrors.Add("The mesh-code value is required.");
         }
         else if (!MeshCodeRequestSyntax.TryCreateSelectionRegex(normalizedRequest.MeshCode, out meshCodePattern, out string? meshCodeError))
         {
@@ -134,7 +134,7 @@ public static class PlateauImportRequestValidator
             }
         }
 
-        switch (normalizedRequest.Source)
+        switch (normalizedRequest.CityGmlSource)
         {
             case LocalDatasetLocation localSource:
                 if (string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
@@ -164,7 +164,7 @@ public static class PlateauImportRequestValidator
                     break;
                 }
 
-                validatedSource = new ValidatedLocalDatasetLocation(localSource.LocalSourcePath);
+                validatedCityGmlSource = new ValidatedLocalDatasetLocation(localSource.LocalSourcePath);
                 break;
             case RemoteDatasetLocation remoteSource:
                 if (remoteSource.ServerUri is null)
@@ -185,7 +185,7 @@ public static class PlateauImportRequestValidator
                     break;
                 }
 
-                validatedSource = new ValidatedRemoteDatasetLocation(remoteSource.ServerUri);
+                validatedCityGmlSource = new ValidatedRemoteDatasetLocation(remoteSource.ServerUri);
                 break;
         }
 
@@ -260,7 +260,7 @@ public static class PlateauImportRequestValidator
             normalizedRequest.Dataset,
             normalizedRequest.MeshCode,
             meshCodePattern!,
-            validatedSource!,
+            validatedCityGmlSource!,
             validatedDemTextureSource,
             normalizedPackageNames,
             normalizedRequest.GlobalExcludeLodLevels,
@@ -371,15 +371,15 @@ public static class PlateauImportRequestValidator
         {
             Dataset = TrimToEmpty(request.Dataset),
             MeshCode = TrimToEmpty(request.MeshCode),
-            Source = NormalizeSource(request.Source),
-            DemTextureSource = request.DemTextureSource is null ? null : NormalizeSource(request.DemTextureSource),
+            CityGmlSource = NormalizeDatasetLocation(request.CityGmlSource),
+            DemTextureSource = request.DemTextureSource is null ? null : NormalizeDatasetLocation(request.DemTextureSource),
             PackageNames = request.PackageNames is null
                 ? null
                 : request.PackageNames.Select(static packageName => TrimToEmpty(packageName)).ToArray(),
         };
     }
 
-    private static DatasetLocation NormalizeSource(DatasetLocation source)
+    private static DatasetLocation NormalizeDatasetLocation(DatasetLocation source)
     {
         return source switch
         {

@@ -30,7 +30,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         IImportedSceneSource result = await factory.CreateAsync(request, progressReporter);
 
@@ -78,7 +78,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"),
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem"]
 );
 
@@ -118,7 +118,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525|53394526",
-            Source: DatasetLocation.Local("/tmp/plateau"),
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem", "bldg"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
@@ -140,7 +140,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             "udx/dem/53394525/terrain.gml",
             "dem",
             "53394525",
-            RequiresMeshAreaFilter: false);
+            RequiresMeshCodeBoundsFilter: false);
         SourceFilePipeline demPipeline = new(
             demSourceFile,
             () =>
@@ -178,7 +178,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525|53394526",
-            Source: DatasetLocation.Local("/tmp/plateau"),
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem", "bldg"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
@@ -215,7 +215,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"),
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
@@ -261,9 +261,9 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         }
     }
 
-    private sealed class RecordingComposer(IImportedSceneSource source) : IImportedSceneSourceComposer
+    private sealed class RecordingComposer(IImportedSceneSource importedSceneSource) : IImportedSceneSourceComposer
     {
-        internal IImportedSceneSource Source { get; } = source;
+        internal IImportedSceneSource ImportedSceneSource { get; } = importedSceneSource;
 
         public PlateauImportRequest? LastRequest { get; private set; }
 
@@ -281,7 +281,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             LastReadResult = readResult;
             LastProgressReporter = progressReporter;
             _ = objectUnitOptimizer;
-            return Source;
+            return ImportedSceneSource;
         }
     }
 
@@ -293,7 +293,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             Request: new PlateauImportRequest(
                 Dataset: "stub",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local("/tmp/plateau")
+                CityGmlSource: DatasetLocation.Local("/tmp/plateau")
 ),
             SourceDataset: new PlateauSourceDataset([], [], []),
             Attribution: new Attribution(

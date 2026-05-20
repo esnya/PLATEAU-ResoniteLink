@@ -21,7 +21,7 @@ internal readonly record struct ResonitePlacementCorrectionTerm(
     ResonitePlacementCorrectionReason Reason);
 
 internal sealed record ResonitePlacementCorrectionLayers(
-    IReadOnlyList<ResonitePlacementCorrectionTerm> Source,
+    IReadOnlyList<ResonitePlacementCorrectionTerm> SourceFile,
     IReadOnlyList<ResonitePlacementCorrectionTerm> Import,
     IReadOnlyList<ResonitePlacementCorrectionTerm> Placement,
     IReadOnlyList<ResonitePlacementCorrectionTerm> PostPlacement)

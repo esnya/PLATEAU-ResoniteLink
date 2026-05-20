@@ -282,13 +282,13 @@ public sealed class DemTerrainOverlayAssignmentTests
         {
             SharedAcrossMeshCodes = true,
         };
-        MeshCodeBounds[] requestedMeshAreas =
+        MeshCodeBounds[] requestedMeshCodeBounds =
         [
             new(35.0000, 35.0200, 139.0000, 139.0100),
         ];
 
         (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
-            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, [], requestedMeshAreas).ToArray();
+            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, [], requestedMeshCodeBounds).ToArray();
 
         (ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
         Assert.Null(overlay);

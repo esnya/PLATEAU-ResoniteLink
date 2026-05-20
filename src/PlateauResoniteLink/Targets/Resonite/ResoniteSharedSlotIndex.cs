@@ -333,7 +333,7 @@ internal sealed class ResoniteSharedSlotIndex(
                 ? null
                 : SelectDeterministicObservedPlacement(
                     observedMeshCodeRoots,
-                    $"Dataset root contains multiple observed source roots that resolve different placements for meshcode '{rootMeshCode}'. Append placement is ambiguous.",
+                    $"Dataset root contains multiple observed source roots that resolve different placements for mesh-code '{rootMeshCode}'. Append placement is ambiguous.",
                     SiblingProjectionDriftTolerance);
         }
 
@@ -343,7 +343,7 @@ internal sealed class ResoniteSharedSlotIndex(
             .ToArray();
         return SelectDeterministicObservedPlacement(
             bestCandidates,
-            $"Dataset root contains multiple observed source roots for meshcode '{bestCandidates[0].ReferenceMeshCode}' with different placements. Append placement is ambiguous.",
+            $"Dataset root contains multiple observed source roots for mesh-code '{bestCandidates[0].ReferenceMeshCode}' with different placements. Append placement is ambiguous.",
             StrictPlacementEquivalenceTolerance);
     }
 

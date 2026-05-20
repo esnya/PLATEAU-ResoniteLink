@@ -58,7 +58,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Remote(new Uri("https://example.invalid/tokyo23ku/source-archive.zip")));
+            CityGmlSource: DatasetLocation.Remote(new Uri("https://example.invalid/tokyo23ku/source-archive.zip")));
         ImportedSceneMetadata metadata = CreateMetadata(
             CreateRequest(resolvedDatasetDirectory.Path),
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
@@ -265,7 +265,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             request,
             metadata,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
             commonMaterials);
 
@@ -314,7 +314,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             request,
             metadata,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
             commonMaterials: CommonMaterialCatalog.Create());
 
@@ -385,7 +385,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             request,
             metadata,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
             CommonMaterialCatalog.Create());
 
@@ -449,7 +449,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             request,
             metadata,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
             CommonMaterialCatalog.Create());
 
@@ -511,7 +511,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
             sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
@@ -575,7 +575,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
             sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
@@ -658,7 +658,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
             sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
@@ -735,7 +735,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
             sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
@@ -811,7 +811,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
             sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
@@ -875,7 +875,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
             sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
@@ -908,7 +908,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages")),
+            CityGmlSource: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages")),
             PackageNames: ["dem"]
 );
         ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
@@ -995,7 +995,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         return new PlateauImportRequest(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(datasetRoot),
+            CityGmlSource: DatasetLocation.Local(datasetRoot),
 
             PackageNames: ["bldg"]);
     }
@@ -1007,7 +1007,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         return ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
-            request.LocalSourcePath!,
+            request.CityGmlLocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             sourceFiles: sourceFiles ?? []);
     }
@@ -1055,7 +1055,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 "53394525",
                 out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
         {
-            throw new InvalidOperationException("Test mesh code must be a valid third-level mesh code.");
+            throw new InvalidOperationException("Test mesh-code must be a valid third-level mesh-code.");
         }
 
         return new GeographicRectangle(

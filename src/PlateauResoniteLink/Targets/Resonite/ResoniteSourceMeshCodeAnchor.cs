@@ -66,7 +66,7 @@ internal static partial class ResoniteSourceMeshCodeAnchor
             throw new InvalidOperationException(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"Live Offset V2 requires at least one concrete meshcode from discovered source filenames, and request mesh '{setupInfo.MeshCode}' was not concrete."));
+                    $"Live Offset V2 requires at least one concrete mesh-code from discovered source filenames, and request mesh '{setupInfo.MeshCode}' was not concrete."));
         }
 
         return ResolveMeshCodeClosestToBoundsCenter(concreteSourceMeshCodes);

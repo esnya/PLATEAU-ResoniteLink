@@ -74,7 +74,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             "udx/bldg/53394525/streaming.gml",
             "bldg",
             "53394525",
-            RequiresMeshAreaFilter: false);
+            RequiresMeshCodeBoundsFilter: false);
 
         SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
             [sourceFile],
@@ -231,7 +231,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             "udx/bldg/53394525/metadata.gml",
             "bldg",
             "53394525",
-            RequiresMeshAreaFilter: false);
+            RequiresMeshCodeBoundsFilter: false);
 
         SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
             [sourceFile],
@@ -357,7 +357,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             "udx/bldg/53394525/metadata.gml",
             "bldg",
             "53394525",
-            RequiresMeshAreaFilter: false);
+            RequiresMeshCodeBoundsFilter: false);
 
         SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
             [sourceFile],
@@ -420,7 +420,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             "udx/bldg/53394525/metadata.gml",
             "bldg",
             "53394525",
-            RequiresMeshAreaFilter: false);
+            RequiresMeshCodeBoundsFilter: false);
 
         SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
             [sourceFile],

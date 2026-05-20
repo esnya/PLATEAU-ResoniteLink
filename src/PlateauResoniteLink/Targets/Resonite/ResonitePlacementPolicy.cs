@@ -79,7 +79,7 @@ internal static class ResonitePlacementPolicy
 
         throw new InvalidOperationException(
             $"City object '{cityObject.DisplayName}' did not provide source-file metadata. "
-            + "Source-owned hierarchy requires SourceFileRelativePath.");
+            + "source-file-owned hierarchy requires SourceFileRelativePath.");
     }
 
     public static string ResolveSourceFileRelativePath(ResoniteConstructionCityObject cityObject)
@@ -91,7 +91,7 @@ internal static class ResonitePlacementPolicy
 
         throw new InvalidOperationException(
             $"City object '{cityObject.DisplayName}' did not provide source-file metadata. "
-            + "Source-owned hierarchy requires SourceFileRelativePath.");
+            + "source-file-owned hierarchy requires SourceFileRelativePath.");
     }
 
     public static string ResolveRequiredSourceFileRootMeshCode(string sourceFileSlotName, string actualMeshCode)
@@ -107,7 +107,7 @@ internal static class ResonitePlacementPolicy
         }
 
         throw new InvalidOperationException(
-            $"Source-file root '{sourceFileSlotName}' did not contain a concrete meshcode and actual mesh '{actualMeshCode}' was not concrete.");
+            $"source-file root '{sourceFileSlotName}' did not contain a concrete mesh-code and actual mesh-code '{actualMeshCode}' was not concrete.");
     }
 
     public static string FormatLodSlotName(int? lodLevel)

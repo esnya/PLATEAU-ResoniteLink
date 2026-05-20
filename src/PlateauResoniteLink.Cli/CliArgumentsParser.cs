@@ -22,7 +22,7 @@ public static class CliArgumentsParser
 
         Import options:
           --dataset <value>      Required. PLATEAU dataset identifier.
-          --mesh-code <value>    Required. PLATEAU mesh code or regex to construct in Resonite.
+          --mesh-code <value>    Required. PLATEAU mesh-code or regex to construct in Resonite.
           --packages <csv>       Optional. Comma-separated PLATEAU package names. Default: dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg.
           --exclude-lod <csv>    Optional. Comma-separated LOD levels to exclude globally.
           --exclude-lod-for-package <csv>
@@ -61,7 +61,7 @@ public static class CliArgumentsParser
         Search/stats options:
           --citygml-source <path>
                                 Required. Local dataset directory or .zip/.7z archive to inspect.
-          --mesh-code <value>    Required for search. PLATEAU mesh code or regex to search within the dataset source.
+          --mesh-code <value>    Required for search. PLATEAU mesh-code or regex to search within the CityGML source.
           --packages <csv>       Optional. Restrict inspection to specific PLATEAU packages.
           --format <text|json>   Optional. Output format. Default: text.
 
@@ -350,7 +350,7 @@ public static class CliArgumentsParser
             return CliParseResult.Failure("Specify --citygml-source.");
         }
 
-        if (!TryParseDatasetLocationInput(cityGmlSourceInput, out DatasetLocation? source, out string? sourceError))
+        if (!TryParseDatasetLocationInput(cityGmlSourceInput, out DatasetLocation? cityGmlSource, out string? sourceError))
         {
             return CliParseResult.Failure(sourceError!);
         }
@@ -365,7 +365,7 @@ public static class CliArgumentsParser
         PlateauImportRequest request = new(
             Dataset: dataset ?? string.Empty,
             MeshCode: meshCode ?? string.Empty,
-            Source: source!,
+            CityGmlSource: cityGmlSource!,
             DemTextureSource: demTextureSource,
             PackageNames: packageNames,
             GlobalExcludeLodLevels: globalExcludeLods,

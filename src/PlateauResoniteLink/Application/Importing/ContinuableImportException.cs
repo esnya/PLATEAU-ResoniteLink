@@ -29,7 +29,7 @@ public sealed class ContinuableImportException : Exception
             ? throw new ArgumentException("Continuable import object name must be provided.", nameof(objectName))
             : objectName;
         ActualMeshCode = string.IsNullOrWhiteSpace(actualMeshCode)
-            ? throw new ArgumentException("Continuable import actual mesh code must be provided.", nameof(actualMeshCode))
+            ? throw new ArgumentException("Continuable import actual mesh-code must be provided.", nameof(actualMeshCode))
             : actualMeshCode;
         SourceFileRelativePath = string.IsNullOrWhiteSpace(sourceFileRelativePath)
             ? throw new ArgumentException("Continuable import source file path must be provided.", nameof(sourceFileRelativePath))
@@ -66,6 +66,6 @@ public sealed class ContinuableImportException : Exception
             CultureInfo.InvariantCulture,
             $"Continuable import failure phase='{phase}', package='{packageName}', "
             + $"object_key='{objectKey}', object_name='{objectName}', "
-            + $"actual_mesh='{actualMeshCode}', source_file='{sourceFileRelativePath}': {reason}");
+            + $"actual_mesh_code='{actualMeshCode}', source_file='{sourceFileRelativePath}': {reason}");
     }
 }

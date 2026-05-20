@@ -6,7 +6,7 @@ namespace PlateauResoniteLink.Domain.Importing;
 public sealed record PlateauImportRequest(
     string Dataset,
     string MeshCode,
-    DatasetLocation Source,
+    DatasetLocation CityGmlSource,
     DatasetLocation? DemTextureSource = null,
     IReadOnlyList<string>? PackageNames = null,
     IReadOnlySet<int>? GlobalExcludeLodLevels = null,
@@ -17,11 +17,11 @@ public sealed record PlateauImportRequest(
     double TerrainGridMetersPerVertex = 2.0,
     int TerrainGridMaxResolution = 1024)
 {
-    public DatasetSourceKind SourceKind => Source.SourceKind;
+    public DatasetSourceKind CityGmlSourceKind => CityGmlSource.SourceKind;
 
-    public string? LocalSourcePath => Source is LocalDatasetLocation localSource ? localSource.LocalSourcePath : null;
+    public string? CityGmlLocalSourcePath => CityGmlSource is LocalDatasetLocation localSource ? localSource.LocalSourcePath : null;
 
-    public Uri? ServerUri => Source is RemoteDatasetLocation remoteSource ? remoteSource.ServerUri : null;
+    public Uri? CityGmlServerUri => CityGmlSource is RemoteDatasetLocation remoteSource ? remoteSource.ServerUri : null;
 
     public DatasetSourceKind? DemTextureSourceKind => DemTextureSource?.SourceKind;
 

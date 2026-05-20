@@ -10,7 +10,7 @@ internal sealed record SourceFileDescriptor(
     string RelativePath,
     string PackageName,
     string MatchedMeshCode,
-    bool RequiresMeshAreaFilter)
+    bool RequiresMeshCodeBoundsFilter)
 {
     internal LocalCityGmlObjectProjection.SourceFileDescriptor ToProjectionModel()
     {
@@ -18,7 +18,7 @@ internal sealed record SourceFileDescriptor(
             RelativePath,
             PackageName,
             MatchedMeshCode,
-            RequiresMeshAreaFilter);
+            RequiresMeshCodeBoundsFilter);
     }
 
     internal static SourceFileDescriptor FromProjectionModel(LocalCityGmlObjectProjection.SourceFileDescriptor sourceFile)
@@ -27,7 +27,7 @@ internal sealed record SourceFileDescriptor(
             sourceFile.RelativePath,
             sourceFile.PackageName,
             sourceFile.MatchedMeshCode,
-            sourceFile.RequiresMeshAreaFilter);
+            sourceFile.RequiresMeshCodeBoundsFilter);
     }
 }
 

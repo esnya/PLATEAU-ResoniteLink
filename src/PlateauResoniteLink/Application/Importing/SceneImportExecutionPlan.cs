@@ -61,9 +61,9 @@ public sealed record SceneImportExecutionPlan
     {
         if (!string.Equals(normalizedRequest.Dataset, importRequest.Dataset, StringComparison.Ordinal)
             || !string.Equals(normalizedRequest.MeshCode, importRequest.MeshCode, StringComparison.Ordinal)
-            || !HasCompatibleSourceResolution(normalizedRequest.Source, resolvedRequest.Source, workRoot, "source-archive")
+            || !HasCompatibleSourceResolution(normalizedRequest.CityGmlSource, resolvedRequest.CityGmlSource, workRoot, "source-archive")
             || !HasCompatibleSourceResolution(normalizedRequest.DemTextureSource, resolvedRequest.DemTextureSource, workRoot, "source-ortho")
-            || !SourcesEqual(resolvedRequest.Source, importRequest.Source)
+            || !SourcesEqual(resolvedRequest.CityGmlSource, importRequest.CityGmlSource)
             || !SourcesEqual(resolvedRequest.DemTextureSource, importRequest.DemTextureSource)
             || normalizedRequest.IncludeMarkingAlways != importRequest.IncludeMarkingAlways
             || normalizedRequest.TerrainMeshMode != importRequest.TerrainMeshMode

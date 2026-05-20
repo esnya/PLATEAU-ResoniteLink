@@ -1699,7 +1699,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             || !PlateauMeshCode.TryGetBounds(meshCode, out _))
         {
             throw new InvalidOperationException(
-                "Terrain texture overlay preparation requires a valid third-level mesh code. "
+                "Terrain texture overlay preparation requires a valid third-level mesh-code. "
                 + $"provided_mesh='{texture.TerrainMeshCode ?? "<null>"}'.");
         }
 
@@ -1722,7 +1722,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 cityObject,
                 materialIndex,
                 material,
-                "missing terrain mesh code");
+                "missing terrain mesh-code");
         }
 
         return material with
@@ -1754,7 +1754,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             cityObject,
             materialIndex,
             material,
-            "mesh code bounds do not match overlay bounds");
+            "mesh-code bounds do not match overlay bounds");
     }
 
     private static InvalidOperationException CreateTerrainOverlayMaterialContractException(
@@ -1770,9 +1770,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 CultureInfo.InvariantCulture,
                 $"package='{overlay.PackageName}', bounds='{FormatGeographicBounds(overlay.GeographicBounds)}', sources='{overlay.SourceDescriptorKey}'");
         return new InvalidOperationException(
-            "Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds. "
+            "Terrain overlay material requires a third-level mesh-code that matches the overlay geographic bounds. "
             + $"reason='{reason}', object_slot='{cityObject.SlotKey}', object_name='{cityObject.DisplayName}', "
-            + $"package='{cityObject.PackageName}', actual_mesh='{cityObject.ActualMeshCode}', source_file='{cityObject.SourceFileRelativePath ?? "<null>"}', "
+            + $"package='{cityObject.PackageName}', actual_mesh_code='{cityObject.ActualMeshCode}', source_file='{cityObject.SourceFileRelativePath ?? "<null>"}', "
             + $"material_index='{materialIndex}', terrain_mesh='{material.TerrainMeshCode ?? "<null>"}', overlay={overlaySummary}.");
     }
 

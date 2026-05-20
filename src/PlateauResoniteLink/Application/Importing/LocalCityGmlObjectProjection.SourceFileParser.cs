@@ -16,15 +16,15 @@ namespace PlateauResoniteLink.Application.Importing;
 internal static partial class LocalCityGmlObjectProjection
 {
     internal static GeodeticCoordinate? ResolveGeodeticCenter(
-        MeshCodeBounds? requestedMeshArea)
+        MeshCodeBounds? requestedMeshCodeBounds)
     {
-        return requestedMeshArea?.GetGeodeticCenter();
+        return requestedMeshCodeBounds?.GetGeodeticCenter();
     }
 
     internal static Task<global::PlateauResoniteLink.Application.Importing.SourceFilePipeline[]> CreateSourceFilePipelinesCoreAsync(
         IReadOnlyList<global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
@@ -39,7 +39,7 @@ internal static partial class LocalCityGmlObjectProjection
                         () => ParseSourceFileCoreAsync(
                             sourceFile,
                             datasetSource,
-                            requestedMeshAreas,
+                            requestedMeshCodeBounds,
                             progressReporter,
                             lodFilteringStrategy,
                             appearanceStoreFactory,
@@ -48,7 +48,7 @@ internal static partial class LocalCityGmlObjectProjection
                         streamFactory: cancellationToken => StreamParsedCityObjectsCoreAsync(
                             sourceFile,
                             datasetSource,
-                            requestedMeshAreas,
+                            requestedMeshCodeBounds,
                             lodFilteringStrategy,
                             appearanceStoreFactory,
                             lodSelector,
@@ -59,7 +59,7 @@ internal static partial class LocalCityGmlObjectProjection
     internal static async Task<global::PlateauResoniteLink.Application.Importing.ParsedSourceFileResult> ParseSourceFileCoreAsync(
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
@@ -74,7 +74,7 @@ internal static partial class LocalCityGmlObjectProjection
         await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
                            sourceFile,
                            datasetSource,
-                           requestedMeshAreas,
+                           requestedMeshCodeBounds,
                            lodFilteringStrategy,
                            appearanceStoreFactory,
                            lodSelector,
@@ -115,7 +115,7 @@ internal static partial class LocalCityGmlObjectProjection
     private static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.ParsedCityObject> StreamParsedCityObjectsCoreAsync(
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
@@ -124,7 +124,7 @@ internal static partial class LocalCityGmlObjectProjection
         await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
                            sourceFile,
                            datasetSource,
-                           requestedMeshAreas,
+                           requestedMeshCodeBounds,
                            lodFilteringStrategy,
                            appearanceStoreFactory,
                            lodSelector,
@@ -138,7 +138,7 @@ internal static partial class LocalCityGmlObjectProjection
     internal static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.ParsedCityObject> StreamParsedCityObjectsCoreAsync(
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
@@ -152,7 +152,7 @@ internal static partial class LocalCityGmlObjectProjection
             await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsFromDocumentCoreAsync(
                                sourceFile,
                                datasetSource,
-                               requestedMeshAreas,
+                               requestedMeshCodeBounds,
                                lodFilteringStrategy,
                                appearanceStoreFactory,
                                lodSelector,
@@ -170,7 +170,7 @@ internal static partial class LocalCityGmlObjectProjection
                            stream,
                            sourceFile,
                            datasetSource,
-                           requestedMeshAreas,
+                           requestedMeshCodeBounds,
                            lodFilteringStrategy,
             appearanceStoreFactory,
             lodSelector,
@@ -237,7 +237,7 @@ internal static partial class LocalCityGmlObjectProjection
         Stream stream,
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
@@ -321,11 +321,11 @@ internal static partial class LocalCityGmlObjectProjection
                 sourceFile.PackageName,
                 sourceFile.RelativePath,
                 sourceFile.MatchedMeshCode,
-                sourceFile.RequiresMeshAreaFilter,
+                sourceFile.RequiresMeshCodeBoundsFilter,
                 appearanceStore,
                 lodSelector,
                 coordinateReferenceSystem,
-                sourceFile.RequiresMeshAreaFilter ? requestedMeshAreas : null,
+                sourceFile.RequiresMeshCodeBoundsFilter ? requestedMeshCodeBounds : null,
                 lodFilteringStrategy);
             if (cityObject is null)
             {
@@ -339,7 +339,7 @@ internal static partial class LocalCityGmlObjectProjection
     private static async IAsyncEnumerable<global::PlateauResoniteLink.Application.Importing.ParsedCityObject> StreamParsedCityObjectsFromDocumentCoreAsync(
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
@@ -373,11 +373,11 @@ internal static partial class LocalCityGmlObjectProjection
                 sourceFile.PackageName,
                 sourceFile.RelativePath,
                 sourceFile.MatchedMeshCode,
-                sourceFile.RequiresMeshAreaFilter,
+                sourceFile.RequiresMeshCodeBoundsFilter,
                 appearanceStore,
                 lodSelector,
                 coordinateReferenceSystem,
-                sourceFile.RequiresMeshAreaFilter ? requestedMeshAreas : null,
+                sourceFile.RequiresMeshCodeBoundsFilter ? requestedMeshCodeBounds : null,
                 lodFilteringStrategy);
             if (cityObject is null)
             {

@@ -35,7 +35,7 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             new PlateauImportRequest(
                 Dataset: dataset,
                 MeshCode: meshCode,
-                Source: DatasetLocation.Remote(new Uri(serverUri, UriKind.Absolute))));
+                CityGmlSource: DatasetLocation.Remote(new Uri(serverUri, UriKind.Absolute))));
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/direct.zip"),
             workRoot.Path);
 
-        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
+        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.CityGmlSourceKind);
         await AssertResolvedArchiveContainsAsync(
             resolvedRequest,
             "direct.zip",
@@ -101,7 +101,7 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/direct.7z"),
             workRoot.Path);
 
-        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
+        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.CityGmlSourceKind);
         await AssertResolvedArchiveContainsAsync(
             resolvedRequest,
             "direct.7z",
@@ -136,7 +136,7 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             CreateValidatedRemoteRequest("tokyo23ku", "53394611", "https://example.test/wrapped.zip"),
             workRoot.Path);
 
-        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
+        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.CityGmlSourceKind);
         await AssertResolvedArchiveContainsAsync(
             resolvedRequest,
             "wrapped.zip",
@@ -171,7 +171,7 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             CreateValidatedRemoteRequest("tokyo23ku", "53394611", "https://example.test/wrapped.7z"),
             workRoot.Path);
 
-        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
+        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.CityGmlSourceKind);
         await AssertResolvedArchiveContainsAsync(
             resolvedRequest,
             "wrapped.7z",
@@ -218,7 +218,7 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/official-packages.zip"),
             workRoot.Path);
 
-        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
+        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.CityGmlSourceKind);
         await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/area/plateau_tokyo23ku_area_533944.gml");
         await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/cons/plateau_tokyo23ku_cons_533944.gml");
         await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/ifld/plateau_tokyo23ku_ifld_533944.gml");
@@ -274,7 +274,7 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/official-packages.7z"),
             workRoot.Path);
 
-        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
+        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.CityGmlSourceKind);
         await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/area/plateau_tokyo23ku_area_533944.gml");
         await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/cons/plateau_tokyo23ku_cons_533944.gml");
         await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/ifld/plateau_tokyo23ku_ifld_533944.gml");
@@ -450,18 +450,18 @@ public sealed class CkanPlateauDatasetSourceResolverTests
         string expectedArchiveFileName,
         string expectedRelativePath)
     {
-        Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(resolvedRequest.LocalSourcePath));
+        Assert.NotNull(resolvedRequest.CityGmlLocalSourcePath);
+        Assert.True(File.Exists(resolvedRequest.CityGmlLocalSourcePath));
         Assert.Equal(
             Path.GetExtension(expectedArchiveFileName).ToLowerInvariant(),
-            Path.GetExtension(resolvedRequest.LocalSourcePath));
+            Path.GetExtension(resolvedRequest.CityGmlLocalSourcePath));
         Assert.StartsWith(
             "source-archive-",
-            Path.GetFileNameWithoutExtension(resolvedRequest.LocalSourcePath),
+            Path.GetFileNameWithoutExtension(resolvedRequest.CityGmlLocalSourcePath),
             StringComparison.Ordinal);
 
         IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
-            resolvedRequest.LocalSourcePath,
+            resolvedRequest.CityGmlLocalSourcePath,
             new RemoteArchiveDistributionPolicy(),
             new ArchiveFileLayoutPolicy());
         Assert.Contains(expectedRelativePath, datasetSource.EnumerateFiles());
