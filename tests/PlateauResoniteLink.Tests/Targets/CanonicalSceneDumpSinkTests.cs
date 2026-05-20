@@ -224,6 +224,20 @@ public sealed class CanonicalSceneDumpSinkTests
     }
 
     [Fact]
+    public async Task CreateCanonicalJsonOrdersSameTypeComponentsByReferencedComponentContent()
+    {
+        using SceneSinkRecordingClient alphaHolderFirstClient = new();
+        using SceneSinkRecordingClient betaHolderFirstClient = new();
+
+        await AddSameTypeReferenceHolderComponentsAsync(alphaHolderFirstClient, createAlphaHolderFirst: true);
+        await AddSameTypeReferenceHolderComponentsAsync(betaHolderFirstClient, createAlphaHolderFirst: false);
+
+        string alphaHolderFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(alphaHolderFirstClient);
+        string betaHolderFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(betaHolderFirstClient);
+        Assert.Equal(alphaHolderFirstDump, betaHolderFirstDump);
+    }
+
+    [Fact]
     public async Task CreateCanonicalJsonOrdersDuplicateSiblingSlotsByActualDescendants()
     {
         using SceneSinkRecordingClient alphaFirstClient = new();
@@ -395,6 +409,47 @@ public sealed class CanonicalSceneDumpSinkTests
                 Members = new Dictionary<string, Member>(StringComparer.Ordinal)
                 {
                     ["Name"] = new Field_string { Value = name },
+                },
+            },
+        }, CancellationToken.None);
+    }
+
+    private static async Task AddSameTypeReferenceHolderComponentsAsync(
+        SceneSinkRecordingClient client,
+        bool createAlphaHolderFirst)
+    {
+        ResoniteTransportSlotCreationResult slot = await AddNamedSlotAsync(client, "Child");
+        ResoniteTransportComponentCreationResult alpha = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Alpha");
+        ResoniteTransportComponentCreationResult beta = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Beta");
+        if (createAlphaHolderFirst)
+        {
+            await AddComponentReferenceHolderAsync(client, slot.Slot.Value, alpha.Component.Value);
+            await AddComponentReferenceHolderAsync(client, slot.Slot.Value, beta.Component.Value);
+            return;
+        }
+
+        await AddComponentReferenceHolderAsync(client, slot.Slot.Value, beta.Component.Value);
+        await AddComponentReferenceHolderAsync(client, slot.Slot.Value, alpha.Component.Value);
+    }
+
+    private static async Task AddComponentReferenceHolderAsync(
+        SceneSinkRecordingClient client,
+        string slotId,
+        string targetComponentId)
+    {
+        _ = await client.AddComponentAsync(new AddComponent
+        {
+            ContainerSlotId = slotId,
+            Data = new Component
+            {
+                ComponentType = "FrooxEngine.ComponentReferenceHolder",
+                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+                {
+                    ["Target"] = new Reference
+                    {
+                        TargetID = targetComponentId,
+                        TargetType = "FrooxEngine.SemanticTarget",
+                    },
                 },
             },
         }, CancellationToken.None);

@@ -633,6 +633,16 @@ internal static class SceneSinkRecordingClientCanonicalDump
 
         private string CreateComponentSemanticSortKey(Component component)
         {
+            return CreateComponentSemanticSortKey(component, []);
+        }
+
+        private string CreateComponentSemanticSortKey(Component component, HashSet<string> visitedComponentIds)
+        {
+            if (!string.IsNullOrWhiteSpace(component.ID) && !visitedComponentIds.Add(component.ID))
+            {
+                return component.ComponentType ?? string.Empty;
+            }
+
             string members = string.Join(
                 "\u001e",
                 component.Members
@@ -640,29 +650,29 @@ internal static class SceneSinkRecordingClientCanonicalDump
                     .Select(pair => string.Join(
                         "\u001f",
                         pair.Key,
-                        CreateMemberSemanticSortKey(pair.Value))));
+                        CreateMemberSemanticSortKey(pair.Value, [.. visitedComponentIds]))));
             return string.Join("\u001f", component.ComponentType ?? string.Empty, members);
         }
 
-        private string CreateMemberSemanticSortKey(Member member)
+        private string CreateMemberSemanticSortKey(Member member, HashSet<string> visitedComponentIds)
         {
             return member switch
             {
                 Reference reference => string.Join(
                     "\u001f",
                     "reference",
-                    ResolveReferenceSemanticSortKey(reference.TargetID),
+                    ResolveReferenceSemanticSortKey(reference.TargetID, visitedComponentIds),
                     reference.TargetType ?? string.Empty),
                 SyncList syncList => string.Join(
                     "\u001f",
                     "sync-list",
-                    string.Join("\u001e", syncList.Elements.Select(CreateObjectSemanticSortKey))),
+                    string.Join("\u001e", syncList.Elements.Select(element => CreateObjectSemanticSortKey(element, [.. visitedComponentIds])))),
                 Field_Uri uri => string.Join("\u001f", "uri", NormalizeUri(Client, uri.Value).ToJsonString()),
-                _ => CreateReflectiveMemberSemanticSortKey(member),
+                _ => CreateReflectiveMemberSemanticSortKey(member, visitedComponentIds),
             };
         }
 
-        private string CreateReflectiveMemberSemanticSortKey(Member member)
+        private string CreateReflectiveMemberSemanticSortKey(Member member, HashSet<string> visitedComponentIds)
         {
             PropertyInfo? boxedValueProperty = member.GetType().GetProperty("BoxedValue", BindingFlags.Public | BindingFlags.Instance);
             if (boxedValueProperty is not null)
@@ -670,7 +680,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 return string.Join(
                     "\u001f",
                     member.GetType().Name,
-                    CreateObjectSemanticSortKey(boxedValueProperty.GetValue(member)));
+                    CreateObjectSemanticSortKey(boxedValueProperty.GetValue(member), visitedComponentIds));
             }
 
             string properties = string.Join(
@@ -683,11 +693,11 @@ internal static class SceneSinkRecordingClientCanonicalDump
                     .Select(property => string.Join(
                         "\u001f",
                         property.Name,
-                        CreateObjectSemanticSortKey(property.GetValue(member)))));
+                        CreateObjectSemanticSortKey(property.GetValue(member), [.. visitedComponentIds]))));
             return string.Join("\u001f", member.GetType().Name, properties);
         }
 
-        private string CreateObjectSemanticSortKey(object? value)
+        private string CreateObjectSemanticSortKey(object? value, HashSet<string> visitedComponentIds)
         {
             if (value is null)
             {
@@ -696,7 +706,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
 
             if (value is Member member)
             {
-                return CreateMemberSemanticSortKey(member);
+                return CreateMemberSemanticSortKey(member, visitedComponentIds);
             }
 
             if (value is Uri uri)
@@ -714,9 +724,19 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 return boolValue ? "true" : "false";
             }
 
-            if (value is int or long or float or double)
+            if (value is int or long)
             {
                 return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+            }
+
+            if (value is float floatValue)
+            {
+                return FormatNumber(floatValue);
+            }
+
+            if (value is double doubleValue)
+            {
+                return FormatNumber(doubleValue);
             }
 
             if (value is System.Collections.IDictionary dictionary)
@@ -730,12 +750,12 @@ internal static class SceneSinkRecordingClientCanonicalDump
                         .Select(key => string.Join(
                             "\u001f",
                             Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty,
-                            CreateObjectSemanticSortKey(dictionary[key!]))));
+                            CreateObjectSemanticSortKey(dictionary[key!], [.. visitedComponentIds]))));
             }
 
             if (value is System.Collections.IEnumerable enumerable && value is not string)
             {
-                return string.Join("\u001e", enumerable.Cast<object?>().Select(CreateObjectSemanticSortKey));
+                return string.Join("\u001e", enumerable.Cast<object?>().Select(element => CreateObjectSemanticSortKey(element, [.. visitedComponentIds])));
             }
 
             Type type = value.GetType();
@@ -753,13 +773,13 @@ internal static class SceneSinkRecordingClientCanonicalDump
                     .Select(property => string.Join(
                         "\u001f",
                         property.Name,
-                        CreateObjectSemanticSortKey(property.GetValue(value)))));
+                        CreateObjectSemanticSortKey(property.GetValue(value), [.. visitedComponentIds]))));
             return string.IsNullOrEmpty(properties)
                 ? Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
                 : properties;
         }
 
-        private string ResolveReferenceSemanticSortKey(string? targetId)
+        private string ResolveReferenceSemanticSortKey(string? targetId, HashSet<string> visitedComponentIds)
         {
             if (string.IsNullOrWhiteSpace(targetId))
             {
@@ -773,7 +793,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
 
             if (Client.ComponentsById.TryGetValue(targetId, out Component? component))
             {
-                return $"component:{GetComponentOwnerPath(component)}:{component.ComponentType ?? string.Empty}";
+                return $"component:{GetComponentOwnerPath(component)}:{CreateComponentSemanticSortKey(component, [.. visitedComponentIds])}";
             }
 
             return "external";
