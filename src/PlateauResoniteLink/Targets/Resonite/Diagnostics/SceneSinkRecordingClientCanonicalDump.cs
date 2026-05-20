@@ -456,7 +456,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
             return Client.SlotsById.TryGetValue(slotId, out Slot? slot) && slot.Components is not null
                 ? slot.Components
                     .OrderBy(static component => component.ComponentType, StringComparer.Ordinal)
-                    .ThenBy(component => componentReferencesById.GetValueOrDefault(component.ID ?? string.Empty, string.Empty), StringComparer.Ordinal)
+                    .ThenBy(CreateComponentSemanticSortKey, StringComparer.Ordinal)
                     .ToArray()
                 : [];
         }
@@ -496,8 +496,6 @@ internal static class SceneSinkRecordingClientCanonicalDump
                     .Where(slot => string.Equals(slot.Parent?.TargetID, parentId, StringComparison.Ordinal))
                     .OrderBy(static slot => slot.Name?.Value ?? string.Empty, StringComparer.Ordinal)
                     .ThenBy(CreateSlotSemanticSortKey, StringComparer.Ordinal)
-                    .ThenBy(slot => client.SlotPaths.GetValueOrDefault(slot.ID ?? string.Empty, string.Empty), StringComparer.Ordinal)
-                    .ThenBy(static slot => slot.ID, StringComparer.Ordinal)
                     .ToArray();
                 Dictionary<string, int> siblingNameCounts = children
                     .GroupBy(static slot => slot.Name?.Value ?? string.Empty, StringComparer.Ordinal)
@@ -538,7 +536,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 Dictionary<string, int> typeIndexes = new(StringComparer.Ordinal);
                 foreach (Component component in slot.Components
                              .OrderBy(static component => component.ComponentType, StringComparer.Ordinal)
-                             .ThenBy(static component => component.ID, StringComparer.Ordinal))
+                             .ThenBy(CreateComponentSemanticSortKey, StringComparer.Ordinal))
                 {
                     string componentType = component.ComponentType ?? string.Empty;
                     int index = typeIndexes.GetValueOrDefault(componentType);
@@ -575,6 +573,167 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 slot.Tag?.Value ?? string.Empty,
                 componentTypes,
                 childNames);
+        }
+
+        private string CreateComponentSemanticSortKey(Component component)
+        {
+            string members = string.Join(
+                "\u001e",
+                component.Members
+                    .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+                    .Select(pair => string.Join(
+                        "\u001f",
+                        pair.Key,
+                        CreateMemberSemanticSortKey(pair.Value))));
+            return string.Join("\u001f", component.ComponentType ?? string.Empty, members);
+        }
+
+        private string CreateMemberSemanticSortKey(Member member)
+        {
+            return member switch
+            {
+                Reference reference => string.Join(
+                    "\u001f",
+                    "reference",
+                    ResolveReferenceSemanticSortKey(reference.TargetID),
+                    reference.TargetType ?? string.Empty),
+                SyncList syncList => string.Join(
+                    "\u001f",
+                    "sync-list",
+                    string.Join("\u001e", syncList.Elements.Select(CreateObjectSemanticSortKey))),
+                Field_Uri uri => string.Join("\u001f", "uri", NormalizeUri(Client, uri.Value).ToJsonString()),
+                _ => CreateReflectiveMemberSemanticSortKey(member),
+            };
+        }
+
+        private string CreateReflectiveMemberSemanticSortKey(Member member)
+        {
+            PropertyInfo? boxedValueProperty = member.GetType().GetProperty("BoxedValue", BindingFlags.Public | BindingFlags.Instance);
+            if (boxedValueProperty is not null)
+            {
+                return string.Join(
+                    "\u001f",
+                    member.GetType().Name,
+                    CreateObjectSemanticSortKey(boxedValueProperty.GetValue(member)));
+            }
+
+            string properties = string.Join(
+                "\u001e",
+                member.GetType()
+                    .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(static property => property.GetIndexParameters().Length == 0)
+                    .Where(static property => !string.Equals(property.Name, "ID", StringComparison.Ordinal))
+                    .OrderBy(static property => property.Name, StringComparer.Ordinal)
+                    .Select(property => string.Join(
+                        "\u001f",
+                        property.Name,
+                        CreateObjectSemanticSortKey(property.GetValue(member)))));
+            return string.Join("\u001f", member.GetType().Name, properties);
+        }
+
+        private string CreateObjectSemanticSortKey(object? value)
+        {
+            if (value is null)
+            {
+                return "null";
+            }
+
+            if (value is Member member)
+            {
+                return CreateMemberSemanticSortKey(member);
+            }
+
+            if (value is Uri uri)
+            {
+                return NormalizeUri(Client, uri).ToJsonString();
+            }
+
+            if (value is string stringValue)
+            {
+                return stringValue;
+            }
+
+            if (value is bool boolValue)
+            {
+                return boolValue ? "true" : "false";
+            }
+
+            if (value is int or long or float or double)
+            {
+                return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+            }
+
+            if (value is System.Collections.IDictionary dictionary)
+            {
+                return string.Join(
+                    "\u001e",
+                    dictionary.Keys
+                        .Cast<object?>()
+                        .Where(static key => key is not null)
+                        .OrderBy(static key => Convert.ToString(key, CultureInfo.InvariantCulture), StringComparer.Ordinal)
+                        .Select(key => string.Join(
+                            "\u001f",
+                            Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty,
+                            CreateObjectSemanticSortKey(dictionary[key!]))));
+            }
+
+            if (value is System.Collections.IEnumerable enumerable && value is not string)
+            {
+                return string.Join("\u001e", enumerable.Cast<object?>().Select(CreateObjectSemanticSortKey));
+            }
+
+            Type type = value.GetType();
+            if (type.IsPrimitive || type.IsEnum)
+            {
+                return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+            }
+
+            string properties = string.Join(
+                "\u001e",
+                type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(static property => property.GetIndexParameters().Length == 0)
+                    .Where(static property => !string.Equals(property.Name, "ID", StringComparison.Ordinal))
+                    .OrderBy(static property => property.Name, StringComparer.Ordinal)
+                    .Select(property => string.Join(
+                        "\u001f",
+                        property.Name,
+                        CreateObjectSemanticSortKey(property.GetValue(value)))));
+            return string.IsNullOrEmpty(properties)
+                ? Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+                : properties;
+        }
+
+        private string ResolveReferenceSemanticSortKey(string? targetId)
+        {
+            if (string.IsNullOrWhiteSpace(targetId))
+            {
+                return string.Empty;
+            }
+
+            if (Client.SlotsById.ContainsKey(targetId))
+            {
+                return $"slot:{GetSlotPath(targetId)}";
+            }
+
+            if (Client.ComponentsById.TryGetValue(targetId, out Component? component))
+            {
+                return $"component:{GetComponentOwnerPath(component)}:{component.ComponentType ?? string.Empty}";
+            }
+
+            return "external";
+        }
+
+        private string GetComponentOwnerPath(Component targetComponent)
+        {
+            foreach (Slot slot in Client.SlotsById.Values.OrderBy(slot => GetSlotPath(slot.ID ?? string.Empty), StringComparer.Ordinal))
+            {
+                if (slot.Components?.Contains(targetComponent) == true)
+                {
+                    return GetSlotPath(slot.ID ?? string.Empty);
+                }
+            }
+
+            return string.Empty;
         }
     }
 }

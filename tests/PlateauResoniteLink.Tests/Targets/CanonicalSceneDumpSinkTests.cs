@@ -206,6 +206,21 @@ public sealed class CanonicalSceneDumpSinkTests
         Assert.Contains("\"path\": \"Duplicate#1\"", targetFirstDump, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task CreateCanonicalJsonOrdersSameTypeComponentReferencesByContent()
+    {
+        using SceneSinkRecordingClient alphaFirstClient = new();
+        using SceneSinkRecordingClient betaFirstClient = new();
+
+        await AddSameTypeComponentReferenceAsync(alphaFirstClient, createAlphaFirst: true);
+        await AddSameTypeComponentReferenceAsync(betaFirstClient, createAlphaFirst: false);
+
+        string alphaFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(alphaFirstClient);
+        string betaFirstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(betaFirstClient);
+        Assert.Equal(alphaFirstDump, betaFirstDump);
+        Assert.Contains("component:Child:FrooxEngine.SemanticTarget#1", alphaFirstDump, StringComparison.Ordinal);
+    }
+
     private static GeneratedTerrainTexture CreateDeterministicTerrainTexture(TerrainTextureOverlay overlay)
     {
         return new GeneratedTerrainTexture(
@@ -306,6 +321,62 @@ public sealed class CanonicalSceneDumpSinkTests
                 Members = new Dictionary<string, Member>(StringComparer.Ordinal)
                 {
                     ["Target"] = new Reference { TargetID = targetSlotId },
+                },
+            },
+        }, CancellationToken.None);
+    }
+
+    private static async Task AddSameTypeComponentReferenceAsync(
+        SceneSinkRecordingClient client,
+        bool createAlphaFirst)
+    {
+        ResoniteTransportSlotCreationResult slot = await AddNamedSlotAsync(client, "Child");
+        ResoniteTransportComponentCreationResult alpha;
+        ResoniteTransportComponentCreationResult beta;
+        if (createAlphaFirst)
+        {
+            alpha = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Alpha");
+            beta = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Beta");
+        }
+        else
+        {
+            beta = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Beta");
+            alpha = await AddSemanticTargetComponentAsync(client, slot.Slot.Value, "Alpha");
+        }
+
+        _ = alpha;
+        _ = await client.AddComponentAsync(new AddComponent
+        {
+            ContainerSlotId = slot.Slot.Value,
+            Data = new Component
+            {
+                ComponentType = "FrooxEngine.ComponentReferenceHolder",
+                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+                {
+                    ["Target"] = new Reference
+                    {
+                        TargetID = beta.Component.Value,
+                        TargetType = "FrooxEngine.SemanticTarget",
+                    },
+                },
+            },
+        }, CancellationToken.None);
+    }
+
+    private static Task<ResoniteTransportComponentCreationResult> AddSemanticTargetComponentAsync(
+        SceneSinkRecordingClient client,
+        string slotId,
+        string name)
+    {
+        return client.AddComponentAsync(new AddComponent
+        {
+            ContainerSlotId = slotId,
+            Data = new Component
+            {
+                ComponentType = "FrooxEngine.SemanticTarget",
+                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+                {
+                    ["Name"] = new Field_string { Value = name },
                 },
             },
         }, CancellationToken.None);
