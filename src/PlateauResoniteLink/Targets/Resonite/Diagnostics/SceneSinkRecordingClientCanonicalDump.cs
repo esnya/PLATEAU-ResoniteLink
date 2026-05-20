@@ -301,6 +301,25 @@ internal static class SceneSinkRecordingClientCanonicalDump
             return FormatNumber(doubleValue);
         }
 
+        if (value is System.Collections.IDictionary dictionary)
+        {
+            JsonObject dictionaryProperties = [];
+            foreach (object? keyObject in dictionary.Keys
+                         .Cast<object?>()
+                         .OrderBy(static key => Convert.ToString(key, CultureInfo.InvariantCulture), StringComparer.Ordinal))
+            {
+                if (keyObject is null)
+                {
+                    continue;
+                }
+
+                string key = Convert.ToString(keyObject, CultureInfo.InvariantCulture) ?? string.Empty;
+                dictionaryProperties[key] = CreateObjectNode(context, dictionary[keyObject]);
+            }
+
+            return dictionaryProperties;
+        }
+
         if (value is System.Collections.IEnumerable enumerable && value is not string)
         {
             JsonArray array = [];

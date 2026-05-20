@@ -475,7 +475,9 @@ internal sealed class RecordingTerrainTextureAssetGenerator(
     }
 }
 
-internal sealed class SceneSinkRecordingClient : PlateauResoniteLink.Targets.Resonite.Diagnostics.SceneSinkRecordingClient;
+internal sealed class SceneSinkRecordingClient : PlateauResoniteLink.Targets.Resonite.Diagnostics.SceneSinkRecordingClient
+{
+}
 
 internal sealed class DelegatingClientSession(
     IResoniteLinkClient? routedClient = null,

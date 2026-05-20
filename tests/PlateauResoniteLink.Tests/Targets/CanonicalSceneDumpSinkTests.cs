@@ -173,6 +173,23 @@ public sealed class CanonicalSceneDumpSinkTests
             SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(batchedClient));
     }
 
+    [Fact]
+    public async Task CreateCanonicalJsonSortsDictionaryMembersAsObjects()
+    {
+        using SceneSinkRecordingClient firstClient = new();
+        using SceneSinkRecordingClient secondClient = new();
+
+        await AddDictionaryBackedComponentAsync(firstClient, "First", "Second");
+        await AddDictionaryBackedComponentAsync(secondClient, "Second", "First");
+
+        string firstDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(firstClient);
+        string secondDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(secondClient);
+        Assert.Equal(firstDump, secondDump);
+        Assert.Contains("\"First\"", firstDump, StringComparison.Ordinal);
+        Assert.Contains("\"Second\"", firstDump, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Key\"", firstDump, StringComparison.Ordinal);
+    }
+
     private static GeneratedTerrainTexture CreateDeterministicTerrainTexture(TerrainTextureOverlay overlay)
     {
         return new GeneratedTerrainTexture(
@@ -184,5 +201,47 @@ public sealed class CanonicalSceneDumpSinkTests
             new ResoniteFloat2(1.0, 1.0),
             new ResoniteFloat2(0.0, 0.0),
             overlay.GetRequiredPrimaryTileSource());
+    }
+
+    private static async Task AddDictionaryBackedComponentAsync(
+        SceneSinkRecordingClient client,
+        string firstMemberName,
+        string secondMemberName)
+    {
+        ResoniteTransportSlotCreationResult slot = await client.AddSlotAsync(new AddSlot
+        {
+            Data = new Slot
+            {
+                Parent = new Reference { TargetID = "Root" },
+                Name = new Field_string { Value = "Child" },
+            },
+        }, CancellationToken.None);
+        Dictionary<string, Member> nestedMembers = new(StringComparer.Ordinal)
+        {
+            [firstMemberName] = new Field_string { Value = firstMemberName },
+            [secondMemberName] = new Field_string { Value = secondMemberName },
+        };
+
+        _ = await client.AddComponentAsync(new AddComponent
+        {
+            ContainerSlotId = slot.Slot.Value,
+            Data = new Component
+            {
+                ComponentType = "FrooxEngine.DictionaryBackedComponent",
+                Members = new Dictionary<string, Member>(StringComparer.Ordinal)
+                {
+                    ["Nested"] = new SyncList
+                    {
+                        Elements =
+                        [
+                            new SyncObject
+                            {
+                                Members = nestedMembers,
+                            },
+                        ],
+                    },
+                },
+            },
+        }, CancellationToken.None);
     }
 }
