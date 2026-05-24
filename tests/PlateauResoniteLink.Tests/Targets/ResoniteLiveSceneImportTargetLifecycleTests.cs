@@ -23,11 +23,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 {
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
 
-    private static ResoniteCommonMaterialSetupPreparer CreateCommonMaterialSetupPreparer(Action<string>? progressReporter = null)
+    private static ResoniteCommonMaterialSetupPreparer CreateCommonMaterialSetupPreparer(
+        IResoniteMaterialPlanning materialPlanning,
+        Action<string>? progressReporter = null)
     {
-        return new ResoniteCommonMaterialSetupPreparer(
-            new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-            progressReporter);
+        return new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter);
     }
 
     [Fact]
@@ -39,6 +39,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -56,8 +57,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                CreateCommonMaterialSetupPreparer(),
+                materialPlanning,
+                CreateCommonMaterialSetupPreparer(materialPlanning),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -101,6 +102,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(
             ensureConnectedAsync: static (_, _) => Task.FromException(new InvalidOperationException("connect failed")));
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -118,8 +120,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                CreateCommonMaterialSetupPreparer(),
+                materialPlanning,
+                CreateCommonMaterialSetupPreparer(materialPlanning),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -154,6 +156,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 await releaseEnsureConnected.Task.WaitAsync(cancellationToken);
             });
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -171,8 +174,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                CreateCommonMaterialSetupPreparer(),
+                materialPlanning,
+                CreateCommonMaterialSetupPreparer(materialPlanning),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -244,6 +247,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory workDirectory = new();
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -261,8 +265,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new MissingCommonMaterialSetupInterpreter(),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                CreateCommonMaterialSetupPreparer(),
+                materialPlanning,
+                CreateCommonMaterialSetupPreparer(materialPlanning),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -294,6 +298,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory workDirectory = new();
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -311,8 +316,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new MissingCommonMaterialSetupInterpreter(),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                CreateCommonMaterialSetupPreparer(),
+                materialPlanning,
+                CreateCommonMaterialSetupPreparer(materialPlanning),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -358,6 +363,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 AssetScope: ResoniteMaterialAssetScope.Common),
             useCommonMaterialAssets: true);
         bool terrainAlignedGenericSlotExistedWhenSendWorkersStarted = false;
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -384,8 +390,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                CreateCommonMaterialSetupPreparer(progressMessages.Add),
+                materialPlanning,
+                CreateCommonMaterialSetupPreparer(materialPlanning, progressMessages.Add),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),

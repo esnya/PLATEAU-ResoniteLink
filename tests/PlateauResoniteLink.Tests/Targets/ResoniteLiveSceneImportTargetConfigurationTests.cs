@@ -20,11 +20,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 {
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
 
-    private static ResoniteCommonMaterialSetupPreparer CreateCommonMaterialSetupPreparer()
+    private static ResoniteCommonMaterialSetupPreparer CreateCommonMaterialSetupPreparer(
+        IResoniteMaterialPlanning materialPlanning)
     {
-        return new ResoniteCommonMaterialSetupPreparer(
-            new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-            null);
+        return new ResoniteCommonMaterialSetupPreparer(materialPlanning, null);
     }
 
     [Fact]
@@ -55,6 +54,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     public async Task OptionsConstructorReusesDependencyDiagnostics()
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.CreateEnabled();
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -72,8 +72,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                CreateCommonMaterialSetupPreparer(),
+                materialPlanning,
+                CreateCommonMaterialSetupPreparer(materialPlanning),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -269,6 +269,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     private static ResoniteLiveSceneImportTarget CreateImportTarget(bool enableMeshBake = true)
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         return new ResoniteLiveSceneImportTarget(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -286,8 +287,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                CreateCommonMaterialSetupPreparer(),
+                materialPlanning,
+                CreateCommonMaterialSetupPreparer(materialPlanning),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),

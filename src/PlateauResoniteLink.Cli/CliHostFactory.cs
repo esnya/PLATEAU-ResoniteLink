@@ -205,6 +205,7 @@ internal sealed class DefaultSceneSinkFactory(
 
         IServiceProvider serviceProvider = scope.ServiceProvider;
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
+        IResoniteMaterialPlanning materialPlanning = serviceProvider.GetRequiredService<IResoniteMaterialPlanning>();
         return new ResoniteLiveSceneImportTarget(
             targetOptions,
             new ResoniteLiveSceneImportDependencies(
@@ -214,10 +215,8 @@ internal sealed class DefaultSceneSinkFactory(
                 serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
                 serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>(),
                 serviceProvider.GetRequiredService<IResoniteGeometryAssetAssembler>(),
-                serviceProvider.GetRequiredService<IResoniteMaterialPlanning>(),
-                new ResoniteCommonMaterialSetupPreparer(
-                    serviceProvider.GetRequiredService<IResoniteMaterialPlanning>(),
-                    progressReporter),
+                materialPlanning,
+                new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
                 serviceProvider.GetRequiredService<IResoniteBatchEmissionPlanner>(),
                 serviceProvider.GetRequiredService<IResoniteSceneBatchEmitter>(),
                 serviceProvider.GetRequiredService<IResoniteSlotCreator>(),

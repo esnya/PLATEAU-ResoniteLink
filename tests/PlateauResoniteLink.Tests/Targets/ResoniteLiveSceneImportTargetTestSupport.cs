@@ -294,6 +294,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         Action<string>? progressReporter = null)
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         return new ResoniteLiveSceneImportTarget(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -313,10 +314,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                new ResoniteCommonMaterialSetupPreparer(
-                    new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                    progressReporter),
+                materialPlanning,
+                new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
