@@ -1936,7 +1936,14 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToProjectionModel(), roofSurface.ToProjectionModel(), groundSurface.ToProjectionModel(), reversedGroundSurface.ToProjectionModel(), outerFloorSurface.ToProjectionModel(), highOuterFloorSurface.ToProjectionModel()],
+            [
+                CityGmlProjectionModelAdapter.ToProjectionModel(wallSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(roofSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(groundSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(reversedGroundSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(outerFloorSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(highOuterFloorSurface),
+            ],
             origin,
             cartesian);
 
@@ -1983,7 +1990,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "tran",
-            [groundSurface.ToProjectionModel()],
+            [CityGmlProjectionModelAdapter.ToProjectionModel(groundSurface)],
             origin,
             cartesian);
 
@@ -2041,7 +2048,12 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToProjectionModel(), bottomSurface.ToProjectionModel(), reversedBottomSurface.ToProjectionModel(), roofSurface.ToProjectionModel()],
+            [
+                CityGmlProjectionModelAdapter.ToProjectionModel(wallSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(bottomSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(reversedBottomSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(roofSurface),
+            ],
             origin,
             cartesian);
 
@@ -2086,7 +2098,10 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [bottomSurface.ToProjectionModel(), highDownwardRoofSurface.ToProjectionModel()],
+            [
+                CityGmlProjectionModelAdapter.ToProjectionModel(bottomSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(highDownwardRoofSurface),
+            ],
             origin,
             cartesian);
 
@@ -2112,7 +2127,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [onlySurface.ToProjectionModel()],
+            [CityGmlProjectionModelAdapter.ToProjectionModel(onlySurface)],
             origin,
             cartesian);
 
@@ -2168,7 +2183,12 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToProjectionModel(), exactBoundaryBottomSurface.ToProjectionModel(), aboveBoundaryBottomSurface.ToProjectionModel(), roofSurface.ToProjectionModel()],
+            [
+                CityGmlProjectionModelAdapter.ToProjectionModel(wallSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(exactBoundaryBottomSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(aboveBoundaryBottomSurface),
+                CityGmlProjectionModelAdapter.ToProjectionModel(roofSurface),
+            ],
             origin,
             cartesian);
 

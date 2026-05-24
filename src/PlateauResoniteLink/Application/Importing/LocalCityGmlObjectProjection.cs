@@ -700,14 +700,20 @@ internal static class LocalCityGmlObjectProjection
             return [surface];
         }
 
-        EdgePairSelection edgePair = SelectPrimaryRoadEdgePair(surface.ExteriorRing.ToProjectionModel(), positions);
+        EdgePairSelection edgePair = SelectPrimaryRoadEdgePair(
+            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface.ExteriorRing),
+            positions);
         double segmentLength = ComputeTerrainAlignedSegmentLength(edgePair.Width);
         if (edgePair.Length <= segmentLength + 1e-6)
         {
             return [surface];
         }
 
-        List<ParsedSurface> strips = CreateTerrainAlignedTransportationStrips(surface.ToProjectionModel(), positions, edgePair, segmentLength);
+        List<ParsedSurface> strips = CreateTerrainAlignedTransportationStrips(
+            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface),
+            positions,
+            edgePair,
+            segmentLength);
         return strips.Count > 0
             ? strips.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel).ToList()
             : [surface];
@@ -1287,7 +1293,7 @@ internal static class LocalCityGmlObjectProjection
         IDefaultMaterialResolver materialResolver)
     {
         double? geometryHeightMeters = cityObject.GeometryHeightMeters
-            ?? TryGetGeometryHeightMeters(cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()));
+            ?? TryGetGeometryHeightMeters(cityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel));
         cityObject = ApplyGeneratedLod1Roof(cityObject) with
         {
             GeometryHeightMeters = geometryHeightMeters,
@@ -1307,7 +1313,7 @@ internal static class LocalCityGmlObjectProjection
             globalCartesian);
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
             cityObject.PackageName,
-            cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()),
+            cityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel),
             cityObjectOrigin.ToProjectionModel(),
             cityObjectCartesian);
         List<MeshVertex> vertices = [];
@@ -1350,7 +1356,7 @@ internal static class LocalCityGmlObjectProjection
             List<int> indices = [];
             FacadeUvProjectionContext? facadeUvProjectionContext = TryCreateFacadeUvProjectionContext(
                 cityObject.PackageName,
-                cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()),
+                cityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel),
                 cityObjectOrigin.ToProjectionModel(),
                 cityObjectCartesian);
 
@@ -1400,7 +1406,8 @@ internal static class LocalCityGmlObjectProjection
         if (!IsBuildingPackage(cityObject.PackageName)
             || cityObject.LodLevel != 1
             || !cityObject.ReferenceSystem.IsGeographic
-            || cityObject.Surfaces.Any(static surface => IsGeneratedLod1RoofSurface(surface.ToProjectionModel())))
+            || cityObject.Surfaces.Any(static surface => IsGeneratedLod1RoofSurface(
+                global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface))))
         {
             return cityObject;
         }
@@ -1446,7 +1453,10 @@ internal static class LocalCityGmlObjectProjection
     {
         footprint = null;
         SurfaceProjectionInfo[] surfaceInfos = cityObject.Surfaces
-            .Select(surface => CreateSurfaceProjectionInfo(surface.ToProjectionModel(), cityObjectOrigin.ToProjectionModel(), cityObjectCartesian))
+            .Select(surface => CreateSurfaceProjectionInfo(
+                global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface),
+                cityObjectOrigin.ToProjectionModel(),
+                cityObjectCartesian))
             .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
             .ToArray();
         if (surfaceInfos.Length == 0)
@@ -2074,7 +2084,7 @@ internal static class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedSurface projectionSurface = surface.ToProjectionModel();
+        ParsedSurface projectionSurface = global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface);
         if (projectionSurface.UsesGeneratedDemTexture)
         {
             return new ResolvedSurfaceMaterial(
@@ -2389,7 +2399,7 @@ internal static class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         return CreateGeneratedRoadMarkingSurfaces(
-                surface.ToProjectionModel(),
+                global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface),
                 cityObjectOrigin.ToProjectionModel(),
                 cityObjectCartesian)
             .Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel)
@@ -3809,7 +3819,8 @@ internal static class LocalCityGmlObjectProjection
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
-        double? geometryHeightMeters = TryGetGeometryHeightMeters(parsedCityObject.Surfaces.Select(static surface => surface.ToProjectionModel()));
+        double? geometryHeightMeters = TryGetGeometryHeightMeters(
+            parsedCityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel));
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject terrainAlignedParsedCityObject =
             ApplyGeneratedLod1Roof(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler)) with
             {
@@ -3923,7 +3934,8 @@ internal static class LocalCityGmlObjectProjection
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
-        double? geometryHeightMeters = TryGetGeometryHeightMeters(parsedCityObject.Surfaces.Select(static surface => surface.ToProjectionModel()));
+        double? geometryHeightMeters = TryGetGeometryHeightMeters(
+            parsedCityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel));
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject terrainAlignedParsedCityObject =
             ApplyGeneratedLod1Roof(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler)) with
             {
@@ -4078,14 +4090,14 @@ internal static class LocalCityGmlObjectProjection
         global::PlateauResoniteLink.Application.Importing.ParsedSurface[] conformedSurfaces =
             PlateauPackageCatalog.IsRoadPackage(subdividedCityObject.PackageName)
                 ? ConformRoadSurfacesToTerrainWithFallback(
-                        subdividedCityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray(),
+                        subdividedCityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel).ToArray(),
                         terrainHeightSampler,
                         ref terrainAligned)
                     .Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel)
                     .ToArray()
                 : ConformSurfacesToTerrain(
                         subdividedCityObject.PackageName,
-                        subdividedCityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray(),
+                        subdividedCityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel).ToArray(),
                         terrainHeightSampler,
                         cityObjectOrigin.ToProjectionModel(),
                         cityObjectCartesian,
@@ -4212,7 +4224,9 @@ internal static class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedSurface[] projectionSurfaces = cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray();
+        ParsedSurface[] projectionSurfaces = cityObject.Surfaces
+            .Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel)
+            .ToArray();
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
             cityObject.PackageName,
             projectionSurfaces,
@@ -4873,7 +4887,9 @@ internal static class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedSurface[] projectionSurfaces = cityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray();
+        ParsedSurface[] projectionSurfaces = cityObject.Surfaces
+            .Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel)
+            .ToArray();
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
             cityObject.PackageName,
             projectionSurfaces,
@@ -5396,7 +5412,7 @@ internal static class LocalCityGmlObjectProjection
         return surface.TexturePayload is null
             && !surface.UsesGeneratedDemTexture
             && IsRoofTerrainTextureSurface(
-                surface.ToProjectionModel(),
+                global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface),
                 cityObjectMinAltitude,
                 cityObjectOrigin.ToProjectionModel(),
                 cityObjectCartesian);

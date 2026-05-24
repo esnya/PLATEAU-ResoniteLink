@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,26 +9,7 @@ internal sealed record SourceFileDescriptor(
     string RelativePath,
     string PackageName,
     string MatchedMeshCode,
-    bool RequiresMeshCodeBoundsFilter)
-{
-    internal LocalCityGmlObjectProjection.SourceFileDescriptor ToProjectionModel()
-    {
-        return new LocalCityGmlObjectProjection.SourceFileDescriptor(
-            RelativePath,
-            PackageName,
-            MatchedMeshCode,
-            RequiresMeshCodeBoundsFilter);
-    }
-
-    internal static SourceFileDescriptor FromProjectionModel(LocalCityGmlObjectProjection.SourceFileDescriptor sourceFile)
-    {
-        return new SourceFileDescriptor(
-            sourceFile.RelativePath,
-            sourceFile.PackageName,
-            sourceFile.MatchedMeshCode,
-            sourceFile.RequiresMeshCodeBoundsFilter);
-    }
-}
+    bool RequiresMeshCodeBoundsFilter);
 
 internal sealed record CachedSourceFileDescriptor(
     SourceFileDescriptor SourceFile,
@@ -38,14 +18,6 @@ internal sealed record CachedSourceFileDescriptor(
     public string RelativePath => SourceFile.RelativePath;
 
     public string PackageName => SourceFile.PackageName;
-
-    internal LocalCityGmlObjectProjection.CachedSourceFileDescriptor ToProjectionModel()
-    {
-        return new LocalCityGmlObjectProjection.CachedSourceFileDescriptor(
-            SourceFile.ToProjectionModel(),
-            CityObjects.Select(static cityObject => cityObject.ToProjectionModel()).ToArray());
-    }
-
 }
 
 internal sealed class SourceFilePipeline
@@ -99,16 +71,4 @@ internal sealed record ParsedSourceFileResult(
     ParsedCityObject[] CityObjects,
     CoordinateReferenceSystem? ReferenceSystem,
     TerrainHeightTriangle[] TerrainTriangles,
-    TimeSpan Elapsed)
-{
-    internal LocalCityGmlObjectProjection.ParsedSourceFileResult ToProjectionModel()
-    {
-        return new LocalCityGmlObjectProjection.ParsedSourceFileResult(
-            SourceFile.ToProjectionModel(),
-            CityObjects.Select(static cityObject => cityObject.ToProjectionModel()).ToArray(),
-            ReferenceSystem?.ToProjectionModel(),
-            TerrainTriangles.Select(static triangle => triangle.ToProjectionModel()).ToArray(),
-            Elapsed);
-    }
-
-}
+    TimeSpan Elapsed);
