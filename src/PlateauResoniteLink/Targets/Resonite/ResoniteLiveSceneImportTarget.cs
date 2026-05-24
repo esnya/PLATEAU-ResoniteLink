@@ -28,7 +28,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly IResoniteDatasetLicenseWriter datasetLicenseWriter;
     private readonly IResoniteGeometryAssetAssembler geometryAssetAssembler;
-    private readonly ResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer;
+    private readonly IResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer;
     private readonly IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer;
     private readonly IResoniteBatchEmissionPlanner batchEmissionPlanner;
     private readonly IResoniteSceneBatchEmitter batchEmitter;
@@ -51,6 +51,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
         ArgumentNullException.ThrowIfNull(dependencies.TerrainTextureAssetGenerator);
+        ArgumentNullException.ThrowIfNull(dependencies.SceneMaterialPlanComposer);
 
         endpoint = options.Endpoint;
         connectionCount = options.ConnectionCount;
@@ -62,7 +63,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         progressReporter = options.ProgressReporter;
         sceneSetupInterpreter = dependencies.SceneSetupInterpreter;
         geometryAssetAssembler = dependencies.GeometryAssetAssembler;
-        sceneMaterialPlanComposer = new ResoniteSceneMaterialPlanComposer(dependencies.MaterialPlanning);
+        sceneMaterialPlanComposer = dependencies.SceneMaterialPlanComposer;
         commonMaterialSetupPreparer = dependencies.CommonMaterialSetupPreparer;
         batchEmissionPlanner = dependencies.BatchEmissionPlanner;
         batchEmitter = dependencies.BatchEmitter;

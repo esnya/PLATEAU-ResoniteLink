@@ -314,7 +314,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                materialPlanning,
+                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
