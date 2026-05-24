@@ -260,31 +260,11 @@ internal sealed class ResoniteSharedSlotIndex(
         string sourceFileSlotName,
         string rootMeshCode)
     {
-        ObservedSourceRootPlacement? observedRootPlacement = TryResolveObservedSourceRootPosition(sourceFileSlotName, rootMeshCode);
-        ResoniteFloat3 rootPosition = observedRootPlacement?.Position
-            ?? ResolveDatasetRootAnchoredSourceRootPosition(rootMeshCode)
-            ?? ResonitePlacementPolicy.ResolveMeshRootPosition(requestLocalOrigin, rootMeshCode);
-
-        return new SourceRootPlacement(rootPosition, rootPosition);
-    }
-
-    private ResoniteFloat3? ResolveDatasetRootAnchoredSourceRootPosition(string rootMeshCode)
-    {
-        if (SceneAnchor is not { ReferenceSourceFileRoot: null } anchor)
-        {
-            return null;
-        }
-
-        return ResonitePlacementPolicy.ComputeMeshCodeOffset(anchor.MeshCode, rootMeshCode);
-    }
-
-    private ObservedSourceRootPlacement? TryResolveObservedSourceRootPosition(
-        string sourceFileSlotName,
-        string rootMeshCode)
-    {
-        return ObservedSourceRootPlacementResolver.TryResolve(
+        return SourceRootPlacementResolver.Resolve(
             sourceFileSlotName,
             rootMeshCode,
+            requestLocalOrigin,
+            SceneAnchor,
             GetObservedDatasetSourceRoots());
     }
 
@@ -326,10 +306,6 @@ internal sealed class ResoniteSharedSlotIndex(
         CreatedSlot AssetSourceFileSlot,
         CreatedSlot LodSlot,
         CreatedSlot AssetLodSlot);
-
-    private readonly record struct SourceRootPlacement(
-        ResoniteFloat3 RootPosition,
-        ResoniteFloat3 LocalPositionReferenceRoot);
 
     private readonly record struct CanonicalParentSourceFile(
         string SourceFileRelativePath,
