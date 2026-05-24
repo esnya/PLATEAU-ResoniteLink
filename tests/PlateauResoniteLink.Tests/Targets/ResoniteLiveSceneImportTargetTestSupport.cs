@@ -177,10 +177,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             effectiveMetadata,
             GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
-            commonMaterials ?? CommonMaterialCatalog.Create());
+            commonMaterials ?? CreateReferencedCommonMaterials([], enableMeshBake: false));
     }
 
-    private static CommonMaterialCatalog<DefaultCommonMaterialMember> CreateReferencedCommonMaterials(
+    public static CommonMaterialCatalog<DefaultCommonMaterialMember> CreateReferencedCommonMaterials(
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         bool enableMeshBake)
     {
