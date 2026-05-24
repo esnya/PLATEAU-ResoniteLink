@@ -5019,9 +5019,9 @@ internal static class LocalCityGmlObjectProjection
     private static GeographicRectangle ResolveProjectionCityObjectGeographicBounds(ParsedCityObject cityObject)
     {
         return CityObjectGeographicBoundsResolver.Resolve(
-            cityObject.Surfaces
-                .SelectMany(static surface => surface.Vertices)
-                .Select(static point => global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(point)));
+            cityObject.Surfaces.SelectMany(static surface => surface.Vertices),
+            static point => point.Latitude,
+            static point => point.Longitude);
     }
 
     private static GeographicRectangle ResolveParsedCityObjectGeographicBounds(
