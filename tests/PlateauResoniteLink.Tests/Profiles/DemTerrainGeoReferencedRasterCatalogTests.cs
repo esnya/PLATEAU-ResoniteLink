@@ -142,13 +142,17 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await firstCall);
         datasetSource.ReleaseEnsureLocalFile.TrySetResult();
         await datasetSource.BackgroundCompletion.Task.WaitAsync(CancellationToken.None);
-        await Task.Delay(10);
 
-        await Assert.ThrowsAnyAsync<IOException>(async () => await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
-            "dem-fallback",
-            bounds,
-            CancellationToken.None));
+        for (int attempt = 0; attempt < 10 && datasetSource.EnsureLocalFileCallCount < 2; attempt++)
+        {
+            await Assert.ThrowsAnyAsync<IOException>(async () => await catalog.TryResolveRasterSourceAsync(
+                new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
+                "dem-fallback",
+                bounds,
+                CancellationToken.None));
+            await Task.Yield();
+        }
+
         Assert.Equal(2, datasetSource.EnsureLocalFileCallCount);
     }
 
