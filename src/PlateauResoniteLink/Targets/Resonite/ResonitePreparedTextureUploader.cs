@@ -15,8 +15,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed record ResoniteUploadedTextureAssetSet(
     Dictionary<ResoniteTexturePayload, Uri> TextureUrisByPayload,
     Dictionary<TerrainTextureOverlay, Uri> TerrainTextureUrisByOverlay,
-    Dictionary<string, ResoniteComponentLocator> TerrainTexturePropertyBlockComponentsByMeshCode,
-    Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> GeneratedTerrainTexturesByOverlay);
+    Dictionary<string, ResoniteComponentLocator> TerrainTexturePropertyBlockComponentsByMeshCode);
 
 internal static class ResonitePreparedTextureUploader
 {
@@ -24,7 +23,6 @@ internal static class ResonitePreparedTextureUploader
         LiveSendRunState state,
         IResoniteLinkClient importClient,
         PreparedCityObject preparedCityObject,
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         CancellationToken cancellationToken)
     {
         Dictionary<ResoniteTexturePayload, Uri> textureUrisByPayload = new(ResoniteTexturePayloadReferenceComparer.Instance);
@@ -86,8 +84,7 @@ internal static class ResonitePreparedTextureUploader
         return new ResoniteUploadedTextureAssetSet(
             textureUrisByPayload,
             terrainTextureUrisByOverlay,
-            terrainTexturePropertyBlockComponentsByMeshCode,
-            preparedTerrainTextureDataByOverlay);
+            terrainTexturePropertyBlockComponentsByMeshCode);
     }
 
     private static Task<SharedTerrainTextureAsset> EnsureSharedTerrainTextureAssetAsync(

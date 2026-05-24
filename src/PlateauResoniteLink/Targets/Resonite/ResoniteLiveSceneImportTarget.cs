@@ -1091,7 +1091,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             state,
             routedClient,
             preparedCityObject,
-            preparedTerrainTextureDataByOverlay,
             importStepCancellation.Token);
         Stopwatch geometryStopwatch = Stopwatch.StartNew();
         Task<PlannedGeometryAsset> geometryPlanningTask = PlanGeometryAssetAsync(
