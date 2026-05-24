@@ -26,6 +26,32 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         return new ResoniteCommonMaterialSetupPreparer(materialPlanning, null);
     }
 
+    private static LiveSendRunStateFactory CreateRunStateFactory()
+    {
+        return new LiveSendRunStateFactory(
+            new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader()));
+    }
+
+    private static ResonitePreparedCityObjectImporter CreatePreparedCityObjectImporter(
+        IResoniteMaterialPlanning materialPlanning)
+    {
+        return new ResonitePreparedCityObjectImporter(
+            new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
+            new ResoniteSceneMaterialPlanComposer(materialPlanning),
+            new ResoniteBatchEmissionPlanner(),
+            new PlannedBatchEmissionInterpreter());
+    }
+
+    private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
+        IResoniteMaterialPlanning materialPlanning)
+    {
+        return new ResoniteQueuedCityObjectWorker(
+            new ResoniteQueuedCityObjectSender(
+                new TerrainTextureAssetGenerator(),
+                new ResoniteDatasetLicenseWriter(),
+                CreatePreparedCityObjectImporter(materialPlanning)));
+    }
+
     [Fact]
     public async Task OptionsConstructorEnablesMeshBakeByDefault()
     {
@@ -68,14 +94,13 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new ResoniteLiveSceneImportDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
-                new TerrainTextureAssetGenerator(),
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-                new ResoniteDatasetLicenseWriter(),
-                new ResoniteGeometryAssetAssembler(),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 CreateCommonMaterialSetupPreparer(materialPlanning),
-                new ResoniteBatchEmissionPlanner(),
-                new PlannedBatchEmissionInterpreter(),
+                new LiveSendRunPlanFactory(),
+                CreateRunStateFactory(),
+                CreateQueuedCityObjectWorker(materialPlanning),
+                new ResoniteQueuedCityObjectEnqueuer(),
+                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
 
@@ -283,14 +308,13 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new ResoniteLiveSceneImportDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
-                new TerrainTextureAssetGenerator(),
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-                new ResoniteDatasetLicenseWriter(),
-                new ResoniteGeometryAssetAssembler(),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 CreateCommonMaterialSetupPreparer(materialPlanning),
-                new ResoniteBatchEmissionPlanner(),
-                new PlannedBatchEmissionInterpreter(),
+                new LiveSendRunPlanFactory(),
+                CreateRunStateFactory(),
+                CreateQueuedCityObjectWorker(materialPlanning),
+                new ResoniteQueuedCityObjectEnqueuer(),
+                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
     }

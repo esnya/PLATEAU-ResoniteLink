@@ -1,12 +1,7 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
@@ -19,21 +14,15 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 {
-    private const int MaxQueuedCityObjects = 4;
-    private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
-    private const long MaxInFlightCityObjectWorkingSetBytesFloor = 512L * 1024L * 1024L;
-    private const string TerrainGridAssetSlotSuffix = "_terrain-grid";
     private readonly Uri endpoint;
     private readonly int connectionCount;
-    private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
-    private readonly IResoniteDatasetLicenseWriter datasetLicenseWriter;
-    private readonly IResoniteGeometryAssetAssembler geometryAssetAssembler;
-    private readonly IResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer;
     private readonly IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer;
-    private readonly IResoniteBatchEmissionPlanner batchEmissionPlanner;
-    private readonly IResoniteSceneBatchEmitter batchEmitter;
+    private readonly ILiveSendRunPlanFactory runPlanFactory;
+    private readonly ILiveSendRunStateFactory runStateFactory;
+    private readonly IResoniteQueuedCityObjectWorker queuedCityObjectWorker;
+    private readonly IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer;
+    private readonly IResoniteLiveSendFinalizer finalizer;
     private readonly IResoniteSlotCreator slotCreator;
-    private readonly IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
@@ -50,25 +39,22 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
-        ArgumentNullException.ThrowIfNull(dependencies.TerrainTextureAssetGenerator);
-        ArgumentNullException.ThrowIfNull(dependencies.SceneMaterialPlanComposer);
+        ArgumentNullException.ThrowIfNull(dependencies.RunStateFactory);
 
         endpoint = options.Endpoint;
         connectionCount = options.ConnectionCount;
         MemoryProfile = options.MemoryProfile;
         Diagnostics = dependencies.Diagnostics;
-        this.terrainTextureAssetGenerator = dependencies.TerrainTextureAssetGenerator;
-        datasetLicenseWriter = dependencies.DatasetLicenseWriter;
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
         sceneSetupInterpreter = dependencies.SceneSetupInterpreter;
-        geometryAssetAssembler = dependencies.GeometryAssetAssembler;
-        sceneMaterialPlanComposer = dependencies.SceneMaterialPlanComposer;
         commonMaterialSetupPreparer = dependencies.CommonMaterialSetupPreparer;
-        batchEmissionPlanner = dependencies.BatchEmissionPlanner;
-        batchEmitter = dependencies.BatchEmitter;
+        runPlanFactory = dependencies.RunPlanFactory;
+        runStateFactory = dependencies.RunStateFactory;
+        queuedCityObjectWorker = dependencies.QueuedCityObjectWorker;
+        queuedCityObjectEnqueuer = dependencies.QueuedCityObjectEnqueuer;
+        finalizer = dependencies.Finalizer;
         slotCreator = dependencies.SlotCreator;
-        cityObjectBakerFactory = dependencies.CityObjectBakerFactory;
         ClientSessionInternal = dependencies.ClientSession;
     }
 
@@ -107,16 +93,19 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
-                await QueueCityObjectUnitAsync(state, objectUnit, cancellationToken);
+                await queuedCityObjectEnqueuer.QueueUnitAsync(
+                    state,
+                    objectUnit,
+                    CreateEnqueueContext(),
+                    cancellationToken);
             }
 
-            IReadOnlyList<string> destinations = await FinalizeRunAsync(state, cancellationToken);
+            SceneImportExecutionResult result = await finalizer.CompleteAsync(
+                state,
+                CreateFinalizationContext(),
+                cancellationToken);
             completedSuccessfully = true;
-            return new SceneImportExecutionResult(
-                destinations,
-                state.Progress.ProcessedCityObjectCount,
-                state.Progress.FailedCityObjectCount,
-                CreateDataSourceUsages(state));
+            return result;
         }
         finally
         {
@@ -147,13 +136,18 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(normalizedRequest);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
-        string resolvedWorkRoot = Path.GetFullPath(workRoot);
-        LiveSendRunPlan runPlan = CreateRunPlan(SetupInfo, resolvedWorkRoot, requestLocalOrigin);
+        LiveSendRunPlan runPlan = runPlanFactory.Create(
+            SetupInfo,
+            workRoot,
+            requestLocalOrigin,
+            MemoryProfile,
+            connectionCount,
+            MeshBakeEnabled);
         ReportProgress(
             PlateauLog.Info(
                 "live",
                 $"Initializing scene state for dataset '{SetupInfo.Dataset}' "
-                + $"mesh '{SetupInfo.MeshCode}' at '{resolvedWorkRoot}'."));
+                + $"mesh '{SetupInfo.MeshCode}' at '{runPlan.ResolvedWorkRoot}'."));
         Stopwatch connectionStopwatch = Stopwatch.StartNew();
         ReportProgress(
             PlateauLog.Info(
@@ -253,32 +247,25 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             PlateauLog.Info(
                 "live",
                 $"Starting routed send workers (connection_pool={connectionCount})."));
-        LiveSendExecutionRuntime runtime = new(runtimePlan, cancellationToken);
         progress.Reset();
-        ResoniteImportBudgetProfile resourceBudget = runPlan.ResourceBudget;
-        CompositeCityObjectBaker? cityObjectBaker = cityObjectBakerFactory.Create(
-            runPlan.MeshBakeEnabled,
-            resourceBudget);
-        LiveSendRunContext context = new(
+        LiveSendRunState state = runStateFactory.Create(
             runPlan,
-            setupState.DatasetRootSlot,
-            setupState.DatasetAssetsRootSlot,
-            setupState.CommonAssetsRootSlot,
-            cityObjectBaker);
-        LiveSendRunState state = new()
-        {
-            Context = context,
-            Progress = progress,
-            Materials = materials,
-            TerrainTextures = new TerrainTextureAssetCache(),
-            Placement = placement,
-            Runtime = runtime,
-            GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
-            DemSourceUseCounts = new ConcurrentDictionary<string, int>(StringComparer.Ordinal),
-        };
+            setupState,
+            progress,
+            materials,
+            placement,
+            cancellationToken);
+        ResoniteImportBudgetProfile resourceBudget = runPlan.ResourceBudget;
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
         Diagnostics.StartSendWindow(connectionCount);
-        runtime.Start(CreateProcessingTasks(state, runtime));
+        state.Runtime.Start(queuedCityObjectWorker.CreateProcessingTasks(
+            state,
+            new LiveSendWorkerContext(
+                endpoint,
+                connectionCount,
+                GetRoutedClient,
+                Diagnostics,
+                progressReporter)));
         ReportProgress(
             PlateauLog.Info(
                 "live",
@@ -297,306 +284,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 "live",
                 $"Send lane startup phase complete in {laneStartStopwatch.Elapsed.TotalSeconds:F2}s."));
         return state;
-    }
-
-    private LiveSendRunPlan CreateRunPlan(
-        ResoniteSceneSetupInfo SetupInfo,
-        string resolvedWorkRoot,
-        ResoniteLocalOrigin requestLocalOrigin)
-    {
-        ResoniteImportBudgetProfile resourceBudget = ResoniteImportBudgetProfiles.ForProfile(MemoryProfile);
-        return new LiveSendRunPlan(
-            SetupInfo,
-            resolvedWorkRoot,
-            requestLocalOrigin,
-            ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(SetupInfo.SourceFiles),
-            resourceBudget,
-            new LiveSendQueuePlan(
-                connectionCount,
-                Math.Max(MaxQueuedCityObjects * connectionCount, connectionCount),
-                Math.Max(resourceBudget.ImportWorkingSetBytes,
-                    Math.Max(
-                        MaxInFlightCityObjectWorkingSetBytesFloor,
-                        connectionCount * MaxInFlightCityObjectWorkingSetBytesPerLane))),
-            MeshBakeEnabled);
-    }
-
-    private Task[] CreateProcessingTasks(
-        LiveSendRunState state,
-        LiveSendExecutionRuntime runtime)
-    {
-        Task[] tasks = new Task[connectionCount];
-        for (int laneIndex = 0; laneIndex < connectionCount; laneIndex++)
-        {
-            int capturedLaneIndex = laneIndex;
-            tasks[capturedLaneIndex] = ProcessQueuedCityObjectsOnLaneAsync(
-                state,
-                runtime.Reader,
-                capturedLaneIndex,
-                runtime.ProcessingCancellationToken);
-        }
-
-        return tasks;
-    }
-
-    private async Task ProcessQueuedCityObjectsAsync(
-        LiveSendRunState state,
-        ChannelReader<LiveSendQueuedCityObject> reader,
-        int laneIndex,
-        CancellationToken cancellationToken)
-    {
-        LiveSendQueuedCityObject? currentCityObject = null;
-        try
-        {
-            if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectStreamingStartedLogged, 1, 0) == 0)
-            {
-                ReportProgress(
-                    PlateauLog.Info(
-                        "live",
-                        $"City-object send pipeline is active and waiting for queue on lane {laneIndex + 1}/{connectionCount}."));
-            }
-
-            await foreach (LiveSendQueuedCityObject queuedCityObject in reader.ReadAllAsync(cancellationToken))
-            {
-                currentCityObject = queuedCityObject;
-                if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectDequeuedLogged, 1, 0) == 0)
-                {
-                    ReportProgress(
-                        PlateauLog.Info(
-                            "live",
-                            $"First city object dequeued on lane {laneIndex + 1}/{connectionCount} "
-                            + $"after scene-start {GetSceneElapsedSeconds(state):F3}s: "
-                            + $"{queuedCityObject.CityObject.DisplayName} "
-                            + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey})."));
-                }
-
-                await ProcessQueuedCityObjectAsync(state, queuedCityObject, cancellationToken);
-                currentCityObject = null;
-            }
-
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    $"Send lane {laneIndex + 1}/{connectionCount} drained."));
-        }
-        catch (OperationCanceledException)
-        {
-            ReportProgress(PlateauLog.Warning("live", $"Send lane {laneIndex + 1}/{connectionCount} canceled."));
-            throw;
-        }
-        catch (Exception exception)
-        {
-            TryMarkProcessingFailure(state, exception);
-            CancelProcessing(state);
-            string cityObjectContext = currentCityObject is null
-                ? string.Empty
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $" while processing '{currentCityObject.CityObject.DisplayName}' "
-                    + $"({currentCityObject.CityObject.PackageName}/{currentCityObject.CityObject.SlotKey}) "
-                    + $"mesh='{currentCityObject.CityObject.ActualMeshCode}' "
-                    + $"sourceFile='{currentCityObject.CityObject.SourceFileRelativePath ?? "<null>"}'");
-            ReportProgress(PlateauLog.Error("live", $"Send lane {laneIndex + 1}/{connectionCount} failed{cityObjectContext}: {exception.Message}"));
-            throw;
-        }
-    }
-
-    private async Task ProcessQueuedCityObjectsOnLaneAsync(
-        LiveSendRunState state,
-        ChannelReader<LiveSendQueuedCityObject> reader,
-        int laneIndex,
-        CancellationToken cancellationToken)
-    {
-        Stopwatch laneClientStopwatch = Stopwatch.StartNew();
-        ResoniteSceneSetupInfo SetupInfo = state.Context.Plan.SetupInfo;
-        if (laneIndex == 0)
-        {
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    $"Send worker {laneIndex + 1}/{connectionCount} is ready to consume from the routed connection pool."));
-        }
-        else
-        {
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    $"Preparing send worker {laneIndex + 1}/{connectionCount} "
-                    + $"against routed connections to {endpoint} for dataset '{SetupInfo.Dataset}' mesh '{SetupInfo.MeshCode}'."));
-        }
-        laneClientStopwatch.Stop();
-        try
-        {
-            if (laneIndex == 0)
-            {
-                ReportProgress(
-                    PlateauLog.Info(
-                        "live",
-                        $"Send worker {laneIndex + 1}/{connectionCount} ready against routed connections "
-                        + $"in {laneClientStopwatch.Elapsed.TotalSeconds:F2}s."));
-            }
-            else
-            {
-                ReportProgress(
-                    PlateauLog.Info(
-                        "live",
-                        $"Send worker {laneIndex + 1}/{connectionCount} ready against routed connections "
-                        + $"in {laneClientStopwatch.Elapsed.TotalSeconds:F2}s."));
-            }
-            await ProcessQueuedCityObjectsAsync(state, reader, laneIndex, cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            TryMarkProcessingFailure(state, exception);
-            CancelProcessing(state);
-            throw;
-        }
-    }
-
-    private async Task QueueCityObjectAsync(
-        LiveSendRunState state,
-        ResoniteConstructionCityObject cityObject,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(cityObject);
-
-        CompositeCityObjectBaker? cityObjectBaker = state.Context.CityObjectBaker;
-        if (cityObjectBaker is not null)
-        {
-            IReadOnlyList<ResoniteConstructionCityObject> queuedCityObjects = await cityObjectBaker.BufferAsync(
-                cityObject,
-                cancellationToken);
-            if (queuedCityObjects.Count == 0)
-            {
-                return;
-            }
-
-            foreach (ResoniteConstructionCityObject queuedCityObject in queuedCityObjects)
-            {
-                await EnqueueCityObjectAsync(state, queuedCityObject, cancellationToken);
-            }
-
-            return;
-        }
-
-        await EnqueueCityObjectAsync(state, cityObject, cancellationToken);
-    }
-
-    private async Task QueueCityObjectUnitAsync(
-        LiveSendRunState state,
-        ImportedObjectUnit objectUnit,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(objectUnit);
-
-        foreach (ImportedCityObject cityObject in objectUnit.CityObjects)
-        {
-            await QueueCityObjectAsync(state, SceneImportContractMapper.ToInternal(cityObject), cancellationToken);
-        }
-
-        CompositeCityObjectBaker? cityObjectBaker = state.Context.CityObjectBaker;
-        if (cityObjectBaker is null)
-        {
-            return;
-        }
-
-        await FlushBufferedCityObjectsAsync(state, cityObjectBaker, cancellationToken);
-    }
-
-    private async Task<int> FlushBufferedCityObjectsAsync(
-        LiveSendRunState state,
-        CompositeCityObjectBaker cityObjectBaker,
-        CancellationToken cancellationToken)
-    {
-        int bakedCityObjectCount = 0;
-        List<Task> bakeEnqueueTasks = [];
-        int maxInFlightBakeEnqueueTasks = Math.Max(4, connectionCount * 2);
-        await cityObjectBaker.FlushAllAsync(
-            async (bakedCityObject, callbackCancellationToken) =>
-            {
-                _ = Interlocked.Increment(ref bakedCityObjectCount);
-                bakeEnqueueTasks.Add(EnqueueCityObjectAsync(state, bakedCityObject, callbackCancellationToken));
-                if (bakeEnqueueTasks.Count >= maxInFlightBakeEnqueueTasks)
-                {
-                    await AwaitOneTaskSlotAsync(bakeEnqueueTasks, callbackCancellationToken);
-                }
-            },
-            cancellationToken);
-        if (bakeEnqueueTasks.Count > 0)
-        {
-            await Task.WhenAll(bakeEnqueueTasks).WaitAsync(cancellationToken);
-        }
-
-        return bakedCityObjectCount;
-    }
-
-    private async Task<IReadOnlyList<string>> FinalizeRunAsync(
-        LiveSendRunState state,
-        CancellationToken cancellationToken = default)
-    {
-        LiveSendExecutionRuntime runtime = state.Runtime;
-        LiveSendRunContext context = state.Context;
-        CompositeCityObjectBaker? cityObjectBaker = context.CityObjectBaker;
-
-        if (cityObjectBaker is not null)
-        {
-            (string Name, int InputCount, int OutputCount)[] pendingBakeSummaries = cityObjectBaker
-                .GetBakeSummaries()
-                .Where(static summary => summary.InputCount > 0)
-                .ToArray();
-            if (pendingBakeSummaries.Length > 0)
-            {
-                string summaryText = string.Join(
-                    ", ",
-                    pendingBakeSummaries.Select(static summary =>
-                        $"{summary.Name}: input={summary.InputCount}, currentOutput={summary.OutputCount}"));
-                ReportProgress(PlateauLog.Info("live", $"Starting buffered bake flush: {summaryText}."));
-            }
-
-            Stopwatch bakeFlushStopwatch = Stopwatch.StartNew();
-            int bakedCityObjectCount = await FlushBufferedCityObjectsAsync(state, cityObjectBaker, cancellationToken);
-            bakeFlushStopwatch.Stop();
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    $"Buffered bake flush produced {bakedCityObjectCount} baked city objects "
-                    + $"in {bakeFlushStopwatch.Elapsed.TotalSeconds:F3}s."));
-
-            foreach ((string name, int inputCount, int outputCount) in cityObjectBaker.GetBakeSummaries().Where(static summary => summary.OutputCount > 0))
-            {
-                ReportProgress(
-                    PlateauLog.Debug(
-                        "live",
-                        $"{name} batched {inputCount} input city objects "
-                        + $"into {outputCount} baked batch objects."));
-            }
-        }
-
-        ReportProgress(
-            PlateauLog.Info(
-                "live",
-                $"Completing live send. Closing lane writers (attempted={state.Progress.AttemptedCityObjectCount}, "
-                + $"prepared={state.Progress.ProcessedCityObjectCount}, failed={state.Progress.FailedCityObjectCount})."));
-        runtime.CompleteWriter();
-
-        ReportProgress(
-            PlateauLog.Info(
-                "live",
-                $"Awaiting {runtime.ProcessingTaskCount} send lane task(s) to drain after queue close."));
-        await runtime.AwaitCompletionAsync(cancellationToken);
-        ReportProgress(PlateauLog.Info("live", "All send lanes drained and completion barrier passed."));
-        Diagnostics.CompleteSendWindow();
-        ReportProgress(
-            PlateauLog.Info(
-                "live",
-                $"Completed {state.Progress.ProcessedCityObjectCount} city objects "
-                + $"(failed={state.Progress.FailedCityObjectCount}, attempted={state.Progress.AttemptedCityObjectCount})."));
-        ReportProgress(
-            PlateauLog.Info(
-                "live",
-                $"Send summary: attempted={state.Progress.AttemptedCityObjectCount} sent={state.Progress.ProcessedCityObjectCount} failed={state.Progress.FailedCityObjectCount}."));
-
-        return [$"{endpoint}#{state.Placement.SceneAnchor?.LocationSlot.Value ?? context.DatasetRootSlot.Locator.Value}"];
     }
 
     public async ValueTask DisposeAsync()
@@ -627,153 +314,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         }
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Design",
-        "CA1031:Do not catch general exception types",
-        Justification = "Live send should log and skip individual city object send failures while keeping the lane alive.")]
-    private async Task ProcessQueuedCityObjectAsync(
-        LiveSendRunState state,
-        LiveSendQueuedCityObject queuedCityObject,
-        CancellationToken cancellationToken)
-    {
-        Interlocked.Increment(ref state.Progress.AttemptedCityObjectCount);
-        try
-        {
-            PreparedCityObject preparedCityObject = await AwaitWithSlowCityObjectWarningAsync(
-                CreatePreparationTask(state, queuedCityObject.CityObject, cancellationToken),
-                cancellationToken);
-            await ImportPreparedCityObjectAsync(state, queuedCityObject, preparedCityObject, cancellationToken);
-
-            int processedCount = Interlocked.Increment(ref state.Progress.ProcessedCityObjectCount);
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    $"Sent city object {processedCount}: "
-                    + $"{preparedCityObject.CityObject.DisplayName} "
-                    + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})"));
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            if (!IsRecoverableCityObjectSendFailure(exception))
-            {
-                throw;
-            }
-
-            int failedCount = Interlocked.Increment(ref state.Progress.FailedCityObjectCount);
-            ReportProgress(
-                PlateauLog.Warning(
-                    "live",
-                    $"Skipping city object after send failure {failedCount}: "
-                    + $"{queuedCityObject.CityObject.DisplayName} "
-                    + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey}). "
-                    + $"Reason: {exception.Message}"));
-        }
-        finally
-        {
-            await queuedCityObject.MemoryLease.DisposeAsync();
-        }
-    }
-
-    private static bool IsRecoverableCityObjectSendFailure(Exception exception)
-    {
-        return exception is ContinuableImportException
-            || FindResoniteLinkOperationException(exception) is { OperationName: "ImportMesh" or "ImportTexture" or "GetSlot" or "GetComponent" };
-    }
-
-    private static Task<T> AwaitWithSlowCityObjectWarningAsync<T>(
-        Task<T> operationTask,
-        CancellationToken cancellationToken)
-    {
-        return operationTask.WaitAsync(cancellationToken);
-    }
-
-    private static ResoniteLinkOperationException? FindResoniteLinkOperationException(Exception exception)
-    {
-        for (Exception? current = exception; current is not null; current = current.InnerException)
-        {
-            if (current is ResoniteLinkOperationException operationException)
-            {
-                return operationException;
-            }
-        }
-
-        return null;
-    }
-
-    private async Task EnqueueCityObjectAsync(
-        LiveSendRunState state,
-        ResoniteConstructionCityObject cityObject,
-        CancellationToken cancellationToken)
-    {
-        await AwaitProcessingTasksIfCompletedAsync(state);
-
-        LiveSendExecutionRuntime runtime = state.Runtime;
-        long estimatedWorksetBytes = ResoniteCityObjectWorkingSetEstimator.EstimateBytes(cityObject);
-        AsyncWeightedGate.Lease cityObjectMemoryLease = await runtime.AcquireCityObjectMemoryAsync(
-            estimatedWorksetBytes,
-            cancellationToken);
-        Task<ResoniteSharedSlotIndex.ObjectSlotHierarchy> objectHierarchyTask = CreateObjectHierarchyTask(state, cityObject, cancellationToken);
-        if (Interlocked.CompareExchange(ref state.Progress.FirstQueuedCityObjectLogged, 1, 0) == 0)
-        {
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    $"First city object queued after {GetSceneElapsedSeconds(state):F3}s: "
-                    + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey}) "
-                    + $"estimated_workset_bytes={estimatedWorksetBytes}."));
-        }
-
-        using CancellationTokenSource enqueueCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            runtime.ProcessingCancellationToken);
-        try
-        {
-            await runtime.WriteAsync(
-                new LiveSendQueuedCityObject(cityObject, objectHierarchyTask, cityObjectMemoryLease),
-                enqueueCancellation.Token);
-        }
-        catch (OperationCanceledException) when (runtime.IsCancellationRequested)
-        {
-            await cityObjectMemoryLease.DisposeAsync();
-            await AwaitProcessingTasksIfCompletedAsync(state);
-            throw;
-        }
-        catch
-        {
-            await cityObjectMemoryLease.DisposeAsync();
-            _ = ObserveTaskFailureAsync(objectHierarchyTask);
-            throw;
-        }
-
-        await AwaitProcessingTasksIfCompletedAsync(state);
-    }
-
-    private static async Task AwaitOneTaskSlotAsync(
-        List<Task> tasks,
-        CancellationToken cancellationToken)
-    {
-        for (int index = tasks.Count - 1; index >= 0; index--)
-        {
-            if (!tasks[index].IsCompleted)
-            {
-                continue;
-            }
-
-            Task completedTask = tasks[index];
-            tasks.RemoveAt(index);
-            await completedTask.WaitAsync(cancellationToken);
-            return;
-        }
-
-        Task finishedTask = await Task.WhenAny(tasks).WaitAsync(cancellationToken);
-        tasks.Remove(finishedTask);
-        await finishedTask.WaitAsync(cancellationToken);
-    }
-
     private void ReportProgress(string message)
     {
         progressReporter?.Invoke(message);
@@ -784,621 +324,21 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return ClientSessionInternal.GetRequiredClient();
     }
 
-    private Task<PreparedCityObject> CreatePreparationTask(
-        LiveSendRunState state,
-        ResoniteConstructionCityObject cityObject,
-        CancellationToken callerCancellationToken)
+    private LiveSendEnqueueContext CreateEnqueueContext()
     {
-        if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectPreparationStartedLogged, 1, 0) == 0)
-        {
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    $"City object preparation started after {GetSceneElapsedSeconds(state):F3}s: "
-                    + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey}) "
-                    + $"mesh='{cityObject.ActualMeshCode}'."));
-        }
-
-        CancellationToken processingCancellationToken = state.Runtime.ProcessingCancellationToken;
-        return PrepareCityObjectWithLinkedCancellationAsync(
-            state,
-            cityObject,
-            callerCancellationToken,
-            processingCancellationToken);
+        return new LiveSendEnqueueContext(
+            connectionCount,
+            GetRoutedClient,
+            progressReporter);
     }
 
-    private Task<ResoniteSharedSlotIndex.ObjectSlotHierarchy> CreateObjectHierarchyTask(
-        LiveSendRunState state,
-        ResoniteConstructionCityObject cityObject,
-        CancellationToken callerCancellationToken)
+    private LiveSendFinalizationContext CreateFinalizationContext()
     {
-        CancellationToken processingCancellationToken = state.Runtime.ProcessingCancellationToken;
-        return state.Placement.CreateObjectHierarchyTask(
-            GetRoutedClient(),
-            cityObject,
-            processingCancellationToken,
-            callerCancellationToken);
-    }
-
-    private async Task<PreparedCityObject> PrepareCityObjectWithLinkedCancellationAsync(
-        LiveSendRunState state,
-        ResoniteConstructionCityObject cityObject,
-        CancellationToken callerCancellationToken,
-        CancellationToken processingCancellationToken)
-    {
-        using CancellationTokenSource linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            callerCancellationToken,
-            processingCancellationToken);
-        return await PrepareCityObjectAsync(state, cityObject, linkedCancellation.Token);
-    }
-
-    private async Task<PreparedCityObject> PrepareCityObjectAsync(
-        LiveSendRunState state,
-        ResoniteConstructionCityObject cityObject,
-        CancellationToken cancellationToken)
-    {
-        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-
-        if (cityObject.Geometry is ResoniteTriangleMeshGeometry triangleGeometry)
-        {
-            ResoniteCityObjectPreparation.ValidateTriangleMeshBindingsForImport(cityObject, triangleGeometry.Mesh);
-        }
-        else if (cityObject.Geometry is ResoniteDynamicTerrainGeometry dynamicTerrain)
-        {
-            ResoniteCityObjectPreparation.ValidateTriangleMeshBindingsForImport(cityObject, dynamicTerrain.StaticMesh.Mesh);
-        }
-        (string TerrainMeshCode, TerrainTextureOverlay TerrainOverlay)[] distinctTerrainOverlays = cityObject.Materials
-            .Select((material, materialIndex) => (Material: material, MaterialIndex: materialIndex))
-            .Where(static entry => entry.Material.TerrainOverlay is not null && entry.Material.TerrainMeshCode is not null)
-            .Select(entry => (
-                TerrainMeshCode: ResoniteTerrainOverlayMaterialContract.ValidateMeshCode(
-                    cityObject,
-                    entry.MaterialIndex,
-                    entry.Material,
-                    entry.Material.TerrainMeshCode!,
-                    entry.Material.TerrainOverlay!),
-                TerrainOverlay: entry.Material.TerrainOverlay!))
-            .Distinct()
-            .OrderBy(static entry => entry.TerrainMeshCode, StringComparer.Ordinal)
-            .ThenBy(static entry => entry.TerrainOverlay.PackageName, StringComparer.Ordinal)
-            .ThenBy(static entry => entry.TerrainOverlay.GeographicBounds.MinLatitude)
-            .ThenBy(static entry => entry.TerrainOverlay.GeographicBounds.MinLongitude)
-            .ToArray();
-
-        Task<PreparedTextureReference?>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
-            .Select(entry => PrepareTerrainOverlayTextureReferenceAsync(
-                state,
-                entry.TerrainMeshCode,
-                entry.TerrainOverlay,
-                cancellationToken))
-            .ToArray();
-        Task<PreparedTextureReference?>[] texturePreparationTasks = [];
-
-        Task<PreparedConstructionGeometry> geometryPreparationTask = cityObject.Geometry switch
-        {
-            ResoniteTriangleMeshGeometry triangleMesh => Task.Run<PreparedConstructionGeometry>(
-                () => ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, triangleMesh.Mesh),
-                cancellationToken),
-            ResoniteTerrainGridGeometry heightMap => Task.Run<PreparedConstructionGeometry>(
-                () => new PreparedTerrainGridGeometry(heightMap, ResoniteCityObjectPreparation.PrepareTerrainGridDisplacementTexture(heightMap)),
-                cancellationToken),
-            ResoniteDynamicTerrainGeometry dynamicTerrain => Task.Run<PreparedConstructionGeometry>(
-                () => new PreparedDynamicTerrainGeometry(
-                    ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, dynamicTerrain.StaticMesh.Mesh),
-                    new PreparedTerrainGridGeometry(
-                        dynamicTerrain.GridMesh,
-                        ResoniteCityObjectPreparation.PrepareTerrainGridDisplacementTexture(dynamicTerrain.GridMesh))),
-                cancellationToken),
-            _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
-        };
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        PreparedTextureReference?[] preparedTextureResults = await Task.WhenAll(
-            texturePreparationTasks
-                .Concat(terrainOverlayTexturePreparationTasks)
-                .Concat(cityObject.Materials
-                    .Where(static material => material.TexturePayload is not null)
-                    .Select(PrepareDirectMaterialTextureReferenceAsync)
-                    .ToArray()));
-        PreparedTextureReference[] preparedTextures = preparedTextureResults
-            .OfType<PreparedTextureReference>()
-            .ToArray();
-        PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask;
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay = preparedTextures
-            .Where(static texture => texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
-            .ToDictionary(
-                static texture => texture.TerrainOverlay!,
-                static texture => texture.GeneratedTerrainTexture!);
-        cityObject = ResoniteCityObjectPreparation.ApplyTerrainTextureCanvasUv(
-            cityObject,
-            preparedTerrainTextureDataByOverlay,
-            clampCanvasUv: ResonitePackageSemantics.IsDemPackage(cityObject.PackageName));
-        if (cityObject.Geometry is ResoniteTriangleMeshGeometry resolvedTriangleMesh
-            && preparedGeometry is PreparedTriangleMeshGeometry)
-        {
-            preparedGeometry = ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, resolvedTriangleMesh.Mesh);
-        }
-        else if (cityObject.Geometry is ResoniteDynamicTerrainGeometry resolvedDynamicTerrain
-            && preparedGeometry is PreparedDynamicTerrainGeometry preparedDynamicTerrain)
-        {
-            preparedGeometry = preparedDynamicTerrain with
-            {
-                StaticMesh = ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, resolvedDynamicTerrain.StaticMesh.Mesh),
-            };
-        }
-        stopwatch.Stop();
-        Diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
-
-        if (Interlocked.CompareExchange(ref state.Progress.FirstPreparedCityObjectLogged, 1, 0) == 0)
-        {
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    $"First city object prepared in {stopwatch.Elapsed.TotalSeconds:F3}s "
-                    + $"after scene start {GetSceneElapsedSeconds(state):F3}s: "
-                    + $"{cityObject.DisplayName} "
-                    + $"(textures={preparedTextures.Length}, geometry={DescribePreparedGeometry(preparedGeometry)})."));
-        }
-
-        return new PreparedCityObject(
-            cityObject,
-            preparedGeometry,
-            preparedTextures);
-    }
-
-    private async Task<PreparedTextureReference?> PrepareTerrainOverlayTextureReferenceAsync(
-        LiveSendRunState state,
-        string terrainMeshCode,
-        TerrainTextureOverlay terrainTextureOverlay,
-        CancellationToken cancellationToken)
-    {
-        GeneratedTerrainTexture terrainTexture = await terrainTextureAssetGenerator.EnsureTextureAsync(
-            terrainTextureOverlay,
-            cancellationToken);
-        TerrainTextureSource[] usedSources = GetTrackedTerrainTextureSources(terrainTexture, terrainTextureOverlay);
-        foreach (TerrainTextureSource usedSource in usedSources)
-        {
-            int useCount = state.DemSourceUseCounts.AddOrUpdate(
-                usedSource.IdentityKey,
-                1,
-                static (_, current) => checked(current + 1));
-            if (useCount == 1)
-            {
-                ReportProgress(
-                    PlateauLog.Info(
-                        "live",
-                        $"Resolved DEM terrain texture source for package '{terrainTextureOverlay.PackageName}' "
-                        + $"to {DescribeTerrainTextureSource(usedSource)}."));
-            }
-
-            if (IsGsiFallbackSource(usedSource))
-            {
-                await EnsureGsiFallbackLicenseAsync(state, cancellationToken);
-            }
-        }
-
-        return new PreparedTextureReference(
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            TextureImport: terrainTexture.TextureImport,
-            TerrainMeshCode: terrainMeshCode,
-            TerrainOverlay: terrainTextureOverlay,
-            GeneratedTerrainTexture: terrainTexture);
-    }
-
-    private static TerrainTextureSource[] GetTrackedTerrainTextureSources(
-        GeneratedTerrainTexture terrainTexture,
-        TerrainTextureOverlay terrainTextureOverlay)
-    {
-        if (terrainTexture.UsedSources is { Count: > 0 })
-        {
-            return terrainTexture.UsedSources
-                .Distinct()
-                .ToArray();
-        }
-
-        return
-        [
-            terrainTexture.UsedSource ?? terrainTextureOverlay.PrimarySource,
-        ];
-    }
-
-    private async Task EnsureGsiFallbackLicenseAsync(
-        LiveSendRunState state,
-        CancellationToken cancellationToken)
-    {
-        if (Volatile.Read(ref state.GsiFallbackLicenseEnsured) != 0)
-        {
-            return;
-        }
-
-        await state.GsiFallbackLicenseGate.WaitAsync(cancellationToken);
-        try
-        {
-            if (state.GsiFallbackLicenseEnsured != 0)
-            {
-                return;
-            }
-
-            await datasetLicenseWriter.EnsureGsiFallbackLicenseAsync(
-                GetRoutedClient(),
-                state.Context.DatasetRootSlot,
-                cancellationToken);
-            Volatile.Write(ref state.GsiFallbackLicenseEnsured, 1);
-        }
-        finally
-        {
-            state.GsiFallbackLicenseGate.Release();
-        }
-    }
-
-    private static bool IsGsiFallbackSource(TerrainTextureSource source)
-    {
-        return DemTerrainTextureDefaults.IsGsiFallbackSource(source);
-    }
-
-    private static string DescribeTerrainTextureSource(TerrainTextureSource source)
-    {
-        return source switch
-        {
-            TerrainTextureGeoReferencedRasterSource rasterSource => string.Create(
-                CultureInfo.InvariantCulture,
-                $"GeoTIFF(path='{Path.GetFileName(rasterSource.SourcePath)}', crs='{rasterSource.Metadata?.CoordinateSystemIdentifier ?? "unknown"}')"),
-            TerrainTextureTileSource tileSource when IsGsiFallbackSource(tileSource) => string.Create(
-                CultureInfo.InvariantCulture,
-                $"GSI seamless photo tile(z={tileSource.ZoomLevel})"),
-            TerrainTextureTileSource tileSource => string.Create(
-                CultureInfo.InvariantCulture,
-                $"PLATEAU-Ortho tile(z={tileSource.ZoomLevel})"),
-            _ => source.GetType().Name,
-        };
-    }
-
-    private Task<PreparedTextureReference?> PrepareDirectMaterialTextureReferenceAsync(
-        ResoniteMaterialBinding material)
-    {
-        ArgumentNullException.ThrowIfNull(material);
-        ArgumentNullException.ThrowIfNull(material.TexturePayload);
-
-        return Task.FromResult<PreparedTextureReference?>(
-            new PreparedTextureReference(
-                TexturePayload: material.TexturePayload,
-                TextureSourceKind: material.TextureSourceKind,
-                TextureImport: ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
-                TerrainMeshCode: null,
-                TerrainOverlay: null));
-    }
-
-    private async Task ImportPreparedCityObjectAsync(
-        LiveSendRunState state,
-        LiveSendQueuedCityObject queuedCityObject,
-        PreparedCityObject preparedCityObject,
-        CancellationToken cancellationToken)
-    {
-        ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
-        using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = Diagnostics.BeginCityObjectSend(cityObject.PackageName);
-        Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-        ReportImportStep(cityObject, "Creating object slot hierarchy.");
-        Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = await AwaitWithSlowCityObjectWarningAsync(
-            queuedCityObject.ObjectHierarchyTask,
-            cancellationToken);
-        slotHierarchyStopwatch.Stop();
-        using CancellationTokenSource importStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        IResoniteLinkClient routedClient = GetRoutedClient();
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay =
-            CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
-        Task<ResoniteUploadedTextureAssetSet> uploadedTextureAssetsTask = ResonitePreparedTextureUploader.UploadAsync(
-            state,
-            routedClient,
-            preparedCityObject,
-            importStepCancellation.Token);
-        Stopwatch geometryStopwatch = Stopwatch.StartNew();
-        Task<PlannedGeometryAsset> geometryPlanningTask = PlanGeometryAssetAsync(
-            routedClient,
-            cityObject,
-            preparedCityObject,
-            preparedTerrainTextureDataByOverlay,
-            importStepCancellation.Token);
-        Stopwatch materialStopwatch = new();
-        Task<PlannedSceneMaterialPlan>? materialPlanningTask = null;
-        PlannedSceneMaterialPlan plannedMaterials;
-        PlannedGeometryAsset plannedGeometryAsset;
-        try
-        {
-            ResoniteUploadedTextureAssetSet uploadedTextureAssets = await uploadedTextureAssetsTask;
-            materialStopwatch.Start();
-            materialPlanningTask = sceneMaterialPlanComposer.ComposeAsync(
-                state,
-                routedClient,
-                cityObject,
-                uploadedTextureAssets.TextureUrisByPayload,
-                uploadedTextureAssets.TerrainTextureUrisByOverlay,
-                uploadedTextureAssets.TerrainTexturePropertyBlockComponentsByMeshCode,
-                message => ReportImportStep(cityObject, message),
-                importStepCancellation.Token);
-            plannedMaterials = await materialPlanningTask;
-            materialStopwatch.Stop();
-
-            ReportImportStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
-            plannedGeometryAsset = await geometryPlanningTask;
-            geometryStopwatch.Stop();
-        }
-        catch
-        {
-            await importStepCancellation.CancelAsync();
-            IEnumerable<Task> tasksToObserve = materialPlanningTask is null
-                ? [uploadedTextureAssetsTask, geometryPlanningTask]
-                : [uploadedTextureAssetsTask, materialPlanningTask, geometryPlanningTask];
-            await ObserveTaskFailuresAsync(tasksToObserve);
-            throw;
-        }
-
-        PlannedSceneObjectEmission emissionPlan = new(
-            plannedGeometryAsset,
-            plannedMaterials.MaterialAssets,
-            new PlannedRenderer(
-                plannedGeometryAsset.Identity,
-                plannedMaterials.RendererMaterialBindings),
-            new PlannedCollider(
-                plannedGeometryAsset.Identity,
-                cityObject.CollisionEnabled));
-        PlannedBatchEmission batchEmission = batchEmissionPlanner.Create(objectSlots, emissionPlan);
-
-        ReportImportStep(cityObject, "Creating object-scoped DataModel batch.");
-        Stopwatch batchStopwatch = Stopwatch.StartNew();
-        await batchEmitter.ExecuteAsync(
-            routedClient,
-            cityObject,
-            batchEmission,
-            progressReporter,
-            cancellationToken);
-        batchStopwatch.Stop();
-
-        ReportImportStep(cityObject, "Live import completed.");
-        cityObjectStopwatch.Stop();
-        ReportProgress(
-            PlateauLog.Debug(
-                "live",
-                $"City object '{cityObject.DisplayName}' phase timings: "
-                + $"slot_hierarchy_s={slotHierarchyStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"geometry_assets_s={geometryStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"materials_s={materialStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"batch_s={batchStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"total_send_s={cityObjectStopwatch.Elapsed.TotalSeconds:F3}."));
-        sendScope.MarkSent();
-        if (Interlocked.CompareExchange(ref state.Progress.FirstImportedCityObjectLogged, 1, 0) == 0)
-        {
-            ReportProgress(
-                PlateauLog.Debug(
-                    "live",
-                    $"First city object imported after {GetSceneElapsedSeconds(state):F3}s: "
-                    + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})"));
-        }
-    }
-
-    private static Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> CreatePreparedTerrainTextureDataByOverlay(
-        PreparedCityObject preparedCityObject)
-    {
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> generatedTerrainTexturesByOverlay = [];
-        foreach (PreparedTextureReference texture in preparedCityObject.Textures)
-        {
-            if (texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
-            {
-                generatedTerrainTexturesByOverlay.TryAdd(texture.TerrainOverlay, texture.GeneratedTerrainTexture);
-            }
-        }
-
-        return generatedTerrainTexturesByOverlay;
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Design",
-        "CA1031:Do not catch general exception types",
-        Justification = "Best-effort cleanup should observe and suppress orphaned import task failures after the primary send failure.")]
-    private static async Task ObserveTaskFailureAsync(Task task)
-    {
-        try
-        {
-            await task;
-        }
-        catch
-        {
-        }
-    }
-
-    private static Task ObserveTaskFailuresAsync(IEnumerable<Task> tasks)
-    {
-        return Task.WhenAll(tasks.Select(ObserveTaskFailureAsync));
-    }
-
-    private static double GetSceneElapsedSeconds(LiveSendRunState state)
-    {
-        return state.Runtime.ElapsedTotalSeconds;
-    }
-
-    private static ImportDataSourceUsage[] CreateDataSourceUsages(LiveSendRunState state)
-    {
-        return state.DemSourceUseCounts
-            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-            .Select(static pair => new ImportDataSourceUsage(
-                ImportDataSourceCategory.DemTextureSource,
-                pair.Key,
-                pair.Value))
-            .ToArray();
-    }
-
-    private async Task<PlannedGeometryAsset> PlanGeometryAssetAsync(
-        IResoniteLinkClient importClient,
-        ResoniteConstructionCityObject cityObject,
-        PreparedCityObject preparedCityObject,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
-        CancellationToken cancellationToken)
-    {
-        return preparedCityObject.Geometry switch
-        {
-            PreparedTriangleMeshGeometry triangleMesh => CreatePlannedGeometryAsset(
-                cityObject,
-                await geometryAssetAssembler.PrepareTriangleMeshAsync(
-                    importClient,
-                    CreateMeshAssetSlotName(cityObject),
-                    cityObject.DisplayName,
-                    triangleMesh.MeshImport,
-                    progressReporter,
-                    cancellationToken)),
-            PreparedTerrainGridGeometry heightMap => CreatePlannedGeometryAsset(
-                cityObject,
-                await geometryAssetAssembler.PrepareTerrainGridAsync(
-                    importClient,
-                    CreateMeshAssetSlotName(cityObject),
-                    CreateTerrainGridAssetSlotName(cityObject),
-                    cityObject.DisplayName,
-                    heightMap.Geometry,
-                    heightMap.HeightTextureImport,
-                    ResoniteCityObjectPreparation.ResolveTerrainGridUvScale(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
-                    ResoniteCityObjectPreparation.ResolveTerrainGridUvOffset(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
-                    progressReporter,
-                    cancellationToken)),
-            PreparedDynamicTerrainGeometry dynamicTerrain => CreatePlannedDynamicTerrainGeometryAsset(
-                cityObject,
-                AssertUploadedTriangleMeshAssetBatch(await geometryAssetAssembler.PrepareTriangleMeshAsync(
-                    importClient,
-                    CreateMeshAssetSlotName(cityObject),
-                    cityObject.DisplayName,
-                    dynamicTerrain.StaticMesh.MeshImport,
-                    progressReporter,
-                    cancellationToken)),
-                AssertUploadedTerrainGridAssetBatch(await geometryAssetAssembler.PrepareTerrainGridAsync(
-                    importClient,
-                    CreateMeshAssetSlotName(cityObject),
-                    CreateTerrainGridAssetSlotName(cityObject),
-                    cityObject.DisplayName,
-                    dynamicTerrain.GridMesh.Geometry,
-                    dynamicTerrain.GridMesh.HeightTextureImport,
-                    ResoniteCityObjectPreparation.ResolveTerrainGridUvScale(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
-                    ResoniteCityObjectPreparation.ResolveTerrainGridUvOffset(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
-                    progressReporter,
-                    cancellationToken))),
-            _ => throw new InvalidOperationException(
-                $"Unsupported prepared geometry type '{preparedCityObject.Geometry.GetType().Name}'."),
-        };
-    }
-
-    private static PlannedGeometryAsset CreatePlannedGeometryAsset(
-        ResoniteConstructionCityObject cityObject,
-        UploadedGeometryAssetBatch uploadedGeometryBatch)
-    {
-        GeometryIdentity identity = new(
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"geometry-{cityObject.PackageName}-{cityObject.SlotKey}-{uploadedGeometryBatch.MeshAssetSlotName}"));
-
-        return uploadedGeometryBatch switch
-        {
-            UploadedTriangleMeshAssetBatch triangleMesh => new PlannedTriangleMeshGeometryAsset(
-                identity,
-                triangleMesh.MeshAssetSlotName,
-                triangleMesh.MeshUri),
-            UploadedTerrainGridAssetBatch heightMap => new PlannedTerrainGridGeometryAsset(
-                identity,
-                heightMap.MeshAssetSlotName,
-                heightMap.TerrainGridAssetSlotName,
-                heightMap.Geometry,
-                heightMap.HeightTextureUri,
-                heightMap.UvScale,
-                heightMap.UvOffset),
-            _ => throw new InvalidOperationException(
-                $"Unsupported uploaded geometry asset batch type '{uploadedGeometryBatch.GetType().Name}'."),
-        };
-    }
-
-    private static PlannedDynamicTerrainGeometryAsset CreatePlannedDynamicTerrainGeometryAsset(
-        ResoniteConstructionCityObject cityObject,
-        UploadedTriangleMeshAssetBatch staticMeshBatch,
-        UploadedTerrainGridAssetBatch gridMeshBatch)
-    {
-        GeometryIdentity identity = new(
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"geometry-{cityObject.PackageName}-{cityObject.SlotKey}-{staticMeshBatch.MeshAssetSlotName}"));
-
-        return new PlannedDynamicTerrainGeometryAsset(
-            identity,
-            staticMeshBatch.MeshAssetSlotName,
-            staticMeshBatch.MeshUri,
-            gridMeshBatch.TerrainGridAssetSlotName,
-            gridMeshBatch.Geometry,
-            gridMeshBatch.HeightTextureUri,
-            gridMeshBatch.UvScale,
-            gridMeshBatch.UvOffset);
-    }
-
-    private static UploadedTriangleMeshAssetBatch AssertUploadedTriangleMeshAssetBatch(
-        UploadedGeometryAssetBatch uploadedGeometryBatch)
-    {
-        return uploadedGeometryBatch as UploadedTriangleMeshAssetBatch
-            ?? throw new InvalidOperationException(
-                $"Unsupported uploaded static terrain asset batch type '{uploadedGeometryBatch.GetType().Name}'.");
-    }
-
-    private static UploadedTerrainGridAssetBatch AssertUploadedTerrainGridAssetBatch(
-        UploadedGeometryAssetBatch uploadedGeometryBatch)
-    {
-        return uploadedGeometryBatch as UploadedTerrainGridAssetBatch
-            ?? throw new InvalidOperationException(
-                $"Unsupported uploaded terrain grid asset batch type '{uploadedGeometryBatch.GetType().Name}'.");
-    }
-
-    private static long EstimateBatchPayloadBytes(int operationCount)
-    {
-        return Math.Max(1L, operationCount) * 1024L;
-    }
-
-    private void ReportImportStep(ResoniteConstructionCityObject cityObject, string step)
-    {
-        ReportProgress(
-            PlateauLog.Debug(
-                "live",
-                $"Importing '{cityObject.DisplayName}' ({cityObject.PackageName}/{cityObject.SlotKey}): {step}"));
-    }
-
-    private static string DescribePreparedGeometry(PreparedConstructionGeometry geometry)
-    {
-        return geometry switch
-        {
-            PreparedTriangleMeshGeometry triangleMesh =>
-                $"triangle-mesh(vertices={triangleMesh.MeshImport.VertexCount}, submeshes={triangleMesh.MeshImport.Submeshes.Count})",
-            PreparedTerrainGridGeometry heightMap =>
-                $"terrain-grid({heightMap.Geometry.Width}x{heightMap.Geometry.Height})",
-            PreparedDynamicTerrainGeometry dynamicTerrain =>
-                $"dynamic-terrain(static={dynamicTerrain.StaticMesh.MeshImport.VertexCount} vertices, grid={dynamicTerrain.GridMesh.Geometry.Width}x{dynamicTerrain.GridMesh.Geometry.Height})",
-            _ => geometry.GetType().Name,
-        };
-    }
-
-    private static async Task AwaitProcessingTasksIfCompletedAsync(LiveSendRunState state)
-    {
-        await state.Runtime.AwaitIfAnyTaskCompletedAsync();
-    }
-
-    private static void TryMarkProcessingFailure(LiveSendRunState state, Exception exception)
-    {
-        state.Runtime.TryMarkFailure(exception);
-    }
-
-    private static void CancelProcessing(LiveSendRunState state)
-    {
-        state.Runtime.Cancel();
-    }
-
-
-    private static string CreateMeshAssetSlotName(ResoniteConstructionCityObject cityObject)
-    {
-        return cityObject.DisplayName;
-    }
-
-    private static string CreateTerrainGridAssetSlotName(ResoniteConstructionCityObject cityObject)
-    {
-        return string.Concat(CreateMeshAssetSlotName(cityObject), TerrainGridAssetSlotSuffix);
+        return new LiveSendFinalizationContext(
+            endpoint,
+            CreateEnqueueContext(),
+            Diagnostics,
+            progressReporter);
     }
 
     private static ResoniteSceneSetupInfo CreateSceneSetupInfo(SceneImportRequest request)

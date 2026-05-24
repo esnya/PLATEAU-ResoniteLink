@@ -308,16 +308,23 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,
-                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
                 new ResoniteSceneSetupInterpreter(
                     new ResoniteSceneSlotLocator(),
                     new ResoniteSceneAnchorResolver()),
-                new ResoniteDatasetLicenseWriter(),
-                new ResoniteGeometryAssetAssembler(),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
-                new ResoniteBatchEmissionPlanner(),
-                new PlannedBatchEmissionInterpreter(),
+                new LiveSendRunPlanFactory(),
+                new LiveSendRunStateFactory(new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())),
+                new ResoniteQueuedCityObjectWorker(
+                    new ResoniteQueuedCityObjectSender(
+                        terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
+                        new ResoniteDatasetLicenseWriter(),
+                        new ResonitePreparedCityObjectImporter(
+                            new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
+                            new ResoniteSceneMaterialPlanComposer(materialPlanning),
+                            new ResoniteBatchEmissionPlanner(),
+                            new PlannedBatchEmissionInterpreter()))),
+                new ResoniteQueuedCityObjectEnqueuer(),
+                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
     }

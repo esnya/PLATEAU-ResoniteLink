@@ -22,7 +22,14 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteBatchEmissionPlanner, ResoniteBatchEmissionPlanner>();
         services.TryAddScoped<IResoniteBufferedCityObjectBakerFactory, ResoniteBufferedCityObjectBakerFactory>();
         services.TryAddScoped<IResoniteGeometryAssetAssembler, ResoniteGeometryAssetAssembler>();
+        services.TryAddScoped<IResoniteGeometryAssetPlanner, ResoniteGeometryAssetPlanner>();
         services.TryAddScoped<IResoniteMaterialPlanning, ResoniteMaterialPlanning>();
+        services.TryAddScoped<IResoniteSceneMaterialPlanComposer, ResoniteSceneMaterialPlanComposer>();
+        services.TryAddScoped<ILiveSendRunPlanFactory, LiveSendRunPlanFactory>();
+        services.TryAddScoped<ILiveSendRunStateFactory, LiveSendRunStateFactory>();
+        services.TryAddScoped<IResonitePreparedCityObjectImporter, ResonitePreparedCityObjectImporter>();
+        services.TryAddScoped<IResoniteQueuedCityObjectEnqueuer, ResoniteQueuedCityObjectEnqueuer>();
+        services.TryAddScoped<IResoniteLiveSendFinalizer, ResoniteLiveSendFinalizer>();
         services.TryAddScoped<IResoniteSceneBatchEmitter, PlannedBatchEmissionInterpreter>();
         services.TryAddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
         services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
@@ -122,10 +129,10 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     ITerrainTextureAssetGeneratorFactory terrainTextureAssetGeneratorFactory,
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
     IResoniteDatasetLicenseWriter datasetLicenseWriter,
-    IResoniteGeometryAssetAssembler geometryAssetAssembler,
     IResoniteMaterialPlanning materialPlanning,
-    IResoniteBatchEmissionPlanner batchEmissionPlanner,
-    IResoniteSceneBatchEmitter batchEmitter,
+    ILiveSendRunPlanFactory runPlanFactory,
+    ILiveSendRunStateFactory runStateFactory,
+    IResonitePreparedCityObjectImporter preparedCityObjectImporter,
     IResoniteSlotCreator slotCreator,
     IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory)
     : IResoniteLiveSceneImportDependencyFactory
@@ -140,17 +147,22 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             ? ResoniteLinkSendDiagnostics.CreateEnabled(options.ProgressReporter)
             : ResoniteLinkSendDiagnostics.Disabled;
 
+        ResoniteQueuedCityObjectSender queuedCityObjectSender = new(
+            terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options),
+            datasetLicenseWriter,
+            preparedCityObjectImporter);
+        ResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new();
+
         return new ResoniteLiveSceneImportDependencies(
             clientSessionFactory.Create(options, diagnostics),
             diagnostics,
-            terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options),
             sceneSetupInterpreter,
-            datasetLicenseWriter,
-            geometryAssetAssembler,
-            new ResoniteSceneMaterialPlanComposer(materialPlanning),
             new ResoniteCommonMaterialSetupPreparer(materialPlanning, options.ProgressReporter),
-            batchEmissionPlanner,
-            batchEmitter,
+            runPlanFactory,
+            runStateFactory,
+            new ResoniteQueuedCityObjectWorker(queuedCityObjectSender),
+            queuedCityObjectEnqueuer,
+            new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer),
             slotCreator,
             cityObjectBakerFactory);
     }

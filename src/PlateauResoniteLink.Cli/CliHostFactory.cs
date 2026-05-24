@@ -211,14 +211,17 @@ internal sealed class DefaultSceneSinkFactory(
             new ResoniteLiveSceneImportDependencies(
                 new SingleRecordingClientSession(recordingClient),
                 diagnostics,
-                new DeterministicTerrainTextureAssetGenerator(),
                 serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
-                serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>(),
-                serviceProvider.GetRequiredService<IResoniteGeometryAssetAssembler>(),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
-                serviceProvider.GetRequiredService<IResoniteBatchEmissionPlanner>(),
-                serviceProvider.GetRequiredService<IResoniteSceneBatchEmitter>(),
+                serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
+                serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
+                new ResoniteQueuedCityObjectWorker(
+                    new ResoniteQueuedCityObjectSender(
+                        new DeterministicTerrainTextureAssetGenerator(),
+                        serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>(),
+                        serviceProvider.GetRequiredService<IResonitePreparedCityObjectImporter>())),
+                new ResoniteQueuedCityObjectEnqueuer(),
+                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
                 serviceProvider.GetRequiredService<IResoniteSlotCreator>(),
                 serviceProvider.GetRequiredService<IResoniteBufferedCityObjectBakerFactory>()));
     }

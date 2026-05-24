@@ -5,13 +5,12 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed record ResoniteLiveSceneImportDependencies(
     ILiveSendClientSession ClientSession,
     ResoniteLinkSendDiagnostics Diagnostics,
-    ITerrainTextureAssetGenerator TerrainTextureAssetGenerator,
     Execution.IResoniteSceneSetupInterpreter SceneSetupInterpreter,
-    Execution.IResoniteDatasetLicenseWriter DatasetLicenseWriter,
-    Execution.IResoniteGeometryAssetAssembler GeometryAssetAssembler,
-    IResoniteSceneMaterialPlanComposer SceneMaterialPlanComposer,
     IResoniteCommonMaterialSetupPreparer CommonMaterialSetupPreparer,
-    Execution.IResoniteBatchEmissionPlanner BatchEmissionPlanner,
-    Execution.IResoniteSceneBatchEmitter BatchEmitter,
+    ILiveSendRunPlanFactory RunPlanFactory,
+    ILiveSendRunStateFactory RunStateFactory,
+    IResoniteQueuedCityObjectWorker QueuedCityObjectWorker,
+    IResoniteQueuedCityObjectEnqueuer QueuedCityObjectEnqueuer,
+    IResoniteLiveSendFinalizer Finalizer,
     Execution.IResoniteSlotCreator SlotCreator,
     IResoniteBufferedCityObjectBakerFactory CityObjectBakerFactory);

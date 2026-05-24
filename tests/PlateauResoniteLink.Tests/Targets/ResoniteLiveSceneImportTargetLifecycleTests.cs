@@ -30,6 +30,32 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         return new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter);
     }
 
+    private static LiveSendRunStateFactory CreateRunStateFactory()
+    {
+        return new LiveSendRunStateFactory(
+            new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader()));
+    }
+
+    private static ResonitePreparedCityObjectImporter CreatePreparedCityObjectImporter(
+        IResoniteMaterialPlanning materialPlanning)
+    {
+        return new ResonitePreparedCityObjectImporter(
+            new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
+            new ResoniteSceneMaterialPlanComposer(materialPlanning),
+            new ResoniteBatchEmissionPlanner(),
+            new PlannedBatchEmissionInterpreter());
+    }
+
+    private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
+        IResoniteMaterialPlanning materialPlanning)
+    {
+        return new ResoniteQueuedCityObjectWorker(
+            new ResoniteQueuedCityObjectSender(
+                new TerrainTextureAssetGenerator(),
+                new ResoniteDatasetLicenseWriter(),
+                CreatePreparedCityObjectImporter(materialPlanning)));
+    }
+
     [Fact]
     public async Task ExecuteAsync_DelegatesNormalizedRequestsToInjectedSession()
     {
@@ -53,14 +79,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 diagnostics,
-                new TerrainTextureAssetGenerator(),
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-                new ResoniteDatasetLicenseWriter(),
-                new ResoniteGeometryAssetAssembler(),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 CreateCommonMaterialSetupPreparer(materialPlanning),
-                new ResoniteBatchEmissionPlanner(),
-                new PlannedBatchEmissionInterpreter(),
+                new LiveSendRunPlanFactory(),
+                CreateRunStateFactory(),
+                CreateQueuedCityObjectWorker(materialPlanning),
+                new ResoniteQueuedCityObjectEnqueuer(),
+                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
 
@@ -116,14 +141,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 diagnostics,
-                new TerrainTextureAssetGenerator(),
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-                new ResoniteDatasetLicenseWriter(),
-                new ResoniteGeometryAssetAssembler(),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 CreateCommonMaterialSetupPreparer(materialPlanning),
-                new ResoniteBatchEmissionPlanner(),
-                new PlannedBatchEmissionInterpreter(),
+                new LiveSendRunPlanFactory(),
+                CreateRunStateFactory(),
+                CreateQueuedCityObjectWorker(materialPlanning),
+                new ResoniteQueuedCityObjectEnqueuer(),
+                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
 
@@ -170,14 +194,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 diagnostics,
-                new TerrainTextureAssetGenerator(),
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-                new ResoniteDatasetLicenseWriter(),
-                new ResoniteGeometryAssetAssembler(),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 CreateCommonMaterialSetupPreparer(materialPlanning),
-                new ResoniteBatchEmissionPlanner(),
-                new PlannedBatchEmissionInterpreter(),
+                new LiveSendRunPlanFactory(),
+                CreateRunStateFactory(),
+                CreateQueuedCityObjectWorker(materialPlanning),
+                new ResoniteQueuedCityObjectEnqueuer(),
+                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
@@ -261,14 +284,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                new TerrainTextureAssetGenerator(),
                 new MissingCommonMaterialSetupInterpreter(),
-                new ResoniteDatasetLicenseWriter(),
-                new ResoniteGeometryAssetAssembler(),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 CreateCommonMaterialSetupPreparer(materialPlanning),
-                new ResoniteBatchEmissionPlanner(),
-                new PlannedBatchEmissionInterpreter(),
+                new LiveSendRunPlanFactory(),
+                CreateRunStateFactory(),
+                CreateQueuedCityObjectWorker(materialPlanning),
+                new ResoniteQueuedCityObjectEnqueuer(),
+                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
@@ -312,14 +334,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                new TerrainTextureAssetGenerator(),
                 new MissingCommonMaterialSetupInterpreter(),
-                new ResoniteDatasetLicenseWriter(),
-                new ResoniteGeometryAssetAssembler(),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 CreateCommonMaterialSetupPreparer(materialPlanning),
-                new ResoniteBatchEmissionPlanner(),
-                new PlannedBatchEmissionInterpreter(),
+                new LiveSendRunPlanFactory(),
+                CreateRunStateFactory(),
+                CreateQueuedCityObjectWorker(materialPlanning),
+                new ResoniteQueuedCityObjectEnqueuer(),
+                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
@@ -386,14 +407,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                new TerrainTextureAssetGenerator(),
                 new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-                new ResoniteDatasetLicenseWriter(),
-                new ResoniteGeometryAssetAssembler(),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning),
                 CreateCommonMaterialSetupPreparer(materialPlanning, progressMessages.Add),
-                new ResoniteBatchEmissionPlanner(),
-                new PlannedBatchEmissionInterpreter(),
+                new LiveSendRunPlanFactory(),
+                CreateRunStateFactory(),
+                CreateQueuedCityObjectWorker(materialPlanning),
+                new ResoniteQueuedCityObjectEnqueuer(),
+                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
