@@ -121,7 +121,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
                     continue;
                 }
 
-                List<Float2> coordinates = LocalCityGmlObjectProjection.ParseTextureCoordinates(textureCoordinatesElement.Value);
+                List<Float2> coordinates = CityGmlCoordinateTextParser.ParseTextureCoordinates(textureCoordinatesElement.Value);
                 if (coordinates.Count > 0)
                 {
                     ringCoordinates[ringId] = coordinates;
@@ -330,7 +330,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
     {
         try
         {
-            return LocalCityGmlObjectProjection.ParseDoubles(value);
+            return CityGmlCoordinateTextParser.ParseDoubles(value);
         }
         catch (FormatException)
         {

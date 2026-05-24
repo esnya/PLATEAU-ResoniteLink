@@ -107,10 +107,10 @@ internal static class LocalCityGmlObjectProjection
         }
 
         ParsedSurface[] surfaces = preferredSurfaceElements
-            .Select(surfaceElement => ParseSurface(surfaceElement, appearanceStore))
+            .Select(surfaceElement => CityGmlParsedSurfaceReader.Parse(surfaceElement, appearanceStore))
             .Where(static surface => surface is not null)
             .Select(static surface => surface!)
-            .Select(surface => ApplyPackageSurfaceDefaults(packageName, surface))
+            .Select(surface => CityGmlParsedSurfaceReader.ApplyPackageDefaults(packageName, surface))
             .OrderBy(static surface => CreateStableSurfaceSortKey(surface), StringComparer.Ordinal)
             .ToArray();
 
@@ -198,14 +198,6 @@ internal static class LocalCityGmlObjectProjection
                 .ToArray();
 
         return (selectedSurfaces, highestLod);
-    }
-
-    private static ParsedSurface ApplyPackageSurfaceDefaults(string packageName, ParsedSurface surface)
-    {
-        return string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
-            && surface.TexturePayload is null
-            ? surface with { UsesGeneratedDemTexture = true }
-            : surface;
     }
 
     private static int? GetSurfaceLodLevel(XElement surfaceElement, XElement cityObjectElement)
@@ -564,15 +556,6 @@ internal static class LocalCityGmlObjectProjection
         return metric.Kind == BuildingMetricValueKind.Known && metric.Value is > 0.0
             ? metric.Value
             : null;
-    }
-
-    private static string CreateStableElementId(string prefix, XElement element)
-    {
-        byte[] payload = Encoding.UTF8.GetBytes(element.ToString(SaveOptions.DisableFormatting));
-        byte[] hash = SHA256.HashData(payload);
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{prefix}_{Convert.ToHexString(hash.AsSpan(0, 12)).ToLowerInvariant()}");
     }
 
     private static string CreateStableSurfaceSortKey(ParsedSurface surface)
@@ -1247,107 +1230,6 @@ internal static class LocalCityGmlObjectProjection
     {
         Float3? normal = ComputePolygonNormal(positions);
         return normal is not null && Math.Abs(normal.Y) >= 0.7;
-    }
-
-    private static ParsedSurface? ParseSurface(XElement polygonElement, ICityGmlAppearanceStore appearanceStore)
-    {
-        XElement? exteriorRing = polygonElement
-            .Element(Gml + "exterior")
-            ?.Element(Gml + "LinearRing");
-        if (exteriorRing is null)
-        {
-            return null;
-        }
-
-        string polygonId = GetAttribute(polygonElement, Gml + "id") ?? CreateStableElementId("polygon", polygonElement);
-        CityGmlResolvedAppearance appearance = appearanceStore.Resolve(polygonId);
-        ParsedRing? exteriorParsedRing = ParseRing(
-            exteriorRing,
-            appearance.RingUvsByRingId,
-            fallbackRingId: polygonId);
-        if (exteriorParsedRing is null)
-        {
-            return null;
-        }
-
-        ParsedRing[] interiorRings = polygonElement
-            .Elements(Gml + "interior")
-            .Select(interiorElement => ParseRing(
-                interiorElement.Element(Gml + "LinearRing"),
-                appearance.RingUvsByRingId,
-                fallbackRingId: null))
-            .Where(static ring => ring is not null)
-            .Select(static ring => ring!)
-            .ToArray();
-
-        return new ParsedSurface(
-            PolygonId: polygonId,
-            Semantic: ParseSurfaceSemantic(polygonElement),
-            ExteriorRing: exteriorParsedRing,
-            InteriorRings: interiorRings,
-            BaseColor: ToInternalColor(appearance.BaseColor),
-            TexturePayload: appearance.TexturePayload,
-            OpticalProperties: CreateMaterialOpticalProperties(appearance.MaterialAttributes));
-    }
-
-    private static ParsedRing? ParseRing(
-        XElement? ringElement,
-        IReadOnlyDictionary<string, IReadOnlyList<Float2>>? ringUvsByRingId,
-        string? fallbackRingId)
-    {
-        if (ringElement is null)
-        {
-            return null;
-        }
-
-        string ringId = GetAttribute(ringElement, Gml + "id")
-            ?? fallbackRingId
-            ?? CreateStableElementId("ring", ringElement);
-        GeodeticPoint[] vertices = ParseRingPoints(ringElement);
-        if (vertices.Length < 3)
-        {
-            return null;
-        }
-
-        IReadOnlyList<Float2>? uvs = null;
-        if (ringUvsByRingId is not null
-            && ringUvsByRingId.TryGetValue(ringId, out IReadOnlyList<Float2>? ringUvs)
-            && ringUvs.Count == vertices.Length)
-        {
-            uvs = ringUvs;
-        }
-
-        return new ParsedRing(ringId, vertices, uvs);
-    }
-
-    private static GeodeticPoint[] ParseRingPoints(XElement ringElement)
-    {
-        List<double> ordinates = [];
-        XElement? posListElement = ringElement.Element(Gml + "posList");
-        if (posListElement is not null)
-        {
-            ordinates.AddRange(ParseDoubles(posListElement.Value));
-        }
-        else
-        {
-            foreach (XElement posElement in ringElement.Elements(Gml + "pos"))
-            {
-                ordinates.AddRange(ParseDoubles(posElement.Value));
-            }
-        }
-
-        List<GeodeticPoint> points = [];
-        for (int index = 0; index + 2 < ordinates.Count; index += 3)
-        {
-            points.Add(new GeodeticPoint(ordinates[index], ordinates[index + 1], ordinates[index + 2]));
-        }
-
-        if (points.Count > 1 && AreSamePoint(points[0], points[^1]))
-        {
-            points.RemoveAt(points.Count - 1);
-        }
-
-        return points.ToArray();
     }
 
     private static GeodeticPoint ComputeGlobalOrigin(IEnumerable<ParsedCityObject> cityObjects)
@@ -3572,30 +3454,6 @@ internal static class LocalCityGmlObjectProjection
         return IsFacadeSurface(surface, cityObjectOrigin, cityObjectCartesian);
     }
 
-    private static ParsedSurfaceSemantic ParseSurfaceSemantic(XElement polygonElement)
-    {
-        for (XElement? ancestor = polygonElement.Parent; ancestor is not null; ancestor = ancestor.Parent)
-        {
-            ParsedSurfaceSemantic semantic = ancestor.Name.LocalName switch
-            {
-                "WallSurface" or "InteriorWallSurface" => ParsedSurfaceSemantic.Wall,
-                "RoofSurface" => ParsedSurfaceSemantic.Roof,
-                "GroundSurface" => ParsedSurfaceSemantic.Ground,
-                "ClosureSurface" => ParsedSurfaceSemantic.Closure,
-                "OuterCeilingSurface" => ParsedSurfaceSemantic.OuterCeiling,
-                "OuterFloorSurface" => ParsedSurfaceSemantic.OuterFloor,
-                _ => ParsedSurfaceSemantic.Unknown,
-            };
-
-            if (semantic != ParsedSurfaceSemantic.Unknown)
-            {
-                return semantic;
-            }
-        }
-
-        return ParsedSurfaceSemantic.Unknown;
-    }
-
     private static DefaultMaterialSurfaceRole ToDefaultMaterialSurfaceRole(ParsedSurfaceSemantic semantic)
     {
         return semantic switch
@@ -3831,31 +3689,6 @@ internal static class LocalCityGmlObjectProjection
         return element.Attribute(attributeName)?.Value;
     }
 
-    internal static double[] ParseDoubles(string value)
-    {
-        return value
-            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-            .Select(token => double.Parse(token, CultureInfo.InvariantCulture))
-            .ToArray();
-    }
-
-    internal static List<Float2> ParseTextureCoordinates(string value)
-    {
-        double[] ordinates = ParseDoubles(value);
-        List<Float2> coordinates = [];
-        for (int index = 0; index + 1 < ordinates.Length; index += 2)
-        {
-            coordinates.Add(new Float2(ordinates[index], ordinates[index + 1]));
-        }
-
-        if (coordinates.Count > 1 && AreSameUV(coordinates[0], coordinates[^1]))
-        {
-            coordinates.RemoveAt(coordinates.Count - 1);
-        }
-
-        return coordinates;
-    }
-
     private static bool AreSamePoint(GeodeticPoint left, GeodeticPoint right)
     {
         return Math.Abs(left.Latitude - right.Latitude) < 1e-8
@@ -3889,12 +3722,6 @@ internal static class LocalCityGmlObjectProjection
         return new Float2(
             source.X + ((target.X - source.X) * ratio),
             source.Y + ((target.Y - source.Y) * ratio));
-    }
-
-    private static bool AreSameUV(Float2 left, Float2 right)
-    {
-        return Math.Abs(left.X - right.X) < 1e-8
-            && Math.Abs(left.Y - right.Y) < 1e-8;
     }
 
     private static bool HasExplicitMaterialColor(ColorRgba color)
@@ -5649,22 +5476,6 @@ internal static class LocalCityGmlObjectProjection
     private static Float2 ToInternalFloat2(Float2 value) => new(value.X, value.Y);
 
     private static ColorRgba ToInternalColor(ColorRgba value) => new(value.R, value.G, value.B, value.A);
-
-    private static MaterialOpticalProperties? CreateMaterialOpticalProperties(CityGmlMaterialAttributes? attributes)
-    {
-        if (attributes is null)
-        {
-            return null;
-        }
-
-        return new MaterialOpticalProperties(
-            DiffuseColor: ToInternalColor(attributes.DiffuseColor),
-            EmissiveColor: attributes.EmissiveColor is null ? null : ToInternalColor(attributes.EmissiveColor),
-            SpecularColor: attributes.SpecularColor is null ? null : ToInternalColor(attributes.SpecularColor),
-            AmbientIntensity: attributes.AmbientIntensity,
-            Shininess: attributes.Shininess,
-            Transparency: attributes.Transparency);
-    }
 
     private static Float3 ToContractFloat3(Float3 value) => new(value.X, value.Y, value.Z);
 
