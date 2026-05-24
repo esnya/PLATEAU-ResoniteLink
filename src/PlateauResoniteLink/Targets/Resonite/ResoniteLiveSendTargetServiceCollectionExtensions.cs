@@ -133,8 +133,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     ILiveSendRunPlanFactory runPlanFactory,
     ILiveSendRunStateFactory runStateFactory,
     IResonitePreparedCityObjectImporter preparedCityObjectImporter,
-    IResoniteSlotCreator slotCreator,
-    IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory)
+    IResoniteSlotCreator slotCreator)
     : IResoniteLiveSceneImportDependencyFactory
 {
     public ResoniteLiveSceneImportDependencies Create(
@@ -152,18 +151,20 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             datasetLicenseWriter,
             preparedCityObjectImporter);
         ResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new();
-
-        return new ResoniteLiveSceneImportDependencies(
-            clientSessionFactory.Create(options, diagnostics),
-            diagnostics,
+        ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(queuedCityObjectSender);
+        ResoniteLiveSendRunStarter runStarter = new(
             sceneSetupInterpreter,
             new ResoniteCommonMaterialSetupPreparer(materialPlanning, options.ProgressReporter),
             runPlanFactory,
             runStateFactory,
-            new ResoniteQueuedCityObjectWorker(queuedCityObjectSender),
+            queuedCityObjectWorker,
+            slotCreator);
+
+        return new ResoniteLiveSceneImportDependencies(
+            clientSessionFactory.Create(options, diagnostics),
+            diagnostics,
+            runStarter,
             queuedCityObjectEnqueuer,
-            new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer),
-            slotCreator,
-            cityObjectBakerFactory);
+            new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
     }
 }
