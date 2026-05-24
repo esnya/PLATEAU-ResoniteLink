@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -15,8 +14,6 @@ using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
-
-using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -715,7 +712,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         await AwaitProcessingTasksIfCompletedAsync(state);
 
         LiveSendExecutionRuntime runtime = state.Runtime;
-        long estimatedWorksetBytes = EstimateCityObjectWorkingSetBytes(cityObject);
+        long estimatedWorksetBytes = ResoniteCityObjectWorkingSetEstimator.EstimateBytes(cityObject);
         AsyncWeightedGate.Lease cityObjectMemoryLease = await runtime.AcquireCityObjectMemoryAsync(
             estimatedWorksetBytes,
             cancellationToken);
@@ -775,120 +772,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Task finishedTask = await Task.WhenAny(tasks).WaitAsync(cancellationToken);
         tasks.Remove(finishedTask);
         await finishedTask.WaitAsync(cancellationToken);
-    }
-
-    private static long EstimateCityObjectWorkingSetBytes(ResoniteConstructionCityObject cityObject)
-    {
-        const long minimumWeightBytes = 16L * 1024L * 1024L;
-        const long textureReferenceWeightBytes = 16L * 1024L * 1024L;
-        const long heightSampleWeightBytes = sizeof(double);
-        const long hdrHeightTextureWeightBytes = 4L * sizeof(float);
-        const long materialBindingWeightBytes = 4096L;
-        const long vertexWeightBytes = 256L;
-        const long indexWeightBytes = 16L;
-        const long perSubmeshWeightBytes = 4096L;
-        const long triangleMeshExpansionFactor = 4L;
-        const long heightMapExpansionFactor = 2L;
-
-        long geometryWeightBytes = cityObject.Geometry switch
-        {
-            ResoniteTriangleMeshGeometry triangleMesh => checked(
-                EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh, cityObject.Materials) * triangleMeshExpansionFactor),
-            ResoniteTerrainGridGeometry heightMap => EstimateTerrainGridWorkingSetBytes(heightMap),
-            ResoniteDynamicTerrainGeometry dynamicTerrain => checked(
-                (EstimateTriangleMeshWorkingSetBytes(dynamicTerrain.StaticMesh.Mesh, cityObject.Materials) * triangleMeshExpansionFactor)
-                + EstimateTerrainGridWorkingSetBytes(dynamicTerrain.GridMesh)),
-            _ => minimumWeightBytes,
-        };
-
-        ResoniteTexturePayload[] distinctTexturePayloads = cityObject.Materials
-            .Where(static material => material.TexturePayload is not null)
-            .Select(static material => material.TexturePayload!)
-            .Distinct(TexturePayloadReferenceComparer.Instance)
-            .ToArray();
-        long directTexturePayloadWeightBytes = distinctTexturePayloads.Sum(static payload => (long)payload.BinaryPayload.Length);
-        long terrainOverlayWeightBytes = cityObject.Materials
-            .Where(static material => material.TerrainOverlay is not null)
-            .Select(static material => material.TerrainOverlay!)
-            .Distinct()
-            .Sum(EstimateTerrainOverlayWorkingSetBytes);
-        long materialWeightBytes = checked(
-            (cityObject.Materials.Count * materialBindingWeightBytes)
-            + (distinctTexturePayloads.Length * textureReferenceWeightBytes)
-            + directTexturePayloadWeightBytes
-            + terrainOverlayWeightBytes);
-        return Math.Max(minimumWeightBytes, geometryWeightBytes + materialWeightBytes);
-
-        static long EstimateTerrainGridWorkingSetBytes(ResoniteTerrainGridGeometry heightMap)
-        {
-            return checked(
-                (heightMap.HeightSamples.Count * heightSampleWeightBytes)
-                + (((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes) * heightMapExpansionFactor));
-        }
-
-        static long EstimateTriangleMeshWorkingSetBytes(
-            ResoniteImportedMesh mesh,
-            IReadOnlyList<ResoniteMaterialBinding> materials)
-        {
-            bool requiresUvNormalization = materials.Any(ResoniteDynamicMaterialUvNormalizer.ShouldNormalizeTextureTransform);
-            long normalizedVertexCount = requiresUvNormalization
-                ? mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count)
-                : mesh.Vertices.Count;
-            long sourceVertexCount = mesh.Vertices.Count;
-            long vertexBytes = requiresUvNormalization
-                ? checked((sourceVertexCount + normalizedVertexCount) * vertexWeightBytes)
-                : sourceVertexCount * vertexWeightBytes;
-            long indexBytes = mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count * indexWeightBytes);
-            long submeshBytes = mesh.Submeshes.Count * perSubmeshWeightBytes;
-            return checked(vertexBytes + indexBytes + submeshBytes);
-        }
-
-        static long EstimateTerrainOverlayWorkingSetBytes(TerrainTextureOverlay overlay)
-        {
-            const long rgbaBytesPerPixel = 4L;
-
-            TerrainTextureTileSource? highestResolutionTileSource = overlay.EnumerateTileSources()
-                .OrderByDescending(static source => source.ZoomLevel)
-                .FirstOrDefault();
-            if (highestResolutionTileSource is null)
-            {
-                return textureReferenceWeightBytes;
-            }
-
-            TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(
-                overlay.GeographicBounds,
-                highestResolutionTileSource.ZoomLevel);
-            int maxTextureEdge = RoundDownToPowerOfTwo(overlay.MaxTextureSize);
-            int estimatedWidth = Math.Min(RoundUpToPowerOfTwo(layout.CropWidth), maxTextureEdge);
-            int estimatedHeight = Math.Min(RoundUpToPowerOfTwo(layout.CropHeight), maxTextureEdge);
-            return Math.Max(textureReferenceWeightBytes, checked((long)estimatedWidth * estimatedHeight * rgbaBytesPerPixel));
-        }
-
-        static int RoundUpToPowerOfTwo(int value)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-
-            int rounded = 1;
-            while (rounded < value)
-            {
-                rounded <<= 1;
-            }
-
-            return rounded;
-        }
-
-        static int RoundDownToPowerOfTwo(int value)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-
-            int rounded = 1;
-            while ((rounded << 1) > 0 && (rounded << 1) <= value)
-            {
-                rounded <<= 1;
-            }
-
-            return rounded;
-        }
     }
 
     private void ReportProgress(string message)
@@ -1204,7 +1087,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         IResoniteLinkClient routedClient = GetRoutedClient();
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay =
             CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
-        Task<UploadedTextureAssetSet> uploadedTextureAssetsTask = UploadPreparedTexturesAsync(
+        Task<ResoniteUploadedTextureAssetSet> uploadedTextureAssetsTask = ResonitePreparedTextureUploader.UploadAsync(
             state,
             routedClient,
             preparedCityObject,
@@ -1223,7 +1106,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         PlannedGeometryAsset plannedGeometryAsset;
         try
         {
-            UploadedTextureAssetSet uploadedTextureAssets = await uploadedTextureAssetsTask;
+            ResoniteUploadedTextureAssetSet uploadedTextureAssets = await uploadedTextureAssetsTask;
             materialStopwatch.Start();
             materialPlanningTask = PlanSceneMaterialPlanAsync(
                 state,
@@ -1292,246 +1175,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     $"First city object imported after {GetSceneElapsedSeconds(state):F3}s: "
                     + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})"));
         }
-    }
-
-    private static async Task<UploadedTextureAssetSet> UploadPreparedTexturesAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient importClient,
-        PreparedCityObject preparedCityObject,
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
-        CancellationToken cancellationToken)
-    {
-        Dictionary<ResoniteTexturePayload, Uri> textureUrisByPayload = new(TexturePayloadReferenceComparer.Instance);
-        Dictionary<TerrainTextureOverlay, Uri> terrainTextureUrisByOverlay = [];
-        Dictionary<string, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode = new(StringComparer.Ordinal);
-        HashSet<ResoniteTexturePayload> queuedPayloads = new(TexturePayloadReferenceComparer.Instance);
-        List<(PreparedTextureReference Texture, Task<Uri> ImportTask)> textureImportTasks = [];
-        List<(PreparedTextureReference Texture, Task<SharedTerrainTextureAsset> ImportTask)> terrainTextureImportTasks = [];
-
-        foreach (PreparedTextureReference texture in preparedCityObject.Textures)
-        {
-            if (texture.TexturePayload is not null && !queuedPayloads.Add(texture.TexturePayload))
-            {
-                continue;
-            }
-
-            if (texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
-            {
-                string meshCode = ResolveTerrainTextureMeshCode(texture);
-                terrainTextureImportTasks.Add((
-                    texture,
-                    EnsureSharedTerrainTextureAssetAsync(
-                        state,
-                        importClient,
-                        meshCode,
-                        texture.TextureImport,
-                        cancellationToken)));
-                continue;
-            }
-
-            textureImportTasks.Add((
-                texture,
-                importClient.ImportTextureAsync(texture.TextureImport, cancellationToken)));
-        }
-
-        await Task.WhenAll(textureImportTasks.Select(static textureImport => textureImport.ImportTask));
-        await Task.WhenAll(terrainTextureImportTasks.Select(static textureImport => textureImport.ImportTask));
-
-        foreach ((PreparedTextureReference texture, Task<Uri> importTask) in textureImportTasks)
-        {
-            Uri textureUri = await importTask;
-            if (texture.TexturePayload is not null)
-            {
-                textureUrisByPayload.Add(texture.TexturePayload, textureUri);
-            }
-
-        }
-
-        foreach ((PreparedTextureReference texture, Task<SharedTerrainTextureAsset> importTask) in terrainTextureImportTasks)
-        {
-            SharedTerrainTextureAsset sharedTexture = await importTask;
-            string meshCode = ResolveTerrainTextureMeshCode(texture);
-            terrainTextureUrisByOverlay.Add(texture.TerrainOverlay!, sharedTexture.TextureUri);
-            terrainTexturePropertyBlockComponentsByMeshCode.TryAdd(meshCode, sharedTexture.MainTexturePropertyBlockComponent.Locator);
-        }
-
-        return new UploadedTextureAssetSet(
-            textureUrisByPayload,
-            terrainTextureUrisByOverlay,
-            terrainTexturePropertyBlockComponentsByMeshCode,
-            preparedTerrainTextureDataByOverlay);
-    }
-
-    private static Task<SharedTerrainTextureAsset> EnsureSharedTerrainTextureAssetAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient importClient,
-        string meshCode,
-        ResoniteTextureImport textureImport,
-        CancellationToken cancellationToken)
-    {
-        return state.TerrainTextures.AssetsByMeshCode.GetOrCreateAsync(
-            meshCode,
-            () => EnsureSharedTerrainTextureAssetCoreAsync(state, importClient, meshCode, textureImport, cancellationToken),
-            cancellationToken);
-    }
-
-    private static async Task<SharedTerrainTextureAsset> EnsureSharedTerrainTextureAssetCoreAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient importClient,
-        string meshCode,
-        ResoniteTextureImport textureImport,
-        CancellationToken cancellationToken)
-    {
-        CreatedSlot terrainTexturesRoot = await state.Placement.GetOrCreateSharedChildSlotAsync(
-            importClient,
-            state.Context.DatasetAssetsRootSlot.Locator,
-            "Terrain Textures",
-            cancellationToken);
-        CreatedSlot meshSlot = await state.Placement.GetOrCreateSharedChildSlotAsync(
-            importClient,
-            terrainTexturesRoot.Locator,
-            meshCode,
-            cancellationToken);
-        SharedTerrainTextureAsset? existingTexture = await TryFindSharedTerrainTextureAssetAsync(
-            importClient,
-            meshSlot,
-            cancellationToken);
-        if (existingTexture is not null)
-        {
-            Uri refreshedTextureUri = await importClient.ImportTextureAsync(textureImport, cancellationToken);
-            await importClient.UpdateComponentAsync(
-                new ResoniteComponentUpdate
-                {
-                    Component = new ResoniteTransportComponentLocator(existingTexture.TextureComponent.Locator.Value),
-                    Members = ResoniteSceneMaterialConventions.CreateTextureMembers(
-                        refreshedTextureUri,
-                        ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride),
-                },
-                cancellationToken);
-            return existingTexture with
-            {
-                TextureUri = refreshedTextureUri,
-            };
-        }
-
-        Uri importedTextureUri = await importClient.ImportTextureAsync(textureImport, cancellationToken);
-        CreatedComponent textureComponent = await ResoniteMaterialPlanning.CreateComponentAsync(
-            importClient,
-            meshSlot.Locator,
-            "[FrooxEngine]FrooxEngine.StaticTexture2D",
-            ResoniteSceneMaterialConventions.CreateTextureMembers(
-                importedTextureUri,
-                ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride),
-            cancellationToken);
-        CreatedComponent propertyBlockComponent = await CreateTerrainMainTexturePropertyBlockAsync(
-            importClient,
-            meshSlot.Locator,
-            textureComponent.Locator,
-            cancellationToken);
-        return new SharedTerrainTextureAsset(
-            importedTextureUri,
-            textureComponent,
-            propertyBlockComponent);
-    }
-
-    private static async Task<SharedTerrainTextureAsset?> TryFindSharedTerrainTextureAssetAsync(
-        IResoniteLinkClient importClient,
-        CreatedSlot meshSlot,
-        CancellationToken cancellationToken)
-    {
-        Slot? slot = await importClient.GetSlotAsync(
-            new ResoniteTransportSlotLocator(meshSlot.Locator.Value),
-            depth: 0,
-            cancellationToken);
-        Component? textureComponent = slot?.Components?
-            .FirstOrDefault(IsSharedTerrainTextureComponent);
-        if (textureComponent?.ID is null
-            || textureComponent.Members["URL"] is not Field_Uri url)
-        {
-            return null;
-        }
-
-        if (url.Value is null)
-        {
-            return null;
-        }
-
-        CreatedComponent createdTextureComponent = new(new ResoniteComponentLocator(textureComponent.ID), textureComponent.ComponentType);
-        Component? propertyBlockComponent = slot?.Components?
-            .Where(component => IsSharedTerrainMainTexturePropertyBlockComponent(component, textureComponent.ID))
-            .OrderBy(static component => component.ID, StringComparer.Ordinal)
-            .FirstOrDefault();
-        CreatedComponent createdPropertyBlockComponent = propertyBlockComponent?.ID is null
-            ? await CreateTerrainMainTexturePropertyBlockAsync(
-                importClient,
-                meshSlot.Locator,
-                createdTextureComponent.Locator,
-                cancellationToken)
-            : new CreatedComponent(new ResoniteComponentLocator(propertyBlockComponent.ID), propertyBlockComponent.ComponentType);
-
-        return new SharedTerrainTextureAsset(
-            url.Value,
-            createdTextureComponent,
-            createdPropertyBlockComponent);
-    }
-
-    private static Task<CreatedComponent> CreateTerrainMainTexturePropertyBlockAsync(
-        IResoniteLinkClient importClient,
-        ResoniteSlotLocator meshSlot,
-        ResoniteComponentLocator textureComponent,
-        CancellationToken cancellationToken)
-    {
-        return ResoniteMaterialPlanning.CreateComponentAsync(
-            importClient,
-            meshSlot,
-            "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
-            new Dictionary<string, Member>(StringComparer.Ordinal)
-            {
-                ["Texture"] = new Reference
-                {
-                    TargetID = textureComponent.Value,
-                },
-            },
-            cancellationToken);
-    }
-
-    private static bool IsSharedTerrainMainTexturePropertyBlockComponent(Component component, string textureComponentId)
-    {
-        return string.Equals(
-                component.ComponentType,
-                "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
-                StringComparison.Ordinal)
-            && component.Members.TryGetValue("Texture", out Member? textureMember)
-            && textureMember is Reference { TargetID: string targetId }
-            && string.Equals(targetId, textureComponentId, StringComparison.Ordinal);
-    }
-
-    private static bool IsSharedTerrainTextureComponent(Component component)
-    {
-        return string.Equals(
-                component.ComponentType,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                StringComparison.Ordinal)
-            && component.Members.TryGetValue("URL", out Member? urlMember)
-            && urlMember is Field_Uri
-            && component.Members.TryGetValue("WrapModeU", out Member? wrapModeUMember)
-            && wrapModeUMember is Field_Enum { Value: "Clamp" }
-            && component.Members.TryGetValue("WrapModeV", out Member? wrapModeVMember)
-            && wrapModeVMember is Field_Enum { Value: "Clamp" };
-    }
-
-    private static string ResolveTerrainTextureMeshCode(PreparedTextureReference texture)
-    {
-        if (texture.TerrainMeshCode is not { Length: > 0 } meshCode
-            || meshCode.Length != 8
-            || !PlateauMeshCode.TryGetBounds(meshCode, out _))
-        {
-            throw new InvalidOperationException(
-                "Terrain texture overlay preparation requires a valid third-level mesh-code. "
-                + $"provided_mesh='{texture.TerrainMeshCode ?? "<null>"}'.");
-        }
-
-        return meshCode;
     }
 
     private static ResoniteMaterialBinding ValidateTerrainTextureMaterialContract(
@@ -2052,18 +1695,4 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return new ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }
 
-    private sealed record UploadedTextureAssetSet(
-        Dictionary<ResoniteTexturePayload, Uri> TextureUrisByPayload,
-        Dictionary<TerrainTextureOverlay, Uri> TerrainTextureUrisByOverlay,
-        Dictionary<string, ResoniteComponentLocator> TerrainTexturePropertyBlockComponentsByMeshCode,
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> GeneratedTerrainTexturesByOverlay);
-
-    private sealed class TexturePayloadReferenceComparer : IEqualityComparer<ResoniteTexturePayload>
-    {
-        internal static readonly TexturePayloadReferenceComparer Instance = new();
-
-        public bool Equals(ResoniteTexturePayload? x, ResoniteTexturePayload? y) => ReferenceEquals(x, y);
-
-        public int GetHashCode(ResoniteTexturePayload obj) => RuntimeHelpers.GetHashCode(obj);
-    }
 }
