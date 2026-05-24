@@ -106,7 +106,7 @@ internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
     {
         try
         {
-            _ = processingCancellationSource.CancelAsync();
+            processingCancellationSource.Cancel();
         }
         catch (ObjectDisposedException)
         {
