@@ -23,6 +23,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 {
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
 
+    private static ResoniteCommonMaterialSetupPreparer CreateCommonMaterialSetupPreparer(Action<string>? progressReporter = null)
+    {
+        return new ResoniteCommonMaterialSetupPreparer(
+            new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+            progressReporter);
+    }
+
     [Fact]
     public async Task ExecuteAsync_DelegatesNormalizedRequestsToInjectedSession()
     {
@@ -50,6 +57,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+                CreateCommonMaterialSetupPreparer(),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -111,6 +119,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+                CreateCommonMaterialSetupPreparer(),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -163,6 +172,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+                CreateCommonMaterialSetupPreparer(),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -252,6 +262,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+                CreateCommonMaterialSetupPreparer(),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -301,6 +312,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+                CreateCommonMaterialSetupPreparer(),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -373,6 +385,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+                CreateCommonMaterialSetupPreparer(progressMessages.Add),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),

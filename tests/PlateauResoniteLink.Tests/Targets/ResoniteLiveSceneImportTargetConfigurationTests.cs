@@ -20,6 +20,13 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 {
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
 
+    private static ResoniteCommonMaterialSetupPreparer CreateCommonMaterialSetupPreparer()
+    {
+        return new ResoniteCommonMaterialSetupPreparer(
+            new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+            null);
+    }
+
     [Fact]
     public async Task OptionsConstructorEnablesMeshBakeByDefault()
     {
@@ -66,6 +73,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+                CreateCommonMaterialSetupPreparer(),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -279,6 +287,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
+                CreateCommonMaterialSetupPreparer(),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),

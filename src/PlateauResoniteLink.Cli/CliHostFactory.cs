@@ -215,6 +215,9 @@ internal sealed class DefaultSceneSinkFactory(
                 serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>(),
                 serviceProvider.GetRequiredService<IResoniteGeometryAssetAssembler>(),
                 serviceProvider.GetRequiredService<IResoniteMaterialPlanning>(),
+                new ResoniteCommonMaterialSetupPreparer(
+                    serviceProvider.GetRequiredService<IResoniteMaterialPlanning>(),
+                    progressReporter),
                 serviceProvider.GetRequiredService<IResoniteBatchEmissionPlanner>(),
                 serviceProvider.GetRequiredService<IResoniteSceneBatchEmitter>(),
                 serviceProvider.GetRequiredService<IResoniteSlotCreator>(),

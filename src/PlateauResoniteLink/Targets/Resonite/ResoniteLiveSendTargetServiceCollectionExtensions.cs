@@ -147,6 +147,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             datasetLicenseWriter,
             geometryAssetAssembler,
             materialPlanning,
+            new ResoniteCommonMaterialSetupPreparer(materialPlanning, options.ProgressReporter),
             batchEmissionPlanner,
             batchEmitter,
             slotCreator,
