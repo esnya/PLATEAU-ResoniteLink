@@ -4884,7 +4884,7 @@ internal static class LocalCityGmlObjectProjection
             return null;
         }
 
-        return GetCityObjectGeographicBounds(cityObject);
+        return ResolveProjectionCityObjectGeographicBounds(cityObject);
     }
 
     private static GeographicRectangle? TryGetDemObjectGeographicBounds(
@@ -4897,7 +4897,7 @@ internal static class LocalCityGmlObjectProjection
             return null;
         }
 
-        return GetCityObjectGeographicBounds(cityObject);
+        return ResolveParsedCityObjectGeographicBounds(cityObject);
     }
 
     private static DemTerrainGridBounds CreateDemTerrainGridBounds(
@@ -4920,7 +4920,7 @@ internal static class LocalCityGmlObjectProjection
         }
 
         GeographicRectangle clippedBounds = IntersectGeographicBounds(
-            GetCityObjectGeographicBounds(cityObject),
+            ResolveProjectionCityObjectGeographicBounds(cityObject),
             demTerrainTextureOverlay.GeographicBounds);
         double referenceLatitude = cityObjectOrigin.Latitude;
         double referenceLongitude = cityObjectOrigin.Longitude;
@@ -4978,7 +4978,7 @@ internal static class LocalCityGmlObjectProjection
         }
 
         GeographicRectangle clippedBounds = IntersectGeographicBounds(
-            GetCityObjectGeographicBounds(cityObject),
+            ResolveParsedCityObjectGeographicBounds(cityObject),
             demTerrainTextureOverlay.GeographicBounds);
         double referenceLatitude = cityObjectOrigin.Latitude;
         double referenceLongitude = cityObjectOrigin.Longitude;
@@ -5016,26 +5016,19 @@ internal static class LocalCityGmlObjectProjection
         return new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ);
     }
 
-    private static GeographicRectangle GetCityObjectGeographicBounds(ParsedCityObject cityObject)
+    private static GeographicRectangle ResolveProjectionCityObjectGeographicBounds(ParsedCityObject cityObject)
     {
-        List<GeodeticPoint> vertices = cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
-        return new GeographicRectangle(
-            MinLatitude: vertices.Min(static point => point.Latitude),
-            MaxLatitude: vertices.Max(static point => point.Latitude),
-            MinLongitude: vertices.Min(static point => point.Longitude),
-            MaxLongitude: vertices.Max(static point => point.Longitude));
+        return CityObjectGeographicBoundsResolver.Resolve(
+            cityObject.Surfaces
+                .SelectMany(static surface => surface.Vertices)
+                .Select(static point => global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(point)));
     }
 
-    private static GeographicRectangle GetCityObjectGeographicBounds(
+    private static GeographicRectangle ResolveParsedCityObjectGeographicBounds(
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
-        List<global::PlateauResoniteLink.Application.Importing.GeodeticPoint> vertices =
-            cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
-        return new GeographicRectangle(
-            MinLatitude: vertices.Min(static point => point.Latitude),
-            MaxLatitude: vertices.Max(static point => point.Latitude),
-            MinLongitude: vertices.Min(static point => point.Longitude),
-            MaxLongitude: vertices.Max(static point => point.Longitude));
+        return CityObjectGeographicBoundsResolver.Resolve(
+            cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
     }
 
     private static GeographicRectangle IntersectGeographicBounds(
