@@ -1774,7 +1774,7 @@ internal static class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         if (demTerrainTextureOverlay is null
-            || ResolveTerrainTextureMeshCode(actualMeshCode, demTerrainTextureOverlay) is null
+            || TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, demTerrainTextureOverlay) is null
             || surface.TexturePayload is not null
             || !IsBuildingPackage(packageName)
             || !IsRoofTerrainTextureSurface(surface, cityObjectMinAltitude, cityObjectOrigin, cityObjectCartesian))
@@ -2363,7 +2363,7 @@ internal static class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay)
     {
         if (demTerrainTextureOverlay is null
-            || ResolveTerrainTextureMeshCode(cityObject.ActualMeshCode, demTerrainTextureOverlay) is not { } terrainMeshCode
+            || TerrainOverlayMeshCodeResolver.ResolveMeshCode(cityObject.ActualMeshCode, demTerrainTextureOverlay) is not { } terrainMeshCode
             || !TryCreateMeshCodeBounds(terrainMeshCode, out MeshCodeBounds? meshCodeBounds))
         {
             return null;
@@ -2388,7 +2388,7 @@ internal static class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay)
     {
         if (demTerrainTextureOverlay is null
-            || ResolveTerrainTextureMeshCode(actualMeshCode, demTerrainTextureOverlay) is not { } terrainMeshCode
+            || TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, demTerrainTextureOverlay) is not { } terrainMeshCode
             || !TryCreateMeshCodeBounds(terrainMeshCode, out MeshCodeBounds? meshCodeBounds))
         {
             return null;
@@ -2800,7 +2800,7 @@ internal static class LocalCityGmlObjectProjection
     {
         if (material.TerrainOverlay is not null)
         {
-            if (ResolveTerrainTextureMeshCode(actualMeshCode, material.TerrainOverlay) is null)
+            if (TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, material.TerrainOverlay) is null)
             {
                 throw CreateTerrainOverlayMeshCodeMismatchException(
                     "material-grouping",
@@ -2845,78 +2845,6 @@ internal static class LocalCityGmlObjectProjection
         return string.Create(
             CultureInfo.InvariantCulture,
             $"terrain-overlay-{terrainOverlay.PackageName.ToLowerInvariant()}-{terrainOverlay.SourceDescriptorKey}-bounds-{FormatBounds(terrainOverlay.GeographicBounds)}");
-    }
-
-    private static string? ResolveTerrainTextureMeshCode(
-        string actualMeshCode,
-        TerrainTextureOverlay terrainOverlay)
-    {
-        if (actualMeshCode.Length == 8
-            && TryCreateMeshCodeBounds(actualMeshCode, out MeshCodeBounds? actualMeshBounds)
-            && BoundsApproximatelyEqual(actualMeshBounds!, terrainOverlay.GeographicBounds))
-        {
-            return actualMeshCode;
-        }
-
-        if (actualMeshCode.Length != 6
-            || !actualMeshCode.All(static character => character is >= '0' and <= '9'))
-        {
-            return null;
-        }
-
-        for (int latitudeIndex = 0; latitudeIndex < 10; latitudeIndex++)
-        {
-            for (int longitudeIndex = 0; longitudeIndex < 10; longitudeIndex++)
-            {
-                string thirdMeshCode = string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{actualMeshCode}{latitudeIndex}{longitudeIndex}");
-                if (TryCreateMeshCodeBounds(thirdMeshCode, out MeshCodeBounds? thirdMeshBounds)
-                    && BoundsApproximatelyEqual(thirdMeshBounds!, terrainOverlay.GeographicBounds))
-                {
-                    return thirdMeshCode;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static bool BoundsApproximatelyEqual(
-        MeshCodeBounds meshBounds,
-        GeographicRectangle geographicBounds)
-    {
-        const double tolerance = 1e-8;
-        return Math.Abs(meshBounds.SouthLatitude - geographicBounds.MinLatitude) <= tolerance
-            && Math.Abs(meshBounds.NorthLatitude - geographicBounds.MaxLatitude) <= tolerance
-            && Math.Abs(meshBounds.WestLongitude - geographicBounds.MinLongitude) <= tolerance
-            && Math.Abs(meshBounds.EastLongitude - geographicBounds.MaxLongitude) <= tolerance;
-    }
-
-    private static string? TryResolveThirdMeshCodeFromBounds(GeographicRectangle geographicBounds)
-    {
-        int firstLatitudeIndex = (int)Math.Floor(geographicBounds.MinLatitude * 1.5);
-        int firstLongitudeIndex = (int)Math.Floor(geographicBounds.MinLongitude - 100.0);
-        double firstSouthLatitude = firstLatitudeIndex / 1.5;
-        double firstWestLongitude = 100.0 + firstLongitudeIndex;
-        double secondLatitudeSpan = (40.0 / 60.0) / 8.0;
-        double secondLongitudeSpan = 1.0 / 8.0;
-        int secondLatitudeIndex = (int)Math.Floor((geographicBounds.MinLatitude - firstSouthLatitude) / secondLatitudeSpan);
-        int secondLongitudeIndex = (int)Math.Floor((geographicBounds.MinLongitude - firstWestLongitude) / secondLongitudeSpan);
-        double secondSouthLatitude = firstSouthLatitude + (secondLatitudeIndex * secondLatitudeSpan);
-        double secondWestLongitude = firstWestLongitude + (secondLongitudeIndex * secondLongitudeSpan);
-        double thirdLatitudeSpan = secondLatitudeSpan / 10.0;
-        double thirdLongitudeSpan = secondLongitudeSpan / 10.0;
-        int thirdLatitudeIndex = (int)Math.Floor((geographicBounds.MinLatitude - secondSouthLatitude) / thirdLatitudeSpan);
-        int thirdLongitudeIndex = (int)Math.Floor((geographicBounds.MinLongitude - secondWestLongitude) / thirdLongitudeSpan);
-
-        string candidate = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{firstLatitudeIndex:D2}{firstLongitudeIndex:D2}{secondLatitudeIndex}{secondLongitudeIndex}{thirdLatitudeIndex}{thirdLongitudeIndex}");
-        return TryCreateMeshCodeBounds(candidate, out MeshCodeBounds? candidateBounds)
-            && BoundsApproximatelyEqual(candidateBounds!, geographicBounds)
-            ? candidate
-            : null;
     }
 
     private static string MaterialTypeToken(MaterialType materialType) =>
@@ -4405,7 +4333,7 @@ internal static class LocalCityGmlObjectProjection
         return resolvedSurfaces
             .GroupBy(
                 resolvedSurface => CreateMaterialGroupingKey(
-                    ResolveTerrainTextureMaterialMeshCodeSource(
+                    TerrainOverlayMeshCodeResolver.ResolveMaterialMeshCodeSource(
                         cityObject.ActualMeshCode,
                         requestedMeshCode,
                         requestedMeshCodeBounds,
@@ -4419,7 +4347,7 @@ internal static class LocalCityGmlObjectProjection
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
-                string terrainMaterialMeshCodeSource = ResolveTerrainTextureMaterialMeshCodeSource(
+                string terrainMaterialMeshCodeSource = TerrainOverlayMeshCodeResolver.ResolveMaterialMeshCodeSource(
                     cityObject.ActualMeshCode,
                     requestedMeshCode,
                     requestedMeshCodeBounds,
@@ -4469,7 +4397,7 @@ internal static class LocalCityGmlObjectProjection
         return resolvedSurfaces
             .GroupBy(
                 resolvedSurface => CreateMaterialGroupingKey(
-                    ResolveTerrainTextureMaterialMeshCodeSource(
+                    TerrainOverlayMeshCodeResolver.ResolveMaterialMeshCodeSource(
                         cityObject.ActualMeshCode,
                         requestedMeshCode,
                         requestedMeshCodeBounds,
@@ -4483,7 +4411,7 @@ internal static class LocalCityGmlObjectProjection
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
-                string terrainMaterialMeshCodeSource = ResolveTerrainTextureMaterialMeshCodeSource(
+                string terrainMaterialMeshCodeSource = TerrainOverlayMeshCodeResolver.ResolveMaterialMeshCodeSource(
                     cityObject.ActualMeshCode,
                     requestedMeshCode,
                     requestedMeshCodeBounds,
@@ -4503,7 +4431,7 @@ internal static class LocalCityGmlObjectProjection
     {
         string? terrainMeshCode = representativeSurface.Material.TerrainOverlay is null
             ? null
-            : ResolveTerrainTextureMeshCode(actualMeshCode, representativeSurface.Material.TerrainOverlay)
+            : TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, representativeSurface.Material.TerrainOverlay)
                 ?? throw CreateTerrainOverlayMeshCodeMismatchException(
                     "material-binding",
                     actualMeshCode,
@@ -4548,145 +4476,6 @@ internal static class LocalCityGmlObjectProjection
             BundledVariantIndex: representativeSurface.Material.BundledVariantIndex,
             TerrainMeshCode: terrainMeshCode,
             CommonMaterial: commonMaterial);
-    }
-
-    private static string ResolveTerrainTextureMaterialMeshCodeSource(
-        string actualMeshCode,
-        string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
-        TerrainTextureOverlay? terrainOverlay)
-    {
-        if (terrainOverlay is null
-            || ResolveTerrainTextureMeshCode(actualMeshCode, terrainOverlay) is not null)
-        {
-            return actualMeshCode;
-        }
-
-        return ResolveTerrainTextureMeshCode(requestedMeshCode, terrainOverlay)
-            ?? ResolveTerrainTextureMeshCodeFromRequestedMeshCodeBounds(
-                actualMeshCode,
-                requestedMeshCode,
-                requestedMeshCodeBounds,
-                terrainOverlay)
-            ?? requestedMeshCode;
-    }
-
-    private static string? ResolveTerrainTextureMeshCodeForOverlay(
-        string actualMeshCode,
-        string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
-        TerrainTextureOverlay terrainOverlay)
-    {
-        return ResolveTerrainTextureMeshCode(actualMeshCode, terrainOverlay)
-            ?? ResolveTerrainTextureMeshCode(requestedMeshCode, terrainOverlay)
-            ?? ResolveTerrainTextureMeshCodeFromRequestedMeshCodeBounds(
-                actualMeshCode,
-                requestedMeshCode,
-                requestedMeshCodeBounds,
-                terrainOverlay);
-    }
-
-    private static string? ResolveTerrainTextureMeshCodeFromRequestedMeshCodeBounds(
-        string actualMeshCode,
-        string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
-        TerrainTextureOverlay terrainOverlay)
-    {
-        if (!IsRequestedTerrainOverlay(terrainOverlay, requestedMeshCodeBounds))
-        {
-            return null;
-        }
-
-        if (ResolveThirdMeshCodeFromOverlayBounds(terrainOverlay) is { } resolvedMeshCode)
-        {
-            return resolvedMeshCode;
-        }
-
-        foreach (string parentMeshCode in EnumerateCandidateParentMeshCodes(actualMeshCode, requestedMeshCode))
-        {
-            for (int latitudeIndex = 0; latitudeIndex < 10; latitudeIndex++)
-            {
-                for (int longitudeIndex = 0; longitudeIndex < 10; longitudeIndex++)
-                {
-                    string thirdMeshCode = string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"{parentMeshCode}{latitudeIndex}{longitudeIndex}");
-                    if (ResolveTerrainTextureMeshCode(thirdMeshCode, terrainOverlay) is { } candidateMeshCode)
-                    {
-                        return candidateMeshCode;
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static string? ResolveThirdMeshCodeFromOverlayBounds(TerrainTextureOverlay terrainOverlay)
-    {
-        const double firstLatitudeSpan = 40.0 / 60.0;
-        const double firstLongitudeSpan = 1.0;
-        const double tolerance = 1e-8;
-
-        GeographicRectangle bounds = terrainOverlay.GeographicBounds;
-        int firstLatitudeIndex = (int)Math.Floor((bounds.MinLatitude * 1.5) + tolerance);
-        int firstLongitudeIndex = (int)Math.Floor((bounds.MinLongitude - 100.0) + tolerance);
-        if (firstLatitudeIndex < 0 || firstLongitudeIndex < 0)
-        {
-            return null;
-        }
-
-        double firstSouthLatitude = firstLatitudeIndex / 1.5;
-        double firstWestLongitude = 100.0 + firstLongitudeIndex;
-        double secondLatitudeSpan = firstLatitudeSpan / 8.0;
-        double secondLongitudeSpan = firstLongitudeSpan / 8.0;
-        int secondLatitudeIndex = (int)Math.Floor(((bounds.MinLatitude - firstSouthLatitude) / secondLatitudeSpan) + tolerance);
-        int secondLongitudeIndex = (int)Math.Floor(((bounds.MinLongitude - firstWestLongitude) / secondLongitudeSpan) + tolerance);
-        if (secondLatitudeIndex is < 0 or > 7 || secondLongitudeIndex is < 0 or > 7)
-        {
-            return null;
-        }
-
-        double secondSouthLatitude = firstSouthLatitude + (secondLatitudeIndex * secondLatitudeSpan);
-        double secondWestLongitude = firstWestLongitude + (secondLongitudeIndex * secondLongitudeSpan);
-        double thirdLatitudeSpan = secondLatitudeSpan / 10.0;
-        double thirdLongitudeSpan = secondLongitudeSpan / 10.0;
-        int thirdLatitudeIndex = (int)Math.Floor(((bounds.MinLatitude - secondSouthLatitude) / thirdLatitudeSpan) + tolerance);
-        int thirdLongitudeIndex = (int)Math.Floor(((bounds.MinLongitude - secondWestLongitude) / thirdLongitudeSpan) + tolerance);
-        if (thirdLatitudeIndex is < 0 or > 9 || thirdLongitudeIndex is < 0 or > 9)
-        {
-            return null;
-        }
-
-        string meshCode = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{firstLatitudeIndex:00}{firstLongitudeIndex:00}{secondLatitudeIndex}{secondLongitudeIndex}{thirdLatitudeIndex}{thirdLongitudeIndex}");
-        return ResolveTerrainTextureMeshCode(meshCode, terrainOverlay);
-    }
-
-    private static IEnumerable<string> EnumerateCandidateParentMeshCodes(string actualMeshCode, string requestedMeshCode)
-    {
-        return new[] { actualMeshCode, requestedMeshCode }
-            .Where(static meshCode => meshCode.Length >= 6 && meshCode.All(static character => character is >= '0' and <= '9'))
-            .Select(static meshCode => meshCode[..6])
-            .Distinct(StringComparer.Ordinal);
-    }
-
-    private static bool IsRequestedTerrainOverlay(
-        TerrainTextureOverlay terrainOverlay,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds)
-    {
-        return requestedMeshCodeBounds is { Count: > 0 }
-            && requestedMeshCodeBounds.Any(area => BoundsApproximatelyEqual(area, terrainOverlay.GeographicBounds)
-                || ContainsBounds(area, terrainOverlay.GeographicBounds));
-    }
-
-    private static bool ContainsBounds(MeshCodeBounds outer, GeographicRectangle inner)
-    {
-        return inner.MinLatitude >= outer.SouthLatitude
-            && inner.MaxLatitude <= outer.NorthLatitude
-            && inner.MinLongitude >= outer.WestLongitude
-            && inner.MaxLongitude <= outer.EastLongitude;
     }
 
     private static InvalidOperationException CreateTerrainOverlayMeshCodeMismatchException(
@@ -4799,16 +4588,16 @@ internal static class LocalCityGmlObjectProjection
                 NormalizeNonDemTerrainTextureSurface(surface);
 
             TerrainTextureOverlay[] candidateOverlays = demTerrainTextureOverlays
-                .Where(overlay => IsRequestedTerrainOverlay(overlay, requestedMeshCodeBounds)
-                    || ResolveTerrainTextureMeshCode(cityObject.ActualMeshCode, overlay) is not null)
-                .Where(overlay => BoundsOverlap(surfaceBounds, overlay.GeographicBounds))
+                .Where(overlay => TerrainOverlayMeshCodeResolver.IsRequestedOverlay(overlay, requestedMeshCodeBounds)
+                    || TerrainOverlayMeshCodeResolver.ResolveMeshCode(cityObject.ActualMeshCode, overlay) is not null)
+                .Where(overlay => TerrainOverlayMeshCodeResolver.BoundsOverlap(surfaceBounds, overlay.GeographicBounds))
                 .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
                 .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
                 .ToArray();
             if (candidateOverlays.Length == 0)
             {
                 TerrainTextureOverlay? overlappingOverlay = demTerrainTextureOverlays
-                    .FirstOrDefault(overlay => BoundsOverlap(surfaceBounds, overlay.GeographicBounds));
+                    .FirstOrDefault(overlay => TerrainOverlayMeshCodeResolver.BoundsOverlap(surfaceBounds, overlay.GeographicBounds));
                 if (overlappingOverlay is not null)
                 {
                     throw CreateTerrainOverlayMeshCodeMismatchException(
@@ -4830,7 +4619,7 @@ internal static class LocalCityGmlObjectProjection
             }
 
             TerrainTextureOverlay? containingOverlay = candidateOverlays.FirstOrDefault(overlay =>
-                ContainsBounds(overlay.GeographicBounds, surfaceBounds));
+                TerrainOverlayMeshCodeResolver.ContainsBounds(overlay.GeographicBounds, surfaceBounds));
             if (containingOverlay is not null)
             {
                 terrainOverlaySurfaces.Add((terrainProjectionSurface, containingOverlay));
@@ -4868,7 +4657,7 @@ internal static class LocalCityGmlObjectProjection
         {
             if (terrainGroups.Length == 1)
             {
-                string terrainMeshCode = ResolveTerrainTextureMeshCodeForOverlay(
+                string terrainMeshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
                         cityObject.ActualMeshCode,
                         cityObject.ActualMeshCode,
                         requestedMeshCodeBounds,
@@ -4904,7 +4693,7 @@ internal static class LocalCityGmlObjectProjection
         foreach (IGrouping<TerrainTextureOverlay, (global::PlateauResoniteLink.Application.Importing.ParsedSurface Surface, TerrainTextureOverlay Overlay)> group in terrainGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string terrainMeshCode = ResolveTerrainTextureMeshCodeForOverlay(
+            string terrainMeshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
                     cityObject.ActualMeshCode,
                     cityObject.ActualMeshCode,
                     requestedMeshCodeBounds,
@@ -4985,39 +4774,15 @@ internal static class LocalCityGmlObjectProjection
 
         if (requestedMeshCodeBounds.Count > 0)
         {
-            return IsRequestedTerrainOverlay(terrainOverlay, requestedMeshCodeBounds);
+            return TerrainOverlayMeshCodeResolver.IsRequestedOverlay(terrainOverlay, requestedMeshCodeBounds);
         }
 
-        return ResolveTerrainTextureMeshCodeForOverlay(
+        return TerrainOverlayMeshCodeResolver.ResolveForOverlay(
                 actualMeshCode,
                 requestedMeshCode,
                 requestedMeshCodeBounds,
                 terrainOverlay)
             is not null;
-    }
-
-    private static bool BoundsOverlap(MeshCodeBounds meshBounds, GeographicRectangle geographicBounds)
-    {
-        return meshBounds.NorthLatitude >= geographicBounds.MinLatitude
-            && meshBounds.SouthLatitude <= geographicBounds.MaxLatitude
-            && meshBounds.EastLongitude >= geographicBounds.MinLongitude
-            && meshBounds.WestLongitude <= geographicBounds.MaxLongitude;
-    }
-
-    private static bool BoundsOverlap(GeographicRectangle left, GeographicRectangle right)
-    {
-        return left.MaxLatitude >= right.MinLatitude
-            && left.MinLatitude <= right.MaxLatitude
-            && left.MaxLongitude >= right.MinLongitude
-            && left.MinLongitude <= right.MaxLongitude;
-    }
-
-    private static bool ContainsBounds(GeographicRectangle outer, GeographicRectangle inner)
-    {
-        return inner.MinLatitude >= outer.MinLatitude
-            && inner.MaxLatitude <= outer.MaxLatitude
-            && inner.MinLongitude >= outer.MinLongitude
-            && inner.MaxLongitude <= outer.MaxLongitude;
     }
 
     private static bool TryCreateSurfaceGeographicBounds(
