@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -715,7 +714,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         await AwaitProcessingTasksIfCompletedAsync(state);
 
         LiveSendExecutionRuntime runtime = state.Runtime;
-        long estimatedWorksetBytes = EstimateCityObjectWorkingSetBytes(cityObject);
+        long estimatedWorksetBytes = ResoniteCityObjectWorkingSetEstimator.EstimateBytes(cityObject);
         AsyncWeightedGate.Lease cityObjectMemoryLease = await runtime.AcquireCityObjectMemoryAsync(
             estimatedWorksetBytes,
             cancellationToken);
@@ -775,120 +774,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Task finishedTask = await Task.WhenAny(tasks).WaitAsync(cancellationToken);
         tasks.Remove(finishedTask);
         await finishedTask.WaitAsync(cancellationToken);
-    }
-
-    private static long EstimateCityObjectWorkingSetBytes(ResoniteConstructionCityObject cityObject)
-    {
-        const long minimumWeightBytes = 16L * 1024L * 1024L;
-        const long textureReferenceWeightBytes = 16L * 1024L * 1024L;
-        const long heightSampleWeightBytes = sizeof(double);
-        const long hdrHeightTextureWeightBytes = 4L * sizeof(float);
-        const long materialBindingWeightBytes = 4096L;
-        const long vertexWeightBytes = 256L;
-        const long indexWeightBytes = 16L;
-        const long perSubmeshWeightBytes = 4096L;
-        const long triangleMeshExpansionFactor = 4L;
-        const long heightMapExpansionFactor = 2L;
-
-        long geometryWeightBytes = cityObject.Geometry switch
-        {
-            ResoniteTriangleMeshGeometry triangleMesh => checked(
-                EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh, cityObject.Materials) * triangleMeshExpansionFactor),
-            ResoniteTerrainGridGeometry heightMap => EstimateTerrainGridWorkingSetBytes(heightMap),
-            ResoniteDynamicTerrainGeometry dynamicTerrain => checked(
-                (EstimateTriangleMeshWorkingSetBytes(dynamicTerrain.StaticMesh.Mesh, cityObject.Materials) * triangleMeshExpansionFactor)
-                + EstimateTerrainGridWorkingSetBytes(dynamicTerrain.GridMesh)),
-            _ => minimumWeightBytes,
-        };
-
-        ResoniteTexturePayload[] distinctTexturePayloads = cityObject.Materials
-            .Where(static material => material.TexturePayload is not null)
-            .Select(static material => material.TexturePayload!)
-            .Distinct(TexturePayloadReferenceComparer.Instance)
-            .ToArray();
-        long directTexturePayloadWeightBytes = distinctTexturePayloads.Sum(static payload => (long)payload.BinaryPayload.Length);
-        long terrainOverlayWeightBytes = cityObject.Materials
-            .Where(static material => material.TerrainOverlay is not null)
-            .Select(static material => material.TerrainOverlay!)
-            .Distinct()
-            .Sum(EstimateTerrainOverlayWorkingSetBytes);
-        long materialWeightBytes = checked(
-            (cityObject.Materials.Count * materialBindingWeightBytes)
-            + (distinctTexturePayloads.Length * textureReferenceWeightBytes)
-            + directTexturePayloadWeightBytes
-            + terrainOverlayWeightBytes);
-        return Math.Max(minimumWeightBytes, geometryWeightBytes + materialWeightBytes);
-
-        static long EstimateTerrainGridWorkingSetBytes(ResoniteTerrainGridGeometry heightMap)
-        {
-            return checked(
-                (heightMap.HeightSamples.Count * heightSampleWeightBytes)
-                + (((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes) * heightMapExpansionFactor));
-        }
-
-        static long EstimateTriangleMeshWorkingSetBytes(
-            ResoniteImportedMesh mesh,
-            IReadOnlyList<ResoniteMaterialBinding> materials)
-        {
-            bool requiresUvNormalization = materials.Any(ResoniteDynamicMaterialUvNormalizer.ShouldNormalizeTextureTransform);
-            long normalizedVertexCount = requiresUvNormalization
-                ? mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count)
-                : mesh.Vertices.Count;
-            long sourceVertexCount = mesh.Vertices.Count;
-            long vertexBytes = requiresUvNormalization
-                ? checked((sourceVertexCount + normalizedVertexCount) * vertexWeightBytes)
-                : sourceVertexCount * vertexWeightBytes;
-            long indexBytes = mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count * indexWeightBytes);
-            long submeshBytes = mesh.Submeshes.Count * perSubmeshWeightBytes;
-            return checked(vertexBytes + indexBytes + submeshBytes);
-        }
-
-        static long EstimateTerrainOverlayWorkingSetBytes(TerrainTextureOverlay overlay)
-        {
-            const long rgbaBytesPerPixel = 4L;
-
-            TerrainTextureTileSource? highestResolutionTileSource = overlay.EnumerateTileSources()
-                .OrderByDescending(static source => source.ZoomLevel)
-                .FirstOrDefault();
-            if (highestResolutionTileSource is null)
-            {
-                return textureReferenceWeightBytes;
-            }
-
-            TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(
-                overlay.GeographicBounds,
-                highestResolutionTileSource.ZoomLevel);
-            int maxTextureEdge = RoundDownToPowerOfTwo(overlay.MaxTextureSize);
-            int estimatedWidth = Math.Min(RoundUpToPowerOfTwo(layout.CropWidth), maxTextureEdge);
-            int estimatedHeight = Math.Min(RoundUpToPowerOfTwo(layout.CropHeight), maxTextureEdge);
-            return Math.Max(textureReferenceWeightBytes, checked((long)estimatedWidth * estimatedHeight * rgbaBytesPerPixel));
-        }
-
-        static int RoundUpToPowerOfTwo(int value)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-
-            int rounded = 1;
-            while (rounded < value)
-            {
-                rounded <<= 1;
-            }
-
-            return rounded;
-        }
-
-        static int RoundDownToPowerOfTwo(int value)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-
-            int rounded = 1;
-            while ((rounded << 1) > 0 && (rounded << 1) <= value)
-            {
-                rounded <<= 1;
-            }
-
-            return rounded;
-        }
     }
 
     private void ReportProgress(string message)
@@ -1301,10 +1186,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         CancellationToken cancellationToken)
     {
-        Dictionary<ResoniteTexturePayload, Uri> textureUrisByPayload = new(TexturePayloadReferenceComparer.Instance);
+        Dictionary<ResoniteTexturePayload, Uri> textureUrisByPayload = new(ResoniteTexturePayloadReferenceComparer.Instance);
         Dictionary<TerrainTextureOverlay, Uri> terrainTextureUrisByOverlay = [];
         Dictionary<string, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode = new(StringComparer.Ordinal);
-        HashSet<ResoniteTexturePayload> queuedPayloads = new(TexturePayloadReferenceComparer.Instance);
+        HashSet<ResoniteTexturePayload> queuedPayloads = new(ResoniteTexturePayloadReferenceComparer.Instance);
         List<(PreparedTextureReference Texture, Task<Uri> ImportTask)> textureImportTasks = [];
         List<(PreparedTextureReference Texture, Task<SharedTerrainTextureAsset> ImportTask)> terrainTextureImportTasks = [];
 
@@ -2058,12 +1943,4 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Dictionary<string, ResoniteComponentLocator> TerrainTexturePropertyBlockComponentsByMeshCode,
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> GeneratedTerrainTexturesByOverlay);
 
-    private sealed class TexturePayloadReferenceComparer : IEqualityComparer<ResoniteTexturePayload>
-    {
-        internal static readonly TexturePayloadReferenceComparer Instance = new();
-
-        public bool Equals(ResoniteTexturePayload? x, ResoniteTexturePayload? y) => ReferenceEquals(x, y);
-
-        public int GetHashCode(ResoniteTexturePayload obj) => RuntimeHelpers.GetHashCode(obj);
-    }
 }
