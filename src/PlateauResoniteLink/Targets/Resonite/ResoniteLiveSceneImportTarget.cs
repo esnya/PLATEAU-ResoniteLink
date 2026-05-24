@@ -22,14 +22,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private const int MaxQueuedCityObjects = 4;
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
     private const long MaxInFlightCityObjectWorkingSetBytesFloor = 512L * 1024L * 1024L;
-    private const string DemPackageName = "dem";
     private const string TerrainGridAssetSlotSuffix = "_terrain-grid";
     private readonly Uri endpoint;
     private readonly int connectionCount;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly IResoniteDatasetLicenseWriter datasetLicenseWriter;
     private readonly IResoniteGeometryAssetAssembler geometryAssetAssembler;
-    private readonly IResoniteMaterialPlanning materialPlanning;
+    private readonly ResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer;
     private readonly IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer;
     private readonly IResoniteBatchEmissionPlanner batchEmissionPlanner;
     private readonly IResoniteSceneBatchEmitter batchEmitter;
@@ -63,7 +62,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         progressReporter = options.ProgressReporter;
         sceneSetupInterpreter = dependencies.SceneSetupInterpreter;
         geometryAssetAssembler = dependencies.GeometryAssetAssembler;
-        materialPlanning = dependencies.MaterialPlanning;
+        sceneMaterialPlanComposer = new ResoniteSceneMaterialPlanComposer(dependencies.MaterialPlanning);
         commonMaterialSetupPreparer = dependencies.CommonMaterialSetupPreparer;
         batchEmissionPlanner = dependencies.BatchEmissionPlanner;
         batchEmitter = dependencies.BatchEmitter;
@@ -851,7 +850,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             .Select((material, materialIndex) => (Material: material, MaterialIndex: materialIndex))
             .Where(static entry => entry.Material.TerrainOverlay is not null && entry.Material.TerrainMeshCode is not null)
             .Select(entry => (
-                TerrainMeshCode: ValidateTerrainTextureMeshCode(
+                TerrainMeshCode: ResoniteTerrainOverlayMaterialContract.ValidateMeshCode(
                     cityObject,
                     entry.MaterialIndex,
                     entry.Material,
@@ -911,7 +910,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         cityObject = ResoniteCityObjectPreparation.ApplyTerrainTextureCanvasUv(
             cityObject,
             preparedTerrainTextureDataByOverlay,
-            clampCanvasUv: IsDemPackage(cityObject.PackageName));
+            clampCanvasUv: ResonitePackageSemantics.IsDemPackage(cityObject.PackageName));
         if (cityObject.Geometry is ResoniteTriangleMeshGeometry resolvedTriangleMesh
             && preparedGeometry is PreparedTriangleMeshGeometry)
         {
@@ -1108,7 +1107,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             ResoniteUploadedTextureAssetSet uploadedTextureAssets = await uploadedTextureAssetsTask;
             materialStopwatch.Start();
-            materialPlanningTask = PlanSceneMaterialPlanAsync(
+            materialPlanningTask = sceneMaterialPlanComposer.ComposeAsync(
                 state,
                 routedClient,
                 cityObject,
@@ -1116,6 +1115,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 uploadedTextureAssets.TerrainTextureUrisByOverlay,
                 uploadedTextureAssets.TerrainTexturePropertyBlockComponentsByMeshCode,
                 uploadedTextureAssets.GeneratedTerrainTexturesByOverlay,
+                message => ReportImportStep(cityObject, message),
                 importStepCancellation.Token);
             plannedMaterials = await materialPlanningTask;
             materialStopwatch.Stop();
@@ -1177,99 +1177,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         }
     }
 
-    private static ResoniteMaterialBinding ValidateTerrainTextureMaterialContract(
-        ResoniteConstructionCityObject cityObject,
-        int materialIndex,
-        ResoniteMaterialBinding material)
-    {
-        if (material.TerrainOverlay is null)
-        {
-            return material with { TerrainMeshCode = null };
-        }
-
-        if (material.TerrainMeshCode is null)
-        {
-            throw CreateTerrainOverlayMaterialContractException(
-                cityObject,
-                materialIndex,
-                material,
-                "missing terrain mesh-code");
-        }
-
-        return material with
-        {
-            TerrainMeshCode = ValidateTerrainTextureMeshCode(
-                cityObject,
-                materialIndex,
-                material,
-                material.TerrainMeshCode,
-                material.TerrainOverlay),
-        };
-    }
-
-    private static string ValidateTerrainTextureMeshCode(
-        ResoniteConstructionCityObject cityObject,
-        int materialIndex,
-        ResoniteMaterialBinding material,
-        string meshCode,
-        TerrainTextureOverlay terrainOverlay)
-    {
-        if (meshCode.Length == 8
-            && PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds)
-            && BoundsApproximatelyEqual(bounds, terrainOverlay.GeographicBounds))
-        {
-            return meshCode;
-        }
-
-        throw CreateTerrainOverlayMaterialContractException(
-            cityObject,
-            materialIndex,
-            material,
-            "mesh-code bounds do not match overlay bounds");
-    }
-
-    private static InvalidOperationException CreateTerrainOverlayMaterialContractException(
-        ResoniteConstructionCityObject cityObject,
-        int materialIndex,
-        ResoniteMaterialBinding material,
-        string reason)
-    {
-        TerrainTextureOverlay? overlay = material.TerrainOverlay;
-        string overlaySummary = overlay is null
-            ? "<null>"
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"package='{overlay.PackageName}', bounds='{FormatGeographicBounds(overlay.GeographicBounds)}', sources='{overlay.SourceDescriptorKey}'");
-        return new InvalidOperationException(
-            "Terrain overlay material requires a third-level mesh-code that matches the overlay geographic bounds. "
-            + $"reason='{reason}', object_slot='{cityObject.SlotKey}', object_name='{cityObject.DisplayName}', "
-            + $"package='{cityObject.PackageName}', actual_mesh_code='{cityObject.ActualMeshCode}', source_file='{cityObject.SourceFileRelativePath ?? "<null>"}', "
-            + $"material_index='{materialIndex}', terrain_mesh='{material.TerrainMeshCode ?? "<null>"}', overlay={overlaySummary}.");
-    }
-
-    private static string FormatGeographicBounds(GeographicRectangle bounds)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
-    }
-
-    private static string FormatRounded(double value)
-    {
-        return value.ToString("G17", CultureInfo.InvariantCulture);
-    }
-
-    private static bool BoundsApproximatelyEqual(
-        (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds,
-        GeographicRectangle geographicBounds)
-    {
-        const double tolerance = 1e-8;
-        return Math.Abs(bounds.SouthLatitude - geographicBounds.MinLatitude) <= tolerance
-            && Math.Abs(bounds.NorthLatitude - geographicBounds.MaxLatitude) <= tolerance
-            && Math.Abs(bounds.WestLongitude - geographicBounds.MinLongitude) <= tolerance
-            && Math.Abs(bounds.EastLongitude - geographicBounds.MaxLongitude) <= tolerance;
-    }
-
     private static Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> CreatePreparedTerrainTextureDataByOverlay(
         PreparedCityObject preparedCityObject)
     {
@@ -1308,184 +1215,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private static double GetSceneElapsedSeconds(LiveSendRunState state)
     {
         return state.Runtime.ElapsedTotalSeconds;
-    }
-
-    private static ResoniteMaterialBinding ResolveTerrainTextureMaterialForEmission(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteMaterialBinding material,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
-    {
-        _ = preparedTerrainTextureDataByOverlay;
-        return (cityObject.Geometry is ResoniteTerrainGridGeometry
-                || cityObject.Geometry is ResoniteDynamicTerrainGeometry)
-            && material.TerrainOverlay is not null
-            ? material with
-            {
-                TextureScale = null,
-                TextureOffset = null,
-            }
-            : material;
-    }
-
-    private async Task<PlannedSceneMaterialPlan> PlanSceneMaterialPlanAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient importClient,
-        ResoniteConstructionCityObject cityObject,
-        IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
-        IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<string, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
-        CancellationToken cancellationToken)
-    {
-        Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[] materialPlanTasks
-            = new Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[cityObject.Materials.Count];
-        for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
-        {
-            ResoniteMaterialBinding material = ResolveTerrainTextureMaterialForEmission(
-                cityObject,
-                cityObject.Materials[materialIndex],
-                preparedTerrainTextureDataByOverlay);
-            material = ValidateTerrainTextureMaterialContract(cityObject, materialIndex, material);
-            ReportImportStep(
-                cityObject,
-                $"Creating material {materialIndex + 1}/{cityObject.Materials.Count}.");
-            if (material.CommonMaterial is not null)
-            {
-                materialPlanTasks[materialIndex] = PlanSharedCommonRendererMaterialAsync(
-                    state,
-                    material,
-                    preparedTextureUrisByPayload,
-                    preparedTerrainTextureUrisByOverlay,
-                    preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-                    cancellationToken);
-                continue;
-            }
-
-            materialPlanTasks[materialIndex] = PlanDedicatedRendererMaterialAsync(
-                importClient,
-                material,
-                materialIndex,
-                preparedTextureUrisByPayload,
-                preparedTerrainTextureUrisByOverlay,
-                preserveDedicatedMaterialSlot: IsDemPackage(cityObject.PackageName),
-                cancellationToken);
-        }
-
-        (PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)[] materialPlans = await Task.WhenAll(materialPlanTasks);
-        return new PlannedSceneMaterialPlan(
-            materialPlans.Select(static plan => plan.MaterialAsset).ToArray(),
-            materialPlans.Select(static plan => plan.RendererBinding).ToArray());
-
-        async Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)> PlanSharedCommonRendererMaterialAsync(
-            LiveSendRunState runState,
-            ResoniteMaterialBinding sourceMaterial,
-            IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
-            IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-            IReadOnlyDictionary<string, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode,
-            CancellationToken ct)
-        {
-            DefaultCommonMaterialMember member = sourceMaterial.CommonMaterial
-                ?? throw new InvalidOperationException("Common renderer material requires a typed common material member.");
-            string familySlotName = ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(
-                SceneImportContractMapper.ToInternal(member.CreateBinding([0])));
-            if (runState.Materials.CommonMaterialFamilyWarmupTasks.TryGetValue(familySlotName, out Task? familyWarmupTask))
-            {
-                await familyWarmupTask.WaitAsync(ct);
-            }
-
-            if (!runState.Materials.CommonMaterialAssets.TryGetAsset(member, out CreatedMaterialAsset existingMaterialAsset))
-            {
-                throw new InvalidOperationException(
-                    $"Setup did not resolve common material ({ResoniteMaterialComponentPolicy.DescribeForDiagnostics(sourceMaterial)}) before runtime emission.");
-            }
-            PlannedReusableMaterialAsset sharedMaterialAsset = new(
-                existingMaterialAsset.MaterialComponent);
-            PlannedTextureAsset? mainTextureOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
-                sourceMaterial,
-                preparedTextureUrisByPayload,
-                preparedTerrainTextureUrisByOverlay);
-            PlannedRendererMaterialBinding rendererBinding = mainTextureOverride is null
-                ? new PlannedDirectRendererMaterialBinding(sharedMaterialAsset)
-                : CreateMainTextureOverrideRendererBinding(
-                    sharedMaterialAsset,
-                    mainTextureOverride,
-                    terrainTexturePropertyBlockComponentsByMeshCode,
-                    sourceMaterial);
-            return (sharedMaterialAsset, rendererBinding);
-        }
-
-        async Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)> PlanDedicatedRendererMaterialAsync(
-            IResoniteLinkClient client,
-            ResoniteMaterialBinding sourceMaterial,
-            int materialIndex,
-            IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
-            IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-            bool preserveDedicatedMaterialSlot,
-            CancellationToken ct)
-        {
-            ResoniteMaterialBinding materialComponentSource = sourceMaterial.TerrainOverlay is null
-                ? sourceMaterial
-                : sourceMaterial with
-                {
-                    TerrainOverlay = null,
-                    TerrainMeshCode = null,
-                    TextureScale = null,
-                    TextureOffset = null,
-                };
-            PlannedDedicatedMaterialAsset plannedMaterial = await materialPlanning.PlanDedicatedMaterialAssetAsync(
-                client,
-                materialComponentSource,
-                materialIndex,
-                preparedTextureUrisByPayload,
-                preparedTerrainTextureUrisByOverlay,
-                preserveDedicatedMaterialSlot,
-                ct);
-            if (sourceMaterial.TerrainOverlay is not null)
-            {
-                PlannedTextureAsset? mainTextureOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
-                    sourceMaterial,
-                    preparedTextureUrisByPayload,
-                    preparedTerrainTextureUrisByOverlay);
-                if (mainTextureOverride is not null)
-                {
-                    return (
-                        plannedMaterial,
-                        CreateMainTextureOverrideRendererBinding(
-                            plannedMaterial,
-                            mainTextureOverride,
-                            preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-                            sourceMaterial));
-                }
-            }
-
-            return (plannedMaterial, new PlannedDirectRendererMaterialBinding(plannedMaterial));
-        }
-    }
-
-    private static PlannedMainTextureOverrideRendererMaterialBinding CreateMainTextureOverrideRendererBinding(
-        PlannedMaterialAsset materialAsset,
-        PlannedTextureAsset mainTexture,
-        IReadOnlyDictionary<string, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode,
-        ResoniteMaterialBinding sourceMaterial)
-    {
-        if (sourceMaterial.TerrainOverlay is null)
-        {
-            return new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(materialAsset, mainTexture);
-        }
-
-        return new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
-            materialAsset,
-            mainTexture,
-            null,
-            sourceMaterial.TerrainMeshCode is not null
-            && terrainTexturePropertyBlockComponentsByMeshCode.TryGetValue(sourceMaterial.TerrainMeshCode, out ResoniteComponentLocator propertyBlockComponent)
-                ? propertyBlockComponent
-                : null);
-    }
-
-    private static bool IsDemPackage(string packageName)
-    {
-        return string.Equals(packageName, DemPackageName, StringComparison.OrdinalIgnoreCase);
     }
 
     private static ImportDataSourceUsage[] CreateDataSourceUsages(LiveSendRunState state)
