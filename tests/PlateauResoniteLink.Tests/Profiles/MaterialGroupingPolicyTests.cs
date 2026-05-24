@@ -157,6 +157,7 @@ public sealed class MaterialGroupingPolicyTests
 
         Assert.Contains("phase='material-grouping'", exception.Message, StringComparison.Ordinal);
         Assert.Contains("actual_mesh_code='53394600'", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("requested_mesh_code=", exception.Message, StringComparison.Ordinal);
     }
 
     private static TerrainTextureOverlay CreateOverlay(string meshCode)

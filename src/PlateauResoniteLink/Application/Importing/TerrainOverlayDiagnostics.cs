@@ -12,7 +12,7 @@ internal static class TerrainOverlayDiagnostics
     internal static InvalidOperationException CreateMeshCodeMismatchException(
         string phase,
         string actualMeshCode,
-        string requestedMeshCode,
+        string? requestedMeshCode,
         IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         TerrainTextureOverlay? terrainOverlay)
     {
@@ -23,9 +23,12 @@ internal static class TerrainOverlayDiagnostics
                     CultureInfo.InvariantCulture,
                     $"{FormatRounded(area.SouthLatitude)}-{FormatRounded(area.NorthLatitude)}-{FormatRounded(area.WestLongitude)}-{FormatRounded(area.EastLongitude)}")))
             : "<none>";
+        string requestedMeshCodeSummary = requestedMeshCode is null
+            ? string.Empty
+            : string.Create(CultureInfo.InvariantCulture, $"requested_mesh_code='{requestedMeshCode}', ");
         return new InvalidOperationException(
             $"Terrain overlay material requires a third-level mesh-code that matches the overlay geographic bounds. "
-            + $"phase='{phase}', actual_mesh_code='{actualMeshCode}', requested_mesh_code='{requestedMeshCode}', "
+            + $"phase='{phase}', actual_mesh_code='{actualMeshCode}', {requestedMeshCodeSummary}"
             + $"requested_mesh_code_bounds='{requestedMeshCodeBoundsSummary}', overlay={FormatOverlay(terrainOverlay)}.");
     }
 

@@ -21,7 +21,7 @@ internal static class MaterialGroupingPolicy
                 throw TerrainOverlayDiagnostics.CreateMeshCodeMismatchException(
                     "material-grouping",
                     actualMeshCode,
-                    actualMeshCode,
+                    requestedMeshCode: null,
                     requestedMeshCodeBounds: null,
                     material.TerrainOverlay);
             }
