@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -80,9 +78,9 @@ internal static class LocalCityGmlObjectProjection
             sharedAcrossMeshCodes && string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? ResolveConcreteActualMeshCode(displayName!, objectId, actualMeshCode)
                 : actualMeshCode;
-        BuildingAttributeContext buildingAttributes = ParseBuildingAttributes(cityObjectElement);
-        int? floorsAboveGround = TryGetKnownPositiveInteger(buildingAttributes.StoreysAboveGround);
-        double? measuredHeightMeters = TryGetKnownPositiveMetric(buildingAttributes.MeasuredHeightMeters);
+        BuildingAttributeContext buildingAttributes = BuildingAttributeParser.Parse(cityObjectElement);
+        int? floorsAboveGround = BuildingAttributeQueries.TryGetKnownPositiveInteger(buildingAttributes.StoreysAboveGround);
+        double? measuredHeightMeters = BuildingAttributeQueries.TryGetKnownPositiveMetric(buildingAttributes.MeasuredHeightMeters);
 
         bool isMarking = displayName.Contains("Marking", StringComparison.OrdinalIgnoreCase)
             || objectId.Contains("Marking", StringComparison.OrdinalIgnoreCase)
@@ -111,7 +109,7 @@ internal static class LocalCityGmlObjectProjection
             .Where(static surface => surface is not null)
             .Select(static surface => surface!)
             .Select(surface => CityGmlParsedSurfaceReader.ApplyPackageDefaults(packageName, surface))
-            .OrderBy(static surface => CreateStableSurfaceSortKey(surface), StringComparer.Ordinal)
+            .OrderBy(static surface => ParsedSurfaceStableSortKey.Create(surface), StringComparer.Ordinal)
             .ToArray();
 
         if (surfaces.Length == 0)
@@ -329,277 +327,6 @@ internal static class LocalCityGmlObjectProjection
     {
         meshCodeArea = MeshCodeBounds.TryParse(meshCode);
         return meshCodeArea is not null;
-    }
-
-    private static BuildingAttributeContext ParseBuildingAttributes(XElement cityObjectElement)
-    {
-        return new BuildingAttributeContext(
-            RoofShape: ParseOptionalRoofShape(GetFirstDirectElementValue(cityObjectElement, "roofType")),
-            Uses: ParseBuildingUses(GetDirectElementValues(cityObjectElement, "usage")),
-            DetailedUses: ParseBuildingUses(GetDescendantElementValues(cityObjectElement, "detailedUsage")),
-            Structures: ParseBuildingStructures(GetDescendantElementValues(cityObjectElement, "buildingStructureType")),
-            CityGmlClassCodes: GetDirectElementValues(cityObjectElement, "class"),
-            CityGmlFunctionCodes: GetDirectElementValues(cityObjectElement, "function"),
-            MeasuredHeightMeters: ParseMetricValue(GetFirstDirectElement(cityObjectElement, "measuredHeight"), requireMeters: true),
-            StoreysAboveGround: ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysAboveGround")),
-            StoreysBelowGround: ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysBelowGround")),
-            BuildingFootprintArea: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingFootprintArea"), requireMeters: false),
-            BuildingRoofEdgeArea: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingRoofEdgeArea"), requireMeters: false),
-            BuildingHeight: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingHeight"), requireMeters: true),
-            EaveHeight: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "eaveHeight"), requireMeters: true));
-    }
-
-    private static XElement? GetFirstDirectElement(XElement element, string localName)
-    {
-        return element.Elements()
-            .FirstOrDefault(child => string.Equals(child.Name.LocalName, localName, StringComparison.Ordinal));
-    }
-
-    private static XElement? GetFirstDescendantElement(XElement element, string localName)
-    {
-        return element.Descendants()
-            .FirstOrDefault(child => string.Equals(child.Name.LocalName, localName, StringComparison.Ordinal));
-    }
-
-    private static string? GetFirstDirectElementValue(XElement element, string localName)
-    {
-        return GetFirstDirectElement(element, localName)?.Value.Trim();
-    }
-
-    private static string[] GetDirectElementValues(XElement element, string localName)
-    {
-        return element.Elements()
-            .Where(child => string.Equals(child.Name.LocalName, localName, StringComparison.Ordinal))
-            .Select(static child => child.Value.Trim())
-            .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .ToArray();
-    }
-
-    private static string[] GetDescendantElementValues(XElement element, string localName)
-    {
-        return element.Descendants()
-            .Where(child => string.Equals(child.Name.LocalName, localName, StringComparison.Ordinal))
-            .Select(static child => child.Value.Trim())
-            .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .ToArray();
-    }
-
-    private static BuildingCodeValue<CityGmlRoofShape>? ParseOptionalRoofShape(string? rawValue)
-    {
-        if (string.IsNullOrWhiteSpace(rawValue))
-        {
-            return null;
-        }
-
-        string code = rawValue.Trim();
-        CityGmlRoofShape shape = code switch
-        {
-            "1" => CityGmlRoofShape.Gable,
-            "2" => CityGmlRoofShape.Hip,
-            "3" => CityGmlRoofShape.Pyramid,
-            "4" => CityGmlRoofShape.Flat,
-            "5" => CityGmlRoofShape.Shed,
-            "6" => CityGmlRoofShape.HalfHip,
-            "7" => CityGmlRoofShape.Irimoya,
-            "9" => CityGmlRoofShape.Mansard,
-            "12" => CityGmlRoofShape.Shed,
-            "14" => CityGmlRoofShape.Sawtooth,
-            "21" => CityGmlRoofShape.Gambrel,
-            "23" => CityGmlRoofShape.Arch,
-            "24" => CityGmlRoofShape.Dome,
-            "26" => CityGmlRoofShape.Arch,
-            "28" => CityGmlRoofShape.Other,
-            "9020" => CityGmlRoofShape.Unknown,
-            "99" => CityGmlRoofShape.Other,
-            "9999" => CityGmlRoofShape.Unknown,
-            _ => CityGmlRoofShape.Unknown,
-        };
-        return new BuildingCodeValue<CityGmlRoofShape>(shape, code);
-    }
-
-    private static BuildingCodeValue<PlateauBuildingUse>[] ParseBuildingUses(IEnumerable<string> rawValues)
-    {
-        return rawValues
-            .Select(static rawValue => new BuildingCodeValue<PlateauBuildingUse>(MapBuildingUse(rawValue), rawValue))
-            .ToArray();
-    }
-
-    private static PlateauBuildingUse MapBuildingUse(string code)
-    {
-        string broadCode = code.Length >= 3 ? code[..3] : code;
-        PlateauBuildingUse broadUse = broadCode switch
-        {
-            "411" => PlateauBuildingUse.DetachedResidential,
-            "412" => PlateauBuildingUse.Apartment,
-            "413" or "414" or "415" => PlateauBuildingUse.MixedResidential,
-            "401" => PlateauBuildingUse.Office,
-            "402" or "403" or "404" => PlateauBuildingUse.Commercial,
-            "431" => PlateauBuildingUse.Warehouse,
-            "441" => PlateauBuildingUse.Factory,
-            "422" => PlateauBuildingUse.Education,
-            "421" or "452" or "453" => PlateauBuildingUse.Public,
-            "454" or "451" or "471" => PlateauBuildingUse.Other,
-            "461" or "999" => PlateauBuildingUse.Unknown,
-            _ => PlateauBuildingUse.Unknown,
-        };
-
-        return broadUse is not PlateauBuildingUse.Unknown
-            ? broadUse
-            : code switch
-            {
-                "1110" => PlateauBuildingUse.DetachedResidential,
-                "1120" or "1130" => PlateauBuildingUse.Apartment,
-                "1140" or "1150" or "1160" => PlateauBuildingUse.MixedResidential,
-                "1310" => PlateauBuildingUse.Office,
-                "1510" or "1520" => PlateauBuildingUse.Commercial,
-                "1710" or "1720" => PlateauBuildingUse.Warehouse,
-                "1740" => PlateauBuildingUse.Factory,
-                "1810" => PlateauBuildingUse.Education,
-                "1910" or "1920" or "1930" => PlateauBuildingUse.Public,
-                _ => PlateauBuildingUse.Unknown,
-            };
-    }
-
-    private static BuildingCodeValue<PlateauBuildingStructure>[] ParseBuildingStructures(IEnumerable<string> rawValues)
-    {
-        return rawValues
-            .Select(static rawValue => new BuildingCodeValue<PlateauBuildingStructure>(MapBuildingStructure(rawValue), rawValue))
-            .ToArray();
-    }
-
-    private static PlateauBuildingStructure MapBuildingStructure(string code)
-    {
-        return code switch
-        {
-            "601" => PlateauBuildingStructure.Wood,
-            "602" => PlateauBuildingStructure.SteelReinforcedConcrete,
-            "603" => PlateauBuildingStructure.ReinforcedConcrete,
-            "604" => PlateauBuildingStructure.Steel,
-            "605" => PlateauBuildingStructure.LightweightSteel,
-            "606" => PlateauBuildingStructure.ConcreteBlock,
-            "607" => PlateauBuildingStructure.ConcreteBlock,
-            "610" or "611" or "612" or "613" => PlateauBuildingStructure.NonWood,
-            "9999" => PlateauBuildingStructure.Unknown,
-            _ => PlateauBuildingStructure.Unknown,
-        };
-    }
-
-    private static BuildingMetricValue ParseIntegerMetricValue(XElement? element)
-    {
-        if (element is null)
-        {
-            return BuildingMetricValue.Missing;
-        }
-
-        string rawValue = element.Value.Trim();
-        if (IsPlateauMissingMetricToken(rawValue))
-        {
-            return BuildingMetricValue.Missing;
-        }
-
-        return int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
-            && value >= 0
-                ? BuildingMetricValue.Known(value)
-                : BuildingMetricValue.Invalid(rawValue);
-    }
-
-    private static BuildingMetricValue ParseMetricValue(XElement? element, bool requireMeters)
-    {
-        if (element is null)
-        {
-            return BuildingMetricValue.Missing;
-        }
-
-        string rawValue = element.Value.Trim();
-        if (IsPlateauMissingMetricToken(rawValue))
-        {
-            return BuildingMetricValue.Missing;
-        }
-
-        string? unitOfMeasure = element.Attribute("uom")?.Value.Trim();
-        if (requireMeters
-            && !string.IsNullOrWhiteSpace(unitOfMeasure)
-            && !string.Equals(unitOfMeasure, "m", StringComparison.OrdinalIgnoreCase))
-        {
-            return BuildingMetricValue.Invalid(rawValue);
-        }
-
-        return double.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
-            && value > 0.0
-                ? BuildingMetricValue.Known(value)
-                : BuildingMetricValue.Invalid(rawValue);
-    }
-
-    private static bool IsPlateauMissingMetricToken(string rawValue)
-    {
-        return string.Equals(rawValue, "-9999", StringComparison.Ordinal)
-            || string.Equals(rawValue, "9999", StringComparison.Ordinal)
-            || string.Equals(rawValue, "0001", StringComparison.Ordinal);
-    }
-
-    private static int? TryGetKnownPositiveInteger(BuildingMetricValue metric)
-    {
-        if (metric.Kind != BuildingMetricValueKind.Known || !metric.Value.HasValue)
-        {
-            return null;
-        }
-
-        int value = (int)Math.Round(metric.Value.Value, MidpointRounding.AwayFromZero);
-        return Math.Abs(metric.Value.Value - value) < 1e-9
-            && (value == 0 || FacadeFloorMetrics.IsUsableFloorCount(value))
-                ? value
-                : null;
-    }
-
-    private static double? TryGetKnownPositiveMetric(BuildingMetricValue metric)
-    {
-        return metric.Kind == BuildingMetricValueKind.Known && metric.Value is > 0.0
-            ? metric.Value
-            : null;
-    }
-
-    private static string CreateStableSurfaceSortKey(ParsedSurface surface)
-    {
-        using MemoryStream stream = new();
-        using (BinaryWriter writer = new(stream, Encoding.UTF8, leaveOpen: true))
-        {
-            writer.Write(surface.PolygonId);
-            writer.Write((int)surface.Semantic);
-            WriteRing(writer, surface.ExteriorRing);
-            writer.Write(surface.InteriorRings.Length);
-            foreach (ParsedRing ring in surface.InteriorRings.OrderBy(static ring => ring.RingId, StringComparer.Ordinal))
-            {
-                WriteRing(writer, ring);
-            }
-        }
-
-        byte[] hash = SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)));
-        return Convert.ToHexString(hash.AsSpan(0, 16)).ToLowerInvariant();
-
-        static void WriteRing(BinaryWriter writer, ParsedRing ring)
-        {
-            writer.Write(ring.RingId);
-            writer.Write(ring.Vertices.Length);
-            foreach (GeodeticPoint vertex in ring.Vertices)
-            {
-                writer.Write(vertex.Latitude);
-                writer.Write(vertex.Longitude);
-                writer.Write(vertex.Altitude);
-            }
-
-            IReadOnlyList<Float2>? uvs = ring.UVs;
-            writer.Write(uvs?.Count ?? -1);
-            if (uvs is null)
-            {
-                return;
-            }
-
-            foreach (Float2 uv in uvs)
-            {
-                writer.Write(uv.X);
-                writer.Write(uv.Y);
-            }
-        }
     }
 
     private static (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) GetBounds(
@@ -1347,7 +1074,7 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .ToArray();
 
         for (int materialIndex = 0; materialIndex < materialGroups.Length; materialIndex++)
@@ -1361,7 +1088,7 @@ internal static class LocalCityGmlObjectProjection
                 cityObjectCartesian);
 
             foreach (ResolvedSurfaceMaterial resolvedSurface in materialGroup
-                         .OrderBy(static surface => CreateStableSurfaceSortKey(surface.Surface), StringComparer.Ordinal))
+                         .OrderBy(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface), StringComparer.Ordinal))
             {
                 TriangulateSurface(
                     cityObject.PackageName,
@@ -1424,7 +1151,12 @@ internal static class LocalCityGmlObjectProjection
         }
 
         Lod1RoofFootprint resolvedFootprint = footprint!;
-        GeneratedLod1RoofShape roofShape = SelectGeneratedLod1RoofShape(cityObject, resolvedFootprint);
+        GeneratedLod1RoofShape roofShape = Lod1RoofShapePolicy.Select(
+            cityObject.SlotKey,
+            resolvedFootprint.Attributes,
+            resolvedFootprint.GeometryHeightMeters,
+            resolvedFootprint.LengthMeters,
+            resolvedFootprint.WidthMeters);
         if (roofShape == GeneratedLod1RoofShape.Flat)
         {
             return cityObject;
@@ -1579,87 +1311,6 @@ internal static class LocalCityGmlObjectProjection
     {
         double scale = Math.Max(Math.Max(Math.Abs(left), Math.Abs(right)), 1.0);
         return Math.Abs(left - right) <= scale * relativeTolerance;
-    }
-
-    private static GeneratedLod1RoofShape SelectGeneratedLod1RoofShape(
-        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
-        Lod1RoofFootprint footprint)
-    {
-        CityGmlRoofShape? explicitRoofShape = footprint.Attributes.RoofShape?.Value;
-        if (explicitRoofShape is not null and not CityGmlRoofShape.Unknown and not CityGmlRoofShape.Other)
-        {
-            return explicitRoofShape switch
-            {
-                CityGmlRoofShape.Flat => GeneratedLod1RoofShape.Flat,
-                CityGmlRoofShape.Shed => GeneratedLod1RoofShape.Shed,
-                CityGmlRoofShape.Gable => GeneratedLod1RoofShape.Gable,
-                CityGmlRoofShape.Hip or CityGmlRoofShape.Pyramid or CityGmlRoofShape.HalfHip or CityGmlRoofShape.Irimoya => GeneratedLod1RoofShape.Hip,
-                _ => GeneratedLod1RoofShape.Flat,
-            };
-        }
-
-        double heightMeters = TryGetKnownPositiveMetric(footprint.Attributes.MeasuredHeightMeters)
-            ?? TryGetKnownPositiveMetric(footprint.Attributes.BuildingHeight)
-            ?? footprint.GeometryHeightMeters;
-        int? floorCount = TryGetKnownPositiveInteger(footprint.Attributes.StoreysAboveGround);
-        double footprintArea = TryGetKnownPositiveMetric(footprint.Attributes.BuildingFootprintArea)
-            ?? footprint.LengthMeters * footprint.WidthMeters;
-        bool residential = HasUse(footprint.Attributes, PlateauBuildingUse.DetachedResidential)
-            || HasUse(footprint.Attributes, PlateauBuildingUse.MixedResidential);
-        bool apartmentOrUrban = HasUse(footprint.Attributes, PlateauBuildingUse.Apartment)
-            || HasUse(footprint.Attributes, PlateauBuildingUse.Office)
-            || HasUse(footprint.Attributes, PlateauBuildingUse.Commercial)
-            || HasUse(footprint.Attributes, PlateauBuildingUse.Public);
-        bool industrial = HasUse(footprint.Attributes, PlateauBuildingUse.Warehouse)
-            || HasUse(footprint.Attributes, PlateauBuildingUse.Factory);
-        bool wood = footprint.Attributes.Structures.Any(static structure => structure.Value == PlateauBuildingStructure.Wood);
-        bool nonWood = footprint.Attributes.Structures.Any(static structure => structure.Value is PlateauBuildingStructure.NonWood
-            or PlateauBuildingStructure.ReinforcedConcrete
-            or PlateauBuildingStructure.SteelReinforcedConcrete);
-
-        if ((floorCount >= 4 || heightMeters > 12.0 || (apartmentOrUrban && nonWood))
-            && !industrial)
-        {
-            return GeneratedLod1RoofShape.Flat;
-        }
-
-        if (industrial)
-        {
-            return heightMeters <= 12.0 ? GeneratedLod1RoofShape.Gable : GeneratedLod1RoofShape.Flat;
-        }
-
-        double aspectRatio = footprint.LengthMeters / Math.Max(footprint.WidthMeters, 1e-6);
-        if (aspectRatio >= 1.8)
-        {
-            return GeneratedLod1RoofShape.Shed;
-        }
-
-        if ((residential || wood) && footprintArea <= 250.0)
-        {
-            return aspectRatio <= 1.2 ? GeneratedLod1RoofShape.Hip : GeneratedLod1RoofShape.Gable;
-        }
-
-        if (footprintArea >= 350.0)
-        {
-            return GeneratedLod1RoofShape.Hip;
-        }
-
-        return StableModulo(cityObject.SlotKey, divisor: 3) == 0
-            ? GeneratedLod1RoofShape.Shed
-            : GeneratedLod1RoofShape.Gable;
-    }
-
-    private static int StableModulo(string value, int divisor)
-    {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
-        return BitConverter.ToUInt16(hash, startIndex: 0) % divisor;
-    }
-
-    private static bool HasUse(BuildingAttributeContext attributes, PlateauBuildingUse use)
-    {
-        return attributes.Uses.Any(value => value.Value == use)
-            || attributes.DetailedUses.Any(value => value.Value == use)
-            || attributes.CityGmlFunctionCodes.Any(code => MapBuildingUse(code) == use);
     }
 
     private static global::PlateauResoniteLink.Application.Importing.ParsedSurface[] CreateGeneratedLod1RoofSurfaces(
@@ -2067,7 +1718,7 @@ internal static class LocalCityGmlObjectProjection
             GeometryHeightMeters: cityObject.GeometryHeightMeters,
             FootprintAreaSquareMeters: cityObject.BuildingAttributes is null
                 ? null
-                : TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
+                : BuildingAttributeQueries.TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
             SurfaceRole: ToDefaultMaterialSurfaceRole(surface.Semantic)));
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
@@ -2180,7 +1831,7 @@ internal static class LocalCityGmlObjectProjection
             GeometryHeightMeters: cityObject.GeometryHeightMeters,
             FootprintAreaSquareMeters: cityObject.BuildingAttributes is null
                 ? null
-                : TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
+                : BuildingAttributeQueries.TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
             SurfaceRole: ToDefaultMaterialSurfaceRole(projectionSurface.Semantic)));
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
@@ -4204,7 +3855,7 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -4258,7 +3909,7 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -4861,7 +4512,7 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -4925,7 +4576,7 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -6345,14 +5996,6 @@ internal static class LocalCityGmlObjectProjection
         ParsedSurface Surface,
         ResolvedMaterial Material,
         MaterialDepthOffset? DepthOffset);
-
-    private enum GeneratedLod1RoofShape
-    {
-        Flat = 0,
-        Shed,
-        Gable,
-        Hip,
-    }
 
     private sealed record Lod1RoofFootprint(
         global::PlateauResoniteLink.Application.Importing.ParsedSurface TopSurface,
