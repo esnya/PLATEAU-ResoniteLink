@@ -1436,20 +1436,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncFailsFastOnOutOfRangeMaterialSubmeshAssignment()
+    public void ValidateTriangleMeshBindingsForImportRejectsOutOfRangeMaterialSubmeshAssignment()
     {
-        using TemporaryDirectory datasetDirectory = new();
-        using SceneSinkRecordingClient client = new();
-        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            DatasetName,
-            MeshCode,
-            datasetDirectory.Path,
-            LocalOrigin,
-            packageNames: ["bldg"],
-            sourceFiles:
-            [
-                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
-            ]);
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "invalid-submesh-range",
             DisplayName: "Invalid Submesh Range",
@@ -1471,28 +1459,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ]
         );
 
-        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+        ResoniteMeshValidationException exception = AssertTriangleMeshValidationFailure(cityObject);
 
         Assert.Contains("targeted missing submesh index 1", exception.Message, StringComparison.Ordinal);
         Assert.Contains("material_bindings=[material#0[1]]", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ExecuteAsyncFailsFastOnDynamicTerrainOutOfRangeMaterialSubmeshAssignment()
+    public void ValidateTriangleMeshBindingsForImportRejectsDynamicTerrainOutOfRangeMaterialSubmeshAssignment()
     {
-        using TemporaryDirectory datasetDirectory = new();
-        using SceneSinkRecordingClient client = new();
-        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            DatasetName,
-            MeshCode,
-            datasetDirectory.Path,
-            LocalOrigin,
-            packageNames: ["dem"],
-            sourceFiles:
-            [
-                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
-            ]);
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "invalid-dynamic-terrain-submesh-range",
             DisplayName: "Invalid Dynamic Terrain Submesh Range",
@@ -1522,28 +1497,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
-        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+        ResoniteMeshValidationException exception = AssertTriangleMeshValidationFailure(cityObject);
 
         Assert.Contains("targeted missing submesh index 1", exception.Message, StringComparison.Ordinal);
         Assert.Contains("material_bindings=[material#0[1]]", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ExecuteAsyncFailsFastOnDuplicateMaterialSubmeshAssignment()
+    public void ValidateTriangleMeshBindingsForImportRejectsDuplicateMaterialSubmeshAssignment()
     {
-        using TemporaryDirectory datasetDirectory = new();
-        using SceneSinkRecordingClient client = new();
-        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            DatasetName,
-            MeshCode,
-            datasetDirectory.Path,
-            LocalOrigin,
-            packageNames: ["bldg"],
-            sourceFiles:
-            [
-                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
-            ]);
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "invalid-submesh-duplicate",
             DisplayName: "Invalid Submesh Duplicate",
@@ -1573,8 +1535,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ]
         );
 
-        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+        ResoniteMeshValidationException exception = AssertTriangleMeshValidationFailure(cityObject);
 
         Assert.Contains("assigned submesh index 0", exception.Message, StringComparison.Ordinal);
         Assert.Contains("materials=2", exception.Message, StringComparison.Ordinal);
@@ -1634,20 +1595,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncFailsFastOnUnassignedMeshSubmesh()
+    public void ValidateTriangleMeshBindingsForImportRejectsUnassignedMeshSubmesh()
     {
-        using TemporaryDirectory datasetDirectory = new();
-        using SceneSinkRecordingClient client = new();
-        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            DatasetName,
-            MeshCode,
-            datasetDirectory.Path,
-            LocalOrigin,
-            packageNames: ["bldg"],
-            sourceFiles:
-            [
-                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
-            ]);
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "invalid-submesh-unassigned",
             DisplayName: "Invalid Submesh Unassigned",
@@ -1669,28 +1618,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ]
         );
 
-        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+        ResoniteMeshValidationException exception = AssertTriangleMeshValidationFailure(cityObject);
 
         Assert.Contains("left submesh index 1 without a material assignment", exception.Message, StringComparison.Ordinal);
         Assert.Contains("materials=1", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ExecuteAsyncFailsFastOnTriangleMeshWithoutAnySubmesh()
+    public void ValidateTriangleMeshBindingsForImportRejectsTriangleMeshWithoutAnySubmesh()
     {
-        using TemporaryDirectory datasetDirectory = new();
-        using SceneSinkRecordingClient client = new();
-        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            DatasetName,
-            MeshCode,
-            datasetDirectory.Path,
-            LocalOrigin,
-            packageNames: ["bldg"],
-            sourceFiles:
-            [
-                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
-            ]);
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "invalid-empty-submesh",
             DisplayName: "Invalid Empty Submesh",
@@ -1728,8 +1664,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ]
         );
 
-        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+        ResoniteMeshValidationException exception = AssertTriangleMeshValidationFailure(cityObject);
 
         Assert.Contains("did not contain any submesh", exception.Message, StringComparison.Ordinal);
         Assert.Contains("submeshes=0", exception.Message, StringComparison.Ordinal);
@@ -1752,6 +1687,19 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 new ResoniteMeshSubmesh(0, [0, 1, 2]),
                 new ResoniteMeshSubmesh(1, [3, 4, 5]),
             ]);
+    }
+
+    private static ResoniteMeshValidationException AssertTriangleMeshValidationFailure(
+        ResoniteConstructionCityObject cityObject)
+    {
+        ResoniteImportedMesh mesh = cityObject.Geometry switch
+        {
+            ResoniteTriangleMeshGeometry triangleMesh => triangleMesh.Mesh,
+            ResoniteDynamicTerrainGeometry dynamicTerrain => dynamicTerrain.StaticMesh.Mesh,
+            _ => throw new InvalidOperationException($"Unexpected geometry type '{cityObject.Geometry.GetType().Name}'."),
+        };
+        return Assert.Throws<ResoniteMeshValidationException>(
+            () => ResoniteCityObjectPreparation.ValidateTriangleMeshBindingsForImport(cityObject, mesh));
     }
 
     private static ResoniteConstructionCityObject CreateTerrainGridCityObject(string slotKey, string displayName)

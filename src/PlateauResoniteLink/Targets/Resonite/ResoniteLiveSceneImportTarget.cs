@@ -958,34 +958,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
         if (cityObject.Geometry is ResoniteTriangleMeshGeometry triangleGeometry)
         {
-            try
-            {
-                ResoniteCityObjectPreparation.ValidateTriangleMeshBindings(cityObject, triangleGeometry.Mesh);
-            }
-            catch (Exception exception) when (exception is InvalidOperationException && exception is not ResoniteMeshValidationException)
-            {
-                throw new ResoniteMeshValidationException(
-                    $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
-                    + $"{ResoniteCityObjectPreparation.CreateTriangleMeshDiagnosticSummary(cityObject, triangleGeometry.Mesh)} "
-                    + $"Reason: {exception.Message}",
-                    exception);
-            }
-
+            ResoniteCityObjectPreparation.ValidateTriangleMeshBindingsForImport(cityObject, triangleGeometry.Mesh);
         }
         else if (cityObject.Geometry is ResoniteDynamicTerrainGeometry dynamicTerrain)
         {
-            try
-            {
-                ResoniteCityObjectPreparation.ValidateTriangleMeshBindings(cityObject, dynamicTerrain.StaticMesh.Mesh);
-            }
-            catch (Exception exception) when (exception is InvalidOperationException && exception is not ResoniteMeshValidationException)
-            {
-                throw new ResoniteMeshValidationException(
-                    $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
-                    + $"{ResoniteCityObjectPreparation.CreateTriangleMeshDiagnosticSummary(cityObject, dynamicTerrain.StaticMesh.Mesh)} "
-                    + $"Reason: {exception.Message}",
-                    exception);
-            }
+            ResoniteCityObjectPreparation.ValidateTriangleMeshBindingsForImport(cityObject, dynamicTerrain.StaticMesh.Mesh);
         }
         (string TerrainMeshCode, TerrainTextureOverlay TerrainOverlay)[] distinctTerrainOverlays = cityObject.Materials
             .Select((material, materialIndex) => (Material: material, MaterialIndex: materialIndex))
