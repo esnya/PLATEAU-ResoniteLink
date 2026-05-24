@@ -9,7 +9,7 @@ internal sealed record ResoniteLiveSceneImportDependencies(
     Execution.IResoniteSceneSetupInterpreter SceneSetupInterpreter,
     Execution.IResoniteDatasetLicenseWriter DatasetLicenseWriter,
     Execution.IResoniteGeometryAssetAssembler GeometryAssetAssembler,
-    Execution.IResoniteMaterialPlanning MaterialPlanning,
+    IResoniteSceneMaterialPlanComposer SceneMaterialPlanComposer,
     IResoniteCommonMaterialSetupPreparer CommonMaterialSetupPreparer,
     Execution.IResoniteBatchEmissionPlanner BatchEmissionPlanner,
     Execution.IResoniteSceneBatchEmitter BatchEmitter,
