@@ -14,7 +14,7 @@ internal static class CityGmlSourceFileCityObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         ICityGmlAppearanceStore appearanceStore,
         ICityGmlLodSelector lodSelector,
-        LocalCityGmlObjectProjection.CoordinateReferenceSystem coordinateReferenceSystem,
+        CoordinateReferenceSystem coordinateReferenceSystem,
         LodFilteringStrategy lodFilteringStrategy)
     {
         XElement? cityObjectElement = cityObjectMember.Elements().FirstOrDefault();
@@ -31,10 +31,10 @@ internal static class CityGmlSourceFileCityObjectProjection
             sourceFile.RequiresMeshCodeBoundsFilter,
             appearanceStore,
             lodSelector,
-            coordinateReferenceSystem,
+            coordinateReferenceSystem.ToProjectionModel(),
             sourceFile.RequiresMeshCodeBoundsFilter ? requestedMeshAreas : null,
             lodFilteringStrategy);
 
-        return cityObject is null ? null : ParsedCityObject.FromProjectionModel(cityObject);
+        return cityObject is null ? null : CityGmlProjectionModelAdapter.FromProjectionModel(cityObject);
     }
 }

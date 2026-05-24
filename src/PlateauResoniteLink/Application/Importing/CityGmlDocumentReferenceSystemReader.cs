@@ -11,7 +11,7 @@ internal static class CityGmlDocumentReferenceSystemReader
 {
     internal static readonly XNamespace Gml = "http://www.opengis.net/gml";
 
-    internal static async Task<LocalCityGmlObjectProjection.CoordinateReferenceSystem> ReadAsync(
+    internal static async Task<CoordinateReferenceSystem> ReadAsync(
         IPlateauDatasetContentSource datasetSource,
         string relativePath,
         CancellationToken cancellationToken)
@@ -29,12 +29,12 @@ internal static class CityGmlDocumentReferenceSystemReader
                 continue;
             }
 
-            return LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse(reader.GetAttribute("srsName"));
+            return CoordinateReferenceSystem.Parse(reader.GetAttribute("srsName"));
         }
 
         try
         {
-            return LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse((string?)null);
+            return CoordinateReferenceSystem.Parse((string?)null);
         }
         catch (PlateauImportValidationException)
         {

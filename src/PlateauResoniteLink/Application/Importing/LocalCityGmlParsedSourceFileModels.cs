@@ -46,12 +46,6 @@ internal sealed record CachedSourceFileDescriptor(
             CityObjects.Select(static cityObject => cityObject.ToProjectionModel()).ToArray());
     }
 
-    internal static CachedSourceFileDescriptor FromProjectionModel(LocalCityGmlObjectProjection.CachedSourceFileDescriptor sourceFile)
-    {
-        return new CachedSourceFileDescriptor(
-            SourceFileDescriptor.FromProjectionModel(sourceFile.SourceFile),
-            sourceFile.CityObjects.Select(ParsedCityObject.FromProjectionModel).ToArray());
-    }
 }
 
 internal sealed class SourceFilePipeline
@@ -117,13 +111,4 @@ internal sealed record ParsedSourceFileResult(
             Elapsed);
     }
 
-    internal static ParsedSourceFileResult FromProjectionModel(LocalCityGmlObjectProjection.ParsedSourceFileResult sourceFile)
-    {
-        return new ParsedSourceFileResult(
-            SourceFileDescriptor.FromProjectionModel(sourceFile.SourceFile),
-            sourceFile.CityObjects.Select(ParsedCityObject.FromProjectionModel).ToArray(),
-            sourceFile.ReferenceSystem is null ? null : CoordinateReferenceSystem.FromProjectionModel(sourceFile.ReferenceSystem),
-            sourceFile.TerrainTriangles.Select(TerrainHeightTriangle.FromProjectionModel).ToArray(),
-            sourceFile.Elapsed);
-    }
 }

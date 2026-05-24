@@ -623,7 +623,7 @@ internal static class LocalCityGmlObjectProjection
         MeshCodeBounds? fallbackBounds)
     {
         DemTerrainBounds? bounds = DemSourceDiscoverySupport.ResolveDemTerrainBounds(
-            demParsedSourceFiles.Select(global::PlateauResoniteLink.Application.Importing.ParsedSourceFileResult.FromProjectionModel),
+            demParsedSourceFiles.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel),
             fallbackBounds is null ? null : DemTerrainBounds.FromProjectionModel(fallbackBounds));
         return bounds?.ToProjectionModel();
     }
@@ -632,7 +632,7 @@ internal static class LocalCityGmlObjectProjection
         IEnumerable<ParsedCityObject> cityObjects)
     {
         return DemSourceDiscoverySupport.CreateTerrainHeightTriangles(
-                cityObjects.Select(global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel))
+                cityObjects.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel))
             .Select(static triangle => triangle.ToProjectionModel())
             .ToArray();
     }
@@ -709,7 +709,7 @@ internal static class LocalCityGmlObjectProjection
 
         List<ParsedSurface> strips = CreateTerrainAlignedTransportationStrips(surface.ToProjectionModel(), positions, edgePair, segmentLength);
         return strips.Count > 0
-            ? strips.Select(global::PlateauResoniteLink.Application.Importing.ParsedSurface.FromProjectionModel).ToList()
+            ? strips.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel).ToList()
             : [surface];
     }
 
@@ -2392,7 +2392,7 @@ internal static class LocalCityGmlObjectProjection
                 surface.ToProjectionModel(),
                 cityObjectOrigin.ToProjectionModel(),
                 cityObjectCartesian)
-            .Select(global::PlateauResoniteLink.Application.Importing.ParsedSurface.FromProjectionModel)
+            .Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel)
             .ToList();
     }
 
@@ -4081,7 +4081,7 @@ internal static class LocalCityGmlObjectProjection
                         subdividedCityObject.Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray(),
                         terrainHeightSampler,
                         ref terrainAligned)
-                    .Select(global::PlateauResoniteLink.Application.Importing.ParsedSurface.FromProjectionModel)
+                    .Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel)
                     .ToArray()
                 : ConformSurfacesToTerrain(
                         subdividedCityObject.PackageName,
@@ -4090,7 +4090,7 @@ internal static class LocalCityGmlObjectProjection
                         cityObjectOrigin.ToProjectionModel(),
                         cityObjectCartesian,
                         ref terrainAligned)
-                    .Select(global::PlateauResoniteLink.Application.Importing.ParsedSurface.FromProjectionModel)
+                    .Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel)
                     .ToArray();
 
         return terrainAligned
@@ -5515,7 +5515,7 @@ internal static class LocalCityGmlObjectProjection
         }
 
         TextureUvRect? occupiedUvRect = DemTerrainOverlayAssignment.TryCreateTerrainGridOccupiedUvRect(
-            global::PlateauResoniteLink.Application.Importing.ParsedCityObject.FromProjectionModel(cityObject),
+            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel(cityObject),
             representativeSurface,
             demTerrainTextureOverlay,
             demObjectBounds);

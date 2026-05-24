@@ -70,7 +70,7 @@ internal static class LocalCityGmlSourceFileParser
 
         Stopwatch fileStopwatch = Stopwatch.StartNew();
         List<global::PlateauResoniteLink.Application.Importing.ParsedCityObject> cityObjects = [];
-        LocalCityGmlObjectProjection.CoordinateReferenceSystem? coordinateReferenceSystem = null;
+        CoordinateReferenceSystem? coordinateReferenceSystem = null;
         await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
                            sourceFile,
                            datasetSource,
@@ -107,7 +107,7 @@ internal static class LocalCityGmlSourceFileParser
         return new global::PlateauResoniteLink.Application.Importing.ParsedSourceFileResult(
             sourceFile,
             cityObjectArray,
-            coordinateReferenceSystem is null ? null : global::PlateauResoniteLink.Application.Importing.CoordinateReferenceSystem.FromProjectionModel(coordinateReferenceSystem),
+            coordinateReferenceSystem,
             terrainTriangles,
             fileStopwatch.Elapsed);
     }
@@ -142,7 +142,7 @@ internal static class LocalCityGmlSourceFileParser
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
-        Action<LocalCityGmlObjectProjection.CoordinateReferenceSystem>? parsedReferenceSystem = null,
+        Action<CoordinateReferenceSystem>? parsedReferenceSystem = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
@@ -189,13 +189,13 @@ internal static class LocalCityGmlSourceFileParser
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
-        Action<LocalCityGmlObjectProjection.CoordinateReferenceSystem>? parsedReferenceSystem,
+        Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
         ICityGmlAppearanceStore appearanceStore = appearanceStoreFactory.Create(sourceFile.RelativePath, datasetSource);
-        LocalCityGmlObjectProjection.CoordinateReferenceSystem coordinateReferenceSystem =
-            LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse((string?)null);
+        CoordinateReferenceSystem coordinateReferenceSystem =
+            CoordinateReferenceSystem.Parse((string?)null);
 
         using XmlReader reader = XmlReader.Create(stream, CityGmlStreamingXmlReaderSettings.Create());
         while (await reader.ReadAsync())
@@ -210,7 +210,7 @@ internal static class LocalCityGmlSourceFileParser
                 && string.Equals(reader.LocalName, "Envelope", StringComparison.Ordinal))
             {
                 coordinateReferenceSystem =
-                    LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse(reader.GetAttribute("srsName"));
+                    CoordinateReferenceSystem.Parse(reader.GetAttribute("srsName"));
                 parsedReferenceSystem?.Invoke(coordinateReferenceSystem);
                 continue;
             }
@@ -283,14 +283,14 @@ internal static class LocalCityGmlSourceFileParser
         LodFilteringStrategy? lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
-        Action<LocalCityGmlObjectProjection.CoordinateReferenceSystem>? parsedReferenceSystem,
+        Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
         await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
         XDocument cityModel = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
-        LocalCityGmlObjectProjection.CoordinateReferenceSystem coordinateReferenceSystem =
-            LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse(cityModel);
+        CoordinateReferenceSystem coordinateReferenceSystem =
+            CoordinateReferenceSystem.Parse(cityModel);
         parsedReferenceSystem?.Invoke(coordinateReferenceSystem);
         ICityGmlAppearanceStore appearanceStore = appearanceStoreFactory.Create(sourceFile.RelativePath, datasetSource);
         appearanceStore.LoadFromDocument(cityModel);
