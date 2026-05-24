@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -48,12 +47,6 @@ internal static class LocalCityGmlObjectProjection
     private static readonly XNamespace App = "http://www.opengis.net/citygml/appearance/2.0";
     private static readonly XNamespace Core = "http://www.opengis.net/citygml/2.0";
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
-    private static readonly Regex ConcreteMeshCodeTokenRegex = new(
-        @"(?<!\d)(\d{8})(?!\d)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
-
-
     internal static ParsedCityObject? ParseCityObject(
         XElement cityObjectElement,
         string packageName,
@@ -74,10 +67,12 @@ internal static class LocalCityGmlObjectProjection
             displayName = objectId;
         }
 
-        string resolvedActualMeshCode =
-            sharedAcrossMeshCodes && string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
-                ? ResolveConcreteActualMeshCode(displayName!, objectId, actualMeshCode)
-                : actualMeshCode;
+        string resolvedActualMeshCode = CityGmlMeshCodeBoundsFilter.ResolveActualMeshCode(
+            packageName,
+            displayName!,
+            objectId,
+            actualMeshCode,
+            sharedAcrossMeshCodes);
         BuildingAttributeContext buildingAttributes = BuildingAttributeParser.Parse(cityObjectElement);
         int? floorsAboveGround = BuildingAttributeQueries.TryGetKnownPositiveInteger(buildingAttributes.StoreysAboveGround);
         double? measuredHeightMeters = BuildingAttributeQueries.TryGetKnownPositiveMetric(buildingAttributes.MeasuredHeightMeters);
@@ -117,18 +112,14 @@ internal static class LocalCityGmlObjectProjection
             return null;
         }
 
-        if (requestedMeshCodeBounds is not null
-            && requestedMeshCodeBounds.Count > 0
-            && coordinateReferenceSystem.IsGeographic)
+        if (!CityGmlMeshCodeBoundsFilter.IntersectsRequestedMeshCodeBounds(
+                resolvedActualMeshCode,
+                sharedAcrossMeshCodes,
+                coordinateReferenceSystem,
+                requestedMeshCodeBounds,
+                surfaces))
         {
-            bool intersectsRequestedMeshCodeBounds = sharedAcrossMeshCodes
-                && TryCreateMeshCodeBounds(resolvedActualMeshCode, out MeshCodeBounds? resolvedActualMeshCodeBounds)
-                    ? IntersectsMeshCodeBounds(resolvedActualMeshCodeBounds!, requestedMeshCodeBounds)
-                    : IntersectsMeshCodeBounds(surfaces, requestedMeshCodeBounds);
-            if (!intersectsRequestedMeshCodeBounds)
-            {
-                return null;
-            }
+            return null;
         }
 
         string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
@@ -233,94 +224,6 @@ internal static class LocalCityGmlObjectProjection
                 NumberStyles.None,
                 CultureInfo.InvariantCulture,
                 out lodLevel);
-    }
-
-    private static bool IntersectsMeshCodeBounds(
-        IEnumerable<ParsedSurface> surfaces,
-        IReadOnlyList<MeshCodeBounds> meshCodeAreas)
-    {
-        List<GeodeticPoint> vertices = surfaces
-            .SelectMany(static surface => surface.Vertices)
-            .ToList();
-
-        double minLatitude = vertices.Min(static point => point.Latitude);
-        double maxLatitude = vertices.Max(static point => point.Latitude);
-        double minLongitude = vertices.Min(static point => point.Longitude);
-        double maxLongitude = vertices.Max(static point => point.Longitude);
-
-        return IntersectsMeshCodeBounds(minLatitude, maxLatitude, minLongitude, maxLongitude, meshCodeAreas);
-    }
-
-    private static bool IntersectsMeshCodeBounds(
-        MeshCodeBounds meshCodeArea,
-        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds)
-    {
-        return IntersectsMeshCodeBounds(
-            meshCodeArea.SouthLatitude,
-            meshCodeArea.NorthLatitude,
-            meshCodeArea.WestLongitude,
-            meshCodeArea.EastLongitude,
-            requestedMeshCodeBounds);
-    }
-
-    private static bool IntersectsMeshCodeBounds(
-        double minLatitude,
-        double maxLatitude,
-        double minLongitude,
-        double maxLongitude,
-        IReadOnlyList<MeshCodeBounds> meshCodeAreas)
-    {
-        const double overlapTolerance = 1e-10;
-
-        return meshCodeAreas.Any(meshCodeArea =>
-        {
-            double latitudeOverlap = Math.Min(maxLatitude, meshCodeArea.NorthLatitude)
-                - Math.Max(minLatitude, meshCodeArea.SouthLatitude);
-            if (latitudeOverlap <= overlapTolerance)
-            {
-                return false;
-            }
-
-            double longitudeOverlap = Math.Min(maxLongitude, meshCodeArea.EastLongitude)
-                - Math.Max(minLongitude, meshCodeArea.WestLongitude);
-            return longitudeOverlap > overlapTolerance;
-        });
-    }
-
-    private static string ResolveConcreteActualMeshCode(
-        string displayName,
-        string objectId,
-        string fallbackActualMeshCode)
-    {
-        return TryResolveConcreteMeshCode(displayName, out string? displayNameMeshCode)
-            ? displayNameMeshCode!
-            : TryResolveConcreteMeshCode(objectId, out string? objectIdMeshCode)
-                ? objectIdMeshCode!
-                : fallbackActualMeshCode;
-    }
-
-    private static bool TryResolveConcreteMeshCode(string value, out string? meshCode)
-    {
-        meshCode = null;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        Match match = ConcreteMeshCodeTokenRegex.Match(value);
-        if (!match.Success)
-        {
-            return false;
-        }
-
-        string candidate = match.Groups[1].Value;
-        if (!PlateauMeshCode.TryGetBounds(candidate, out _))
-        {
-            return false;
-        }
-
-        meshCode = candidate;
-        return true;
     }
 
     private static bool TryCreateMeshCodeBounds(string meshCode, out MeshCodeBounds? meshCodeArea)
