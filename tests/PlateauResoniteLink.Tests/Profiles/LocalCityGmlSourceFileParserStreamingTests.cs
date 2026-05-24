@@ -76,7 +76,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             "53394525",
             RequiresMeshCodeBoundsFilter: false);
 
-        SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
+        SourceFilePipeline[] pipelines = await LocalCityGmlSourceFileParser.CreateSourceFilePipelinesCoreAsync(
             [sourceFile],
             datasetSource,
             [],
@@ -233,7 +233,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             "53394525",
             RequiresMeshCodeBoundsFilter: false);
 
-        SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
+        SourceFilePipeline[] pipelines = await LocalCityGmlSourceFileParser.CreateSourceFilePipelinesCoreAsync(
             [sourceFile],
             datasetSource,
             [],
@@ -359,7 +359,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             "53394525",
             RequiresMeshCodeBoundsFilter: false);
 
-        SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
+        SourceFilePipeline[] pipelines = await LocalCityGmlSourceFileParser.CreateSourceFilePipelinesCoreAsync(
             [sourceFile],
             datasetSource,
             [],
@@ -422,7 +422,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             "53394525",
             RequiresMeshCodeBoundsFilter: false);
 
-        SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
+        SourceFilePipeline[] pipelines = await LocalCityGmlSourceFileParser.CreateSourceFilePipelinesCoreAsync(
             [sourceFile],
             datasetSource,
             [],

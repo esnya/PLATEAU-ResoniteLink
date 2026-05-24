@@ -22,7 +22,7 @@ using LocalCartesian = GeographicLib.LocalCartesian;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal static partial class LocalCityGmlObjectProjection
+internal static class LocalCityGmlObjectProjection
 {
     private const double BuildingBottomCullBandMeters = 0.1;
     private const double UnknownRoofBottomAltitudeToleranceMeters = 0.1;
@@ -56,7 +56,7 @@ internal static partial class LocalCityGmlObjectProjection
 
 
 
-    private static ParsedCityObject? ParseCityObject(
+    internal static ParsedCityObject? ParseCityObject(
         XElement cityObjectElement,
         string packageName,
         string relativeSourceFile,
