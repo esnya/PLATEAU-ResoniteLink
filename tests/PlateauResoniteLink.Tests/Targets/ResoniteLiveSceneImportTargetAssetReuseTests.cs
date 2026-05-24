@@ -731,7 +731,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         };
 
         using TemporaryDirectory workDirectory = new();
-        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false);
         _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             importTarget,
             metadata,
@@ -909,7 +909,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ResoniteFloat3 secondRunDemWorldPosition = new(230.0, 9.0, 390.0);
         ResoniteFloat3 sourceRootCorrection = new(16.5, 0.0, -47.25);
 
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
                 importTarget,
@@ -930,7 +930,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ResoniteFloat3 existingDemRootPosition = Add(GetSlotPosition(existingDemSourceRoot), sourceRootCorrection);
         existingDemSourceRoot.Position = CreateFloat3(existingDemRootPosition);
 
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
                 importTarget,
@@ -1184,7 +1184,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneSinkRecordingClient client = new();
         using TemporaryDirectory workDirectory = new();
-        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false);
 
         SceneImportExecutionResult executionResult = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             importTarget,
@@ -1222,7 +1222,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ResoniteFloat3 primaryObjectPosition = new(4.0, 1.0, 8.0);
         ResoniteFloat3 secondaryObjectPosition = new(10.0, 2.0, 20.0);
 
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(importTarget, metadata, firstWorkDirectory.Path, []);
         }
@@ -1230,7 +1230,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, $"PLATEAU {DatasetName}");
         datasetRoot.Position = CreateFloat3(datasetRootPosition);
 
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
         {
             SceneImportExecutionResult executionResult = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
                 importTarget,
@@ -1290,7 +1290,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         using TemporaryDirectory secondWorkDirectory = new();
         ResoniteFloat3 secondRunLocalPosition = new(10.0, 0.0, 20.0);
 
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
                 importTarget,
@@ -1305,7 +1305,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 ]);
         }
 
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
                 importTarget,
@@ -1416,7 +1416,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         string workDirectory,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
     {
-        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false);
         _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             importTarget,
             metadata,
