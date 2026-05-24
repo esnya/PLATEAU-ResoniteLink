@@ -1115,7 +1115,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 uploadedTextureAssets.TextureUrisByPayload,
                 uploadedTextureAssets.TerrainTextureUrisByOverlay,
                 uploadedTextureAssets.TerrainTexturePropertyBlockComponentsByMeshCode,
-                uploadedTextureAssets.GeneratedTerrainTexturesByOverlay,
                 message => ReportImportStep(cityObject, message),
                 importStepCancellation.Token);
             plannedMaterials = await materialPlanningTask;

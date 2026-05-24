@@ -20,7 +20,6 @@ internal interface IResoniteSceneMaterialPlanComposer
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
         IReadOnlyDictionary<string, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         Action<string> reportMaterialStep,
         CancellationToken cancellationToken);
 }
@@ -34,7 +33,6 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
         IReadOnlyDictionary<string, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         Action<string> reportMaterialStep,
         CancellationToken cancellationToken)
     {
@@ -44,7 +42,6 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         ArgumentNullException.ThrowIfNull(preparedTextureUrisByPayload);
         ArgumentNullException.ThrowIfNull(preparedTerrainTextureUrisByOverlay);
         ArgumentNullException.ThrowIfNull(preparedTerrainTexturePropertyBlockComponentsByMeshCode);
-        ArgumentNullException.ThrowIfNull(preparedTerrainTextureDataByOverlay);
         ArgumentNullException.ThrowIfNull(reportMaterialStep);
 
         Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[] materialPlanTasks
@@ -53,8 +50,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         {
             ResoniteMaterialBinding material = ResolveTerrainTextureMaterialForEmission(
                 cityObject,
-                cityObject.Materials[materialIndex],
-                preparedTerrainTextureDataByOverlay);
+                cityObject.Materials[materialIndex]);
             material = ResoniteTerrainOverlayMaterialContract.ValidateMaterial(cityObject, materialIndex, material);
             reportMaterialStep($"Creating material {materialIndex + 1}/{cityObject.Materials.Count}.");
             if (material.CommonMaterial is not null)
@@ -173,10 +169,8 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
 
     private static ResoniteMaterialBinding ResolveTerrainTextureMaterialForEmission(
         ResoniteConstructionCityObject cityObject,
-        ResoniteMaterialBinding material,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
+        ResoniteMaterialBinding material)
     {
-        _ = preparedTerrainTextureDataByOverlay;
         return (cityObject.Geometry is ResoniteTerrainGridGeometry
                 || cityObject.Geometry is ResoniteDynamicTerrainGeometry)
             && material.TerrainOverlay is not null
