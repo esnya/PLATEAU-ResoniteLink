@@ -72,7 +72,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
             includeMarkingAlways: request.IncludeMarkingAlways);
 
         SourceFilePipeline[] sourceFilePipelines =
-            await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
+            await LocalCityGmlSourceFileParser.CreateSourceFilePipelinesCoreAsync(
                 sourceFiles,
                 datasetSource,
                 requestedMeshCodeBounds,
@@ -85,7 +85,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
         GeodeticCoordinate? resolvedGeodeticCenter =
-            LocalCityGmlObjectProjection.ResolveGeodeticCenter(effectiveRequestedMeshCodeBounds);
+            LocalCityGmlSourceFileParser.ResolveGeodeticCenter(effectiveRequestedMeshCodeBounds);
         if (resolvedGeodeticCenter is null)
         {
             throw new PlateauImportValidationException(
