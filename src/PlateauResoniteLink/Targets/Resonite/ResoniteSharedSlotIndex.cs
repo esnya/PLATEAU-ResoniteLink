@@ -27,7 +27,7 @@ internal sealed class ResoniteSharedSlotIndex(
         slotSnapshotIndex.IndexSetupHierarchy(setupState);
     }
 
-    public Task<ObjectSlotHierarchy> CreateObjectHierarchyTask(
+    public Task<ResoniteObjectSlotHierarchy> CreateObjectHierarchyTask(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         CancellationToken processingCancellationToken,
@@ -49,7 +49,7 @@ internal sealed class ResoniteSharedSlotIndex(
         return GetOrCreateSharedChildSlotByIdAsync(client, parent, slotName, null, null, cancellationToken);
     }
 
-    private async Task<ObjectSlotHierarchy> CreateObjectHierarchyWithLinkedCancellationAsync(
+    private async Task<ResoniteObjectSlotHierarchy> CreateObjectHierarchyWithLinkedCancellationAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         CancellationToken processingCancellationToken,
@@ -61,7 +61,7 @@ internal sealed class ResoniteSharedSlotIndex(
         return await CreateObjectSlotHierarchyAsync(client, cityObject, linkedCancellation.Token);
     }
 
-    private async Task<ObjectSlotHierarchy> CreateObjectSlotHierarchyAsync(
+    private async Task<ResoniteObjectSlotHierarchy> CreateObjectSlotHierarchyAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken)
@@ -74,7 +74,7 @@ internal sealed class ResoniteSharedSlotIndex(
             new CanonicalParentSourceFile(sourceFileRelativePath, rootMeshCode, cityObject.LodLevel),
             ct => CreateCanonicalParentScopeAsync(client, sourceFileSlotName, rootMeshCode, cityObject.LodLevel, sourceRootPlacement.RootPosition, ct),
             cancellationToken);
-        return new ObjectSlotHierarchy(
+        return new ResoniteObjectSlotHierarchy(
             parentScope.AssetLodSlot,
             parentScope.LodSlot,
             cityObject.DisplayName,
@@ -210,13 +210,6 @@ internal sealed class ResoniteSharedSlotIndex(
             SceneAnchor,
             slotSnapshotIndex.GetObservedDatasetSourceRoots());
     }
-
-    internal sealed record ObjectSlotHierarchy(
-        CreatedSlot AssetLodSlot,
-        CreatedSlot LodSlot,
-        string CityObjectSlotName,
-        ResoniteFloat3 CityObjectLocalPosition,
-        ResoniteFloatQ? CityObjectRotation);
 
     private sealed record CanonicalParentScope(
         CreatedSlot SourceFileSlot,

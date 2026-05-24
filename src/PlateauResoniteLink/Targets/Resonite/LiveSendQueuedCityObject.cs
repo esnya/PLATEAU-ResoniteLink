@@ -6,5 +6,5 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed record LiveSendQueuedCityObject(
     ResoniteConstructionCityObject CityObject,
-    Task<ResoniteSharedSlotIndex.ObjectSlotHierarchy> ObjectHierarchyTask,
+    Task<ResoniteObjectSlotHierarchy> ObjectHierarchyTask,
     AsyncWeightedGate.Lease MemoryLease);

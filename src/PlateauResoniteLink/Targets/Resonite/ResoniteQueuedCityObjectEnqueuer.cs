@@ -129,7 +129,7 @@ internal sealed class ResoniteQueuedCityObjectEnqueuer : IResoniteQueuedCityObje
         AsyncWeightedGate.Lease cityObjectMemoryLease = await runtime.AcquireCityObjectMemoryAsync(
             estimatedWorksetBytes,
             cancellationToken);
-        Task<ResoniteSharedSlotIndex.ObjectSlotHierarchy> objectHierarchyTask = state.Placement.CreateObjectHierarchyTask(
+        Task<ResoniteObjectSlotHierarchy> objectHierarchyTask = state.Placement.CreateObjectHierarchyTask(
             context.GetRoutedClient(),
             cityObject,
             runtime.ProcessingCancellationToken,
