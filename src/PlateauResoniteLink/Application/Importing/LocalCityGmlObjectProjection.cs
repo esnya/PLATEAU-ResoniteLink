@@ -277,7 +277,7 @@ internal static class LocalCityGmlObjectProjection
             return [surface];
         }
 
-        GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
+        GeodeticPoint cityObjectOrigin = ResolveProjectionCityObjectOrigin(cityObject);
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
             ? new LocalCartesian(
                 cityObjectOrigin.Latitude,
@@ -314,7 +314,7 @@ internal static class LocalCityGmlObjectProjection
             return [surface];
         }
 
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = ResolveParsedCityObjectOrigin(cityObject);
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
             ? new LocalCartesian(
                 cityObjectOrigin.Latitude,
@@ -928,7 +928,7 @@ internal static class LocalCityGmlObjectProjection
         {
             GeometryHeightMeters = geometryHeightMeters,
         };
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = ResolveParsedCityObjectOrigin(cityObject);
 
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
             ? new LocalCartesian(
@@ -1042,7 +1042,7 @@ internal static class LocalCityGmlObjectProjection
             return cityObject;
         }
 
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = ResolveParsedCityObjectOrigin(cityObject);
         LocalCartesian cityObjectCartesian = new(
             cityObjectOrigin.Latitude,
             cityObjectOrigin.Longitude,
@@ -1475,46 +1475,24 @@ internal static class LocalCityGmlObjectProjection
             source.Altitude + ((target.Altitude - source.Altitude) * ratio));
     }
 
-    private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)
+    private static GeodeticPoint ResolveProjectionCityObjectOrigin(ParsedCityObject cityObject)
     {
-        if (cityObject.GeodeticOriginOverride is not null)
-        {
-            return cityObject.GeodeticOriginOverride;
-        }
-
-        List<GeodeticPoint> allPoints = cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
-        double minLatitude = allPoints.Min(static point => point.Latitude);
-        double maxLatitude = allPoints.Max(static point => point.Latitude);
-        double minLongitude = allPoints.Min(static point => point.Longitude);
-        double maxLongitude = allPoints.Max(static point => point.Longitude);
-        double minAltitude = allPoints.Min(static point => point.Altitude);
-
-        return new GeodeticPoint(
-            Latitude: (minLatitude + maxLatitude) / 2.0,
-            Longitude: (minLongitude + maxLongitude) / 2.0,
-            Altitude: minAltitude);
+        return CityObjectOriginResolver.Resolve(
+                cityObject.GeodeticOriginOverride is null
+                    ? null
+                    : global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObject.GeodeticOriginOverride),
+                cityObject.Surfaces
+                    .SelectMany(static surface => surface.Vertices)
+                    .Select(static point => global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(point)))
+            .ToProjectionModel();
     }
 
-    private static global::PlateauResoniteLink.Application.Importing.GeodeticPoint GetCityObjectOrigin(
+    private static global::PlateauResoniteLink.Application.Importing.GeodeticPoint ResolveParsedCityObjectOrigin(
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
-        if (cityObject.GeodeticOriginOverride is not null)
-        {
-            return cityObject.GeodeticOriginOverride;
-        }
-
-        List<global::PlateauResoniteLink.Application.Importing.GeodeticPoint> allPoints =
-            cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
-        double minLatitude = allPoints.Min(static point => point.Latitude);
-        double maxLatitude = allPoints.Max(static point => point.Latitude);
-        double minLongitude = allPoints.Min(static point => point.Longitude);
-        double maxLongitude = allPoints.Max(static point => point.Longitude);
-        double minAltitude = allPoints.Min(static point => point.Altitude);
-
-        return new global::PlateauResoniteLink.Application.Importing.GeodeticPoint(
-            Latitude: (minLatitude + maxLatitude) / 2.0,
-            Longitude: (minLongitude + maxLongitude) / 2.0,
-            Altitude: minAltitude);
+        return CityObjectOriginResolver.Resolve(
+            cityObject.GeodeticOriginOverride,
+            cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
     }
 
     private static ResolvedSurfaceMaterial ResolveSurfaceMaterial(
@@ -3350,7 +3328,7 @@ internal static class LocalCityGmlObjectProjection
                 projectedCityObjects.Add(cityObject);
             }
 
-            global::PlateauResoniteLink.Application.Importing.GeodeticPoint markingOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint markingOrigin = ResolveParsedCityObjectOrigin(splitCityObject.CityObject);
             LocalCartesian? markingCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
                 ? new LocalCartesian(
                     markingOrigin.Latitude,
@@ -3444,7 +3422,7 @@ internal static class LocalCityGmlObjectProjection
                     splitCityObject.Overlay);
             }
 
-            global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = ResolveParsedCityObjectOrigin(splitCityObject.CityObject);
             LocalCartesian? cityObjectCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
                 ? new LocalCartesian(
                     cityObjectOrigin.Latitude,
@@ -3561,7 +3539,7 @@ internal static class LocalCityGmlObjectProjection
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject subdividedCityObject =
             SubdivideTerrainAlignedCityObject(parsedCityObject);
         bool terrainAligned = false;
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(subdividedCityObject);
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = ResolveParsedCityObjectOrigin(subdividedCityObject);
         LocalCartesian? cityObjectCartesian = subdividedCityObject.ReferenceSystem.IsGeographic
             ? new LocalCartesian(
                 cityObjectOrigin.Latitude,
@@ -3972,7 +3950,7 @@ internal static class LocalCityGmlObjectProjection
     {
         heightMapCityObject = null;
 
-        GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
+        GeodeticPoint cityObjectOrigin = ResolveProjectionCityObjectOrigin(cityObject);
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
             ? new LocalCartesian(
                 cityObjectOrigin.Latitude,
@@ -4143,7 +4121,7 @@ internal static class LocalCityGmlObjectProjection
             return false;
         }
 
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = ResolveParsedCityObjectOrigin(cityObject);
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
             ? new LocalCartesian(
                 cityObjectOrigin.Latitude,
@@ -4552,7 +4530,7 @@ internal static class LocalCityGmlObjectProjection
             yield break;
         }
 
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = ResolveParsedCityObjectOrigin(cityObject);
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
             ? new LocalCartesian(
                 cityObjectOrigin.Latitude,
@@ -4906,7 +4884,7 @@ internal static class LocalCityGmlObjectProjection
             return null;
         }
 
-        return GetCityObjectGeographicBounds(cityObject);
+        return ResolveProjectionCityObjectGeographicBounds(cityObject);
     }
 
     private static GeographicRectangle? TryGetDemObjectGeographicBounds(
@@ -4919,7 +4897,7 @@ internal static class LocalCityGmlObjectProjection
             return null;
         }
 
-        return GetCityObjectGeographicBounds(cityObject);
+        return ResolveParsedCityObjectGeographicBounds(cityObject);
     }
 
     private static DemTerrainGridBounds CreateDemTerrainGridBounds(
@@ -4942,7 +4920,7 @@ internal static class LocalCityGmlObjectProjection
         }
 
         GeographicRectangle clippedBounds = IntersectGeographicBounds(
-            GetCityObjectGeographicBounds(cityObject),
+            ResolveProjectionCityObjectGeographicBounds(cityObject),
             demTerrainTextureOverlay.GeographicBounds);
         double referenceLatitude = cityObjectOrigin.Latitude;
         double referenceLongitude = cityObjectOrigin.Longitude;
@@ -5000,7 +4978,7 @@ internal static class LocalCityGmlObjectProjection
         }
 
         GeographicRectangle clippedBounds = IntersectGeographicBounds(
-            GetCityObjectGeographicBounds(cityObject),
+            ResolveParsedCityObjectGeographicBounds(cityObject),
             demTerrainTextureOverlay.GeographicBounds);
         double referenceLatitude = cityObjectOrigin.Latitude;
         double referenceLongitude = cityObjectOrigin.Longitude;
@@ -5038,26 +5016,19 @@ internal static class LocalCityGmlObjectProjection
         return new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ);
     }
 
-    private static GeographicRectangle GetCityObjectGeographicBounds(ParsedCityObject cityObject)
+    private static GeographicRectangle ResolveProjectionCityObjectGeographicBounds(ParsedCityObject cityObject)
     {
-        List<GeodeticPoint> vertices = cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
-        return new GeographicRectangle(
-            MinLatitude: vertices.Min(static point => point.Latitude),
-            MaxLatitude: vertices.Max(static point => point.Latitude),
-            MinLongitude: vertices.Min(static point => point.Longitude),
-            MaxLongitude: vertices.Max(static point => point.Longitude));
+        return CityObjectGeographicBoundsResolver.Resolve(
+            cityObject.Surfaces.SelectMany(static surface => surface.Vertices),
+            static point => point.Latitude,
+            static point => point.Longitude);
     }
 
-    private static GeographicRectangle GetCityObjectGeographicBounds(
+    private static GeographicRectangle ResolveParsedCityObjectGeographicBounds(
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
     {
-        List<global::PlateauResoniteLink.Application.Importing.GeodeticPoint> vertices =
-            cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
-        return new GeographicRectangle(
-            MinLatitude: vertices.Min(static point => point.Latitude),
-            MaxLatitude: vertices.Max(static point => point.Latitude),
-            MinLongitude: vertices.Min(static point => point.Longitude),
-            MaxLongitude: vertices.Max(static point => point.Longitude));
+        return CityObjectGeographicBoundsResolver.Resolve(
+            cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
     }
 
     private static GeographicRectangle IntersectGeographicBounds(
