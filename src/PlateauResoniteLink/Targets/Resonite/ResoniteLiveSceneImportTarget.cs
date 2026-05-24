@@ -960,13 +960,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             try
             {
-                ValidateTriangleMeshBindings(cityObject, triangleGeometry.Mesh);
+                ResoniteCityObjectPreparation.ValidateTriangleMeshBindings(cityObject, triangleGeometry.Mesh);
             }
             catch (Exception exception) when (exception is InvalidOperationException && exception is not ResoniteMeshValidationException)
             {
                 throw new ResoniteMeshValidationException(
                     $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
-                    + $"{CreateTriangleMeshDiagnosticSummary(cityObject, triangleGeometry.Mesh)} "
+                    + $"{ResoniteCityObjectPreparation.CreateTriangleMeshDiagnosticSummary(cityObject, triangleGeometry.Mesh)} "
                     + $"Reason: {exception.Message}",
                     exception);
             }
@@ -976,13 +976,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             try
             {
-                ValidateTriangleMeshBindings(cityObject, dynamicTerrain.StaticMesh.Mesh);
+                ResoniteCityObjectPreparation.ValidateTriangleMeshBindings(cityObject, dynamicTerrain.StaticMesh.Mesh);
             }
             catch (Exception exception) when (exception is InvalidOperationException && exception is not ResoniteMeshValidationException)
             {
                 throw new ResoniteMeshValidationException(
                     $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
-                    + $"{CreateTriangleMeshDiagnosticSummary(cityObject, dynamicTerrain.StaticMesh.Mesh)} "
+                    + $"{ResoniteCityObjectPreparation.CreateTriangleMeshDiagnosticSummary(cityObject, dynamicTerrain.StaticMesh.Mesh)} "
                     + $"Reason: {exception.Message}",
                     exception);
             }
@@ -1017,17 +1017,17 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Task<PreparedConstructionGeometry> geometryPreparationTask = cityObject.Geometry switch
         {
             ResoniteTriangleMeshGeometry triangleMesh => Task.Run<PreparedConstructionGeometry>(
-                () => PrepareTriangleMeshGeometry(cityObject, triangleMesh.Mesh),
+                () => ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, triangleMesh.Mesh),
                 cancellationToken),
             ResoniteTerrainGridGeometry heightMap => Task.Run<PreparedConstructionGeometry>(
-                () => new PreparedTerrainGridGeometry(heightMap, PrepareTerrainGridDisplacementTexture(heightMap)),
+                () => new PreparedTerrainGridGeometry(heightMap, ResoniteCityObjectPreparation.PrepareTerrainGridDisplacementTexture(heightMap)),
                 cancellationToken),
             ResoniteDynamicTerrainGeometry dynamicTerrain => Task.Run<PreparedConstructionGeometry>(
                 () => new PreparedDynamicTerrainGeometry(
-                    PrepareTriangleMeshGeometry(cityObject, dynamicTerrain.StaticMesh.Mesh),
+                    ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, dynamicTerrain.StaticMesh.Mesh),
                     new PreparedTerrainGridGeometry(
                         dynamicTerrain.GridMesh,
-                        PrepareTerrainGridDisplacementTexture(dynamicTerrain.GridMesh))),
+                        ResoniteCityObjectPreparation.PrepareTerrainGridDisplacementTexture(dynamicTerrain.GridMesh))),
                 cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
@@ -1048,18 +1048,21 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             .ToDictionary(
                 static texture => texture.TerrainOverlay!,
                 static texture => texture.GeneratedTerrainTexture!);
-        cityObject = ApplyTerrainTextureCanvasUv(cityObject, preparedTerrainTextureDataByOverlay);
+        cityObject = ResoniteCityObjectPreparation.ApplyTerrainTextureCanvasUv(
+            cityObject,
+            preparedTerrainTextureDataByOverlay,
+            clampCanvasUv: IsDemPackage(cityObject.PackageName));
         if (cityObject.Geometry is ResoniteTriangleMeshGeometry resolvedTriangleMesh
             && preparedGeometry is PreparedTriangleMeshGeometry)
         {
-            preparedGeometry = PrepareTriangleMeshGeometry(cityObject, resolvedTriangleMesh.Mesh);
+            preparedGeometry = ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, resolvedTriangleMesh.Mesh);
         }
         else if (cityObject.Geometry is ResoniteDynamicTerrainGeometry resolvedDynamicTerrain
             && preparedGeometry is PreparedDynamicTerrainGeometry preparedDynamicTerrain)
         {
             preparedGeometry = preparedDynamicTerrain with
             {
-                StaticMesh = PrepareTriangleMeshGeometry(cityObject, resolvedDynamicTerrain.StaticMesh.Mesh),
+                StaticMesh = ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, resolvedDynamicTerrain.StaticMesh.Mesh),
             };
         }
         stopwatch.Stop();
@@ -1841,87 +1844,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return state.Runtime.ElapsedTotalSeconds;
     }
 
-    private static void ValidateTriangleMeshBindings(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteImportedMesh mesh)
-    {
-        if (mesh.Submeshes.Count == 0)
-        {
-            throw new InvalidOperationException(
-                $"Triangle mesh '{cityObject.DisplayName}' did not contain any submesh.");
-        }
-
-        if (cityObject.Materials.Count == 0)
-        {
-            throw new InvalidOperationException(
-                $"Triangle mesh '{cityObject.DisplayName}' did not contain any material.");
-        }
-
-        Dictionary<int, ResoniteMeshSubmesh> submeshByIndex = mesh.Submeshes.ToDictionary(
-            static submesh => submesh.Index,
-            static submesh => submesh);
-        if (submeshByIndex.Count != mesh.Submeshes.Count)
-        {
-            throw new InvalidOperationException(
-                $"Triangle mesh '{cityObject.DisplayName}' contained duplicate submesh indices.");
-        }
-
-        Dictionary<int, int> materialOrdinalBySubmeshIndex = new();
-        for (int materialOrdinal = 0; materialOrdinal < cityObject.Materials.Count; materialOrdinal++)
-        {
-            ResoniteMaterialBinding material = cityObject.Materials[materialOrdinal];
-            if (material.SubmeshIndices.Count == 0)
-            {
-                throw new InvalidOperationException(
-                    $"Triangle mesh '{cityObject.DisplayName}' material #{materialOrdinal} did not target any submesh.");
-            }
-
-            foreach (int submeshIndex in material.SubmeshIndices)
-            {
-                if (!submeshByIndex.ContainsKey(submeshIndex))
-                {
-                    throw new InvalidOperationException(
-                        $"Triangle mesh '{cityObject.DisplayName}' material #{materialOrdinal} targeted missing submesh index {submeshIndex}.");
-                }
-
-                if (materialOrdinalBySubmeshIndex.TryGetValue(submeshIndex, out int existingMaterialOrdinal))
-                {
-                    throw new InvalidOperationException(
-                        $"Triangle mesh '{cityObject.DisplayName}' assigned submesh index {submeshIndex} to both material #{existingMaterialOrdinal} and material #{materialOrdinal}.");
-                }
-
-                materialOrdinalBySubmeshIndex[submeshIndex] = materialOrdinal;
-            }
-        }
-
-        foreach (int submeshIndex in submeshByIndex.Keys.OrderBy(static index => index))
-        {
-            if (!materialOrdinalBySubmeshIndex.ContainsKey(submeshIndex))
-            {
-                throw new InvalidOperationException(
-                    $"Triangle mesh '{cityObject.DisplayName}' left submesh index {submeshIndex} without a material assignment.");
-            }
-        }
-    }
-
-    private static PreparedTriangleMeshGeometry PrepareTriangleMeshGeometry(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteImportedMesh mesh)
-    {
-        try
-        {
-            return new PreparedTriangleMeshGeometry(ResoniteMeshImportFactory.Create(mesh));
-        }
-        catch (Exception exception) when (exception is InvalidOperationException && exception is not ResoniteMeshValidationException)
-        {
-            throw new ResoniteMeshValidationException(
-                $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
-                + $"{CreateTriangleMeshDiagnosticSummary(cityObject, mesh)} "
-                + $"Reason: {exception.Message}",
-                exception);
-        }
-    }
-
     private static ResoniteMaterialBinding ResolveTerrainTextureMaterialForEmission(
         ResoniteConstructionCityObject cityObject,
         ResoniteMaterialBinding material,
@@ -1937,177 +1859,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 TextureOffset = null,
             }
             : material;
-    }
-
-    private static ResoniteConstructionCityObject ApplyTerrainTextureCanvasUv(
-        ResoniteConstructionCityObject cityObject,
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
-    {
-        ArgumentNullException.ThrowIfNull(cityObject);
-        ArgumentNullException.ThrowIfNull(preparedTerrainTextureDataByOverlay);
-
-        ResoniteTriangleMeshGeometry? triangleMesh = cityObject.Geometry switch
-        {
-            ResoniteTriangleMeshGeometry value => value,
-            ResoniteDynamicTerrainGeometry value => value.StaticMesh,
-            _ => null,
-        };
-        if (triangleMesh is null)
-        {
-            return cityObject;
-        }
-
-        bool clampCanvasUv = IsDemPackage(cityObject.PackageName);
-        Dictionary<int, GeneratedTerrainTexture> generatedTextureBySubmeshIndex = cityObject.Materials
-            .Where(static material => material.TerrainOverlay is not null)
-            .SelectMany(material =>
-                material.TerrainOverlay is not null
-                && preparedTerrainTextureDataByOverlay.TryGetValue(material.TerrainOverlay, out GeneratedTerrainTexture? generatedTexture)
-                && !generatedTexture.OccupiedUvRect.IsIdentity
-                    ? material.SubmeshIndices.Select(submeshIndex => KeyValuePair.Create(submeshIndex, generatedTexture))
-                    : [])
-            .ToDictionary(static pair => pair.Key, static pair => pair.Value);
-        if (generatedTextureBySubmeshIndex.Count == 0)
-        {
-            return cityObject;
-        }
-
-        List<ResoniteMeshVertex> adjustedVertices = [];
-        List<ResoniteMeshSubmesh> adjustedSubmeshes = [];
-        foreach (ResoniteMeshSubmesh submesh in triangleMesh.Mesh.Submeshes)
-        {
-            List<int> adjustedIndices = new(submesh.TriangleVertexIndices.Count);
-            foreach (int sourceIndex in submesh.TriangleVertexIndices)
-            {
-                ResoniteMeshVertex sourceVertex = triangleMesh.Mesh.Vertices[sourceIndex];
-                ResoniteFloat2 adjustedUv = generatedTextureBySubmeshIndex.TryGetValue(submesh.Index, out GeneratedTerrainTexture? generatedTexture)
-                    ? CreateCanvasAdjustedTerrainUv(sourceVertex.UV0, generatedTexture.OccupiedUvRect, clampCanvasUv)
-                    : sourceVertex.UV0;
-                adjustedVertices.Add(sourceVertex with { UV0 = adjustedUv });
-                adjustedIndices.Add(adjustedVertices.Count - 1);
-            }
-
-            adjustedSubmeshes.Add(submesh with { TriangleVertexIndices = adjustedIndices });
-        }
-
-        ResoniteMaterialBinding[] adjustedMaterials = cityObject.Materials
-            .Select(material =>
-                material.TerrainOverlay is not null
-                && preparedTerrainTextureDataByOverlay.TryGetValue(material.TerrainOverlay, out GeneratedTerrainTexture? generatedTexture)
-                && !generatedTexture.OccupiedUvRect.IsIdentity
-                    ? material with
-                    {
-                        TextureScale = null,
-                        TextureOffset = null,
-                    }
-                    : material)
-            .ToArray();
-
-        ResoniteTriangleMeshGeometry adjustedTriangleGeometry = new(
-            new ResoniteImportedMesh(adjustedVertices, adjustedSubmeshes));
-        ResoniteConstructionGeometry adjustedGeometry = cityObject.Geometry is ResoniteDynamicTerrainGeometry dynamicTerrain
-            ? dynamicTerrain with { StaticMesh = adjustedTriangleGeometry }
-            : adjustedTriangleGeometry;
-
-        return cityObject with
-        {
-            Geometry = adjustedGeometry,
-            Materials = adjustedMaterials,
-        };
-    }
-
-    private static ResoniteFloat2 CreateResoniteFloat2(ScalarPair value) => new(value.X, value.Y);
-
-    private static ResoniteFloat2 CreateCanvasAdjustedTerrainUv(
-        ResoniteFloat2 sourceUv,
-        TextureUvRect occupiedUvRect,
-        bool clampCanvasUv)
-    {
-        if (clampCanvasUv)
-        {
-            return CreateResoniteFloat2(TextureUvRect.RemapValue(
-                new ScalarPair(sourceUv.X, sourceUv.Y),
-                TextureUvRect.Identity,
-                occupiedUvRect));
-        }
-
-        return new ResoniteFloat2(
-            occupiedUvRect.MinU + (sourceUv.X * occupiedUvRect.Width),
-            occupiedUvRect.MinV + (sourceUv.Y * occupiedUvRect.Height));
-    }
-
-    private static ResoniteFloat2? ResolveTerrainGridUvScale(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteTerrainGridGeometry geometry,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
-    {
-        TextureUvRect? terrainTextureRect = ResolveTerrainGridTerrainTextureRect(
-            cityObject,
-            geometry,
-            preparedTerrainTextureDataByOverlay);
-        return terrainTextureRect is null
-            ? null
-            : new ResoniteFloat2(terrainTextureRect.Value.ScaleValue.X, terrainTextureRect.Value.ScaleValue.Y);
-    }
-
-    private static ResoniteFloat2? ResolveTerrainGridUvOffset(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteTerrainGridGeometry geometry,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
-    {
-        TextureUvRect? terrainTextureRect = ResolveTerrainGridTerrainTextureRect(
-            cityObject,
-            geometry,
-            preparedTerrainTextureDataByOverlay);
-        return terrainTextureRect is null
-            ? null
-            : new ResoniteFloat2(terrainTextureRect.Value.OffsetValue.X, terrainTextureRect.Value.OffsetValue.Y);
-    }
-
-    private static TextureUvRect? ResolveTerrainGridTerrainTextureRect(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteTerrainGridGeometry geometry,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
-    {
-        TextureUvRect objectRect = geometry.UvScale is not null || geometry.UvOffset is not null
-            ? TextureUvRect.FromScaleOffsetValue(
-                geometry.UvScale is null ? new ScalarPair(1.0, 1.0) : new ScalarPair(geometry.UvScale.X, geometry.UvScale.Y),
-                geometry.UvOffset is null ? new ScalarPair(0.0, 0.0) : new ScalarPair(geometry.UvOffset.X, geometry.UvOffset.Y))
-            : TextureUvRect.Identity;
-
-        TerrainTextureOverlay? overlay = cityObject.Materials
-            .Select(static material => material.TerrainOverlay)
-            .FirstOrDefault(static value => value is not null);
-        if (overlay is null
-            || !preparedTerrainTextureDataByOverlay.TryGetValue(overlay, out GeneratedTerrainTexture? generatedTerrainTexture))
-        {
-            return objectRect.IsIdentity ? null : objectRect;
-        }
-
-        return new TextureUvRect(
-            generatedTerrainTexture.OccupiedUvRect.MinU + (objectRect.MinU * generatedTerrainTexture.OccupiedUvRect.Width),
-            generatedTerrainTexture.OccupiedUvRect.MinV + (objectRect.MinV * generatedTerrainTexture.OccupiedUvRect.Height),
-            objectRect.Width * generatedTerrainTexture.OccupiedUvRect.Width,
-            objectRect.Height * generatedTerrainTexture.OccupiedUvRect.Height);
-    }
-
-    private static string CreateTriangleMeshDiagnosticSummary(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteImportedMesh mesh)
-    {
-        int[] submeshIndices = mesh.Submeshes
-            .Select(static submesh => submesh.Index)
-            .OrderBy(static index => index)
-            .ToArray();
-        string materialSummary = string.Join(
-            ", ",
-            cityObject.Materials.Select(static (material, index) =>
-                $"material#{index}[{string.Join("/", material.SubmeshIndices.OrderBy(static submeshIndex => submeshIndex))}]"));
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"mesh_code={cityObject.ActualMeshCode}, vertices={mesh.Vertices.Count}, submeshes={mesh.Submeshes.Count}, "
-            + $"submesh_indices=[{string.Join(", ", submeshIndices)}], materials={cityObject.Materials.Count}, "
-            + $"material_bindings=[{materialSummary}]");
     }
 
     private async Task<PlannedSceneMaterialPlan> PlanSceneMaterialPlanAsync(
@@ -2392,8 +2143,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     cityObject.DisplayName,
                     heightMap.Geometry,
                     heightMap.HeightTextureImport,
-                    ResolveTerrainGridUvScale(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
-                    ResolveTerrainGridUvOffset(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
+                    ResoniteCityObjectPreparation.ResolveTerrainGridUvScale(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
+                    ResoniteCityObjectPreparation.ResolveTerrainGridUvOffset(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
                     progressReporter,
                     cancellationToken)),
             PreparedDynamicTerrainGeometry dynamicTerrain => CreatePlannedDynamicTerrainGeometryAsset(
@@ -2412,42 +2163,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     cityObject.DisplayName,
                     dynamicTerrain.GridMesh.Geometry,
                     dynamicTerrain.GridMesh.HeightTextureImport,
-                    ResolveTerrainGridUvScale(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
-                    ResolveTerrainGridUvOffset(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
+                    ResoniteCityObjectPreparation.ResolveTerrainGridUvScale(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
+                    ResoniteCityObjectPreparation.ResolveTerrainGridUvOffset(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
                     progressReporter,
                     cancellationToken))),
             _ => throw new InvalidOperationException(
                 $"Unsupported prepared geometry type '{preparedCityObject.Geometry.GetType().Name}'."),
         };
-    }
-
-    private static ResoniteRawHdrTextureImport PrepareTerrainGridDisplacementTexture(ResoniteTerrainGridGeometry geometry)
-    {
-        float[] rawPixels = new float[geometry.Width * geometry.Height * 4];
-        double heightRange = Math.Max(geometry.MaxHeight - geometry.MinHeight, 0.0);
-
-        for (int y = 0; y < geometry.Height; y++)
-        {
-            for (int x = 0; x < geometry.Width; x++)
-            {
-                // FrooxEngine.GridMesh uses `color.r + color.g + color.b / 3` for displacement.
-                // Encode the inverted height into blue only (scaled by 3) so the effective sampled height stays 1x.
-                double heightSample = geometry.HeightSamples[(y * geometry.Width) + x];
-                double normalizedHeight = heightRange <= 1e-9
-                    ? 0.0
-                    : Math.Clamp((heightSample - geometry.MinHeight) / heightRange, 0.0, 1.0);
-                float heightValue = (float)(1.0 - normalizedHeight);
-                int pixelIndex = (y * geometry.Width * 4) + (x * 4);
-                rawPixels[pixelIndex] = 0.0f;
-                rawPixels[pixelIndex + 1] = 0.0f;
-                rawPixels[pixelIndex + 2] = heightValue * 3.0f;
-                rawPixels[pixelIndex + 3] = 1.0f;
-            }
-        }
-
-        byte[] rawBytes = new byte[rawPixels.Length * sizeof(float)];
-        Buffer.BlockCopy(rawPixels, 0, rawBytes, 0, rawBytes.Length);
-        return new ResoniteRawHdrTextureImport(geometry.Width, geometry.Height, rawBytes);
     }
 
     private static PlannedGeometryAsset CreatePlannedGeometryAsset(
@@ -2594,35 +2316,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ResoniteConstructionCityObject CityObject,
         Task<ResoniteSharedSlotIndex.ObjectSlotHierarchy> ObjectHierarchyTask,
         AsyncWeightedGate.Lease MemoryLease);
-
-    internal abstract record PreparedConstructionGeometry;
-
-    internal sealed record PreparedTriangleMeshGeometry(
-        ImportMeshRawData MeshImport)
-        : PreparedConstructionGeometry;
-
-    internal sealed record PreparedTerrainGridGeometry(
-        ResoniteTerrainGridGeometry Geometry,
-        ResoniteRawHdrTextureImport HeightTextureImport)
-        : PreparedConstructionGeometry;
-
-    internal sealed record PreparedDynamicTerrainGeometry(
-        PreparedTriangleMeshGeometry StaticMesh,
-        PreparedTerrainGridGeometry GridMesh)
-        : PreparedConstructionGeometry;
-
-    internal sealed record PreparedCityObject(
-        ResoniteConstructionCityObject CityObject,
-        PreparedConstructionGeometry Geometry,
-        IReadOnlyList<PreparedTextureReference> Textures);
-
-    internal sealed record PreparedTextureReference(
-        ResoniteTexturePayload? TexturePayload,
-        ResoniteTextureSourceKind TextureSourceKind,
-        ResoniteTextureImport TextureImport,
-        string? TerrainMeshCode = null,
-        TerrainTextureOverlay? TerrainOverlay = null,
-        GeneratedTerrainTexture? GeneratedTerrainTexture = null);
 
     private sealed record UploadedTextureAssetSet(
         Dictionary<ResoniteTexturePayload, Uri> TextureUrisByPayload,
