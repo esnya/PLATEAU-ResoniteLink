@@ -20,7 +20,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         TerrainTextureOverlay overlay = new(
             PackageName: "bldg",
@@ -74,7 +74,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
             GeodeticPoint globalOriginPoint,
             LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-            IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+            IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
             PlateauImportRequest request,
             Func<ParsedCityObject, bool>? predicate = null,
             Action<string>? progressReporter = null,
@@ -85,7 +85,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
             _ = globalOriginPoint;
             _ = globalCartesian;
             _ = demTerrainTextureOverlays;
-            _ = requestedMeshAreas;
+            _ = requestedMeshCodeBounds;
             _ = request;
             _ = predicate;
             _ = progressReporter;

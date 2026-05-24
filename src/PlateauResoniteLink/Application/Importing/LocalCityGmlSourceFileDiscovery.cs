@@ -174,7 +174,7 @@ internal static class LocalCityGmlSourceFileDiscovery
                 candidate.RelativePath,
                 candidate.PackageName,
                 matchedMeshCode,
-                matcher.RequiresMeshAreaFilter(matchedMeshCode));
+                matcher.RequiresMeshCodeBoundsFilter(matchedMeshCode));
         }
 
         string? parentMeshCode = candidate.FileMeshCodes
@@ -193,7 +193,7 @@ internal static class LocalCityGmlSourceFileDiscovery
             candidate.RelativePath,
             candidate.PackageName,
             parentMeshCode,
-            RequiresMeshAreaFilter: true);
+            RequiresMeshCodeBoundsFilter: true);
     }
 
     private static string[] ExtractMeshCodes(string value)
@@ -351,7 +351,7 @@ internal static class LocalCityGmlSourceFileDiscovery
                 .FirstOrDefault();
         }
 
-        public bool RequiresMeshAreaFilter(string matchedMeshCode)
+        public bool RequiresMeshCodeBoundsFilter(string matchedMeshCode)
         {
             return IsLiteral
                 && exactCodes.Length > 0
@@ -373,7 +373,7 @@ internal sealed record LocalCityGmlSourceFileDescriptor(
     string RelativePath,
     string PackageName,
     string MatchedMeshCode,
-    bool RequiresMeshAreaFilter);
+    bool RequiresMeshCodeBoundsFilter);
 
 internal sealed record LocalCityGmlSourceFileDiscoveryResult(
     IReadOnlyList<LocalCityGmlSourceFileDescriptor> SourceFiles,

@@ -81,8 +81,9 @@ internal static class ResoniteTerrainTextureMaterialContract
         return new InvalidOperationException(
             "Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds. "
             + $"reason='{reason}', object_slot='{cityObject.SlotKey}', object_name='{cityObject.DisplayName}', "
-            + $"package='{cityObject.PackageName}', actual_mesh='{cityObject.ActualMeshCode}', source_file='{cityObject.SourceFileRelativePath ?? "<null>"}', "
-            + $"material_index='{materialIndex}', terrain_mesh='{material.TerrainMeshCode ?? "<null>"}', overlay={overlaySummary}.");
+            + $"package='{cityObject.PackageName}', actual_mesh_code='{cityObject.ActualMeshCode}', source_file='{cityObject.SourceFileRelativePath ?? "<null>"}', "
+            + $"material_index='{materialIndex}', terrain_mesh='{material.TerrainMeshCode ?? "<null>"}', "
+            + $"terrain_mesh_code='{material.TerrainMeshCode ?? "<null>"}', overlay={overlaySummary}.");
     }
 
     private static string FormatGeographicBounds(GeographicRectangle bounds)

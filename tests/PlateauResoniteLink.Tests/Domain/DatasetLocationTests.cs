@@ -27,13 +27,13 @@ public sealed class DatasetLocationTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/data/plateau"));
+            CityGmlSource: DatasetLocation.Local("/data/plateau"));
 
-        LocalDatasetLocation localSource = Assert.IsType<LocalDatasetLocation>(request.Source);
+        LocalDatasetLocation localSource = Assert.IsType<LocalDatasetLocation>(request.CityGmlSource);
         Assert.Equal("/data/plateau", localSource.LocalSourcePath);
-        Assert.Equal(DatasetSourceKind.Local, request.Source.SourceKind);
-        Assert.Equal("/data/plateau", request.LocalSourcePath);
-        Assert.Null(request.ServerUri);
+        Assert.Equal(DatasetSourceKind.Local, request.CityGmlSource.SourceKind);
+        Assert.Equal("/data/plateau", request.CityGmlLocalSourcePath);
+        Assert.Null(request.CityGmlServerUri);
     }
 
     [Fact]
@@ -46,10 +46,10 @@ public sealed class DatasetLocationTests
             "53394525",
             new RemoteDatasetLocation(serverUri));
 
-        RemoteDatasetLocation remoteSource = Assert.IsType<RemoteDatasetLocation>(request.Source);
+        RemoteDatasetLocation remoteSource = Assert.IsType<RemoteDatasetLocation>(request.CityGmlSource);
         Assert.Equal(serverUri, remoteSource.ServerUri);
-        Assert.Equal(DatasetSourceKind.Remote, request.Source.SourceKind);
-        Assert.Equal(serverUri, request.ServerUri);
-        Assert.Null(request.LocalSourcePath);
+        Assert.Equal(DatasetSourceKind.Remote, request.CityGmlSource.SourceKind);
+        Assert.Equal(serverUri, request.CityGmlServerUri);
+        Assert.Null(request.CityGmlLocalSourcePath);
     }
 }

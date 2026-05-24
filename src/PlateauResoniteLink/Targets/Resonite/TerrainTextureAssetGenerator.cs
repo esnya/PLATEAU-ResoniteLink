@@ -79,8 +79,8 @@ internal sealed class TerrainTextureAssetGenerator(
 
         for (int sourceIndex = 0; sourceIndex < terrainTextureOverlay.Sources.Count; sourceIndex++)
         {
-            TerrainTextureSource source = terrainTextureOverlay.Sources[sourceIndex];
-            TerrainTextureSourceImage? sourceImage = source switch
+            TerrainTextureSource terrainTextureSource = terrainTextureOverlay.Sources[sourceIndex];
+            TerrainTextureSourceImage? sourceImage = terrainTextureSource switch
             {
                 TerrainTextureTileSource tileSource => await TryCreateTextureFromTileSourceAsync(
                     terrainTextureOverlay,
@@ -109,16 +109,16 @@ internal sealed class TerrainTextureAssetGenerator(
                 {
                     composedTexture = image.Clone();
                     composedOccupiedUvRect = sourceImage.OccupiedUvRect;
-                    usedSource = source;
-                    usedSources.Add(source);
+                    usedSource = terrainTextureSource;
+                    usedSources.Add(terrainTextureSource);
                 }
                 else
                 {
                     using Image<Rgba32> resizedImage = TerrainTextureImageComposer.ResizeSourceImage(image, composedTexture.Width, composedTexture.Height);
                     if (TerrainTextureImageComposer.FillTransparentPixels(composedTexture, resizedImage))
                     {
-                        usedSource = source;
-                        usedSources.Add(source);
+                        usedSource = terrainTextureSource;
+                        usedSources.Add(terrainTextureSource);
                     }
                 }
                 if (!TerrainTextureImageComposer.HasTransparentPixels(composedTexture))

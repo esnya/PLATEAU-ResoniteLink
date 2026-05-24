@@ -14,7 +14,7 @@ public sealed class DemCityObjectAggregationTests
             "udx/dem/503033/plateau_fukuoka_dem_503033.gml",
             "dem",
             "503033",
-            RequiresMeshAreaFilter: true);
+            RequiresMeshCodeBoundsFilter: true);
         ParsedCityObject[] cityObjects =
         [
             CreateCityObject("dem-b", "polygon-b", "50303312", sourceFile.RelativePath, referenceSystem),
@@ -39,7 +39,7 @@ public sealed class DemCityObjectAggregationTests
             "udx/dem/503033/plateau_fukuoka_dem_503033.gml",
             "dem",
             "503033",
-            RequiresMeshAreaFilter: true);
+            RequiresMeshCodeBoundsFilter: true);
         ParsedCityObject[] cityObjects =
         [
             CreateCityObject("dem-2", "polygon-2", "50303313", sourceFile.RelativePath, referenceSystem),

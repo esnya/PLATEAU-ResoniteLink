@@ -91,20 +91,12 @@ internal static class ResoniteSceneMaterialConventions
             && material.MaterialType == ResoniteMaterialType.Standard
             && material.TexturePayload is null
             && material.TerrainOverlay is null
+            && material.CommonMaterial is null
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && !string.IsNullOrWhiteSpace(material.Family)
             && (!IsWhiteBaseColor(material.BaseColor)
                 || HasNonDefaultBundledTextureTransform(material)
                 || material.DepthOffset is not null))
-        {
-            return material with
-            {
-                AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
-            };
-        }
-
-        if (material.TerrainOverlay is not null
-            && material.AssetScope == ResoniteMaterialAssetScope.Common)
         {
             return material with
             {

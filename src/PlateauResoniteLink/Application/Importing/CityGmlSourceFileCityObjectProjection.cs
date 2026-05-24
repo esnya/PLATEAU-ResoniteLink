@@ -30,11 +30,11 @@ internal static class CityGmlSourceFileCityObjectProjection
             sourceFile.PackageName,
             sourceFile.RelativePath,
             sourceFile.MatchedMeshCode,
-            sourceFile.RequiresMeshAreaFilter,
+            sourceFile.RequiresMeshCodeBoundsFilter,
             appearanceStore,
             lodSelector,
             coordinateReferenceSystem,
-            sourceFile.RequiresMeshAreaFilter ? requestedMeshAreas : null,
+            sourceFile.RequiresMeshCodeBoundsFilter ? requestedMeshAreas : null,
             lodFilteringStrategy);
     }
 }

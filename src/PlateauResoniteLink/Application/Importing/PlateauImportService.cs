@@ -72,7 +72,7 @@ internal sealed class PlateauImportService(
                 normalizedRequest,
                 resolvedRequest,
                 metadata,
-                resolvedRequest.LocalSourcePath!,
+                resolvedRequest.CityGmlLocalSourcePath!,
                 datasetWorkRoot,
                 this.commonMaterials);
             ReportProgress(

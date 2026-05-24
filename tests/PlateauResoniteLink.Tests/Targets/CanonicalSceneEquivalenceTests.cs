@@ -32,7 +32,7 @@ public sealed class CanonicalSceneEquivalenceTests
         PlateauImportRequest request = new(
             Dataset: scenarioName,
             MeshCode: meshCode,
-            Source: DatasetLocation.Local(TestData.GetFixturePath(fixtureName)),
+            CityGmlSource: DatasetLocation.Local(TestData.GetFixturePath(fixtureName)),
             PackageNames: packageNames);
 
         ImportExecutionResult result = await service.ExecuteAsync(

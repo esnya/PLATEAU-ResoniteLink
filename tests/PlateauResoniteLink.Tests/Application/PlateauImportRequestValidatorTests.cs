@@ -15,7 +15,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Remote(null));
+            CityGmlSource: DatasetLocation.Remote(null));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
@@ -28,7 +28,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Remote(new Uri("https://example.invalid/dataset")));
+            CityGmlSource: DatasetLocation.Remote(new Uri("https://example.invalid/dataset")));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
@@ -43,7 +43,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("C:/dataset"),
+            CityGmlSource: DatasetLocation.Local("C:/dataset"),
             DemTextureSource: DatasetLocation.Remote(new Uri("https://example.invalid/ortho.png")));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
@@ -63,7 +63,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(rasterPath));
+            CityGmlSource: DatasetLocation.Local(rasterPath));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
@@ -82,7 +82,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: " tokyo23ku ",
             MeshCode: " 53394525 ",
-            Source: DatasetLocation.Local($"  {sourceRoot.Path}  "),
+            CityGmlSource: DatasetLocation.Local($"  {sourceRoot.Path}  "),
             DemTextureSource: DatasetLocation.Local($"  {geoTiffPath}  "),
             PackageNames: [" waterbody ", " tran "]);
 
@@ -97,8 +97,8 @@ public sealed class PlateauImportRequestValidatorTests
         Assert.Equal("tokyo23ku", validatedRequest!.Dataset);
         Assert.Equal("53394525", validatedRequest.MeshCode);
         Assert.Matches(validatedRequest.MeshCodePattern, "53394525");
-        Assert.IsType<ValidatedLocalDatasetLocation>(validatedRequest.Source);
-        Assert.Equal(sourceRoot.Path, validatedRequest.LocalSourcePath);
+        Assert.IsType<ValidatedLocalDatasetLocation>(validatedRequest.CityGmlSource);
+        Assert.Equal(sourceRoot.Path, validatedRequest.CityGmlLocalSourcePath);
         Assert.Equal(geoTiffPath, validatedRequest.DemTextureLocalSourcePath);
         Assert.Equal(["wtr", "tran"], validatedRequest.PackageNames);
     }
@@ -110,7 +110,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(sourceRoot.Path),
+            CityGmlSource: DatasetLocation.Local(sourceRoot.Path),
             TerrainMeshMode: TerrainMeshMode.Dynamic);
 
         bool success = PlateauImportRequestValidator.TryNormalizeAndValidate(
@@ -133,7 +133,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(sourceRoot.Path),
+            CityGmlSource: DatasetLocation.Local(sourceRoot.Path),
             DemTextureSource: DatasetLocation.Local(geoTiffRoot.Path));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
@@ -149,7 +149,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/path/that/does/not/exist"));
+            CityGmlSource: DatasetLocation.Local("/path/that/does/not/exist"));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
@@ -164,7 +164,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("C:/dataset"),
+            CityGmlSource: DatasetLocation.Local("C:/dataset"),
             TerrainGridMetersPerVertex: metersPerVertex);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
@@ -181,7 +181,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("C:/dataset"),
+            CityGmlSource: DatasetLocation.Local("C:/dataset"),
             TerrainGridMaxResolution: maxResolution);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);

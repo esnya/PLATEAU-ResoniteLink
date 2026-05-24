@@ -24,8 +24,8 @@ public sealed class CliArgumentsParserTests
         Assert.NotNull(result.Options);
         Assert.Equal("tokyo23ku", result.Options.Request.Dataset);
         Assert.Equal("53394525", result.Options.Request.MeshCode);
-        Assert.Equal(DatasetSourceKind.Local, result.Options.Request.SourceKind);
-        Assert.Equal("/data/plateau", result.Options.Request.LocalSourcePath);
+        Assert.Equal(DatasetSourceKind.Local, result.Options.Request.CityGmlSourceKind);
+        Assert.Equal("/data/plateau", result.Options.Request.CityGmlLocalSourcePath);
         Assert.Null(result.Options.Request.DemTextureSource);
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, result.Options.Request.PackageNames);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
@@ -62,8 +62,8 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Null(result.Error);
-        Assert.Equal(DatasetSourceKind.Remote, result.Options!.Request.SourceKind);
-        Assert.Equal(new Uri("https://example.invalid/plateau.zip"), result.Options.Request.ServerUri);
+        Assert.Equal(DatasetSourceKind.Remote, result.Options!.Request.CityGmlSourceKind);
+        Assert.Equal(new Uri("https://example.invalid/plateau.zip"), result.Options.Request.CityGmlServerUri);
         Assert.Equal(DatasetSourceKind.Remote, result.Options.Request.DemTextureSourceKind);
         Assert.Equal(new Uri("https://example.invalid/53394525.tif"), result.Options.Request.DemTextureServerUri);
     }
@@ -80,6 +80,56 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Equal("Specify --citygml-source.", result.Error);
+    }
+
+    [Fact]
+    public void ParseParsesCanonicalSceneDumpImportWithoutResoniteLinkEndpoint()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--canonical-scene-dump", "out/scene.json",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Null(result.Options!.ResoniteLinkUri);
+        Assert.Equal("out/scene.json", result.Options.CanonicalSceneDumpPath);
+    }
+
+    [Fact]
+    public void ParseRejectsCanonicalSceneDumpWithResoniteLinkEndpoint()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--canonical-scene-dump", "out/scene.json",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Equal(
+            "Do not specify --resonitelink-port or --resonitelink-url when --canonical-scene-dump is used.",
+            result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsWhitespaceCanonicalSceneDumpPath()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--canonical-scene-dump", " ",
+            ]);
+
+        Assert.Equal("Specify a non-empty --canonical-scene-dump path.", result.Error);
     }
 
     [Fact]

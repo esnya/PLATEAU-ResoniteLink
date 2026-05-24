@@ -51,7 +51,7 @@ public sealed class ImportServiceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: meshCode,
-            Source: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDataset")));
+            CityGmlSource: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDataset")));
 
         return new ImportCommandOptions(
             request,
@@ -62,6 +62,7 @@ public sealed class ImportServiceFactoryTests
             enableMeshBake,
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: false,
+            CanonicalSceneDumpPath: null,
             EnableSendMetrics: false,
             VerboseLogging: false);
     }

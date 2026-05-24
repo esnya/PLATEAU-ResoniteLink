@@ -9,7 +9,7 @@ internal sealed record SourceFileDescriptor(
     string RelativePath,
     string PackageName,
     string MatchedMeshCode,
-    bool RequiresMeshAreaFilter);
+    bool RequiresMeshCodeBoundsFilter);
 
 internal sealed record CachedSourceFileDescriptor(
     SourceFileDescriptor SourceFile,

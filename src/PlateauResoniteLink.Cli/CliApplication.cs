@@ -73,12 +73,24 @@ public sealed class CliApplication
                             options.WorkRoot,
                             cancellationToken);
 
-                        await standardOutput.WriteLineAsync("Resonite import completed.");
+                        if (options.CanonicalSceneDumpPath is null)
+                        {
+                            await standardOutput.WriteLineAsync("Resonite import completed.");
+                        }
+                        else
+                        {
+                            await standardOutput.WriteLineAsync("Canonical scene dump completed.");
+                            await standardOutput.WriteLineAsync($"Dump: {Path.GetFullPath(options.CanonicalSceneDumpPath)}");
+                        }
+
                         await standardOutput.WriteLineAsync($"World: {result.Metadata.SceneName}");
 
-                        foreach (string destination in result.Destinations)
+                        if (options.CanonicalSceneDumpPath is null)
                         {
-                            await standardOutput.WriteLineAsync($"Resonite location: {destination}");
+                            foreach (string destination in result.Destinations)
+                            {
+                                await standardOutput.WriteLineAsync($"Resonite location: {destination}");
+                            }
                         }
 
                         await WriteDataSourceUsagesAsync(result.DataSourceUsages, cancellationToken);
@@ -172,14 +184,14 @@ public sealed class CliApplication
             return;
         }
 
-        await standardOutput.WriteLineAsync($"Selected mesh codes: {FormatCsv(result.SelectedMeshCodes)}");
-        await standardOutput.WriteLineAsync($"Matched source files: {result.SourceFiles.Count}");
+        await standardOutput.WriteLineAsync($"Selected mesh-codes: {FormatCsv(result.SelectedMeshCodes)}");
+        await standardOutput.WriteLineAsync($"Matched CityGML source files: {result.SourceFiles.Count}");
 
         foreach (DatasetSearchEntry entry in result.SourceFiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await standardOutput.WriteLineAsync(
-                $"{entry.RelativePath} | package={entry.PackageName} | matched={entry.MatchedMeshCode} | requiresMeshAreaFilter={entry.RequiresMeshAreaFilter.ToString(CultureInfo.InvariantCulture).ToLowerInvariant()}");
+                $"{entry.RelativePath} | package={entry.PackageName} | matched={entry.MatchedMeshCode} | requiresMeshCodeBoundsFilter={entry.RequiresMeshCodeBoundsFilter.ToString(CultureInfo.InvariantCulture).ToLowerInvariant()}");
         }
     }
 
@@ -196,9 +208,9 @@ public sealed class CliApplication
             return;
         }
 
-        await standardOutput.WriteLineAsync($"Recognized source files: {result.RecognizedSourceFileCount}");
+        await standardOutput.WriteLineAsync($"Recognized CityGML source files: {result.RecognizedSourceFileCount}");
         await standardOutput.WriteLineAsync($"Package counts: {FormatCounts(result.PackageCounts)}");
-        await standardOutput.WriteLineAsync($"Mesh code counts: {FormatCounts(result.MeshCodeCounts)}");
+        await standardOutput.WriteLineAsync($"Mesh-code counts: {FormatCounts(result.MeshCodeCounts)}");
         await standardOutput.WriteLineAsync($"LOD coverage counts: {FormatCounts(result.LodCoverageCounts)}");
         await standardOutput.WriteLineAsync($"Files without detected LOD: {result.FilesWithoutDetectedLod}");
         await standardOutput.WriteLineAsync(

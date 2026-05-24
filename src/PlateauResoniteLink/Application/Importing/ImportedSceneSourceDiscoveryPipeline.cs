@@ -25,7 +25,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
         ArgumentNullException.ThrowIfNull(lodSelector);
 
-        if (request.Source is not LocalDatasetLocation localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
+        if (request.CityGmlSource is not LocalDatasetLocation localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
             throw new PlateauImportValidationException(
                 [LocalCityGmlImportErrorMessages.MissingLocalSourcePath()]);
@@ -48,7 +48,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
                 descriptor.RelativePath,
                 descriptor.PackageName,
                 descriptor.MatchedMeshCode,
-                descriptor.RequiresMeshAreaFilter))
+                descriptor.RequiresMeshCodeBoundsFilter))
             .ToArray();
         MeshCodeBounds[] requestedMeshAreas = requestedMeshArea is null
             ? MeshCodeBounds.CreateManyFromSelectedMeshCodes(discoveryResult.SelectedMeshCodes)

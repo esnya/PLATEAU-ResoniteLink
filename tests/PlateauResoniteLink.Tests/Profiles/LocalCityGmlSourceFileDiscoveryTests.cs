@@ -29,7 +29,7 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
         Assert.Equal(
             "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
             result[0].RelativePath);
-        Assert.All(result, static file => Assert.False(file.RequiresMeshAreaFilter));
+        Assert.All(result, static file => Assert.False(file.RequiresMeshCodeBoundsFilter));
     }
 
     [Fact]
@@ -48,12 +48,12 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
             result,
             static file =>
                 file.RelativePath == "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml"
-                && file.RequiresMeshAreaFilter);
+                && file.RequiresMeshCodeBoundsFilter);
         Assert.Contains(
             result,
             static file =>
                 file.RelativePath == "udx/tran/533945/plateau_tokyo23ku_tran_533945.gml"
-                && file.RequiresMeshAreaFilter);
+                && file.RequiresMeshCodeBoundsFilter);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
             ],
             result.Select(static file => file.RelativePath).ToArray());
         Assert.Equal(["53394525", "53394526", "533945"], result.Select(static file => file.MatchedMeshCode).ToArray());
-        Assert.Equal([false, false, true], result.Select(static file => file.RequiresMeshAreaFilter).ToArray());
+        Assert.Equal([false, false, true], result.Select(static file => file.RequiresMeshCodeBoundsFilter).ToArray());
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
 
         Assert.Equal(["dem", "tran"], result.Select(static file => file.PackageName).ToArray());
         Assert.All(result, static file => Assert.Equal("533945", file.MatchedMeshCode));
-        Assert.All(result, static file => Assert.True(file.RequiresMeshAreaFilter));
+        Assert.All(result, static file => Assert.True(file.RequiresMeshCodeBoundsFilter));
         Assert.Contains("53394525", discoveryResult.SelectedMeshCodes);
     }
 

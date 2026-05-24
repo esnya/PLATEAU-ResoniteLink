@@ -110,7 +110,8 @@ internal static class TerrainTextureMeshCodeResolver
                 $"package='{terrainOverlay.PackageName}', bounds='{FormatBounds(terrainOverlay.GeographicBounds)}', sources='{terrainOverlay.SourceDescriptorKey}'");
         return new InvalidOperationException(
             $"Terrain overlay material requires a third-level mesh code that matches the overlay geographic bounds. "
-            + $"phase='{phase}', actual_mesh='{actualMeshCode}', requested_mesh='{requestedMeshCode}', "
+            + $"phase='{phase}', actual_mesh='{actualMeshCode}', actual_mesh_code='{actualMeshCode}', "
+            + $"requested_mesh='{requestedMeshCode}', requested_mesh_code='{requestedMeshCode}', "
             + $"requested_areas='{requestedAreaSummary}', overlay={overlaySummary}.");
     }
 

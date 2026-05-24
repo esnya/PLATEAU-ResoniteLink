@@ -27,7 +27,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(fixturePath),
+                CityGmlSource: DatasetLocation.Local(fixturePath),
                 PackageNames: ["bldg"]
 ));
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
@@ -56,7 +56,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetSource.SourcePath),
+                CityGmlSource: DatasetLocation.Local(datasetSource.SourcePath),
                 PackageNames: ["dem"]
 ));
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;

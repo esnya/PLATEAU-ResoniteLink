@@ -56,7 +56,7 @@ public sealed class ResonitePlacementPolicyTests
         PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 expectedOffset =
             PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin);
 
-        Assert.Empty(correction.Layers.Source);
+        Assert.Empty(correction.Layers.SourceFile);
         Assert.Empty(correction.Layers.Import);
         Assert.Collection(
             correction.Layers.Placement,

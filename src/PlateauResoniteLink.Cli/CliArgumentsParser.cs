@@ -22,7 +22,7 @@ public static class CliArgumentsParser
 
         Import options:
           --dataset <value>      Required. PLATEAU dataset identifier.
-          --mesh-code <value>    Required. PLATEAU mesh code or regex to construct in Resonite.
+          --mesh-code <value>    Required. PLATEAU mesh-code or regex to construct in Resonite.
           --packages <csv>       Optional. Comma-separated PLATEAU package names. Default: dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg.
           --exclude-lod <csv>    Optional. Comma-separated LOD levels to exclude globally.
           --exclude-lod-for-package <csv>
@@ -48,6 +48,9 @@ public static class CliArgumentsParser
                                 Optional. Override the persistent terrain tile cache root.
           --disable-terrain-tile-cache
                                 Optional. Disable persistent terrain tile caching across runs.
+          --canonical-scene-dump <path>
+                                Optional. Developer semantic verification mode. Apply the import to a fake ResoniteLink sink
+                                and write the canonical final scene JSON instead of connecting to ResoniteLink.
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and import live into Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink imports.
           --resonitelink-connections <count>
@@ -61,7 +64,7 @@ public static class CliArgumentsParser
         Search/stats options:
           --citygml-source <path>
                                 Required. Local dataset directory or .zip/.7z archive to inspect.
-          --mesh-code <value>    Required for search. PLATEAU mesh code or regex to search within the dataset source.
+          --mesh-code <value>    Required for search. PLATEAU mesh-code or regex to search within the CityGML source.
           --packages <csv>       Optional. Restrict inspection to specific PLATEAU packages.
           --format <text|json>   Optional. Output format. Default: text.
 
@@ -95,6 +98,7 @@ public static class CliArgumentsParser
         string workRoot = "local";
         string? terrainTileCacheRoot = null;
         bool disableTerrainTileCache = false;
+        string? canonicalSceneDumpPath = null;
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
         PlateauImportMemoryProfile memoryProfile = CliDefaultOptions.MemoryProfile;
@@ -153,6 +157,9 @@ public static class CliArgumentsParser
                         break;
                     case "--disable-terrain-tile-cache":
                         disableTerrainTileCache = true;
+                        break;
+                    case "--canonical-scene-dump":
+                        canonicalSceneDumpPath = ReadValue(args, ref index, token);
                         break;
                     case "--resonitelink-port":
                         {
@@ -350,7 +357,7 @@ public static class CliArgumentsParser
             return CliParseResult.Failure("Specify --citygml-source.");
         }
 
-        if (!TryParseDatasetLocationInput(cityGmlSourceInput, out DatasetLocation? source, out string? sourceError))
+        if (!TryParseDatasetLocationInput(cityGmlSourceInput, out DatasetLocation? cityGmlSource, out string? sourceError))
         {
             return CliParseResult.Failure(sourceError!);
         }
@@ -362,10 +369,15 @@ public static class CliArgumentsParser
             return CliParseResult.Failure(demTextureSourceError!);
         }
 
+        if (canonicalSceneDumpPath is not null && string.IsNullOrWhiteSpace(canonicalSceneDumpPath))
+        {
+            return CliParseResult.Failure("Specify a non-empty --canonical-scene-dump path.");
+        }
+
         PlateauImportRequest request = new(
             Dataset: dataset ?? string.Empty,
             MeshCode: meshCode ?? string.Empty,
-            Source: source!,
+            CityGmlSource: cityGmlSource!,
             DemTextureSource: demTextureSource,
             PackageNames: packageNames,
             GlobalExcludeLodLevels: globalExcludeLods,
@@ -376,7 +388,13 @@ public static class CliArgumentsParser
             TerrainGridMetersPerVertex: terrainGridMetersPerVertex,
             TerrainGridMaxResolution: terrainGridMaxResolution);
 
-        if (resoniteLinkUri is null)
+        if (canonicalSceneDumpPath is not null && resoniteLinkUri is not null)
+        {
+            return CliParseResult.Failure(
+                "Do not specify --resonitelink-port or --resonitelink-url when --canonical-scene-dump is used.");
+        }
+
+        if (resoniteLinkUri is null && canonicalSceneDumpPath is null)
         {
             return CliParseResult.Failure(
                 "Specify either --resonitelink-port or --resonitelink-url.");
@@ -392,6 +410,7 @@ public static class CliArgumentsParser
                 enableMeshBake,
                 terrainTileCacheRoot,
                 disableTerrainTileCache,
+                canonicalSceneDumpPath,
                 enableSendMetrics,
                 verboseLogging));
     }

@@ -76,7 +76,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local(fixturePath));
+            CityGmlSource: DatasetLocation.Local(fixturePath));
 
         DefaultImportedSceneSourceFactory factory = new(
             documentReader,
@@ -879,7 +879,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
@@ -925,7 +925,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
@@ -960,7 +960,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
@@ -997,7 +997,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "533945",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
@@ -1038,7 +1038,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "533945",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
@@ -1089,7 +1089,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"),
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem"],
             TerrainMeshMode: TerrainMeshMode.Grid);
 
@@ -1129,7 +1129,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394[56]..",
-            Source: DatasetLocation.Local("/tmp/plateau"),
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem"],
             TerrainMeshMode: TerrainMeshMode.Grid);
 
@@ -1167,7 +1167,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"),
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem", "bldg"]);
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
@@ -1203,7 +1203,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"),
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem", "bldg"]);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
@@ -1247,7 +1247,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "533945",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         MaterialBinding[] materialBindings = LocalCityGmlObjectProjection.EnumerateCommonMaterialsForParsedCityObject(
             cityObject,
@@ -1291,7 +1291,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
             LocalCityGmlObjectProjection.ProjectParsedCityObject(
@@ -1333,7 +1333,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
             LocalCityGmlObjectProjection.ProjectParsedCityObject(
@@ -1613,7 +1613,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "plateau-20202-matsumoto-shi-2020",
             MeshCode: "54372778",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
@@ -1705,7 +1705,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/plateau"));
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
@@ -1737,7 +1737,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetRoot.Path),
+                CityGmlSource: DatasetLocation.Local(datasetRoot.Path),
                 PackageNames: ["bldg"]
 ),
             workRoot: "runtime/resonite");
@@ -1792,7 +1792,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetRoot.Path),
+                CityGmlSource: DatasetLocation.Local(datasetRoot.Path),
                 PackageNames: ["bldg"]
 ),
             workRoot: "runtime/resonite");
@@ -2231,7 +2231,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetRoot.Path),
+                CityGmlSource: DatasetLocation.Local(datasetRoot.Path),
                 PackageNames: ["dem"]
 ),
             workRoot: "runtime/resonite");
@@ -2280,7 +2280,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetRoot.Path),
+                CityGmlSource: DatasetLocation.Local(datasetRoot.Path),
                 PackageNames: ["dem"]
 ),
             workRoot: "runtime/resonite");
@@ -2323,7 +2323,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetRoot.Path),
+                CityGmlSource: DatasetLocation.Local(datasetRoot.Path),
                 PackageNames: ["dem"],
                 TerrainMeshMode: TerrainMeshMode.Grid
 ),
@@ -2394,7 +2394,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetRoot.Path),
+                CityGmlSource: DatasetLocation.Local(datasetRoot.Path),
                 PackageNames: ["dem"],
                 TerrainMeshMode: TerrainMeshMode.Grid
 ),
@@ -2431,7 +2431,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetRoot.Path),
+                CityGmlSource: DatasetLocation.Local(datasetRoot.Path),
                 PackageNames: ["dem"],
                 TerrainMeshMode: TerrainMeshMode.Dynamic
 ),
@@ -2483,7 +2483,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local("dataset"),
+                CityGmlSource: DatasetLocation.Local("dataset"),
                 PackageNames: ["dem"],
                 TerrainMeshMode: TerrainMeshMode.Dynamic
 ));
@@ -2515,7 +2515,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local("dataset"),
+                CityGmlSource: DatasetLocation.Local("dataset"),
                 PackageNames: ["dem"],
                 TerrainMeshMode: TerrainMeshMode.Dynamic
 ));
@@ -2539,7 +2539,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetRoot.Path),
+                CityGmlSource: DatasetLocation.Local(datasetRoot.Path),
                 PackageNames: ["dem"],
                 TerrainMeshMode: TerrainMeshMode.Grid
 ),
@@ -2575,7 +2575,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetRoot.Path),
+                CityGmlSource: DatasetLocation.Local(datasetRoot.Path),
                 PackageNames: ["dem"],
                 TerrainMeshMode: TerrainMeshMode.Grid
 ),
@@ -2647,7 +2647,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                Source: DatasetLocation.Local(datasetRoot.Path),
+                CityGmlSource: DatasetLocation.Local(datasetRoot.Path),
                 PackageNames: ["dem", "luse"]
 ),
             workRoot: "runtime/resonite");

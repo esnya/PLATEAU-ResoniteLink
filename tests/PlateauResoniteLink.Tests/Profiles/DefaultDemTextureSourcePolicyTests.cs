@@ -32,7 +32,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("C:\\dataset"),
+            CityGmlSource: DatasetLocation.Local("C:\\dataset"),
             DemTextureSource: DatasetLocation.Local("C:\\ortho"),
             PackageNames: ["dem"]);
 
@@ -58,7 +58,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("C:\\dataset"),
+            CityGmlSource: DatasetLocation.Local("C:\\dataset"),
             DemTextureSource: DatasetLocation.Local("C:\\ortho"),
             PackageNames: ["dem"]);
 
@@ -79,7 +79,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("C:\\dataset"),
+            CityGmlSource: DatasetLocation.Local("C:\\dataset"),
             PackageNames: ["dem"]);
 
         ResolvedDemTextureSources result = await policy.ResolveAsync(request, CreateOverlayRegions("53394525"));

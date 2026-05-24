@@ -29,7 +29,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
     private readonly object sceneDemTerrainTextureOverlayGate = new();
     private readonly ConcurrentDictionary<string, Task<TerrainTextureOverlay[]>> demTerrainTextureOverlayTasks = new(StringComparer.Ordinal);
     private readonly X3DMaterialWarningStatistics x3DMaterialWarningStatistics = new();
-    private readonly MeshCodeBounds[] requestedMeshAreas;
+    private readonly MeshCodeBounds[] requestedMeshCodeBounds;
     private readonly string[] selectedMeshCodes;
     private readonly TerrainTextureOverlay[] discoveryTerrainTextureOverlays;
     private readonly bool hasDemPackage;
@@ -61,7 +61,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         this.demTextureSourcePolicy = demTextureSourcePolicy;
         this.objectUnitOptimizer = objectUnitOptimizer;
         this.progressReporter = progressReporter;
-        requestedMeshAreas = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
+        requestedMeshCodeBounds = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
             Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode]);
     }
 
@@ -231,7 +231,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
-                         requestedMeshAreas,
+                         requestedMeshCodeBounds,
                          request,
                          predicate: null,
                          progressReporter,
@@ -257,7 +257,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
-                         requestedMeshAreas,
+                         requestedMeshCodeBounds,
                          request,
                          predicate: null,
                          progressReporter,
@@ -428,7 +428,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
             if (DemTerrainOverlayAssignment.HasOverlayCoverage(
                     parsedCityObject,
                     overlays,
-                    requestedMeshAreas))
+                    requestedMeshCodeBounds))
             {
                 continue;
             }
@@ -533,7 +533,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         ParsedSourceFileResult parsedSourceFile,
         bool preferRequestedMeshCodeSplit)
     {
-        DemTerrainBounds? fallbackBounds = MeshCodeBounds.TryMerge(requestedMeshAreas) is { } requestedMeshBounds
+        DemTerrainBounds? fallbackBounds = MeshCodeBounds.TryMerge(requestedMeshCodeBounds) is { } requestedMeshBounds
             ? new DemTerrainBounds(
                 requestedMeshBounds.SouthLatitude,
                 requestedMeshBounds.NorthLatitude,

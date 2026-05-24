@@ -23,7 +23,7 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            Source: DatasetLocation.Local("/tmp/source.zip"));
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"));
         StreamingImportedSceneSource source = new(
             CreateMetadata(request),
             request,
@@ -54,7 +54,7 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "53394525",
-            Source: DatasetLocation.Local("/tmp/source.zip"),
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
 
             PackageNames: ["bldg", "dem"]);
         TerrainTextureOverlay overlay = new(
@@ -70,8 +70,8 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(
                 [
-                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshAreaFilter: false),
-                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
+                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
                 ],
                 [overlay]),
             geometryProjector,
@@ -95,7 +95,7 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            Source: DatasetLocation.Local("/tmp/source.zip"),
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
 
             PackageNames: ["bldg", "dem"]);
         TerrainTextureOverlay fallbackOverlay = new(
@@ -113,8 +113,8 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(
                 [
-                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshAreaFilter: false),
-                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshAreaFilter: false),
+                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
                 ],
                 selectedMeshCodes: ["53394525"]),
             geometryProjector,
@@ -140,7 +140,7 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            Source: DatasetLocation.Local("/tmp/source.zip"),
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
 
             PackageNames: ["dem"]);
         TerrainTextureOverlay fallbackOverlay = new(
@@ -158,7 +158,7 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(
                 [
-                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
                 ]),
             geometryProjector,
             demTextureSourcePolicy,
@@ -184,11 +184,11 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            Source: DatasetLocation.Local("/tmp/source.zip"),
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
 
             PackageNames: ["dem"]);
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false);
+        SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false);
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(
             new TerrainTextureOverlay(
                 PackageName: "dem",
@@ -244,7 +244,7 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            Source: DatasetLocation.Local("/tmp/source.zip"),
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
             PackageNames: ["dem"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
         TerrainTextureOverlay explicitRasterOverlay = new(
@@ -269,7 +269,7 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(
                 [
-                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
                 ]),
             geometryProjector,
             demTextureSourcePolicy,
@@ -293,11 +293,11 @@ public sealed class StreamingImportedSceneSourceTests
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
             MeshCode: "57402736",
-            Source: DatasetLocation.Local("/tmp/source.zip"),
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
 
             PackageNames: ["dem"]);
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false);
+        SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false);
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(delayOverlayResolutionUntilCancellation: true);
         StreamingImportedSceneSource source = new(
             CreateMetadata(request),
@@ -354,7 +354,7 @@ public sealed class StreamingImportedSceneSourceTests
                 $"udx/bldg/file-{index:000}.gml",
                 "bldg",
                 "57402736",
-                RequiresMeshAreaFilter: false))
+                RequiresMeshCodeBoundsFilter: false))
             .ToArray();
         return CreateReadResult(sourceFiles);
     }
@@ -517,7 +517,7 @@ public sealed class StreamingImportedSceneSourceTests
             GeodeticPoint globalOriginPoint,
             GeographicLib.LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-            IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+            IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
             PlateauImportRequest request,
             Func<ParsedCityObject, bool>? predicate = null,
             Action<string>? progressReporter = null,
@@ -527,7 +527,7 @@ public sealed class StreamingImportedSceneSourceTests
             _ = globalOriginPoint;
             _ = globalCartesian;
             _ = demTerrainTextureOverlays;
-            _ = requestedMeshAreas;
+            _ = requestedMeshCodeBounds;
             _ = request;
             _ = predicate;
             _ = progressReporter;
@@ -585,7 +585,7 @@ public sealed class StreamingImportedSceneSourceTests
             GeodeticPoint globalOriginPoint,
             GeographicLib.LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-            IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+            IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
             PlateauImportRequest request,
             Func<ParsedCityObject, bool>? predicate = null,
             Action<string>? progressReporter = null,
@@ -594,7 +594,7 @@ public sealed class StreamingImportedSceneSourceTests
             _ = referenceSystem;
             _ = globalOriginPoint;
             _ = globalCartesian;
-            _ = requestedMeshAreas;
+            _ = requestedMeshCodeBounds;
             _ = request;
             _ = progressReporter;
             _ = cancellationToken;
