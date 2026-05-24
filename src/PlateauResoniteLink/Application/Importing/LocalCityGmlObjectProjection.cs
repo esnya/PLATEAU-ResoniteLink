@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -111,7 +109,7 @@ internal static class LocalCityGmlObjectProjection
             .Where(static surface => surface is not null)
             .Select(static surface => surface!)
             .Select(surface => CityGmlParsedSurfaceReader.ApplyPackageDefaults(packageName, surface))
-            .OrderBy(static surface => CreateStableSurfaceSortKey(surface), StringComparer.Ordinal)
+            .OrderBy(static surface => ParsedSurfaceStableSortKey.Create(surface), StringComparer.Ordinal)
             .ToArray();
 
         if (surfaces.Length == 0)
@@ -329,50 +327,6 @@ internal static class LocalCityGmlObjectProjection
     {
         meshCodeArea = MeshCodeBounds.TryParse(meshCode);
         return meshCodeArea is not null;
-    }
-
-    private static string CreateStableSurfaceSortKey(ParsedSurface surface)
-    {
-        using MemoryStream stream = new();
-        using (BinaryWriter writer = new(stream, Encoding.UTF8, leaveOpen: true))
-        {
-            writer.Write(surface.PolygonId);
-            writer.Write((int)surface.Semantic);
-            WriteRing(writer, surface.ExteriorRing);
-            writer.Write(surface.InteriorRings.Length);
-            foreach (ParsedRing ring in surface.InteriorRings.OrderBy(static ring => ring.RingId, StringComparer.Ordinal))
-            {
-                WriteRing(writer, ring);
-            }
-        }
-
-        byte[] hash = SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)));
-        return Convert.ToHexString(hash.AsSpan(0, 16)).ToLowerInvariant();
-
-        static void WriteRing(BinaryWriter writer, ParsedRing ring)
-        {
-            writer.Write(ring.RingId);
-            writer.Write(ring.Vertices.Length);
-            foreach (GeodeticPoint vertex in ring.Vertices)
-            {
-                writer.Write(vertex.Latitude);
-                writer.Write(vertex.Longitude);
-                writer.Write(vertex.Altitude);
-            }
-
-            IReadOnlyList<Float2>? uvs = ring.UVs;
-            writer.Write(uvs?.Count ?? -1);
-            if (uvs is null)
-            {
-                return;
-            }
-
-            foreach (Float2 uv in uvs)
-            {
-                writer.Write(uv.X);
-                writer.Write(uv.Y);
-            }
-        }
     }
 
     private static (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) GetBounds(
@@ -1120,7 +1074,7 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .ToArray();
 
         for (int materialIndex = 0; materialIndex < materialGroups.Length; materialIndex++)
@@ -1134,7 +1088,7 @@ internal static class LocalCityGmlObjectProjection
                 cityObjectCartesian);
 
             foreach (ResolvedSurfaceMaterial resolvedSurface in materialGroup
-                         .OrderBy(static surface => CreateStableSurfaceSortKey(surface.Surface), StringComparer.Ordinal))
+                         .OrderBy(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface), StringComparer.Ordinal))
             {
                 TriangulateSurface(
                     cityObject.PackageName,
@@ -3901,7 +3855,7 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -3955,7 +3909,7 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -4558,7 +4512,7 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -4622,7 +4576,7 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => CreateStableSurfaceSortKey(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
