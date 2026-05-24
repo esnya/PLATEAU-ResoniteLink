@@ -155,12 +155,13 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             datasetLicenseWriter,
             preparedCityObjectImporter);
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(queuedCityObjectSender);
+        ResoniteLiveSendWorkerLauncher workerLauncher = new(queuedCityObjectWorker);
         ResoniteLiveSendRunStarter runStarter = new(
             sceneSetupInterpreter,
             new ResoniteCommonMaterialSetupPreparer(materialPlanning, options.ProgressReporter),
             runPlanFactory,
             runStateFactory,
-            queuedCityObjectWorker,
+            workerLauncher,
             slotCreator);
 
         return new ResoniteLiveSceneImportDependencies(

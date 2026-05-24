@@ -66,7 +66,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             CreateCommonMaterialSetupPreparer(materialPlanning, progressReporter),
             new LiveSendRunPlanFactory(),
             CreateRunStateFactory(),
-            CreateQueuedCityObjectWorker(materialPlanning),
+            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)),
             new ResoniteSlotCreator());
     }
 

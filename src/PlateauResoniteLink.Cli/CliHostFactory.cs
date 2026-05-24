@@ -226,7 +226,7 @@ internal sealed class DefaultSceneSinkFactory(
                     new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
                     serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
                     serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
-                    queuedCityObjectWorker,
+                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
                     serviceProvider.GetRequiredService<IResoniteSlotCreator>()),
                 queue));
     }

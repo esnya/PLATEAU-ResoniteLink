@@ -40,7 +40,7 @@ internal sealed class ResoniteLiveSendRunStarter(
     IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
     ILiveSendRunPlanFactory runPlanFactory,
     ILiveSendRunStateFactory runStateFactory,
-    IResoniteQueuedCityObjectWorker queuedCityObjectWorker,
+    IResoniteLiveSendWorkerLauncher workerLauncher,
     IResoniteSlotCreator slotCreator) : IResoniteLiveSendRunStarter
 {
     public async Task<LiveSendRunState> StartAsync(
@@ -173,13 +173,6 @@ internal sealed class ResoniteLiveSendRunStarter(
                 "live",
                 $"Dataset metadata/license phase complete during setup. "
                 + $"Dataset root existed={setupState.DatasetRootExisted}."));
-        LiveSendQueuePlan runtimePlan = runPlan.Queue;
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Starting routed send workers (connection_pool={request.ConnectionCount})."));
-        progress.Reset();
         LiveSendRunState state = runStateFactory.Create(
             runPlan,
             setupState,
@@ -187,37 +180,13 @@ internal sealed class ResoniteLiveSendRunStarter(
             materials,
             placement,
             cancellationToken);
-        ResoniteImportBudgetProfile resourceBudget = runPlan.ResourceBudget;
-        Stopwatch laneStartStopwatch = Stopwatch.StartNew();
-        context.Diagnostics.StartSendWindow(request.ConnectionCount);
-        state.Runtime.Start(queuedCityObjectWorker.CreateProcessingTasks(
-            state,
-            new LiveSendWorkerContext(
-                context.Endpoint,
-                request.ConnectionCount,
-                () => GetRoutedClient(context),
-                context.Diagnostics,
-                context.ProgressReporter)));
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Send lane tasks launched (connection budget={request.ConnectionCount}, "
-                + $"queue_capacity_total={runtimePlan.QueueCapacity}, "
-                + $"memory_budget_bytes={runtimePlan.MemoryBudgetBytes}, "
-                + $"memory_profile={resourceBudget.Name.ToString().ToLowerInvariant()}, "
-                + $"runtime_vram_budget_bytes={resourceBudget.RuntimeVramBudgetBytes})."));
-        laneStartStopwatch.Stop();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Send workers ready against connection pool={request.ConnectionCount}."));
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Send lane startup phase complete in {laneStartStopwatch.Elapsed.TotalSeconds:F2}s."));
+        workerLauncher.Launch(
+            new LiveSendWorkerLaunchRequest(
+                state,
+                runPlan.Queue,
+                runPlan.ResourceBudget,
+                request.ConnectionCount),
+            context);
         return state;
     }
 
