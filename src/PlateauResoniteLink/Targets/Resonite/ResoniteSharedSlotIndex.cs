@@ -1,14 +1,10 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
-
-using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -23,26 +19,12 @@ internal sealed class ResoniteSharedSlotIndex(
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> sharedSlotCache = new();
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> runScopedSourceFileRootCache = new();
     private readonly AsyncCompletedResultCache<CanonicalParentSourceFile, CanonicalParentScope> canonicalParentScopeCache = new();
-    private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<SharedSlotIndexKey, CreatedSlot> sharedSlotIndex = new();
-    private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
-    private Slot[]? observedDatasetSourceRoots;
+    private readonly ResoniteSlotSnapshotIndex slotSnapshotIndex = new(datasetRootSlot);
     public SceneAnchor? SceneAnchor { get; private set; } = initialSceneAnchor;
 
     public void IndexSetupHierarchy(ResoniteSceneSetupState setupState)
     {
-        observedDatasetSourceRoots = null;
-        if (setupState.DatasetRootSnapshot is not null)
-        {
-            observedSlotSnapshotsById.Clear();
-            IndexObservedSlotSnapshot(setupState.DatasetRootSnapshot);
-        }
-        else
-        {
-            IndexCreatedSharedSlot(ResoniteSlotLocator.Root, setupState.DatasetRootSlot);
-        }
-
-        IndexCreatedSharedSlot(setupState.DatasetRootSlot.Locator, setupState.DatasetAssetsRootSlot);
+        slotSnapshotIndex.IndexSetupHierarchy(setupState);
     }
 
     public Task<ObjectSlotHierarchy> CreateObjectHierarchyTask(
@@ -186,8 +168,8 @@ internal sealed class ResoniteSharedSlotIndex(
             async ct =>
             {
                 CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, null, ct);
-                createdSlotIds[createdSlot.Locator.Value] = 0;
-                return IndexCreatedSharedSlot(parent, createdSlot, position);
+                slotSnapshotIndex.MarkCreated(createdSlot);
+                return slotSnapshotIndex.IndexCreatedSharedSlot(parent, createdSlot, position);
             },
             cancellationToken);
     }
@@ -203,57 +185,18 @@ internal sealed class ResoniteSharedSlotIndex(
         CreatedSlot? indexedSlot = TryGetIndexedSharedChildSlot(parent, slotName);
         if (indexedSlot is not null)
         {
-            createdSlotIds[indexedSlot.Value.Locator.Value] = 0;
+            slotSnapshotIndex.MarkCreated(indexedSlot.Value);
             return indexedSlot.Value;
         }
 
         CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, rotation, cancellationToken);
-        createdSlotIds[createdSlot.Locator.Value] = 0;
-        return IndexCreatedSharedSlot(parent, createdSlot, position);
-    }
-
-    private void IndexObservedSlotSnapshot(Slot slot)
-    {
-        if (string.IsNullOrWhiteSpace(slot.ID))
-        {
-            return;
-        }
-
-        observedSlotSnapshotsById[slot.ID] = slot;
-        if (slot.Children is null || slot.Children.Count == 0)
-        {
-            return;
-        }
-
-        foreach (Slot child in slot.Children)
-        {
-            if (!string.IsNullOrWhiteSpace(child.ID) && !string.IsNullOrWhiteSpace(child.Name?.Value))
-            {
-                sharedSlotIndex[new SharedSlotIndexKey(slot.ID!, child.Name!.Value)] = new CreatedSlot(new ResoniteSlotLocator(child.ID!), child.Name.Value);
-            }
-
-            IndexObservedSlotSnapshot(child);
-        }
+        slotSnapshotIndex.MarkCreated(createdSlot);
+        return slotSnapshotIndex.IndexCreatedSharedSlot(parent, createdSlot, position);
     }
 
     private CreatedSlot? TryGetIndexedSharedChildSlot(ResoniteSlotLocator parent, string slotName)
     {
-        return sharedSlotIndex.TryGetValue(new SharedSlotIndexKey(parent.Value, slotName), out CreatedSlot createdSlot)
-            ? createdSlot
-            : null;
-    }
-
-    private CreatedSlot IndexCreatedSharedSlot(ResoniteSlotLocator parent, CreatedSlot createdSlot, ResoniteFloat3? position = null)
-    {
-        sharedSlotIndex[new SharedSlotIndexKey(parent.Value, createdSlot.SlotName)] = createdSlot;
-        observedSlotSnapshotsById[createdSlot.Locator.Value] = new Slot
-        {
-            ID = createdSlot.Locator.Value,
-            Name = new Field_string { Value = createdSlot.SlotName },
-            Parent = new Reference { TargetID = parent.Value },
-            Position = position is null ? null : CreateFloat3(position),
-        };
-        return createdSlot;
+        return slotSnapshotIndex.TryGetSharedChildSlot(parent, slotName);
     }
 
     private SourceRootPlacement ResolveSourceRootPlacement(
@@ -265,33 +208,7 @@ internal sealed class ResoniteSharedSlotIndex(
             rootMeshCode,
             requestLocalOrigin,
             SceneAnchor,
-            GetObservedDatasetSourceRoots());
-    }
-
-    private IEnumerable<Slot> EnumerateObservedDatasetSourceRoots()
-    {
-        return observedSlotSnapshotsById.Values
-            .Where(slot => string.Equals(slot.Parent?.TargetID, datasetRootSlot.Locator.Value, StringComparison.Ordinal))
-            .Where(slot => string.IsNullOrWhiteSpace(slot.ID) || !createdSlotIds.ContainsKey(slot.ID!))
-            .Where(static slot => !string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal));
-    }
-
-    private Slot[] GetObservedDatasetSourceRoots()
-    {
-        return observedDatasetSourceRoots ??= EnumerateObservedDatasetSourceRoots().ToArray();
-    }
-
-    private static Field_float3 CreateFloat3(ResoniteFloat3 value)
-    {
-        return new Field_float3
-        {
-            Value = new float3
-            {
-                x = (float)value.X,
-                y = (float)value.Y,
-                z = (float)value.Z,
-            },
-        };
+            slotSnapshotIndex.GetObservedDatasetSourceRoots());
     }
 
     internal sealed record ObjectSlotHierarchy(
