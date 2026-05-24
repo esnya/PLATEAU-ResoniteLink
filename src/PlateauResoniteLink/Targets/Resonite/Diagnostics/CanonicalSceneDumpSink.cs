@@ -11,7 +11,7 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
 
 internal sealed class CanonicalSceneDumpSink(
-    ResoniteLiveSceneImportTarget inner,
+    ISceneSink inner,
     SceneSinkRecordingClient recordingClient,
     string outputPath) : ISceneSink
 {

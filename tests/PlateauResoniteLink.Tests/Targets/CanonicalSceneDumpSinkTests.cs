@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -21,54 +20,23 @@ public sealed class CanonicalSceneDumpSinkTests
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
-        Justification = "CanonicalSceneDumpSink owns the created target for this test.")]
-    public async Task ExecuteAsyncWritesCanonicalDumpAfterFakeLinkImportCompletes()
+        Justification = "CanonicalSceneDumpSink owns the created inner sink for this test.")]
+    public async Task ExecuteAsyncWritesCanonicalDumpAfterInnerSinkCompletes()
     {
         using TemporaryDirectory outputDirectory = new();
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
-        SceneSinkRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         await using CanonicalSceneDumpSink sink = new(
-            ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
-                client,
-                new RecordingTerrainTextureAssetGenerator(CreateDeterministicTerrainTexture)),
+            new RecordingInnerSceneSink(client),
             client,
             outputPath);
 
-        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            "tokyo23ku",
-            "53394525",
-            outputDirectory.Path,
-            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
-            sourceFiles: ["udx/bldg/53394525_bldg.gml"]);
-        ResoniteConstructionCityObject cityObject = new(
-            SlotKey: "building-1",
-            DisplayName: "Building 1",
-            PackageName: "bldg",
-            ActualMeshCode: "53394525",
-            LodLevel: 1,
-            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
-            Materials:
-            [
-                new ResoniteMaterialBinding(
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                    MaterialType: ResoniteMaterialType.Standard,
-                    TexturePayload: null,
-                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-                    Projection: ResoniteMaterialProjection.Uv,
-                    DepthOffset: null,
-                    SubmeshIndices: [0]),
-            ],
-            CollisionEnabled: true,
-            SourceFileRelativePath: "udx/bldg/53394525_bldg.gml");
-
         _ = await sink.ExecuteAsync(
-            ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, outputDirectory.Path),
-            ResoniteLiveSceneImportTargetTestSupport.CreateImportedObjectUnitsForTestsAsync([cityObject]));
+            CreateExecutionPlan(outputDirectory.Path),
+            EmptyObjectUnits());
 
         string dump = await File.ReadAllTextAsync(outputPath);
         Assert.Contains("\"root\"", dump, StringComparison.Ordinal);
-        Assert.Contains("\"imports\"", dump, StringComparison.Ordinal);
         Assert.Contains("\"Building 1\"", dump, StringComparison.Ordinal);
         Assert.EndsWith("\n", dump, StringComparison.Ordinal);
         Assert.DoesNotContain("\r\n", dump, StringComparison.Ordinal);
@@ -78,29 +46,20 @@ public sealed class CanonicalSceneDumpSinkTests
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
-        Justification = "CanonicalSceneDumpSink owns the created target for this test.")]
-    public async Task ExecuteAsyncDoesNotLeaveDumpWhenImportFailsBeforeCompletion()
+        Justification = "CanonicalSceneDumpSink owns the created inner sink for this test.")]
+    public async Task ExecuteAsyncDoesNotLeaveDumpWhenInnerSinkFailsBeforeCompletion()
     {
         using TemporaryDirectory outputDirectory = new();
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
-        SceneSinkRecordingClient client = new();
+        using SceneSinkRecordingClient client = new();
         await using CanonicalSceneDumpSink sink = new(
-            ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
-                client,
-                session: new DelegatingClientSession(
-                    client,
-                    (_, _) => throw new InvalidOperationException("connection failed"))),
+            new FailingInnerSceneSink(),
             client,
             outputPath);
-        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            "tokyo23ku",
-            "53394525",
-            outputDirectory.Path,
-            new ResoniteLocalOrigin(35.0, 139.0, 0.0));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => sink.ExecuteAsync(
-            ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, outputDirectory.Path),
-            ResoniteLiveSceneImportTargetTestSupport.CreateImportedObjectUnitsForTestsAsync([])));
+            CreateExecutionPlan(outputDirectory.Path),
+            EmptyObjectUnits()));
         Assert.False(File.Exists(outputPath));
     }
 
@@ -231,17 +190,20 @@ public sealed class CanonicalSceneDumpSinkTests
         Assert.DoesNotContain("slot:A/B#0%1", dump, StringComparison.Ordinal);
     }
 
-    private static GeneratedTerrainTexture CreateDeterministicTerrainTexture(TerrainTextureOverlay overlay)
+    private static SceneImportExecutionPlan CreateExecutionPlan(string workDirectory)
     {
-        return new GeneratedTerrainTexture(
-            new ResoniteRawTextureImport(
-                2,
-                2,
-                ResoniteTextureColorProfiles.Srgb,
-                [128, 160, 192, 255, 128, 160, 192, 255, 128, 160, 192, 255, 128, 160, 192, 255]),
-            new ResoniteFloat2(1.0, 1.0),
-            new ResoniteFloat2(0.0, 0.0),
-            overlay.GetRequiredPrimaryTileSource());
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            "tokyo23ku",
+            "53394525",
+            workDirectory,
+            new ResoniteLocalOrigin(35.0, 139.0, 0.0));
+        return ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory);
+    }
+
+    private static async IAsyncEnumerable<ImportedObjectUnit> EmptyObjectUnits()
+    {
+        await Task.CompletedTask;
+        yield break;
     }
 
     private static async Task AddDictionaryBackedComponentAsync(
@@ -286,4 +248,43 @@ public sealed class CanonicalSceneDumpSinkTests
         }, CancellationToken.None);
     }
 
+    private sealed class RecordingInnerSceneSink(SceneSinkRecordingClient client) : ISceneSink
+    {
+        public async Task<SceneImportExecutionResult> ExecuteAsync(
+            SceneImportExecutionPlan plan,
+            IAsyncEnumerable<ImportedObjectUnit> objectUnits,
+            CancellationToken cancellationToken = default)
+        {
+            _ = await client.AddSlotAsync(new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference { TargetID = "Root" },
+                    Name = new Field_string { Value = "Building 1" },
+                },
+            }, cancellationToken);
+            return new SceneImportExecutionResult(["stub://resonite/location"], 1);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class FailingInnerSceneSink : ISceneSink
+    {
+        public Task<SceneImportExecutionResult> ExecuteAsync(
+            SceneImportExecutionPlan plan,
+            IAsyncEnumerable<ImportedObjectUnit> objectUnits,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("inner failed");
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
+    }
 }
