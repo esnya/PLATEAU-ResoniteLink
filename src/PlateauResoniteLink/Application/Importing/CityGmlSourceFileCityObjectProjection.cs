@@ -35,6 +35,6 @@ internal static class CityGmlSourceFileCityObjectProjection
             sourceFile.RequiresMeshCodeBoundsFilter ? requestedMeshAreas : null,
             lodFilteringStrategy);
 
-        return cityObject is null ? null : ParsedCityObject.FromProjectionModel(cityObject);
+        return cityObject is null ? null : CityGmlProjectionModelAdapter.FromProjectionModel(cityObject);
     }
 }
