@@ -220,6 +220,7 @@ internal sealed class DefaultSceneSinkFactory(
             new ResoniteLiveSceneImportDependencies(
                 new SingleRecordingClientSession(recordingClient),
                 diagnostics,
+                serviceProvider.GetRequiredService<IResoniteLiveSendStartRequestFactory>(),
                 new ResoniteLiveSendRunStarter(
                     serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
                     new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),

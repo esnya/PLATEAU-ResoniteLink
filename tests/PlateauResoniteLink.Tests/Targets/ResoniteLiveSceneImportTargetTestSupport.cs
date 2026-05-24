@@ -321,6 +321,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,
+                new ResoniteLiveSendStartRequestFactory(),
                 new ResoniteLiveSendRunStarter(
                     new ResoniteSceneSetupInterpreter(
                         new ResoniteSceneSlotLocator(),
