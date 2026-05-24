@@ -16,6 +16,8 @@ internal sealed class ResoniteBufferedCityObjectBakerFactory(
         bool enableMeshBake,
         ResoniteImportBudgetProfile resourceBudget)
     {
+        ArgumentNullException.ThrowIfNull(textureImageLoader);
+
         _ = resourceBudget.Name switch
         {
             ResoniteImportMemoryProfile.Small or ResoniteImportMemoryProfile.Large => true,
