@@ -30,6 +30,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResonitePreparedCityObjectImporter, ResonitePreparedCityObjectImporter>();
         services.TryAddScoped<IResoniteQueuedCityObjectEnqueuer, ResoniteQueuedCityObjectEnqueuer>();
         services.TryAddScoped<IResoniteLiveSendFinalizer, ResoniteLiveSendFinalizer>();
+        services.TryAddScoped<IResoniteLiveSendQueue, ResoniteLiveSendQueue>();
         services.TryAddScoped<IResoniteSceneBatchEmitter, PlannedBatchEmissionInterpreter>();
         services.TryAddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
         services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
@@ -133,7 +134,8 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     ILiveSendRunPlanFactory runPlanFactory,
     ILiveSendRunStateFactory runStateFactory,
     IResonitePreparedCityObjectImporter preparedCityObjectImporter,
-    IResoniteSlotCreator slotCreator)
+    IResoniteSlotCreator slotCreator,
+    IResoniteLiveSendQueue queue)
     : IResoniteLiveSceneImportDependencyFactory
 {
     public ResoniteLiveSceneImportDependencies Create(
@@ -150,7 +152,6 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options),
             datasetLicenseWriter,
             preparedCityObjectImporter);
-        ResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new();
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(queuedCityObjectSender);
         ResoniteLiveSendRunStarter runStarter = new(
             sceneSetupInterpreter,
@@ -164,7 +165,6 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             clientSessionFactory.Create(options, diagnostics),
             diagnostics,
             runStarter,
-            queuedCityObjectEnqueuer,
-            new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
+            queue);
     }
 }

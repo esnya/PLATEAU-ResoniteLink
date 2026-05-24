@@ -14,8 +14,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private readonly Uri endpoint;
     private readonly int connectionCount;
     private readonly IResoniteLiveSendRunStarter runStarter;
-    private readonly IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer;
-    private readonly IResoniteLiveSendFinalizer finalizer;
+    private readonly IResoniteLiveSendQueue queue;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
@@ -31,6 +30,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
         ArgumentNullException.ThrowIfNull(dependencies.RunStarter);
+        ArgumentNullException.ThrowIfNull(dependencies.Queue);
 
         endpoint = options.Endpoint;
         connectionCount = options.ConnectionCount;
@@ -39,8 +39,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
         runStarter = dependencies.RunStarter;
-        queuedCityObjectEnqueuer = dependencies.QueuedCityObjectEnqueuer;
-        finalizer = dependencies.Finalizer;
+        queue = dependencies.Queue;
         ClientSessionInternal = dependencies.ClientSession;
     }
 
@@ -79,14 +78,14 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
-                await queuedCityObjectEnqueuer.QueueUnitAsync(
+                await queue.QueueUnitAsync(
                     state,
                     objectUnit,
                     CreateEnqueueContext(),
                     cancellationToken);
             }
 
-            SceneImportExecutionResult result = await finalizer.CompleteAsync(
+            SceneImportExecutionResult result = await queue.CompleteAsync(
                 state,
                 CreateFinalizationContext(),
                 cancellationToken);
