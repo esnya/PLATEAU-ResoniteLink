@@ -20,7 +20,6 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
-[Collection(BundledCompanionTextureIsolationGroup.Name)]
 [Trait("Category", "Slow")]
 public sealed class ResoniteLiveSceneImportTargetTests
 {

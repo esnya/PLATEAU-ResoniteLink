@@ -17,7 +17,6 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
-[Collection(BundledCompanionTextureIsolationGroup.Name)]
 [Trait("Category", "Slow")]
 public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 {

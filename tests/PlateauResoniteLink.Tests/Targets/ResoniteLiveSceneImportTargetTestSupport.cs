@@ -529,8 +529,3 @@ internal sealed class DelegatingClientSession(
         ConnectedClient = null;
     }
 }
-[CollectionDefinition(BundledCompanionTextureIsolationGroup.Name, DisableParallelization = true)]
-public sealed class BundledCompanionTextureIsolationGroup
-{
-    public const string Name = "BundledCompanionTextureIsolation";
-}
