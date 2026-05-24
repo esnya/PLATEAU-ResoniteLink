@@ -289,7 +289,7 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
-    public async Task PlanMainTextureOverrideAsync_UsesPreparedUriWithRoleIdentity()
+    public void PlanMainTextureOverrideUsesPreparedUriWithRoleIdentity()
     {
         ResoniteMaterialBinding firstMaterial = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -311,19 +311,19 @@ public sealed class ResoniteMaterialPlanningTests
             [secondMaterial.TexturePayload!] = new Uri("resdb:///texture/second", UriKind.Absolute),
         };
 
-        PlannedTextureAsset? firstOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+        PlannedTextureAsset? firstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? repeatedFirstOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+        PlannedTextureAsset? repeatedFirstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? secondOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+        PlannedTextureAsset? secondOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             secondMaterial,
             secondPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? thirdOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+        PlannedTextureAsset? thirdOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());

@@ -127,7 +127,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return textures.FirstOrDefault(texture => texture.Identity == identity)?.AssetUri;
     }
 
-    public static async Task<PlannedTextureAsset?> PlanMainTextureOverrideAsync(
+    public static PlannedTextureAsset? PlanMainTextureOverride(
         ResoniteMaterialBinding material,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay)
@@ -148,7 +148,6 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             return null;
         }
 
-        await Task.CompletedTask;
         return new PlannedTextureAsset(
             new TextureIdentity("main"),
             textureUri);

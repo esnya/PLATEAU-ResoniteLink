@@ -1935,7 +1935,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             }
             PlannedReusableMaterialAsset sharedMaterialAsset = new(
                 existingMaterialAsset.MaterialComponent);
-            PlannedTextureAsset? mainTextureOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+            PlannedTextureAsset? mainTextureOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
                 sourceMaterial,
                 preparedTextureUrisByPayload,
                 preparedTerrainTextureUrisByOverlay);
@@ -1979,7 +1979,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 ct);
             if (sourceMaterial.TerrainOverlay is not null)
             {
-                PlannedTextureAsset? mainTextureOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+                PlannedTextureAsset? mainTextureOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
                     sourceMaterial,
                     preparedTextureUrisByPayload,
                     preparedTerrainTextureUrisByOverlay);
