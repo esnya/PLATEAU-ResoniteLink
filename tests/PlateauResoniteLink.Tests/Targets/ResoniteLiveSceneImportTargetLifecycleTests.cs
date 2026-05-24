@@ -501,6 +501,21 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
+    public void ReferencedCommonMaterialsIncludesTerrainAlignedVertexColorWhenMeshBakeIsEnabled()
+    {
+        ResoniteConstructionCityObject cityObject = CreateVertexColorTriangleCityObject(
+            "terrain-aligned-vertex-common-default",
+            new ResoniteMaterialDepthOffset(-10.0, -10.0));
+
+        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
+            ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: true);
+
+        Assert.Contains(
+            commonMaterials.EnumerateItems(),
+            static member => member.Definition == CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv.Definition);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_SetsUpTerrainOverlayAsSharedGenericAlbedoOnlyMaterialWhenAssigned()
     {
         using TemporaryDirectory datasetDirectory = new();

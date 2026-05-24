@@ -197,6 +197,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             [
                 catalog.Generic.Uv.Definition,
                 catalog.VertexColor.Uv.Definition,
+                catalog.VertexColor.TerrainAlignedUv.Definition,
             ]);
         }
 
