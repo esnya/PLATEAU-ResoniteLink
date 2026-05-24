@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -19,8 +18,11 @@ internal static class MaterialGroupingPolicy
         {
             if (TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, material.TerrainOverlay) is null)
             {
-                throw CreateTerrainOverlayMeshCodeMismatchException(
+                throw TerrainOverlayDiagnostics.CreateMeshCodeMismatchException(
+                    "material-grouping",
                     actualMeshCode,
+                    actualMeshCode,
+                    requestedMeshCodeBounds: null,
                     material.TerrainOverlay);
             }
 
@@ -52,31 +54,6 @@ internal static class MaterialGroupingPolicy
             material.ReuseScope,
             material.BundledVariantIndex,
             material.TerrainOverlay);
-    }
-
-    private static InvalidOperationException CreateTerrainOverlayMeshCodeMismatchException(
-        string actualMeshCode,
-        TerrainTextureOverlay terrainOverlay)
-    {
-        string overlaySummary = string.Create(
-            CultureInfo.InvariantCulture,
-            $"package='{terrainOverlay.PackageName}', bounds='{FormatBounds(terrainOverlay.GeographicBounds)}', sources='{terrainOverlay.SourceDescriptorKey}'");
-
-        return new InvalidOperationException(
-            $"Terrain overlay material requires a third-level mesh-code that matches the overlay geographic bounds. "
-            + $"phase='material-grouping', actual_mesh_code='{actualMeshCode}', requested_mesh_code='{actualMeshCode}', "
-            + $"requested_mesh_code_bounds='<none>', overlay={overlaySummary}.");
-    }
-
-    private static string FormatBounds(GeographicRectangle bounds) =>
-        string.Create(
-            CultureInfo.InvariantCulture,
-            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
-
-    private static string FormatRounded(double value)
-    {
-        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
-        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", CultureInfo.InvariantCulture);
     }
 
     private static bool IsZeroTextureOffset(Float2? textureOffset)

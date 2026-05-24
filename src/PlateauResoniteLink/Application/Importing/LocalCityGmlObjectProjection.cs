@@ -1476,13 +1476,12 @@ internal static class LocalCityGmlObjectProjection
     private static GeodeticPoint ResolveProjectionCityObjectOrigin(ParsedCityObject cityObject)
     {
         return CityObjectOriginResolver.Resolve(
-                cityObject.GeodeticOriginOverride is null
-                    ? null
-                    : global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObject.GeodeticOriginOverride),
-                cityObject.Surfaces
-                    .SelectMany(static surface => surface.Vertices)
-                    .Select(static point => global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(point)))
-            .ToProjectionModel();
+            cityObject.GeodeticOriginOverride,
+            cityObject.Surfaces.SelectMany(static surface => surface.Vertices),
+            static point => point.Latitude,
+            static point => point.Longitude,
+            static point => point.Altitude,
+            static (latitude, longitude, altitude) => new GeodeticPoint(latitude, longitude, altitude));
     }
 
     private static global::PlateauResoniteLink.Application.Importing.GeodeticPoint ResolveParsedCityObjectOrigin(
@@ -1505,13 +1504,6 @@ internal static class LocalCityGmlObjectProjection
     {
         return CityObjectAltitudeMetricsResolver.GetMinimumAltitude(
             surfaces.SelectMany(static surface => surface.Vertices));
-    }
-
-    private static double? ResolveProjectionGeometryHeightMeters(IEnumerable<ParsedSurface> surfaces)
-    {
-        return CityObjectAltitudeMetricsResolver.TryGetGeometryHeightMeters(
-            surfaces.SelectMany(static surface => surface.Vertices),
-            static point => point.Altitude);
     }
 
     private static double? ResolveParsedGeometryHeightMeters(
@@ -2816,15 +2808,10 @@ internal static class LocalCityGmlObjectProjection
             $"{FormatRounded(value.R)}-{FormatRounded(value.G)}-{FormatRounded(value.B)}-{FormatRounded(value.A)}");
 
     private static string FormatBounds(GeographicRectangle bounds) =>
-        string.Create(
-            CultureInfo.InvariantCulture,
-            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
+        TerrainOverlayDiagnostics.FormatBounds(bounds);
 
-    private static string FormatRounded(double value)
-    {
-        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
-        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", CultureInfo.InvariantCulture);
-    }
+    private static string FormatRounded(double value) =>
+        TerrainOverlayDiagnostics.FormatRounded(value);
 
     private static bool ShouldPreferUvProjection(
         string packageName,
@@ -4393,22 +4380,12 @@ internal static class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         TerrainTextureOverlay? terrainOverlay)
     {
-        string requestedMeshCodeBoundsSummary = requestedMeshCodeBounds is { Count: > 0 }
-            ? string.Join(
-                ",",
-                requestedMeshCodeBounds.Select(static area => string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{FormatRounded(area.SouthLatitude)}-{FormatRounded(area.NorthLatitude)}-{FormatRounded(area.WestLongitude)}-{FormatRounded(area.EastLongitude)}")))
-            : "<none>";
-        string overlaySummary = terrainOverlay is null
-            ? "<null>"
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"package='{terrainOverlay.PackageName}', bounds='{FormatBounds(terrainOverlay.GeographicBounds)}', sources='{terrainOverlay.SourceDescriptorKey}'");
-        return new InvalidOperationException(
-            $"Terrain overlay material requires a third-level mesh-code that matches the overlay geographic bounds. "
-            + $"phase='{phase}', actual_mesh_code='{actualMeshCode}', requested_mesh_code='{requestedMeshCode}', "
-            + $"requested_mesh_code_bounds='{requestedMeshCodeBoundsSummary}', overlay={overlaySummary}.");
+        return TerrainOverlayDiagnostics.CreateMeshCodeMismatchException(
+            phase,
+            actualMeshCode,
+            requestedMeshCode,
+            requestedMeshCodeBounds,
+            terrainOverlay);
     }
 
     private static IEnumerable<(global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObjectForTerrainProjection(
