@@ -167,6 +167,43 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
+    public async Task PlanDedicatedMaterialAssetAsyncUsesPreserveDedicatedMaterialSlotContract()
+    {
+        using SceneSinkRecordingClient client = new();
+        ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
+        ResoniteMaterialBinding material = new(
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0]);
+
+        PlannedDedicatedMaterialAsset preserved = await planning.PlanDedicatedMaterialAssetAsync(
+            client,
+            material,
+            materialIndex: 2,
+            new Dictionary<ResoniteTexturePayload, Uri>(),
+            new Dictionary<TerrainTextureOverlay, Uri>(),
+            preserveDedicatedMaterialSlot: true,
+            CancellationToken.None);
+        PlannedDedicatedMaterialAsset notPreserved = await planning.PlanDedicatedMaterialAssetAsync(
+            client,
+            material,
+            materialIndex: 2,
+            new Dictionary<ResoniteTexturePayload, Uri>(),
+            new Dictionary<TerrainTextureOverlay, Uri>(),
+            preserveDedicatedMaterialSlot: false,
+            CancellationToken.None);
+
+        Assert.True(preserved.PreserveDedicatedMaterialSlot);
+        Assert.Equal("material-002-pbs-uv-uv", preserved.DedicatedMaterialSlotName);
+        Assert.False(notPreserved.PreserveDedicatedMaterialSlot);
+        Assert.Null(notPreserved.DedicatedMaterialSlotName);
+    }
+
+    [Fact]
     public void ResolveTerrainTextureCanvasMaterialComposesExistingTransformWithCanvasOccupancy()
     {
         TerrainTextureOverlay overlay = new(
