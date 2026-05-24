@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -49,19 +47,13 @@ internal sealed record GeneratedTerrainTexture(
 }
 
 internal sealed class TerrainTextureAssetGenerator(
-    HttpClient? httpClient = null,
-    string? persistentCacheRoot = null,
-    bool disablePersistentCache = false) : ITerrainTextureAssetGenerator
+    ITerrainTextureTileImageLoader tileImageLoader) : ITerrainTextureAssetGenerator
 {
-    private const int MaxTileDownloadAttempts = 4;
     // Approximate dry brown soil tone (Munsell 10YR 5/3 family) for uncovered DEM texels.
-    internal static readonly Rgba32 DefaultDemGroundFillColor = new(181, 176, 166, byte.MaxValue);
+    internal static readonly Rgba32 DefaultDemGroundFillColor = TerrainTextureImageComposer.DefaultGroundFillColor;
 
-    private readonly HttpClient httpClient = httpClient ?? new HttpClient();
+    private readonly ITerrainTextureTileImageLoader tileImageLoader = tileImageLoader ?? throw new ArgumentNullException(nameof(tileImageLoader));
     private readonly AsyncCompletedResultCache<TerrainTextureOverlay, CachedTerrainTexture> cachedTextures = new();
-    private readonly PersistentTerrainTileCache? persistentTileCache = disablePersistentCache
-        ? null
-        : new PersistentTerrainTileCache(persistentCacheRoot);
 
     public async Task<GeneratedTerrainTexture> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
@@ -108,7 +100,7 @@ internal sealed class TerrainTextureAssetGenerator(
             using (sourceImage)
             {
                 Image<Rgba32> image = sourceImage.Image;
-                if (!HasRenderablePixels(image))
+                if (!TerrainTextureImageComposer.HasRenderablePixels(image))
                 {
                     continue;
                 }
@@ -122,14 +114,14 @@ internal sealed class TerrainTextureAssetGenerator(
                 }
                 else
                 {
-                    using Image<Rgba32> resizedImage = ResizeSourceImage(image, composedTexture.Width, composedTexture.Height);
-                    if (FillTransparentPixels(composedTexture, resizedImage))
+                    using Image<Rgba32> resizedImage = TerrainTextureImageComposer.ResizeSourceImage(image, composedTexture.Width, composedTexture.Height);
+                    if (TerrainTextureImageComposer.FillTransparentPixels(composedTexture, resizedImage))
                     {
                         usedSource = source;
                         usedSources.Add(source);
                     }
                 }
-                if (!HasTransparentPixels(composedTexture))
+                if (!TerrainTextureImageComposer.HasTransparentPixels(composedTexture))
                 {
                     break;
                 }
@@ -145,7 +137,7 @@ internal sealed class TerrainTextureAssetGenerator(
         using (composedTexture)
         {
             TerrainTextureSource terrainTextureSource = usedSource ?? terrainTextureOverlay.PrimarySource;
-            GeneratedTerrainTexture generatedTexture = CreateGeneratedTexture(
+            GeneratedTerrainTexture generatedTexture = TerrainTextureImageComposer.CreateGeneratedTexture(
                 composedTexture,
                 terrainTextureOverlay.MaxTextureSize,
                 terrainTextureSource,
@@ -160,8 +152,8 @@ internal sealed class TerrainTextureAssetGenerator(
         int zoomLevel,
         int maxTextureSize)
     {
-        int canvasWidth = RoundUpToPowerOfTwo(layoutPlan.CropWidth);
-        int canvasHeight = RoundUpToPowerOfTwo(layoutPlan.CropHeight);
+        int canvasWidth = TerrainTextureImageComposer.RoundUpToPowerOfTwo(layoutPlan.CropWidth);
+        int canvasHeight = TerrainTextureImageComposer.RoundUpToPowerOfTwo(layoutPlan.CropHeight);
         if (canvasWidth > maxTextureSize || canvasHeight > maxTextureSize)
         {
             return ExpandedTileCrop.FromLayout(layoutPlan);
@@ -235,7 +227,7 @@ internal sealed class TerrainTextureAssetGenerator(
         {
             for (int tileX = tileCrop.MinTileX; tileX <= tileCrop.MaxTileX; tileX++)
             {
-                Image<Rgba32>? tileImage = await TryDownloadTileAsync(
+                Image<Rgba32>? tileImage = await tileImageLoader.TryLoadAsync(
                     tileSource,
                     tileX,
                     tileY,
@@ -318,227 +310,6 @@ internal sealed class TerrainTextureAssetGenerator(
         }
     }
 
-    private static GeneratedTerrainTexture CreateGeneratedTexture(
-        Image<Rgba32> image,
-        int maxTextureSize,
-        TerrainTextureSource usedSource,
-        List<TerrainTextureSource> usedSources,
-        TextureUvRect? sourceOccupiedUvRect)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
-        using Image<Rgba32> opaqueImage = CreateOpaqueGroundImage(image);
-
-        if (TryCreatePowerOfTwoCanvasTexture(opaqueImage, maxTextureSize, usedSource, usedSources, sourceOccupiedUvRect, out GeneratedTerrainTexture? generatedTexture))
-        {
-            return generatedTexture!;
-        }
-
-        int fallbackMaxTextureSize = RoundDownToPowerOfTwo(maxTextureSize);
-        using Image<Rgba32> resizedImage = ResizeToMaxTextureSize(opaqueImage, fallbackMaxTextureSize);
-        if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, usedSource, usedSources, null, out generatedTexture))
-        {
-            return generatedTexture!;
-        }
-
-        throw new InvalidOperationException(
-            $"Terrain texture fallback failed to fit into a power-of-two canvas within maxTextureSize={maxTextureSize}.");
-    }
-
-    private static bool TryCreatePowerOfTwoCanvasTexture(
-        Image<Rgba32> image,
-        int maxTextureSize,
-        TerrainTextureSource usedSource,
-        IReadOnlyList<TerrainTextureSource> usedSources,
-        TextureUvRect? sourceOccupiedUvRect,
-        out GeneratedTerrainTexture? generatedTexture)
-    {
-        int canvasWidth = RoundUpToPowerOfTwo(image.Width);
-        int canvasHeight = RoundUpToPowerOfTwo(image.Height);
-        if (canvasWidth > maxTextureSize || canvasHeight > maxTextureSize)
-        {
-            generatedTexture = null;
-            return false;
-        }
-
-        using Image<Rgba32> canvasImage = new(canvasWidth, canvasHeight, DefaultDemGroundFillColor);
-        int drawOffsetX = (canvasWidth - image.Width) / 2;
-        int drawOffsetY = (canvasHeight - image.Height) / 2;
-        canvasImage.Mutate(context => context.DrawImage(
-            image,
-            new Point(drawOffsetX, drawOffsetY),
-            1.0f));
-        TextureUvRect occupiedUvRect = sourceOccupiedUvRect is { } sourceRect
-            ? CreateOccupiedUvRect(
-                (int)Math.Round(drawOffsetX + (sourceRect.MinU * image.Width), MidpointRounding.AwayFromZero),
-                (int)Math.Round(drawOffsetY + ((1.0 - sourceRect.MaxV) * image.Height), MidpointRounding.AwayFromZero),
-                (int)Math.Round(sourceRect.Width * image.Width, MidpointRounding.AwayFromZero),
-                (int)Math.Round(sourceRect.Height * image.Height, MidpointRounding.AwayFromZero),
-                canvasWidth,
-                canvasHeight)
-            : TextureUvRect.FromTopLeftPixelRect(
-                drawOffsetX,
-                drawOffsetY,
-                image.Width,
-                image.Height,
-                canvasWidth,
-                canvasHeight);
-        generatedTexture = new GeneratedTerrainTexture(
-            CreateRawTextureImport(canvasImage),
-            occupiedUvRect,
-            usedSource,
-            usedSources.Distinct().ToArray());
-        return true;
-    }
-
-    private static TextureUvRect CreateOccupiedUvRect(
-        int x,
-        int y,
-        int width,
-        int height,
-        int canvasWidth,
-        int canvasHeight)
-    {
-        int clampedX = Math.Clamp(x, 0, canvasWidth - 1);
-        int clampedY = Math.Clamp(y, 0, canvasHeight - 1);
-        return TextureUvRect.FromTopLeftPixelRect(
-            clampedX,
-            clampedY,
-            Math.Min(width, canvasWidth - clampedX),
-            Math.Min(height, canvasHeight - clampedY),
-            canvasWidth,
-            canvasHeight);
-    }
-
-    private static Image<Rgba32> CreateOpaqueGroundImage(Image<Rgba32> image)
-    {
-        Image<Rgba32> opaqueImage = new(image.Width, image.Height, DefaultDemGroundFillColor);
-        opaqueImage.Mutate(context => context.DrawImage(image, new Point(0, 0), 1.0f));
-        return opaqueImage;
-    }
-
-    private static Image<Rgba32> ResizeToMaxTextureSize(Image<Rgba32> image, int maxTextureSize)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
-
-        if (image.Width <= maxTextureSize && image.Height <= maxTextureSize)
-        {
-            return image.Clone();
-        }
-
-        return image.Clone(context => context.Resize(new ResizeOptions
-        {
-            Mode = ResizeMode.Max,
-            Size = new Size(maxTextureSize, maxTextureSize),
-            Sampler = KnownResamplers.Lanczos3,
-        }));
-    }
-
-    private static int RoundUpToPowerOfTwo(int value)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-
-        int rounded = 1;
-        while (rounded < value)
-        {
-            rounded <<= 1;
-        }
-
-        return rounded;
-    }
-
-    private static int RoundDownToPowerOfTwo(int value)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-
-        int rounded = 1;
-        while ((rounded << 1) > 0 && (rounded << 1) <= value)
-        {
-            rounded <<= 1;
-        }
-
-        return rounded;
-    }
-
-    private static Image<Rgba32> ResizeSourceImage(Image<Rgba32> image, int width, int height)
-    {
-        return image.Width == width && image.Height == height
-            ? image.Clone()
-            : image.Clone(context => context.Resize(new ResizeOptions
-            {
-                Mode = ResizeMode.Stretch,
-                Size = new Size(width, height),
-                Sampler = KnownResamplers.Lanczos3,
-            }));
-    }
-
-    private static bool HasRenderablePixels(Image<Rgba32> image)
-    {
-        bool hasRenderablePixels = false;
-        image.ProcessPixelRows(accessor =>
-        {
-            for (int y = 0; y < accessor.Height && !hasRenderablePixels; y++)
-            {
-                ReadOnlySpan<Rgba32> row = accessor.GetRowSpan(y);
-                for (int x = 0; x < row.Length; x++)
-                {
-                    if (row[x].A > 0)
-                    {
-                        hasRenderablePixels = true;
-                        break;
-                    }
-                }
-            }
-        });
-
-        return hasRenderablePixels;
-    }
-
-    private static bool HasTransparentPixels(Image<Rgba32> image)
-    {
-        bool hasTransparentPixels = false;
-        image.ProcessPixelRows(accessor =>
-        {
-            for (int y = 0; y < accessor.Height && !hasTransparentPixels; y++)
-            {
-                ReadOnlySpan<Rgba32> row = accessor.GetRowSpan(y);
-                for (int x = 0; x < row.Length; x++)
-                {
-                    if (row[x].A == 0)
-                    {
-                        hasTransparentPixels = true;
-                        break;
-                    }
-                }
-            }
-        });
-
-        return hasTransparentPixels;
-    }
-
-    private static bool FillTransparentPixels(Image<Rgba32> destination, Image<Rgba32> fallback)
-    {
-        bool filledAny = false;
-        for (int y = 0; y < destination.Height; y++)
-        {
-            for (int x = 0; x < destination.Width; x++)
-            {
-                if (destination[x, y].A > 0)
-                {
-                    continue;
-                }
-
-                Rgba32 fallbackPixel = fallback[x, y];
-                if (fallbackPixel.A > 0)
-                {
-                    destination[x, y] = fallbackPixel;
-                    filledAny = true;
-                }
-            }
-        }
-
-        return filledAny;
-    }
-
     private static string DescribeTerrainTextureSources(IEnumerable<TerrainTextureSource> sources)
     {
         return string.Join(
@@ -549,128 +320,6 @@ internal sealed class TerrainTextureAssetGenerator(
                 TerrainTextureGeoReferencedRasterSource rasterSource => $"georaster:{rasterSource.SourcePath}",
                 _ => source.GetType().Name,
             }));
-    }
-
-    private async Task<Image<Rgba32>?> TryDownloadTileAsync(
-        TerrainTextureTileSource tileSource,
-        int tileX,
-        int tileY,
-        CancellationToken cancellationToken)
-    {
-        string tileUrl = WebMercatorTileMath.FormatTileUrl(tileSource.UrlTemplate, tileSource.ZoomLevel, tileX, tileY);
-        if (persistentTileCache is not null)
-        {
-            byte[]? cachedBytes = await persistentTileCache.TryReadTileBytesAsync(
-                tileSource.UrlTemplate,
-                tileSource.ZoomLevel,
-                tileX,
-                tileY,
-                cancellationToken);
-            if (cachedBytes is not null)
-            {
-                try
-                {
-                    return await LoadTileImageAsync(cachedBytes, cancellationToken);
-                }
-                catch (UnknownImageFormatException)
-                {
-                }
-                catch (InvalidImageContentException)
-                {
-                }
-            }
-        }
-
-        for (int attempt = 1; attempt <= MaxTileDownloadAttempts; attempt++)
-        {
-            try
-            {
-                using HttpResponseMessage response = await httpClient.GetAsync(
-                    tileUrl,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken);
-                if (!response.IsSuccessStatusCode)
-                {
-                    if (attempt < MaxTileDownloadAttempts && IsTransientStatusCode((int)response.StatusCode))
-                    {
-                        await Task.Delay(GetRetryDelay(attempt), cancellationToken);
-                        continue;
-                    }
-
-                    return null;
-                }
-
-                byte[] encodedBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-                if (persistentTileCache is not null)
-                {
-                    await TryWritePersistentTileBytesAsync(
-                        tileSource.UrlTemplate,
-                        tileSource.ZoomLevel,
-                        tileX,
-                        tileY,
-                        encodedBytes,
-                        cancellationToken);
-                }
-
-                return await LoadTileImageAsync(encodedBytes, cancellationToken);
-            }
-            catch (HttpRequestException) when (attempt < MaxTileDownloadAttempts)
-            {
-                await Task.Delay(GetRetryDelay(attempt), cancellationToken);
-            }
-        }
-
-        return null;
-    }
-
-    private async Task TryWritePersistentTileBytesAsync(
-        string urlTemplate,
-        int zoomLevel,
-        int tileX,
-        int tileY,
-        byte[] encodedBytes,
-        CancellationToken cancellationToken)
-    {
-        if (persistentTileCache is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await persistentTileCache.WriteTileBytesAsync(
-                urlTemplate,
-                zoomLevel,
-                tileX,
-                tileY,
-                encodedBytes,
-                cancellationToken);
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
-    }
-
-    private static async Task<Image<Rgba32>> LoadTileImageAsync(
-        byte[] encodedBytes,
-        CancellationToken cancellationToken)
-    {
-        using MemoryStream stream = new(encodedBytes, writable: false);
-        return await Image.LoadAsync<Rgba32>(stream, cancellationToken);
-    }
-
-    private static ResoniteRawTextureImport CreateRawTextureImport(Image<Rgba32> image)
-    {
-        byte[] rawBytes = new byte[image.Width * image.Height * 4];
-        image.CopyPixelDataTo(rawBytes);
-        return new ResoniteRawTextureImport(
-            image.Width,
-            image.Height,
-            "sRGB",
-            rawBytes);
     }
 
     private sealed record CachedTerrainTexture(
@@ -717,102 +366,4 @@ internal sealed class TerrainTextureAssetGenerator(
         }
     }
 
-    private static bool IsTransientStatusCode(int statusCode)
-    {
-        return statusCode == 408
-            || statusCode == 425
-            || statusCode == 429
-            || statusCode >= 500;
-    }
-
-    private static TimeSpan GetRetryDelay(int attempt)
-    {
-        return TimeSpan.FromMilliseconds(250 * attempt);
-    }
-}
-
-internal sealed class PersistentTerrainTileCache
-{
-    private readonly string cacheRoot;
-
-    public PersistentTerrainTileCache(string? cacheRoot)
-    {
-        this.cacheRoot = Path.GetFullPath(cacheRoot ?? GetDefaultCacheRoot());
-    }
-
-    public async Task<byte[]?> TryReadTileBytesAsync(
-        string urlTemplate,
-        int zoomLevel,
-        int tileX,
-        int tileY,
-        CancellationToken cancellationToken)
-    {
-        string cachePath = GetCachePath(urlTemplate, zoomLevel, tileX, tileY);
-        if (!File.Exists(cachePath))
-        {
-            return null;
-        }
-
-        try
-        {
-            return await File.ReadAllBytesAsync(cachePath, cancellationToken);
-        }
-        catch (IOException)
-        {
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
-
-    public async Task WriteTileBytesAsync(
-        string urlTemplate,
-        int zoomLevel,
-        int tileX,
-        int tileY,
-        byte[] encodedBytes,
-        CancellationToken cancellationToken)
-    {
-        string cachePath = GetCachePath(urlTemplate, zoomLevel, tileX, tileY);
-        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
-
-        string temporaryPath = $"{cachePath}.{Guid.NewGuid():N}.tmp";
-        try
-        {
-            await File.WriteAllBytesAsync(temporaryPath, encodedBytes, cancellationToken);
-            File.Move(temporaryPath, cachePath, overwrite: true);
-        }
-        catch
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-
-            throw;
-        }
-    }
-
-    private string GetCachePath(string urlTemplate, int zoomLevel, int tileX, int tileY)
-    {
-        string templateDigest = Convert.ToHexString(
-                SHA256.HashData(Encoding.UTF8.GetBytes(urlTemplate)))
-            .ToLowerInvariant();
-        return Path.Combine(
-            cacheRoot,
-            templateDigest,
-            zoomLevel.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            tileX.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            $"{tileY.ToString(System.Globalization.CultureInfo.InvariantCulture)}.tile");
-    }
-
-    private static string GetDefaultCacheRoot()
-    {
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "PlateauResoniteLink",
-            "terrain-tile-cache");
-    }
 }

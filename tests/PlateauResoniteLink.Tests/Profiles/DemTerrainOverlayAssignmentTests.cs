@@ -313,8 +313,8 @@ public sealed class DemTerrainOverlayAssignmentTests
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize,
             Sources: [new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 18)]);
         GeographicRectangle objectBounds = GetSurfaceBounds(surface);
-        LocalCityGmlObjectProjection.ResolvedSurfaceMaterial material = new(
-            surface.ToProjectionModel(),
+        ResolvedSurfaceMaterial material = new(
+            surface,
             new ResolvedMaterial(
                 MaterialType.Standard,
                 TexturePayload: null,

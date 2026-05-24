@@ -382,6 +382,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
         Assert.Equal(new ResoniteMaterialDepthOffset(1.0, 1.0), normalized.DepthOffset);
+        Assert.Equal(FacadeDefaultTilesPerMeter(), normalized.TextureScale);
         Assert.Equal(new ResoniteFloat2(0.125, 0.25), normalized.TextureOffset);
     }
 

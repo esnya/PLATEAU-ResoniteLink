@@ -232,6 +232,41 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, material.CommonMaterial);
     }
 
+    [Fact]
+    public void Normalize_NormalizesSharedBundledFacadeBeforeTargetScopeDemotion()
+    {
+        BundledDefaultMaterialVariant variant = BundledDefaultMaterialFamilies.WallResidentialPlasterLowVariants[0];
+        ScalarPair implicitScale = variant.TextureSet.GetImplicitTextureScale();
+        ScalarPair? implicitOffset = variant.TextureSet.GetImplicitTextureOffset();
+        ImportedCityObject cityObject = CreateTriangleCityObject(
+            textureScale: null,
+            textureOffset: null) with
+        {
+            Materials =
+            [
+                CreateDynamicUvMaterial(null, null) with
+                {
+                    TexturePayload = null,
+                    TextureSourceKind = TextureSourceKind.Bundled,
+                    Family = BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
+                    BundledVariantIndex = 0,
+                    TextureScale = new Float2(implicitScale.X, implicitScale.Y),
+                    TextureOffset = implicitOffset is null ? null : new Float2(implicitOffset.X, implicitOffset.Y),
+                    ReuseScope = MaterialReuseScope.Shared,
+                },
+            ],
+        };
+
+        ImportedCityObject normalized = ImportedDynamicMaterialUvNormalizer.Normalize(cityObject);
+        MaterialBinding material = Assert.Single(normalized.Materials);
+
+        Assert.NotSame(cityObject, normalized);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+        Assert.Equal(1.0, normalized.Mesh.Vertices[1].UV0.X, 6);
+        Assert.Equal(1.0, normalized.Mesh.Vertices[2].UV0.Y, 6);
+    }
+
     private static ImportedCityObject CreateTriangleCityObject(
         Float2? textureScale,
         Float2? textureOffset,

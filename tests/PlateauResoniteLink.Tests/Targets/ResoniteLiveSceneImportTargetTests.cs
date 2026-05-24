@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -35,7 +34,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using SceneSinkRecordingClient client = new();
         using FakeTerrainTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator terrainTextureGenerator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator terrainTextureGenerator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/{z}/{x}/{y}.png", maxTextureSize: 4096);
         TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -1011,8 +1010,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
         };
 
-        long overlayEstimate = InvokeEstimatedWorkingSetBytes(withOverlay);
-        long baselineEstimate = InvokeEstimatedWorkingSetBytes(withoutOverlay);
+        long overlayEstimate = ResoniteCityObjectWorkingSetEstimator.Estimate(withOverlay);
+        long baselineEstimate = ResoniteCityObjectWorkingSetEstimator.Estimate(withoutOverlay);
 
         Assert.True(overlayEstimate > baselineEstimate);
         Assert.True(overlayEstimate - baselineEstimate >= 100L * 1024L * 1024L);
@@ -1070,19 +1069,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
         };
 
-        long baselineEstimate = InvokeEstimatedWorkingSetBytes(baseline);
-        long bakedEstimate = InvokeEstimatedWorkingSetBytes(withBake);
+        long baselineEstimate = ResoniteCityObjectWorkingSetEstimator.Estimate(baseline);
+        long bakedEstimate = ResoniteCityObjectWorkingSetEstimator.Estimate(withBake);
 
         Assert.True(bakedEstimate > baselineEstimate);
-    }
-
-    private static long InvokeEstimatedWorkingSetBytes(ResoniteConstructionCityObject cityObject)
-    {
-        MethodInfo method = typeof(ResoniteLiveSceneImportTarget)
-            .GetMethod("EstimateCityObjectWorkingSetBytes", BindingFlags.NonPublic | BindingFlags.Static)
-            ?? throw new InvalidOperationException("EstimateCityObjectWorkingSetBytes method not found.");
-        return (long)(method.Invoke(null, [cityObject])
-            ?? throw new InvalidOperationException("EstimateCityObjectWorkingSetBytes returned null."));
     }
 
     [Fact]

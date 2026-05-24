@@ -16,7 +16,7 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class ResoniteMaterialComponentPolicyTests
 {
     [Fact]
-    public void CreateMembersBuildsUvStandardMaterialFields()
+    public void CreateMembersOmitsBundledFamilyUvTransformMembersAfterNormalization()
     {
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(0.1, 0.2, 0.3, 0.4),
@@ -37,8 +37,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
 
         Assert.Equal("[FrooxEngine]FrooxEngine.PBS_Metallic", componentType);
         Field_colorX albedo = Assert.IsType<Field_colorX>(members["AlbedoColor"]);
-        Field_float2 textureScale = Assert.IsType<Field_float2>(members["TextureScale"]);
-        Field_float2 textureOffset = Assert.IsType<Field_float2>(members["TextureOffset"]);
         Field_float offsetFactor = Assert.IsType<Field_float>(members["OffsetFactor"]);
         Field_float offsetUnits = Assert.IsType<Field_float>(members["OffsetUnits"]);
 
@@ -47,10 +45,8 @@ public sealed class ResoniteMaterialComponentPolicyTests
         Assert.Equal(0.3f, albedo.Value.b, 6);
         Assert.Equal(0.4f, albedo.Value.a, 6);
         Assert.Equal(ResoniteColorSpace.SrgbProfile, albedo.Value.Profile);
-        Assert.Equal(0.5f, textureScale.Value.x, 6);
-        Assert.Equal(0.25f, textureScale.Value.y, 6);
-        Assert.Equal(0.125f, textureOffset.Value.x, 6);
-        Assert.Equal(0.75f, textureOffset.Value.y, 6);
+        Assert.DoesNotContain("TextureScale", members.Keys);
+        Assert.DoesNotContain("TextureOffset", members.Keys);
         Assert.Equal(2.0f, offsetFactor.Value, 6);
         Assert.Equal(3.0f, offsetUnits.Value, 6);
     }

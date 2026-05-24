@@ -351,7 +351,7 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
-    public async Task FlushAllAsyncKeepsBundledFacadeCommonTransformOnMaterial()
+    public async Task FlushAllAsyncClearsImplicitBundledFacadeCommonTransform()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
 
@@ -362,8 +362,8 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
         Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
         Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
-        Assert.Equal(new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0), material.TextureScale);
-        Assert.Equal(new ResoniteFloat2(0.0, 0.5 / 6.0), material.TextureOffset);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
         Assert.Equal(new ResoniteFloat2(0.0, 0.0), cityObject.Mesh.Vertices[0].UV0);
         Assert.Equal(new ResoniteFloat2(1.0, 0.0), cityObject.Mesh.Vertices[1].UV0);
         Assert.Equal(new ResoniteFloat2(0.0, 1.0), cityObject.Mesh.Vertices[2].UV0);
@@ -569,8 +569,8 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(3, cityObject.Materials.Count);
         Assert.Equal(2, preservedRoofMaterials.Length);
         Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
-        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset == new ResoniteFloat2(0.125, 0.25));
-        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset == new ResoniteFloat2(0.25, 0.5));
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset is null);
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset is null);
     }
 
     [Fact]

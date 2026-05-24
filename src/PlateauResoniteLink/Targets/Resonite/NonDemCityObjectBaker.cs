@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,10 +21,9 @@ internal sealed class NonDemCityObjectBaker(
 {
     internal const int DefaultMaxAtlasSize = 4096;
     internal const int DefaultTilePaddingPixels = 2;
-    private const byte BackgroundDetectionAlphaThreshold = 16;
 
-    private readonly Dictionary<SourceFileBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceFile = [];
-    private readonly Dictionary<SourceFileBatchKey, int> nextBatchIndexBySourceFile = [];
+    private readonly Dictionary<NonDemBakeSourceFileKey, List<BufferedCityObject>> bufferedCityObjectsBySourceFile = [];
+    private readonly Dictionary<NonDemBakeSourceFileKey, int> nextBatchIndexBySourceFile = [];
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? throw new ArgumentNullException(nameof(bakePolicies));
 
@@ -62,7 +58,7 @@ internal sealed class NonDemCityObjectBaker(
         }
 
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-        SourceFileBatchKey sourceFileKey = CreateSourceFileKey(cityObject, policy);
+        NonDemBakeSourceFileKey sourceFileKey = NonDemBakeSourceScope.Create(cityObject, policy);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
         BufferedCityObject bufferedCityObject = new(cityObject, policy);
         if (!bufferedCityObjectsBySourceFile.TryGetValue(sourceFileKey, out List<BufferedCityObject>? bufferedCityObjects))
@@ -100,17 +96,17 @@ internal sealed class NonDemCityObjectBaker(
             return;
         }
 
-        SourceFileBatchKey[] orderedSourceFileKeys = bufferedCityObjectsBySourceFile.Keys
-            .OrderBy(static key => key, SourceFileBatchKeyComparer.Instance)
+        NonDemBakeSourceFileKey[] orderedSourceFileKeys = bufferedCityObjectsBySourceFile.Keys
+            .OrderBy(static key => key, NonDemBakeSourceScope.OrderComparer)
             .ToArray();
-        foreach (SourceFileBatchKey sourceFileKey in orderedSourceFileKeys)
+        foreach (NonDemBakeSourceFileKey sourceFileKey in orderedSourceFileKeys)
         {
             await EmitSourceFileAsync(sourceFileKey, onBakedCityObject, cancellationToken);
         }
     }
 
     private async Task EmitSourceFileAsync(
-        SourceFileBatchKey sourceFileKey,
+        NonDemBakeSourceFileKey sourceFileKey,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
@@ -138,7 +134,7 @@ internal sealed class NonDemCityObjectBaker(
     }
 
     private async Task BakeSourceFileAsync(
-        SourceFileBatchKey sourceFileKey,
+        NonDemBakeSourceFileKey sourceFileKey,
         IReadOnlyList<BufferedCityObject> cityObjects,
         int batchStartIndex,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
@@ -248,7 +244,8 @@ internal sealed class NonDemCityObjectBaker(
     {
         foreach (NonDemCityObjectBakePolicy policy in bakePolicies)
         {
-            if (policy.CanBuffer(cityObject) && CanBufferCityObjectMaterials(cityObject, policy))
+            if (policy.CanBuffer(cityObject)
+                && NonDemBakeMaterialClassifier.CanBufferCityObjectMaterials(cityObject, policy))
             {
                 return policy;
             }
@@ -263,14 +260,14 @@ internal sealed class NonDemCityObjectBaker(
     {
         ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
         NonDemCityObjectBakePolicy policy = bufferedCityObject.Policy;
-        if (!TryCreateMaterialBySubmeshIndex(cityObject, out _))
+        if (!NonDemBakeMaterialClassifier.TryCreateMaterialBySubmeshIndex(cityObject, out _))
         {
             throw new InvalidOperationException(
                 $"Non-DEM bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
         }
 
         ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-        if (!TryCreateMaterialBySubmeshIndex(normalizedCityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
+        if (!NonDemBakeMaterialClassifier.TryCreateMaterialBySubmeshIndex(normalizedCityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
         {
             throw new InvalidOperationException(
                 $"Non-DEM bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
@@ -288,7 +285,7 @@ internal sealed class NonDemCityObjectBaker(
                     $"Non-DEM bake city object '{cityObject.DisplayName}' left submesh index {submesh.Index} without a material assignment.");
             }
 
-            NonDemMaterialBakeCategory category = ClassifyMaterial(material);
+            NonDemMaterialBakeCategory category = NonDemBakeMaterialClassifier.ClassifyMaterial(material);
             switch (category)
             {
                 case NonDemMaterialBakeCategory.AtlasCandidate:
@@ -346,14 +343,14 @@ internal sealed class NonDemCityObjectBaker(
             throw new InvalidOperationException("Non-DEM bake candidate material must have a texture payload.");
         }
 
-        TextureUvRect uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh, material);
+        TextureUvRect uvBounds = NonDemBakeGeometry.ComputeUvBounds(cityObject.Mesh.Vertices, submesh);
         using Image<Rgba32> sourceImage = await textureImageLoader.LoadAsync(
             ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
             cancellationToken);
-        Rgba32 detectedBackgroundColor = DetectRepresentativeBackgroundColor(sourceImage);
+        Rgba32 detectedBackgroundColor = NonDemBakeTextureProcessing.DetectRepresentativeBackgroundColor(sourceImage);
         using Image<Rgba32> preparedSourceImage = sourceImage.Clone();
-        FillTransparentRgb(preparedSourceImage, detectedBackgroundColor);
-        if (TryGetUniformPixelColor(preparedSourceImage, out Rgba32 uniformDatasetColor))
+        NonDemBakeTextureProcessing.FillTransparentRgb(preparedSourceImage, detectedBackgroundColor);
+        if (NonDemBakeTextureProcessing.TryGetUniformPixelColor(preparedSourceImage, out Rgba32 uniformDatasetColor))
         {
             return new AtlasOrPreservedEntry(
                 AtlasEntry: null,
@@ -361,16 +358,18 @@ internal sealed class NonDemCityObjectBaker(
                     cityObject,
                     submesh,
                     CreateVertexColorMaterial(material, submesh.Index),
-                    ToColor(MultiplyPixel(uniformDatasetColor, ToPixel(material.BaseColor)))));
+                    NonDemBakeTextureProcessing.ToColor(NonDemBakeTextureProcessing.MultiplyPixel(
+                        uniformDatasetColor,
+                        NonDemBakeTextureProcessing.ToPixel(material.BaseColor)))));
         }
 
         int maxTileWidth = EffectiveMaxAtlasTextureEdge;
         int maxTileHeight = EffectiveMaxAtlasTextureEdge;
         int targetWidth = Math.Max(1, Math.Min(maxTileWidth, (int)Math.Ceiling(sourceImage.Width * uvBounds.Width)));
         int targetHeight = Math.Max(1, Math.Min(maxTileHeight, (int)Math.Ceiling(sourceImage.Height * uvBounds.Height)));
-        using Image<Rgba32> bakedImage = BakeUsedUvRegion(preparedSourceImage, uvBounds, targetWidth, targetHeight);
+        using Image<Rgba32> bakedImage = NonDemBakeTextureProcessing.BakeUsedUvRegion(preparedSourceImage, uvBounds, targetWidth, targetHeight);
 
-        ApplyBaseColor(bakedImage, material.BaseColor);
+        NonDemBakeTextureProcessing.ApplyBaseColor(bakedImage, material.BaseColor);
         return new AtlasOrPreservedEntry(
             AtlasEntry: new AtlasBatchEntry(
                 cityObject,
@@ -378,172 +377,22 @@ internal sealed class NonDemCityObjectBaker(
                 material,
                 new MaterialAtlasTile(
                     bakedImage.Clone(),
-                    MultiplyPixel(detectedBackgroundColor, ToPixel(material.BaseColor))),
+                    NonDemBakeTextureProcessing.MultiplyPixel(
+                        detectedBackgroundColor,
+                        NonDemBakeTextureProcessing.ToPixel(material.BaseColor))),
                 uvBounds),
             PreservedEntry: null);
     }
 
-    private static bool CanBufferCityObjectMaterials(
-        ResoniteConstructionCityObject cityObject,
-        NonDemCityObjectBakePolicy policy)
-    {
-        if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex))
-        {
-            return false;
-        }
-
-        bool hasAtlasCandidateSubmesh = false;
-        foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes)
-        {
-            if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
-            {
-                return false;
-            }
-
-            NonDemMaterialBakeCategory category = ClassifyMaterial(material);
-            hasAtlasCandidateSubmesh |= category == NonDemMaterialBakeCategory.AtlasCandidate;
-            if (category == NonDemMaterialBakeCategory.PreservedCommonMaterial && !policy.PreserveCommonMaterials)
-            {
-                return false;
-            }
-
-            if (category == NonDemMaterialBakeCategory.PreservedVertexColor && !policy.PreserveVertexColorMaterials)
-            {
-                return false;
-            }
-
-            if (category == NonDemMaterialBakeCategory.PreservedTextureless && !policy.PreserveTexturelessMaterials)
-            {
-                return false;
-            }
-        }
-
-        return policy.RequireAtlasCandidateMaterial ? hasAtlasCandidateSubmesh : true;
-    }
-
-    private static bool TryCreateMaterialBySubmeshIndex(
-        ResoniteConstructionCityObject cityObject,
-        out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex)
-    {
-        materialBySubmeshIndex = [];
-        foreach (ResoniteMaterialBinding material in cityObject.Materials)
-        {
-            foreach (int submeshIndex in material.SubmeshIndices)
-            {
-                if (!materialBySubmeshIndex.TryAdd(submeshIndex, material))
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    private static bool IsAtlasBakeCandidate(ResoniteMaterialBinding material)
-    {
-        if (material.DepthOffset is not null
-            || material.Projection != ResoniteMaterialProjection.Uv
-            || material.AssetScope == ResoniteMaterialAssetScope.Common)
-        {
-            return false;
-        }
-
-        if (material.MaterialType != ResoniteMaterialType.Standard
-            || material.TexturePayload is null
-            || material.TextureSourceKind != ResoniteTextureSourceKind.Dataset)
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(material.Family))
-        {
-            return true;
-        }
-
-        return material.TerrainOverlay is null
-            && ResoniteMaterialSharing.CanUseSharedAlbedoOnlyMaterial(material);
-    }
-
-    private static NonDemMaterialBakeCategory ClassifyMaterial(ResoniteMaterialBinding material)
-    {
-        if (IsAtlasBakeCandidate(material))
-        {
-            return NonDemMaterialBakeCategory.AtlasCandidate;
-        }
-
-        if (material.MaterialType == ResoniteMaterialType.VertexColor)
-        {
-            return NonDemMaterialBakeCategory.PreservedVertexColor;
-        }
-
-        if (material.AssetScope == ResoniteMaterialAssetScope.Common
-            || !string.IsNullOrWhiteSpace(material.Family))
-        {
-            return CanPreserveAsCommonMaterial(material)
-                ? NonDemMaterialBakeCategory.PreservedCommonMaterial
-                : NonDemMaterialBakeCategory.PreservedOther;
-        }
-
-        if (material.TexturePayload is null)
-        {
-            return NonDemMaterialBakeCategory.PreservedTextureless;
-        }
-
-        return NonDemMaterialBakeCategory.PreservedOther;
-    }
-
-    private static bool CanPreserveAsCommonMaterial(ResoniteMaterialBinding material)
-    {
-        return material.CommonMaterial is not null;
-    }
-
-    private AtlasBatchPlan CreateAtlasCandidateBatches(
-        IReadOnlyList<CityObjectBakeCandidate> candidates)
-    {
-        List<IReadOnlyList<CityObjectBakeCandidate>> batches = [];
-        List<CityObjectBakeCandidate> fallbackCandidates = [];
-        List<CityObjectBakeCandidate> pending = candidates
-            .OrderByDescending(static candidate => candidate.AtlasEntries.Sum(entry => entry.Tile.Image.Width * entry.Tile.Image.Height))
-            .ThenBy(static candidate => candidate.CityObject.SlotKey, StringComparer.Ordinal)
-            .ToList();
-
-        while (pending.Count > 0)
-        {
-            List<CityObjectBakeCandidate> currentBatch = [];
-            foreach (CityObjectBakeCandidate candidate in pending.ToArray())
-            {
-                List<AtlasBatchEntry> candidateEntries = [.. currentBatch.SelectMany(static current => current.AtlasEntries), .. candidate.AtlasEntries];
-                if (TryCreateAtlasLayout(candidateEntries, out _))
-                {
-                    currentBatch.Add(candidate);
-                    pending.Remove(candidate);
-                }
-            }
-
-            if (currentBatch.Count == 0)
-            {
-                CityObjectBakeCandidate oversizedCandidate = pending[0];
-                pending.RemoveAt(0);
-                fallbackCandidates.Add(oversizedCandidate);
-                continue;
-            }
-
-            batches.Add(currentBatch);
-        }
-
-        return new AtlasBatchPlan(batches, fallbackCandidates);
-    }
-
     private async Task<ResoniteConstructionCityObject> BakeBatchAsync(
-        SourceFileBatchKey sourceFileKey,
+        NonDemBakeSourceFileKey sourceFileKey,
         IReadOnlyList<CityObjectBakeCandidate> candidates,
         int batchIndex,
         bool preservePrimaryIdentity,
         CancellationToken cancellationToken)
     {
         List<AtlasBatchEntry> entries = candidates.SelectMany(static candidate => candidate.AtlasEntries).ToList();
-        AtlasLayout? layout = null;
+        NonDemAtlasLayout<AtlasBatchEntry>? layout = null;
         if (entries.Count > 0
             && (!TryCreateAtlasLayout(entries, out layout) || layout is null))
         {
@@ -558,13 +407,19 @@ internal sealed class NonDemCityObjectBaker(
             : new bool[layout.Width * layout.Height];
         if (layout is not null)
         {
-            foreach (AtlasPlacement placement in layout.Placements)
+            foreach (NonDemAtlasPlacement<AtlasBatchEntry> placement in layout.Placements)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                DrawAtlasTile(atlasImage!, atlasCoverage!, layout.Width, placement);
+                NonDemBakeTextureProcessing.DrawAtlasTile(
+                    atlasImage!,
+                    atlasCoverage!,
+                    layout.Width,
+                    tilePaddingPixels,
+                    placement,
+                    static entry => entry.Tile.Image);
             }
 
-            FillUncoveredAtlasPixels(
+            NonDemBakeTextureProcessing.FillUncoveredAtlasPixels(
                 atlasImage!,
                 atlasCoverage!,
                 ComputeAtlasBackgroundColor(layout.Placements));
@@ -573,27 +428,37 @@ internal sealed class NonDemCityObjectBaker(
         ResoniteConstructionCityObject firstCityObject = candidates[0].CityObject;
         string slotKey = preservePrimaryIdentity
             ? firstCityObject.SlotKey
-            : CreateBatchSlotKey(sourceFileKey, batchIndex);
+            : NonDemBakeSourceScope.CreateBatchSlotKey(sourceFileKey, batchIndex);
         string displayName = preservePrimaryIdentity
             ? firstCityObject.DisplayName
-            : CreateBatchDisplayName(sourceFileKey, batchIndex, slotKey);
+            : NonDemBakeSourceScope.CreateBatchDisplayName(sourceFileKey, batchIndex, slotKey);
         string? sourceFileRelativePath = string.IsNullOrWhiteSpace(firstCityObject.SourceFileRelativePath)
             ? null
             : sourceFileKey.SourceFileRelativePath;
 
-        ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(candidates);
+        ResoniteFloat3 bakeOrigin = NonDemBakeGeometry.ComputeBakeOrigin(
+            candidates.Select(static candidate => candidate.CityObject));
         List<ResoniteMeshVertex> vertices = [];
         List<ResoniteMeshSubmesh> submeshes = [];
         List<ResoniteMaterialBinding> materials = [];
 
         if (layout is not null)
         {
-            string textureIdentity = CreateAtlasTextureIdentity(sourceFileKey, batchIndex);
+            string textureIdentity = NonDemBakeSourceScope.CreateAtlasTextureIdentity(sourceFileKey, batchIndex);
             List<int> atlasTriangleIndices = [];
-            foreach (AtlasPlacement placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
+            foreach (NonDemAtlasPlacement<AtlasBatchEntry> placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                AppendPlacementGeometry(vertices, atlasTriangleIndices, bakeOrigin, placement, layout.Width, layout.Height);
+                NonDemBakeGeometry.AppendAtlasGeometry(
+                    vertices,
+                    atlasTriangleIndices,
+                    bakeOrigin,
+                    placement.Entry.CityObject,
+                    placement.Entry.Submesh,
+                    placement.Entry.UvBounds,
+                    placement.InnerRect,
+                    layout.Width,
+                    layout.Height);
             }
 
             submeshes.Add(new ResoniteMeshSubmesh(0, atlasTriangleIndices));
@@ -609,10 +474,12 @@ internal sealed class NonDemCityObjectBaker(
                     CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv));
         }
 
-        foreach (IGrouping<PreservedMaterialGroupingKey, OrderedPreservedSubmeshEntry> preservedGroup in candidates
+        foreach (IGrouping<NonDemPreservedMaterialGroupingKey, OrderedPreservedSubmeshEntry> preservedGroup in candidates
                      .SelectMany(static candidate => candidate.PreservedEntries)
                      .Select(static (entry, order) => new OrderedPreservedSubmeshEntry(entry, order))
-                     .GroupBy(static entry => CreatePreservedMaterialGroupingKey(entry.Entry.Material), PreservedMaterialGroupingKeyComparer.Instance)
+                     .GroupBy(
+                         static entry => NonDemPreservedMaterialGrouping.CreateKey(entry.Entry.Material),
+                         NonDemPreservedMaterialGrouping.KeyComparer)
                      .OrderBy(static group => group.Min(static entry => entry.Order)))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -622,7 +489,13 @@ internal sealed class NonDemCityObjectBaker(
                          .OrderBy(static entry => entry.CityObject.SlotKey, StringComparer.Ordinal)
                          .ThenBy(static entry => entry.Submesh.Index))
             {
-                AppendOriginalGeometry(vertices, preservedTriangleIndices, bakeOrigin, preservedEntry);
+                NonDemBakeGeometry.AppendOriginalGeometry(
+                    vertices,
+                    preservedTriangleIndices,
+                    bakeOrigin,
+                    preservedEntry.CityObject,
+                    preservedEntry.Submesh,
+                    preservedEntry.VertexColorOverride);
             }
 
             if (preservedTriangleIndices.Count == 0)
@@ -631,7 +504,7 @@ internal sealed class NonDemCityObjectBaker(
             }
 
             int submeshIndex = submeshes.Count;
-            ResoniteMaterialBinding preservedMaterial = NormalizePreservedMaterial(preservedGroup.First().Entry.Material) with
+            ResoniteMaterialBinding preservedMaterial = NonDemPreservedMaterialGrouping.NormalizeMaterial(preservedGroup.First().Entry.Material) with
             {
                 SubmeshIndices = [submeshIndex],
             };
@@ -658,460 +531,16 @@ internal sealed class NonDemCityObjectBaker(
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
-    private static void AppendPlacementGeometry(
-        List<ResoniteMeshVertex> vertices,
-        List<int> triangleIndices,
-        ResoniteFloat3 bakeOrigin,
-        AtlasPlacement placement,
-        int atlasWidth,
-        int atlasHeight)
-    {
-        IReadOnlyList<ResoniteMeshVertex> sourceVertices = placement.Entry.CityObject.Mesh.Vertices;
-        ResoniteFloat3 cityObjectOffset = Subtract(placement.Entry.CityObject.Transform.Position, bakeOrigin);
-        Rect innerRect = placement.InnerRect;
-
-        foreach (int sourceIndex in placement.Entry.Submesh.TriangleVertexIndices)
-        {
-            ResoniteMeshVertex sourceVertex = sourceVertices[sourceIndex];
-            ResoniteFloat2 sourceUv = sourceVertex.UV0;
-            ResoniteFloat2 atlasUv = MapUvToAtlas(sourceUv, placement.Entry.UvBounds, innerRect, atlasWidth, atlasHeight);
-            vertices.Add(sourceVertex with
-            {
-                Position = Add(sourceVertex.Position, cityObjectOffset),
-                UV0 = atlasUv,
-            });
-            triangleIndices.Add(vertices.Count - 1);
-        }
-    }
-
-    private static void AppendOriginalGeometry(
-        List<ResoniteMeshVertex> vertices,
-        List<int> triangleIndices,
-        ResoniteFloat3 bakeOrigin,
-        PreservedSubmeshEntry preservedEntry)
-    {
-        IReadOnlyList<ResoniteMeshVertex> sourceVertices = preservedEntry.CityObject.Mesh.Vertices;
-        ResoniteFloat3 cityObjectOffset = Subtract(preservedEntry.CityObject.Transform.Position, bakeOrigin);
-        foreach (int sourceIndex in preservedEntry.Submesh.TriangleVertexIndices)
-        {
-            ResoniteMeshVertex sourceVertex = sourceVertices[sourceIndex];
-            vertices.Add(sourceVertex with
-            {
-                Position = Add(sourceVertex.Position, cityObjectOffset),
-                Color = preservedEntry.VertexColorOverride ?? sourceVertex.Color,
-            });
-            triangleIndices.Add(vertices.Count - 1);
-        }
-    }
-
-    private static ResoniteFloat2 MapUvToAtlas(
-        ResoniteFloat2 sourceUv,
-        TextureUvRect uvBounds,
-        Rect atlasRect,
-        double atlasWidth,
-        double atlasHeight)
-    {
-        TextureUvRect atlasUvRect = TextureUvRect.FromTopLeftPixelRect(
-            atlasRect.X,
-            atlasRect.Y,
-            atlasRect.Width,
-            atlasRect.Height,
-            (int)Math.Round(atlasWidth),
-            (int)Math.Round(atlasHeight));
-        ScalarPair remapped = TextureUvRect.RemapValue(
-            new ScalarPair(sourceUv.X, sourceUv.Y),
-            uvBounds,
-            atlasUvRect);
-        return new ResoniteFloat2(remapped.X, remapped.Y);
-    }
-
-    private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<CityObjectBakeCandidate> candidates)
-    {
-        double minX = double.PositiveInfinity;
-        double minY = double.PositiveInfinity;
-        double minZ = double.PositiveInfinity;
-
-        foreach (ResoniteConstructionCityObject cityObject in candidates.Select(static candidate => candidate.CityObject))
-        {
-            foreach (ResoniteMeshVertex vertex in cityObject.Mesh.Vertices)
-            {
-                ResoniteFloat3 worldPosition = Add(vertex.Position, cityObject.Transform.Position);
-                minX = Math.Min(minX, worldPosition.X);
-                minY = Math.Min(minY, worldPosition.Y);
-                minZ = Math.Min(minZ, worldPosition.Z);
-            }
-        }
-
-        return double.IsPositiveInfinity(minX)
-            ? new ResoniteFloat3(0.0, 0.0, 0.0)
-            : new ResoniteFloat3(minX, minY, minZ);
-    }
-
-    private void DrawAtlasTile(Image<Rgba32> atlasImage, bool[] atlasCoverage, int atlasWidth, AtlasPlacement placement)
-    {
-        for (int y = 0; y < placement.Entry.Tile.Image.Height; y++)
-        {
-            for (int x = 0; x < placement.Entry.Tile.Image.Width; x++)
-            {
-                SetAtlasPixel(
-                    atlasImage,
-                    atlasCoverage,
-                    atlasWidth,
-                    placement.InnerRect.X + x,
-                    placement.InnerRect.Y + y,
-                    placement.Entry.Tile.Image[x, y]);
-            }
-        }
-
-        for (int y = 0; y < placement.Entry.Tile.Image.Height; y++)
-        {
-            Rgba32 leftEdge = atlasImage[placement.InnerRect.X, placement.InnerRect.Y + y];
-            Rgba32 rightEdge = atlasImage[placement.InnerRect.X + placement.InnerRect.Width - 1, placement.InnerRect.Y + y];
-            for (int pad = 1; pad <= tilePaddingPixels; pad++)
-            {
-                SetAtlasPixel(
-                    atlasImage,
-                    atlasCoverage,
-                    atlasWidth,
-                    placement.InnerRect.X - pad,
-                    placement.InnerRect.Y + y,
-                    leftEdge);
-                SetAtlasPixel(
-                    atlasImage,
-                    atlasCoverage,
-                    atlasWidth,
-                    placement.InnerRect.X + placement.InnerRect.Width - 1 + pad,
-                    placement.InnerRect.Y + y,
-                    rightEdge);
-            }
-        }
-
-        int fullWidth = placement.InnerRect.Width + (tilePaddingPixels * 2);
-        for (int pad = 1; pad <= tilePaddingPixels; pad++)
-        {
-            int sourceTopY = placement.InnerRect.Y;
-            int sourceBottomY = placement.InnerRect.Y + placement.InnerRect.Height - 1;
-            int targetTopY = placement.InnerRect.Y - pad;
-            int targetBottomY = placement.InnerRect.Y + placement.InnerRect.Height - 1 + pad;
-            for (int x = 0; x < fullWidth; x++)
-            {
-                int sampleX = placement.InnerRect.X - tilePaddingPixels + x;
-                SetAtlasPixel(
-                    atlasImage,
-                    atlasCoverage,
-                    atlasWidth,
-                    sampleX,
-                    targetTopY,
-                    atlasImage[sampleX, sourceTopY]);
-                SetAtlasPixel(
-                    atlasImage,
-                    atlasCoverage,
-                    atlasWidth,
-                    sampleX,
-                    targetBottomY,
-                    atlasImage[sampleX, sourceBottomY]);
-            }
-        }
-    }
-
     private bool TryCreateAtlasLayout(
         IReadOnlyList<AtlasBatchEntry> entries,
-        out AtlasLayout? layout)
+        out NonDemAtlasLayout<AtlasBatchEntry>? layout)
     {
-        int atlasMaxSize = EffectiveMaxAtlasSize;
-        AtlasSizeRequirements requirements = ComputeAtlasSizeRequirements(entries, atlasMaxSize);
-        if (!requirements.IsValid)
-        {
-            layout = null;
-            return false;
-        }
-
-        foreach (AtlasCanvasCandidate candidate in EnumerateAtlasCanvasCandidates(requirements, atlasMaxSize))
-        {
-            if (TryCreateAtlasLayoutForCanvas(entries, candidate.Width, candidate.Height, out layout))
-            {
-                return true;
-            }
-        }
-
-        layout = null;
-        return false;
-    }
-
-    private bool TryCreateAtlasLayoutForCanvas(
-        IReadOnlyList<AtlasBatchEntry> entries,
-        int atlasWidth,
-        int atlasHeight,
-        out AtlasLayout? layout)
-    {
-        List<AtlasPlacement> placements = [];
-        List<Rect> freeRectangles = [new Rect(0, 0, atlasWidth, atlasHeight)];
-
-        foreach (AtlasBatchEntry entry in entries)
-        {
-            AtlasEntrySize entrySize = GetAtlasEntrySize(entry);
-            if (entrySize.PaddedWidth > atlasWidth || entrySize.PaddedHeight > atlasHeight)
-            {
-                layout = null;
-                return false;
-            }
-
-            if (!TryChooseFreeRectangle(freeRectangles, entrySize.PaddedWidth, entrySize.PaddedHeight, out Rect selectedRect))
-            {
-                layout = null;
-                return false;
-            }
-
-            Rect outerRect = new(selectedRect.X, selectedRect.Y, entrySize.PaddedWidth, entrySize.PaddedHeight);
-            Rect innerRect = new(selectedRect.X + tilePaddingPixels, selectedRect.Y + tilePaddingPixels, entry.Tile.Image.Width, entry.Tile.Image.Height);
-            placements.Add(new AtlasPlacement(entry, outerRect, innerRect));
-            SplitFreeRectangles(freeRectangles, outerRect);
-            PruneFreeRectangles(freeRectangles);
-        }
-
-        layout = new AtlasLayout(
-            atlasWidth,
-            atlasHeight,
-            placements);
-        return true;
-    }
-
-    private AtlasSizeRequirements ComputeAtlasSizeRequirements(
-        IReadOnlyList<AtlasBatchEntry> entries,
-        int atlasMaxSize)
-    {
-        long requiredArea = 0;
-        int minWidth = 1;
-        int minHeight = 1;
-
-        foreach (AtlasBatchEntry entry in entries)
-        {
-            AtlasEntrySize entrySize = GetAtlasEntrySize(entry);
-            if (entrySize.PaddedWidth > atlasMaxSize || entrySize.PaddedHeight > atlasMaxSize)
-            {
-                return AtlasSizeRequirements.Invalid;
-            }
-
-            minWidth = Math.Max(minWidth, entrySize.PaddedWidth);
-            minHeight = Math.Max(minHeight, entrySize.PaddedHeight);
-            requiredArea += (long)entrySize.PaddedWidth * entrySize.PaddedHeight;
-        }
-
-        return new AtlasSizeRequirements(minWidth, minHeight, requiredArea);
-    }
-
-    private static IEnumerable<AtlasCanvasCandidate> EnumerateAtlasCanvasCandidates(
-        AtlasSizeRequirements requirements,
-        int atlasMaxSize)
-    {
-        List<int> widthCandidates = EnumeratePowerOfTwoEdges(requirements.MinWidth, atlasMaxSize).ToList();
-        List<int> heightCandidates = EnumeratePowerOfTwoEdges(requirements.MinHeight, atlasMaxSize).ToList();
-
-        return widthCandidates
-            .SelectMany(
-                width => heightCandidates,
-                (width, height) => new AtlasCanvasCandidate(width, height, requirements))
-            .OrderBy(static candidate => candidate.Area)
-            .ThenBy(static candidate => candidate.AreaSlack)
-            .ThenBy(static candidate => candidate.DimensionSlack)
-            .ThenBy(static candidate => candidate.Height)
-            .ThenBy(static candidate => candidate.Width);
-    }
-
-    private static IEnumerable<int> EnumeratePowerOfTwoEdges(int minimumEdge, int maxEdge)
-    {
-        if (minimumEdge > maxEdge)
-        {
-            yield break;
-        }
-
-        for (int edge = 1; edge > 0 && edge <= maxEdge; edge <<= 1)
-        {
-            if (edge >= minimumEdge)
-            {
-                yield return edge;
-            }
-        }
-    }
-
-    private AtlasEntrySize GetAtlasEntrySize(AtlasBatchEntry entry)
-    {
-        return new AtlasEntrySize(
-            entry.Tile.Image.Width + (tilePaddingPixels * 2),
-            entry.Tile.Image.Height + (tilePaddingPixels * 2));
-    }
-
-    private static bool TryChooseFreeRectangle(
-        IReadOnlyList<Rect> freeRectangles,
-        int requiredWidth,
-        int requiredHeight,
-        out Rect selectedRect)
-    {
-        selectedRect = default;
-        bool found = false;
-        int bestAreaFit = int.MaxValue;
-        int bestShortSideFit = int.MaxValue;
-
-        foreach (Rect freeRect in freeRectangles)
-        {
-            if (requiredWidth > freeRect.Width || requiredHeight > freeRect.Height)
-            {
-                continue;
-            }
-
-            int areaFit = (freeRect.Width * freeRect.Height) - (requiredWidth * requiredHeight);
-            int shortSideFit = Math.Min(freeRect.Width - requiredWidth, freeRect.Height - requiredHeight);
-            if (areaFit < bestAreaFit
-                || (areaFit == bestAreaFit && shortSideFit < bestShortSideFit)
-                || (areaFit == bestAreaFit && shortSideFit == bestShortSideFit
-                    && (freeRect.Y < selectedRect.Y
-                        || (freeRect.Y == selectedRect.Y && freeRect.X < selectedRect.X))))
-            {
-                selectedRect = freeRect;
-                bestAreaFit = areaFit;
-                bestShortSideFit = shortSideFit;
-                found = true;
-            }
-        }
-
-        return found;
-    }
-
-    private static void SplitFreeRectangles(List<Rect> freeRectangles, Rect usedRect)
-    {
-        for (int index = freeRectangles.Count - 1; index >= 0; index--)
-        {
-            Rect freeRect = freeRectangles[index];
-            if (!Intersects(freeRect, usedRect))
-            {
-                continue;
-            }
-
-            freeRectangles.RemoveAt(index);
-
-            if (usedRect.X > freeRect.X)
-            {
-                freeRectangles.Add(new Rect(
-                    freeRect.X,
-                    freeRect.Y,
-                    usedRect.X - freeRect.X,
-                    freeRect.Height));
-            }
-
-            if (usedRect.X + usedRect.Width < freeRect.X + freeRect.Width)
-            {
-                freeRectangles.Add(new Rect(
-                    usedRect.X + usedRect.Width,
-                    freeRect.Y,
-                    (freeRect.X + freeRect.Width) - (usedRect.X + usedRect.Width),
-                    freeRect.Height));
-            }
-
-            if (usedRect.Y > freeRect.Y)
-            {
-                freeRectangles.Add(new Rect(
-                    freeRect.X,
-                    freeRect.Y,
-                    freeRect.Width,
-                    usedRect.Y - freeRect.Y));
-            }
-
-            if (usedRect.Y + usedRect.Height < freeRect.Y + freeRect.Height)
-            {
-                freeRectangles.Add(new Rect(
-                    freeRect.X,
-                    usedRect.Y + usedRect.Height,
-                    freeRect.Width,
-                    (freeRect.Y + freeRect.Height) - (usedRect.Y + usedRect.Height)));
-            }
-        }
-    }
-
-    private static void PruneFreeRectangles(List<Rect> freeRectangles)
-    {
-        for (int leftIndex = freeRectangles.Count - 1; leftIndex >= 0; leftIndex--)
-        {
-            Rect left = freeRectangles[leftIndex];
-            for (int rightIndex = freeRectangles.Count - 1; rightIndex >= 0; rightIndex--)
-            {
-                if (leftIndex == rightIndex)
-                {
-                    continue;
-                }
-
-                Rect right = freeRectangles[rightIndex];
-                if (Contains(right, left))
-                {
-                    freeRectangles.RemoveAt(leftIndex);
-                    break;
-                }
-            }
-        }
-    }
-
-    private static bool Intersects(Rect left, Rect right)
-    {
-        return left.X < right.X + right.Width
-            && left.X + left.Width > right.X
-            && left.Y < right.Y + right.Height
-            && left.Y + left.Height > right.Y;
-    }
-
-    private static bool Contains(Rect outer, Rect inner)
-    {
-        return inner.X >= outer.X
-            && inner.Y >= outer.Y
-            && inner.X + inner.Width <= outer.X + outer.Width
-            && inner.Y + inner.Height <= outer.Y + outer.Height;
-    }
-
-    private static void ApplyBaseColor(Image<Rgba32> image, ResoniteColor color)
-    {
-        Rgba32 tint = ToPixel(color);
-        for (int y = 0; y < image.Height; y++)
-        {
-            for (int x = 0; x < image.Width; x++)
-            {
-                Rgba32 pixel = image[x, y];
-                image[x, y] = new Rgba32(
-                    MultiplyChannel(pixel.R, tint.R),
-                    MultiplyChannel(pixel.G, tint.G),
-                    MultiplyChannel(pixel.B, tint.B),
-                    MultiplyChannel(pixel.A, tint.A));
-            }
-        }
-    }
-
-    private static byte MultiplyChannel(byte left, byte right)
-    {
-        return (byte)Math.Clamp((left * right + 127) / 255, 0, 255);
-    }
-
-    private static Rgba32 MultiplyPixel(Rgba32 left, Rgba32 right)
-    {
-        return new Rgba32(
-            MultiplyChannel(left.R, right.R),
-            MultiplyChannel(left.G, right.G),
-            MultiplyChannel(left.B, right.B),
-            MultiplyChannel(left.A, right.A));
-    }
-
-    private static Rgba32 ToPixel(ResoniteColor color)
-    {
-        return new Rgba32(
-            (byte)Math.Round(Math.Clamp(color.R, 0.0, 1.0) * 255.0),
-            (byte)Math.Round(Math.Clamp(color.G, 0.0, 1.0) * 255.0),
-            (byte)Math.Round(Math.Clamp(color.B, 0.0, 1.0) * 255.0),
-            (byte)Math.Round(Math.Clamp(color.A, 0.0, 1.0) * 255.0));
-    }
-
-    private static ResoniteColor ToColor(Rgba32 color)
-    {
-        return new ResoniteColor(
-            color.R / 255.0,
-            color.G / 255.0,
-            color.B / 255.0,
-            color.A / 255.0);
+        return NonDemAtlasLayoutPlanner.TryCreateLayout(
+            entries,
+            EffectiveMaxAtlasSize,
+            tilePaddingPixels,
+            static entry => new NonDemAtlasTileSize(entry.Tile.Image.Width, entry.Tile.Image.Height),
+            out layout);
     }
 
     private static ResoniteMaterialBinding CreateVertexColorMaterial(ResoniteMaterialBinding material, int submeshIndex)
@@ -1134,433 +563,16 @@ internal sealed class NonDemCityObjectBaker(
         };
     }
 
-    private static SourceFileBatchKey CreateSourceFileKey(
-        ResoniteConstructionCityObject cityObject,
-        NonDemCityObjectBakePolicy policy)
+    private static Rgba32 ComputeAtlasBackgroundColor(IReadOnlyList<NonDemAtlasPlacement<AtlasBatchEntry>> placements)
     {
-        string context = policy.Name;
-        string? sourceFileRelativePath = string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath) ? null : cityObject.SourceFileRelativePath;
-        if (sourceFileRelativePath is null)
-        {
-            throw new InvalidOperationException(
-                $"Non-DEM batch candidate '{cityObject.DisplayName}' did not provide source scope. "
-                + "Source-owned batching requires SourceFileRelativePath.");
-        }
-
-        return new SourceFileBatchKey(
-            cityObject.ActualMeshCode,
-            cityObject.PackageName.ToLowerInvariant(),
-            cityObject.LodLevel,
-            context,
-            SourceFileRelativePath: sourceFileRelativePath);
-    }
-
-    private static string CreateBatchSlotKey(SourceFileBatchKey sourceFileKey, int batchIndex)
-    {
-        string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.SourceFileRelativePath)}-{sourceFileKey.PackageName}-lod{lodToken}-{batchIndex + 1}");
-    }
-
-    private static string CreateBatchDisplayName(SourceFileBatchKey sourceFileKey, int batchIndex, string batchSlotKey)
-    {
-        string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"AtlasBake {sourceFileKey.PackageName} LOD{lodToken} #{batchIndex + 1} [{batchSlotKey}]");
-    }
-
-    private static string CreateAtlasTextureIdentity(SourceFileBatchKey sourceFileKey, int batchIndex)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"atlastex-{sourceFileKey.SourceFileRelativePath}-{batchIndex + 1}");
-    }
-
-    private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
-    {
-        return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
-    }
-
-    private static ResoniteFloat3 Subtract(ResoniteFloat3 left, ResoniteFloat3 right)
-    {
-        return new ResoniteFloat3(left.X - right.X, left.Y - right.Y, left.Z - right.Z);
-    }
-
-    private static TextureUvRect ComputeUvBounds(
-        IReadOnlyList<ResoniteMeshVertex> vertices,
-        ResoniteMeshSubmesh submesh,
-        ResoniteMaterialBinding material)
-    {
-        double minU = double.PositiveInfinity;
-        double minV = double.PositiveInfinity;
-        double maxU = double.NegativeInfinity;
-        double maxV = double.NegativeInfinity;
-
-        foreach (int sourceIndex in submesh.TriangleVertexIndices)
-        {
-            ResoniteFloat2 transformedUv = vertices[sourceIndex].UV0;
-            minU = Math.Min(minU, transformedUv.X);
-            minV = Math.Min(minV, transformedUv.Y);
-            maxU = Math.Max(maxU, transformedUv.X);
-            maxV = Math.Max(maxV, transformedUv.Y);
-        }
-
-        if (double.IsPositiveInfinity(minU) || double.IsPositiveInfinity(minV))
-        {
-            return TextureUvRect.Identity;
-        }
-
-        double width = Math.Max(1.0 / 1024.0, maxU - minU);
-        double height = Math.Max(1.0 / 1024.0, maxV - minV);
-        return new TextureUvRect(minU, minV, width, height);
-    }
-
-    private static Image<Rgba32> BakeUsedUvRegion(
-        Image<Rgba32> sourceImage,
-        TextureUvRect uvBounds,
-        int targetWidth,
-        int targetHeight)
-    {
-        Image<Rgba32> bakedImage = new(targetWidth, targetHeight);
-        for (int y = 0; y < targetHeight; y++)
-        {
-            double normalizedV = 1.0 - ((y + 0.5) / targetHeight);
-            for (int x = 0; x < targetWidth; x++)
-            {
-                double normalizedU = (x + 0.5) / targetWidth;
-                ScalarPair sourceUv = uvBounds.DenormalizeValue(normalizedU, normalizedV);
-                bakedImage[x, y] = SampleWrappedPixelBilinear(sourceImage, sourceUv.X, sourceUv.Y);
-            }
-        }
-
-        return bakedImage;
-    }
-
-    private static Rgba32 DetectRepresentativeBackgroundColor(Image<Rgba32> image)
-    {
-        if (TryAverageBoundaryOpaquePixels(image, out Rgba32 boundaryAverage))
-        {
-            return boundaryAverage;
-        }
-
-        if (TryAverageOpaquePixels(image, out Rgba32 opaqueAverage))
-        {
-            return opaqueAverage;
-        }
-
-        if (TryAverageAllPixels(image, out Rgba32 allPixelAverage))
-        {
-            return new Rgba32(allPixelAverage.R, allPixelAverage.G, allPixelAverage.B, byte.MaxValue);
-        }
-
-        return new Rgba32(255, 255, 255, 255);
-    }
-
-    private static void FillTransparentRgb(Image<Rgba32> image, Rgba32 backgroundColor)
-    {
-        for (int y = 0; y < image.Height; y++)
-        {
-            for (int x = 0; x < image.Width; x++)
-            {
-                Rgba32 pixel = image[x, y];
-                if (pixel.A == byte.MaxValue)
-                {
-                    continue;
-                }
-
-                double alpha = pixel.A / 255.0;
-                image[x, y] = new Rgba32(
-                    BlendBackgroundChannel(pixel.R, backgroundColor.R, alpha),
-                    BlendBackgroundChannel(pixel.G, backgroundColor.G, alpha),
-                    BlendBackgroundChannel(pixel.B, backgroundColor.B, alpha),
-                    pixel.A);
-            }
-        }
-    }
-
-    private static bool TryGetUniformPixelColor(Image<Rgba32> image, out Rgba32 color)
-    {
-        color = default;
-        if (image.Width <= 0 || image.Height <= 0)
-        {
-            return false;
-        }
-
-        Rgba32 firstPixel = image[0, 0];
-        for (int y = 0; y < image.Height; y++)
-        {
-            for (int x = 0; x < image.Width; x++)
-            {
-                if (!image[x, y].Equals(firstPixel))
-                {
-                    return false;
-                }
-            }
-        }
-
-        color = firstPixel;
-        return true;
-    }
-
-    private static bool TryAverageBoundaryOpaquePixels(Image<Rgba32> image, out Rgba32 color)
-    {
-        long sumR = 0;
-        long sumG = 0;
-        long sumB = 0;
-        long count = 0;
-        for (int y = 0; y < image.Height; y++)
-        {
-            for (int x = 0; x < image.Width; x++)
-            {
-                Rgba32 pixel = image[x, y];
-                if (pixel.A <= BackgroundDetectionAlphaThreshold || !TouchesTransparentNeighbor(image, x, y))
-                {
-                    continue;
-                }
-
-                sumR += pixel.R;
-                sumG += pixel.G;
-                sumB += pixel.B;
-                count++;
-            }
-        }
-
-        color = count == 0
-            ? default
-            : new Rgba32(
-                (byte)Math.Clamp(Math.Round(sumR / (double)count), 0.0, 255.0),
-                (byte)Math.Clamp(Math.Round(sumG / (double)count), 0.0, 255.0),
-                (byte)Math.Clamp(Math.Round(sumB / (double)count), 0.0, 255.0),
-                byte.MaxValue);
-        return count > 0;
-    }
-
-    private static bool TouchesTransparentNeighbor(Image<Rgba32> image, int x, int y)
-    {
-        return IsTransparentOrOutOfBounds(image, x - 1, y)
-            || IsTransparentOrOutOfBounds(image, x + 1, y)
-            || IsTransparentOrOutOfBounds(image, x, y - 1)
-            || IsTransparentOrOutOfBounds(image, x, y + 1);
-    }
-
-    private static bool IsTransparentOrOutOfBounds(Image<Rgba32> image, int x, int y)
-    {
-        if (x < 0 || y < 0 || x >= image.Width || y >= image.Height)
-        {
-            return true;
-        }
-
-        return image[x, y].A <= BackgroundDetectionAlphaThreshold;
-    }
-
-    private static bool TryAverageOpaquePixels(Image<Rgba32> image, out Rgba32 color)
-    {
-        return TryAveragePixels(image, static pixel => pixel.A > BackgroundDetectionAlphaThreshold, out color);
-    }
-
-    private static bool TryAverageAllPixels(Image<Rgba32> image, out Rgba32 color)
-    {
-        return TryAveragePixels(image, static _ => true, out color);
-    }
-
-    private static bool TryAveragePixels(Image<Rgba32> image, Func<Rgba32, bool> predicate, out Rgba32 color)
-    {
-        long sumR = 0;
-        long sumG = 0;
-        long sumB = 0;
-        long count = 0;
-        for (int y = 0; y < image.Height; y++)
-        {
-            for (int x = 0; x < image.Width; x++)
-            {
-                Rgba32 pixel = image[x, y];
-                if (!predicate(pixel))
-                {
-                    continue;
-                }
-
-                sumR += pixel.R;
-                sumG += pixel.G;
-                sumB += pixel.B;
-                count++;
-            }
-        }
-
-        color = count == 0
-            ? default
-            : new Rgba32(
-                (byte)Math.Clamp(Math.Round(sumR / (double)count), 0.0, 255.0),
-                (byte)Math.Clamp(Math.Round(sumG / (double)count), 0.0, 255.0),
-                (byte)Math.Clamp(Math.Round(sumB / (double)count), 0.0, 255.0),
-                byte.MaxValue);
-        return count > 0;
-    }
-
-    private static byte BlendBackgroundChannel(byte foreground, byte background, double alpha)
-    {
-        double blended = (foreground * alpha) + (background * (1.0 - alpha));
-        return (byte)Math.Clamp(Math.Round(blended), 0.0, 255.0);
-    }
-
-    private static Rgba32 ComputeAtlasBackgroundColor(IReadOnlyList<AtlasPlacement> placements)
-    {
-        long sumR = 0;
-        long sumG = 0;
-        long sumB = 0;
-        long totalWeight = 0;
-        foreach (AtlasPlacement placement in placements)
-        {
-            long weight = Math.Max(1, placement.Entry.Tile.Image.Width * placement.Entry.Tile.Image.Height);
-            sumR += placement.Entry.Tile.BackgroundColor.R * weight;
-            sumG += placement.Entry.Tile.BackgroundColor.G * weight;
-            sumB += placement.Entry.Tile.BackgroundColor.B * weight;
-            totalWeight += weight;
-        }
-
-        if (totalWeight == 0)
-        {
-            return new Rgba32(255, 255, 255, 255);
-        }
-
-        return new Rgba32(
-            (byte)Math.Clamp(Math.Round(sumR / (double)totalWeight), 0.0, 255.0),
-            (byte)Math.Clamp(Math.Round(sumG / (double)totalWeight), 0.0, 255.0),
-            (byte)Math.Clamp(Math.Round(sumB / (double)totalWeight), 0.0, 255.0),
-            byte.MaxValue);
-    }
-
-    private static void FillUncoveredAtlasPixels(Image<Rgba32> atlasImage, bool[] atlasCoverage, Rgba32 backgroundColor)
-    {
-        for (int y = 0; y < atlasImage.Height; y++)
-        {
-            for (int x = 0; x < atlasImage.Width; x++)
-            {
-                int offset = (y * atlasImage.Width) + x;
-                if (atlasCoverage[offset])
-                {
-                    continue;
-                }
-
-                atlasImage[x, y] = backgroundColor;
-            }
-        }
-    }
-
-    private static void SetAtlasPixel(Image<Rgba32> atlasImage, bool[] atlasCoverage, int atlasWidth, int x, int y, Rgba32 pixel)
-    {
-        atlasImage[x, y] = pixel;
-        atlasCoverage[(y * atlasWidth) + x] = true;
-    }
-
-    private static Rgba32 SampleWrappedPixelBilinear(Image<Rgba32> sourceImage, double u, double v)
-    {
-        double wrappedU = WrapUvCoordinate(u);
-        double wrappedV = WrapUvCoordinate(v);
-        double sourceX = (wrappedU * sourceImage.Width) - 0.5;
-        double sourceY = ((1.0 - wrappedV) * sourceImage.Height) - 0.5;
-        int x0 = (int)Math.Floor(sourceX);
-        int y0 = (int)Math.Floor(sourceY);
-        int x1 = x0 + 1;
-        int y1 = y0 + 1;
-        double tx = sourceX - x0;
-        double ty = sourceY - y0;
-
-        Rgba32 topLeft = sourceImage[WrapPixelCoordinate(x0, sourceImage.Width), WrapPixelCoordinate(y0, sourceImage.Height)];
-        Rgba32 topRight = sourceImage[WrapPixelCoordinate(x1, sourceImage.Width), WrapPixelCoordinate(y0, sourceImage.Height)];
-        Rgba32 bottomLeft = sourceImage[WrapPixelCoordinate(x0, sourceImage.Width), WrapPixelCoordinate(y1, sourceImage.Height)];
-        Rgba32 bottomRight = sourceImage[WrapPixelCoordinate(x1, sourceImage.Width), WrapPixelCoordinate(y1, sourceImage.Height)];
-        return LerpPixels(topLeft, topRight, bottomLeft, bottomRight, tx, ty);
-    }
-
-    private static double WrapUvCoordinate(double value)
-    {
-        double wrapped = value - Math.Floor(value);
-        return wrapped >= 1.0 ? 0.0 : wrapped;
-    }
-
-    private static int WrapPixelCoordinate(int value, int length)
-    {
-        int wrapped = value % length;
-        return wrapped < 0 ? wrapped + length : wrapped;
-    }
-
-    private static Rgba32 LerpPixels(
-        Rgba32 topLeft,
-        Rgba32 topRight,
-        Rgba32 bottomLeft,
-        Rgba32 bottomRight,
-        double tx,
-        double ty)
-    {
-        return new Rgba32(
-            LerpChannel(topLeft.R, topRight.R, bottomLeft.R, bottomRight.R, tx, ty),
-            LerpChannel(topLeft.G, topRight.G, bottomLeft.G, bottomRight.G, tx, ty),
-            LerpChannel(topLeft.B, topRight.B, bottomLeft.B, bottomRight.B, tx, ty),
-            LerpChannel(topLeft.A, topRight.A, bottomLeft.A, bottomRight.A, tx, ty));
-    }
-
-    private static byte LerpChannel(
-        byte topLeft,
-        byte topRight,
-        byte bottomLeft,
-        byte bottomRight,
-        double tx,
-        double ty)
-    {
-        double top = topLeft + ((topRight - topLeft) * tx);
-        double bottom = bottomLeft + ((bottomRight - bottomLeft) * tx);
-        double value = top + ((bottom - top) * ty);
-        return (byte)Math.Clamp(Math.Round(value), 0.0, 255.0);
-    }
-
-    private static PreservedMaterialGroupingKey CreatePreservedMaterialGroupingKey(ResoniteMaterialBinding material)
-    {
-        ResoniteMaterialBinding normalizedMaterial = NormalizePreservedMaterial(material);
-        if (normalizedMaterial.CommonMaterial is not null)
-        {
-            return new PreservedMaterialGroupingKey(
-                normalizedMaterial.CommonMaterial,
-                new ResoniteColor(0.0, 0.0, 0.0, 0.0),
-                default,
-                normalizedMaterial.TexturePayload,
-                normalizedMaterial.TextureSourceKind,
-                normalizedMaterial.TerrainOverlay,
-                default,
-                default,
-                default,
-                default,
-                default,
-                default,
-                default,
-                normalizedMaterial.TerrainMeshCode);
-        }
-
-        return new PreservedMaterialGroupingKey(
-            null,
-            normalizedMaterial.BaseColor,
-            normalizedMaterial.MaterialType,
-            normalizedMaterial.TexturePayload,
-            normalizedMaterial.TextureSourceKind,
-            normalizedMaterial.TerrainOverlay,
-            normalizedMaterial.Projection,
-            normalizedMaterial.DepthOffset,
-            normalizedMaterial.TextureScale,
-            normalizedMaterial.TextureOffset,
-            normalizedMaterial.AssetScope,
-            normalizedMaterial.Family,
-            normalizedMaterial.BundledVariantIndex,
-            normalizedMaterial.TerrainMeshCode);
-    }
-
-    private static ResoniteMaterialBinding NormalizePreservedMaterial(ResoniteMaterialBinding material)
-    {
-        return ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
+        return NonDemBakeTextureProcessing.ComputeWeightedBackgroundColor(
+            placements.Select(static placement => (
+                placement.Entry.Tile.BackgroundColor,
+                (long)placement.Entry.Tile.Image.Width * placement.Entry.Tile.Image.Height)));
     }
 
     private async Task EmitAtlasBatchAsync(
-        SourceFileBatchKey sourceFileKey,
+        NonDemBakeSourceFileKey sourceFileKey,
         IReadOnlyList<CityObjectBakeCandidate> batchCandidates,
         int batchIndex,
         bool preservePrimaryIdentity,
@@ -1666,180 +678,4 @@ internal sealed class NonDemCityObjectBaker(
         return candidate.PreservedEntries.Any(static entry => entry.VertexColorOverride is not null);
     }
 
-    private sealed record AtlasBatchPlan(
-        IReadOnlyList<IReadOnlyList<CityObjectBakeCandidate>> Batches,
-        IReadOnlyList<CityObjectBakeCandidate> FallbackCandidates);
-
-    private sealed record AtlasLayout(
-        int Width,
-        int Height,
-        IReadOnlyList<AtlasPlacement> Placements);
-
-    private readonly record struct AtlasSizeRequirements(
-        int MinWidth,
-        int MinHeight,
-        long RequiredArea)
-    {
-        internal static AtlasSizeRequirements Invalid => new(0, 0, 0);
-
-        internal bool IsValid => MinWidth > 0 && MinHeight > 0;
-    }
-
-    private readonly record struct AtlasCanvasCandidate(
-        int Width,
-        int Height,
-        AtlasSizeRequirements Requirements)
-    {
-        internal long Area => (long)Width * Height;
-
-        internal long AreaSlack => Area - Requirements.RequiredArea;
-
-        internal int DimensionSlack => (Width - Requirements.MinWidth) + (Height - Requirements.MinHeight);
-    }
-
-    private readonly record struct AtlasEntrySize(
-        int PaddedWidth,
-        int PaddedHeight);
-
-    private sealed record AtlasPlacement(
-        AtlasBatchEntry Entry,
-        Rect OuterRect,
-        Rect InnerRect);
-
-    private readonly record struct Rect(int X, int Y, int Width, int Height);
-
-    private readonly record struct SourceFileBatchKey(
-        string ActualMeshCode,
-        string PackageName,
-        int? LodLevel,
-        string PolicyContext,
-        string SourceFileRelativePath);
-
-    private readonly record struct PreservedMaterialGroupingKey(
-        DefaultCommonMaterialMember? CommonMaterial,
-        ResoniteColor BaseColor,
-        ResoniteMaterialType MaterialType,
-        ResoniteTexturePayload? TexturePayload,
-        ResoniteTextureSourceKind TextureSourceKind,
-        TerrainTextureOverlay? TerrainOverlay,
-        ResoniteMaterialProjection Projection,
-        ResoniteMaterialDepthOffset? DepthOffset,
-        ResoniteFloat2? TextureScale,
-        ResoniteFloat2? TextureOffset,
-        ResoniteMaterialAssetScope AssetScope,
-        string? Family,
-        int? BundledVariantIndex,
-        string? TerrainMeshCode);
-
-    private sealed class SourceFileBatchKeyComparer : IComparer<SourceFileBatchKey>
-    {
-        internal static readonly SourceFileBatchKeyComparer Instance = new();
-
-        public int Compare(SourceFileBatchKey x, SourceFileBatchKey y)
-        {
-            int compare = string.CompareOrdinal(x.ActualMeshCode, y.ActualMeshCode);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = string.CompareOrdinal(x.PackageName, y.PackageName);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = Nullable.Compare(x.LodLevel, y.LodLevel);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = string.CompareOrdinal(x.PolicyContext, y.PolicyContext);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = string.CompareOrdinal(x.SourceFileRelativePath, y.SourceFileRelativePath);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            return 0;
-        }
-    }
-
-    private sealed class PreservedMaterialGroupingKeyComparer :
-        IEqualityComparer<PreservedMaterialGroupingKey>
-    {
-        internal static readonly PreservedMaterialGroupingKeyComparer Instance = new();
-
-        public bool Equals(PreservedMaterialGroupingKey x, PreservedMaterialGroupingKey y)
-        {
-            if (!EqualityComparer<DefaultCommonMaterialMember?>.Default.Equals(x.CommonMaterial, y.CommonMaterial))
-            {
-                return false;
-            }
-
-            if (x.CommonMaterial is not null)
-            {
-                return ReferenceEquals(x.TexturePayload, y.TexturePayload)
-                    && x.TextureSourceKind == y.TextureSourceKind
-                    && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
-                    && string.Equals(x.TerrainMeshCode, y.TerrainMeshCode, StringComparison.Ordinal);
-            }
-
-            return x.BaseColor == y.BaseColor
-                && x.MaterialType == y.MaterialType
-                && ReferenceEquals(x.TexturePayload, y.TexturePayload)
-                && x.TextureSourceKind == y.TextureSourceKind
-                && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
-                && x.Projection == y.Projection
-                && EqualityComparer<ResoniteMaterialDepthOffset?>.Default.Equals(x.DepthOffset, y.DepthOffset)
-                && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureScale, y.TextureScale)
-                && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureOffset, y.TextureOffset)
-                && x.AssetScope == y.AssetScope
-                && string.Equals(x.Family, y.Family, StringComparison.Ordinal)
-                && x.BundledVariantIndex == y.BundledVariantIndex
-                && string.Equals(x.TerrainMeshCode, y.TerrainMeshCode, StringComparison.Ordinal);
-        }
-
-        public int GetHashCode(PreservedMaterialGroupingKey obj)
-        {
-            HashCode hash = new();
-            hash.Add(obj.CommonMaterial);
-            if (obj.CommonMaterial is not null)
-            {
-                if (obj.TexturePayload is not null)
-                {
-                    hash.Add(RuntimeHelpers.GetHashCode(obj.TexturePayload));
-                }
-                hash.Add(obj.TextureSourceKind);
-                hash.Add(obj.TerrainOverlay);
-                hash.Add(obj.TerrainMeshCode, StringComparer.Ordinal);
-                return hash.ToHashCode();
-            }
-
-            hash.Add(obj.BaseColor);
-            hash.Add(obj.MaterialType);
-            if (obj.TexturePayload is not null)
-            {
-                hash.Add(RuntimeHelpers.GetHashCode(obj.TexturePayload));
-            }
-            hash.Add(obj.TextureSourceKind);
-            hash.Add(obj.TerrainOverlay);
-            hash.Add(obj.Projection);
-            hash.Add(obj.DepthOffset);
-            hash.Add(obj.TextureScale);
-            hash.Add(obj.TextureOffset);
-            hash.Add(obj.AssetScope);
-            hash.Add(obj.Family, StringComparer.Ordinal);
-            hash.Add(obj.BundledVariantIndex);
-            hash.Add(obj.TerrainMeshCode, StringComparer.Ordinal);
-            return hash.ToHashCode();
-        }
-
-    }
 }

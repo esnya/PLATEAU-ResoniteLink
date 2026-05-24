@@ -14,7 +14,7 @@ public static class ImportedDynamicMaterialUvNormalizer
 
         return material.MaterialType == MaterialType.Standard
             && material.Projection == MaterialProjection.Uv
-            && material.ReuseScope != MaterialReuseScope.Shared
+            && (material.ReuseScope != MaterialReuseScope.Shared || IsBundledFamilyMaterial(material))
             && HasNormalizableTextureTransform(material);
     }
 

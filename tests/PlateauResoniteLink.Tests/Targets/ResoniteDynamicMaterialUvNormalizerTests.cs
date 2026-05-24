@@ -170,6 +170,42 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     }
 
     [Fact]
+    public void Normalize_NormalizesCommonBundledFacadeBeforeBatchScopeDemotion()
+    {
+        BundledDefaultMaterialVariant variant = BundledDefaultMaterialFamilies.WallResidentialPlasterLowVariants[0];
+        ScalarPair implicitScale = variant.TextureSet.GetImplicitTextureScale();
+        ScalarPair? implicitOffset = variant.TextureSet.GetImplicitTextureOffset();
+        ResoniteConstructionCityObject cityObject = CreateTriangleCityObject(
+            textureScale: null,
+            textureOffset: null) with
+        {
+            Materials =
+            [
+                CreateDynamicUvMaterial(null, null) with
+                {
+                    TexturePayload = null,
+                    TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+                    Family = BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
+                    BundledVariantIndex = 0,
+                    TextureScale = new ResoniteFloat2(implicitScale.X, implicitScale.Y),
+                    TextureOffset = implicitOffset is null ? null : new ResoniteFloat2(implicitOffset.X, implicitOffset.Y),
+                    AssetScope = ResoniteMaterialAssetScope.Common,
+                },
+            ],
+        };
+
+        ResoniteConstructionCityObject normalized = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+        ResoniteMaterialBinding material = Assert.Single(normalized.Materials);
+
+        Assert.NotSame(cityObject, normalized);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+        Assert.Equal(1.0f, normalized.Mesh.Vertices[1].UV0.X, 6);
+        Assert.Equal(1.0f, normalized.Mesh.Vertices[2].UV0.Y, 6);
+    }
+
+
+    [Fact]
     public void Normalize_PreservesExplicitIdentityScaleForUnrelatedTriplanarMaterial()
     {
         ResoniteConstructionCityObject cityObject = new(

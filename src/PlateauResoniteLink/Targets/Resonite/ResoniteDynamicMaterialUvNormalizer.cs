@@ -14,7 +14,7 @@ public static class ResoniteDynamicMaterialUvNormalizer
 
         return material.MaterialType == ResoniteMaterialType.Standard
             && material.Projection == ResoniteMaterialProjection.Uv
-            && material.AssetScope != ResoniteMaterialAssetScope.Common
+            && (material.AssetScope != ResoniteMaterialAssetScope.Common || IsBundledFamilyMaterial(material))
             && HasNormalizableTextureTransform(material);
     }
 

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 
 using System.Xml.Linq;
@@ -11,18 +10,7 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed record GeodeticPoint(
     double Latitude,
     double Longitude,
-    double Altitude)
-{
-    internal LocalCityGmlObjectProjection.GeodeticPoint ToProjectionModel()
-    {
-        return new LocalCityGmlObjectProjection.GeodeticPoint(Latitude, Longitude, Altitude);
-    }
-
-    internal static GeodeticPoint FromProjectionModel(LocalCityGmlObjectProjection.GeodeticPoint point)
-    {
-        return new GeodeticPoint(point.Latitude, point.Longitude, point.Altitude);
-    }
-}
+    double Altitude);
 
 internal static class SceneAxisMapper
 {
@@ -61,24 +49,7 @@ internal static class SceneAxisMapper
 internal sealed record TerrainHeightTriangle(
     GeodeticPoint Vertex0,
     GeodeticPoint Vertex1,
-    GeodeticPoint Vertex2)
-{
-    internal LocalCityGmlObjectProjection.TerrainHeightTriangle ToProjectionModel()
-    {
-        return new LocalCityGmlObjectProjection.TerrainHeightTriangle(
-            Vertex0.ToProjectionModel(),
-            Vertex1.ToProjectionModel(),
-            Vertex2.ToProjectionModel());
-    }
-
-    internal static TerrainHeightTriangle FromProjectionModel(LocalCityGmlObjectProjection.TerrainHeightTriangle triangle)
-    {
-        return new TerrainHeightTriangle(
-            GeodeticPoint.FromProjectionModel(triangle.Vertex0),
-            GeodeticPoint.FromProjectionModel(triangle.Vertex1),
-            GeodeticPoint.FromProjectionModel(triangle.Vertex2));
-    }
-}
+    GeodeticPoint Vertex2);
 
 internal sealed record DemTerrainBounds(
     double SouthLatitude,
@@ -145,14 +116,14 @@ internal sealed record CoordinateReferenceSystem(
         return new CoordinateReferenceSystem(srsName, geocentric, compatibilityKey);
     }
 
-    internal static CoordinateReferenceSystem FromProjectionModel(LocalCityGmlObjectProjection.CoordinateReferenceSystem referenceSystem)
+    internal static CoordinateReferenceSystem FromProjectionModel(ProjectionCoordinateReferenceSystem referenceSystem)
     {
         return new CoordinateReferenceSystem(referenceSystem.SrsName, referenceSystem.Geocentric, referenceSystem.CompatibilityKey);
     }
 
-    internal LocalCityGmlObjectProjection.CoordinateReferenceSystem ToProjectionModel()
+    internal ProjectionCoordinateReferenceSystem ToProjectionModel()
     {
-        return new LocalCityGmlObjectProjection.CoordinateReferenceSystem(
+        return new ProjectionCoordinateReferenceSystem(
             SrsName,
             Geocentric,
             CompatibilityKey);
@@ -175,37 +146,5 @@ internal sealed record CoordinateReferenceSystem(
         }
 
         return (new Geocentric(Ellipsoid.GRS80), srsName.Trim());
-    }
-}
-
-internal sealed class TerrainHeightSampler
-{
-    private readonly LocalCityGmlObjectProjection.TerrainHeightSampler projectionSampler;
-
-    internal TerrainHeightSampler(LocalCityGmlObjectProjection.TerrainHeightSampler projectionSampler)
-    {
-        this.projectionSampler = projectionSampler;
-    }
-
-    internal static TerrainHeightSampler? FromProjectionModel(LocalCityGmlObjectProjection.TerrainHeightSampler? terrainHeightSampler)
-    {
-        return terrainHeightSampler is null ? null : new TerrainHeightSampler(terrainHeightSampler);
-    }
-
-    internal LocalCityGmlObjectProjection.TerrainHeightSampler ToProjectionModel()
-    {
-        return projectionSampler;
-    }
-
-    internal static TerrainHeightSampler Create(
-        IReadOnlyCollection<TerrainHeightTriangle> terrainTriangles,
-        GeodeticPoint globalOriginPoint,
-        Geocentric geocentric)
-    {
-        return new TerrainHeightSampler(
-            LocalCityGmlObjectProjection.TerrainHeightSampler.Create(
-                terrainTriangles.Select(static triangle => triangle.ToProjectionModel()).ToArray(),
-                globalOriginPoint.ToProjectionModel(),
-                geocentric));
     }
 }

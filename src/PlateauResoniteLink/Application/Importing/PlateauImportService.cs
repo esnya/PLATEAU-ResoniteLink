@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.ExceptionServices;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -84,9 +83,12 @@ internal sealed class PlateauImportService(
             int sourceCityObjectCount = 0;
             Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
             ReportProgress(PlateauLog.Info("import", "Handing object unit stream to sink."));
+            CountingImportedObjectUnitStream countedObjectUnits = new(
+                source.ReadObjectUnitsAsync(cancellationToken),
+                cityObjectCount => sourceCityObjectCount += cityObjectCount);
             SceneImportExecutionResult executionResult = await sceneSink.ExecuteAsync(
                 executionPlan,
-                CountImportedObjectUnitsAsync(source.ReadObjectUnitsAsync(cancellationToken), cityObjectCount => sourceCityObjectCount += cityObjectCount, cancellationToken),
+                countedObjectUnits.ReadAsync(cancellationToken),
                 cancellationToken);
 
             cityObjectStopwatch.Stop();
@@ -159,16 +161,4 @@ internal sealed class PlateauImportService(
         progressReporter?.Invoke(message);
     }
 
-    private static async IAsyncEnumerable<ImportedObjectUnit> CountImportedObjectUnitsAsync(
-        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
-        Action<int> onReadAdditionalCityObjects,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            onReadAdditionalCityObjects(objectUnit.CityObjects.Count);
-            yield return objectUnit;
-        }
-    }
 }

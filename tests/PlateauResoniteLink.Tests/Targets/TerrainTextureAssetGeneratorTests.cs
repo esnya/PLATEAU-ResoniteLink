@@ -25,7 +25,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
 
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
         TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
@@ -52,7 +52,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
 
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png") with
         {
@@ -74,7 +74,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         GeographicRectangle bounds = new(
             MinLatitude: WebMercatorTileMath.PixelYToLatitude(150, 1),
             MaxLatitude: WebMercatorTileMath.PixelYToLatitude(50, 1),
@@ -110,7 +110,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
 
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png") with
         {
@@ -130,7 +130,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
 
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
@@ -160,7 +160,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new(delayPerRequest: TimeSpan.FromMilliseconds(50));
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
         Task<GeneratedTerrainTexture>[] requests =
@@ -185,21 +185,21 @@ public sealed class TerrainTextureAssetGeneratorTests
         using (FakeMapTileHandler firstHandler = new())
         using (HttpClient firstClient = new(firstHandler))
         {
-            TerrainTextureAssetGenerator firstGenerator = new(firstClient, cacheRoot.Path);
+            TerrainTextureAssetGenerator firstGenerator = TerrainTextureAssetGeneratorTestFactory.Create(firstClient, new PersistentTerrainTileCache(cacheRoot.Path));
             _ = await firstGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
             Assert.Equal(4, firstHandler.RequestCount);
         }
 
         using FakeMapTileHandler secondHandler = new();
         using HttpClient secondClient = new(secondHandler);
-        TerrainTextureAssetGenerator secondGenerator = new(secondClient, cacheRoot.Path);
+        TerrainTextureAssetGenerator secondGenerator = TerrainTextureAssetGeneratorTestFactory.Create(secondClient, new PersistentTerrainTileCache(cacheRoot.Path));
 
         GeneratedTerrainTexture texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(0, secondHandler.RequestCount);
         using FakeMapTileHandler thirdHandler = new();
         using HttpClient thirdClient = new(thirdHandler);
-        TerrainTextureAssetGenerator thirdGenerator = new(thirdClient, cacheRoot.Path);
+        TerrainTextureAssetGenerator thirdGenerator = TerrainTextureAssetGeneratorTestFactory.Create(thirdClient, new PersistentTerrainTileCache(cacheRoot.Path));
         GeneratedTerrainTexture repeatedTexture = await thirdGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(texture.TextureImport.Width, repeatedTexture.TextureImport.Width);
@@ -212,7 +212,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay firstOverlay = CreateFullCoverageOverlay("https://tiles-a.example/{z}/{x}/{y}.png");
         TerrainTextureOverlay secondOverlay = CreateFullCoverageOverlay("https://tiles-b.example/{z}/{x}/{y}.png");
 
@@ -227,7 +227,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay firstOverlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
         TerrainTextureOverlay secondOverlay = firstOverlay with
         {
@@ -250,7 +250,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay firstOverlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
         TerrainTextureOverlay secondOverlay = firstOverlay with
         {
@@ -276,14 +276,14 @@ public sealed class TerrainTextureAssetGeneratorTests
         using (FakeMapTileHandler firstHandler = new())
         using (HttpClient firstClient = new(firstHandler))
         {
-            TerrainTextureAssetGenerator firstGenerator = new(firstClient, cacheRoot.Path);
+            TerrainTextureAssetGenerator firstGenerator = TerrainTextureAssetGeneratorTestFactory.Create(firstClient, new PersistentTerrainTileCache(cacheRoot.Path));
             _ = await firstGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
             Assert.Equal(4, firstHandler.RequestCount);
         }
 
         using FakeMapTileHandler secondHandler = new();
         using HttpClient secondClient = new(secondHandler);
-        TerrainTextureAssetGenerator secondGenerator = new(secondClient, cacheRoot.Path, disablePersistentCache: true);
+        TerrainTextureAssetGenerator secondGenerator = TerrainTextureAssetGeneratorTestFactory.Create(secondClient, persistentTileCache: null);
 
         _ = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
@@ -299,7 +299,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, cacheRootPath);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, new PersistentTerrainTileCache(cacheRootPath));
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
@@ -313,7 +313,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FlakyMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
         GeneratedTerrainTexture firstTexture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
@@ -333,13 +333,13 @@ public sealed class TerrainTextureAssetGeneratorTests
         using (FlakyMapTileHandler firstHandler = new())
         using (HttpClient firstClient = new(firstHandler))
         {
-            TerrainTextureAssetGenerator firstGenerator = new(firstClient, cacheRoot.Path);
+            TerrainTextureAssetGenerator firstGenerator = TerrainTextureAssetGeneratorTestFactory.Create(firstClient, new PersistentTerrainTileCache(cacheRoot.Path));
             _ = await firstGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
         }
 
         using RetryableMapTileHandler secondHandler = new();
         using HttpClient secondClient = new(secondHandler);
-        TerrainTextureAssetGenerator secondGenerator = new(secondClient, cacheRoot.Path);
+        TerrainTextureAssetGenerator secondGenerator = TerrainTextureAssetGeneratorTestFactory.Create(secondClient, new PersistentTerrainTileCache(cacheRoot.Path));
 
         GeneratedTerrainTexture texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
@@ -363,7 +363,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, cacheRoot.Path);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentCache);
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
@@ -376,7 +376,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using PrimaryFallbackMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay(
             "https://primary.example/{z}/{x}/{y}.png",
             "https://fallback.example/{z}/{x}/{y}.png");
@@ -393,7 +393,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using SecondaryPrimaryFallbackMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
             GeographicBounds: new GeographicRectangle(
@@ -423,7 +423,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using ZoomAwareFallbackMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         const int primaryZoomLevel = 2;
         GeographicRectangle bounds = new(
             MinLatitude: WebMercatorTileMath.PixelYToLatitude(WebMercatorTileMath.TileSizePixels, primaryZoomLevel),
@@ -451,7 +451,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using PartialSourceFallbackMapTileHandler handler = new((1, 1));
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
             GeographicBounds: new GeographicRectangle(
@@ -483,7 +483,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using MissingTileMapTileHandler handler = new((1, 1));
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
             GeographicBounds: new GeographicRectangle(
@@ -531,7 +531,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
@@ -545,7 +545,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using RetryOnceMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);

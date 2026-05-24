@@ -86,7 +86,6 @@ internal static class ResoniteSceneMaterialConventions
     public static ResoniteMaterialBinding NormalizeBatchGroupedMaterialBinding(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
-        material = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
         if (material.AssetScope == ResoniteMaterialAssetScope.Common
             && material.MaterialType == ResoniteMaterialType.Standard

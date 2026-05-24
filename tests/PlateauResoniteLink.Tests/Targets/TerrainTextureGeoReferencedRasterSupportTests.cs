@@ -18,6 +18,8 @@ namespace PlateauResoniteLink.Tests.Targets;
 
 public sealed class TerrainTextureGeoReferencedRasterSupportTests
 {
+    private static readonly HttpClient TerrainTextureAssetHttpClient = new();
+
     [Fact]
     public void TryCreateMetadataResolvesJapanPlaneRectangularBounds()
     {
@@ -268,7 +270,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         using NeverCalledMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
@@ -329,7 +331,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         using TerrainTextureAssetGeneratorTestsProxyMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
 
         GeneratedTerrainTexture tileOnlyTexture = await generator.EnsureTextureAsync(tileOnlyOverlay, CancellationToken.None);
         GeneratedTerrainTexture rasterOnlyTexture = await generator.EnsureTextureAsync(rasterOnlyOverlay, CancellationToken.None);
@@ -374,7 +376,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         using NeverCalledMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(rasterOverlay, CancellationToken.None);
 
@@ -422,7 +424,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
                     new GeoReferencedRasterMetadata(bounds, "EPSG:4326", 10.0, 10.0)),
             ]);
 
-        TerrainTextureAssetGenerator generator = new(disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(TerrainTextureAssetHttpClient, persistentTileCache: null);
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
@@ -472,7 +474,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         using TerrainTextureAssetGeneratorTestsProxyMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
@@ -512,7 +514,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         using TerrainTextureAssetGeneratorTestsProxyMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = TerrainTextureAssetGeneratorTestFactory.Create(httpClient, persistentTileCache: null);
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 

@@ -11,7 +11,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
 {
-    private readonly Channel<ResoniteLiveSceneImportTarget.QueuedCityObject> cityObjectChannel;
+    private readonly Channel<QueuedCityObject> cityObjectChannel;
     private readonly CancellationTokenSource processingCancellationSource;
     private readonly TaskCompletionSource<Exception> firstProcessingFailureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly AsyncWeightedGate cityObjectMemoryGate;
@@ -22,7 +22,7 @@ internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(plan);
 
-        cityObjectChannel = Channel.CreateBounded<ResoniteLiveSceneImportTarget.QueuedCityObject>(
+        cityObjectChannel = Channel.CreateBounded<QueuedCityObject>(
             new BoundedChannelOptions(plan.QueueCapacity)
             {
                 SingleReader = false,
@@ -33,7 +33,7 @@ internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
         cityObjectMemoryGate = new AsyncWeightedGate(plan.MemoryBudgetBytes);
     }
 
-    public ChannelReader<ResoniteLiveSceneImportTarget.QueuedCityObject> Reader => cityObjectChannel.Reader;
+    public ChannelReader<QueuedCityObject> Reader => cityObjectChannel.Reader;
 
     public CancellationToken ProcessingCancellationToken => processingCancellationSource.Token;
 
@@ -54,7 +54,7 @@ internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
         return cityObjectMemoryGate.AcquireAsync(estimatedWorksetBytes, cancellationToken);
     }
 
-    public ValueTask WriteAsync(ResoniteLiveSceneImportTarget.QueuedCityObject queuedCityObject, CancellationToken cancellationToken)
+    public ValueTask WriteAsync(QueuedCityObject queuedCityObject, CancellationToken cancellationToken)
     {
         return cityObjectChannel.Writer.WriteAsync(queuedCityObject, cancellationToken);
     }
@@ -106,7 +106,7 @@ internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
     {
         try
         {
-            _ = processingCancellationSource.CancelAsync();
+            processingCancellationSource.Cancel();
         }
         catch (ObjectDisposedException)
         {

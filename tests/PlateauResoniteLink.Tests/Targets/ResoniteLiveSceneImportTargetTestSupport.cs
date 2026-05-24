@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,7 +21,68 @@ namespace PlateauResoniteLink.Tests.Targets;
 
 internal static class ResoniteLiveSceneImportTargetTestSupport
 {
+    private static readonly HttpClient TerrainTextureAssetHttpClient = new();
+
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
+
+    public static ResonitePreparedTextureUploader CreatePreparedTextureUploader()
+    {
+        return new ResonitePreparedTextureUploader(new ResoniteSharedTerrainTextureAssetStore());
+    }
+
+    public static TerrainTextureAssetGenerator CreateTerrainTextureAssetGenerator()
+    {
+        return TerrainTextureAssetGeneratorTestFactory.Create(TerrainTextureAssetHttpClient, persistentTileCache: null);
+    }
+
+    public static IResoniteLiveSendRunStarter CreateRunStarter(
+        IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
+    {
+        return new ResoniteLiveSendRunStarter(
+            new ResoniteLiveSendConnectionInitializer(),
+            new ResoniteLiveSendSceneSetupRunner(
+                sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(
+                    new ResoniteSceneSlotLocator(),
+                    new ResoniteSceneAnchorResolver()),
+                new ResoniteSharedSlotIndexFactory(),
+                new ResoniteSlotCreator()),
+            new ResoniteLiveSendWorkerLauncher(new ResoniteCityObjectSendWorkerPool()),
+            new LiveSendRunPlanFactory(),
+            new ResoniteCommonMaterialSetupAssetPreparer(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore())),
+            new LiveSendRunStateFactory(new ResoniteBufferedCityObjectBakerFactory()),
+            new ResoniteTextureImageLoaderFactory());
+    }
+
+    public static ResonitePreparedCityObjectFactory CreatePreparedCityObjectFactory(
+        ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null)
+    {
+        return new ResonitePreparedCityObjectFactory(
+            new ResonitePreparedGeometryFactory(),
+            new ResonitePreparedTextureReferenceFactory(
+                terrainTextureAssetGenerator ?? CreateTerrainTextureAssetGenerator(),
+                new ResoniteDatasetLicenseWriter()));
+    }
+
+    public static ResoniteLiveSceneImportExecutionServices CreateExecutionServices(
+        ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
+        IResoniteLiveSendRunStarter? runStarter = null)
+    {
+        return new ResoniteLiveSceneImportExecutionServices(
+            new ResoniteLiveSendExecutionGate(),
+            runStarter ?? CreateRunStarter(),
+            new ResoniteImportedObjectUnitStreamQueueWriter(new ResoniteCityObjectQueueWriter()),
+            new ResoniteLiveSendRunFinalizer(new ResoniteCityObjectQueueWriter()),
+            new ResoniteLiveSendExecutionResultFactory(),
+            new ResoniteLiveSendRunResourceReleaser(),
+            new ResoniteQueuedCityObjectSender(
+                CreatePreparedCityObjectFactory(terrainTextureAssetGenerator),
+                new ResonitePreparedCityObjectImporter(
+                    CreatePreparedTextureUploader(),
+                    new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
+                    new ResoniteSceneMaterialPlanFactory(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore())),
+                    new ResoniteBatchEmissionPlanner(),
+                    new PlannedBatchEmissionInterpreter())));
+    }
 
     public static async Task ExecuteSceneAsync(
         ImportedSceneMetadata metadata,
@@ -308,20 +370,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: progressReporter),
-            new ResoniteLiveSceneImportDependencies(
+            new ResoniteLiveSceneImportSession(
                 session ?? new DelegatingClientSession(routedClient),
-                diagnostics,
-                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
-                new ResoniteSceneSetupInterpreter(
-                    new ResoniteSceneSlotLocator(),
-                    new ResoniteSceneAnchorResolver()),
-                new ResoniteDatasetLicenseWriter(),
-                new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
-                new ResoniteBatchEmissionPlanner(),
-                new PlannedBatchEmissionInterpreter(),
-                new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory()));
+                diagnostics),
+            CreateExecutionServices(terrainTextureAssetGenerator));
     }
 
     private static async IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsAsync(

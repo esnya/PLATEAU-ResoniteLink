@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
+using GeographicLib;
+
 using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
 
@@ -286,6 +288,300 @@ internal static class DemTerrainOverlayAssignment
         yield return (parsedCityObject with { Surfaces = untexturedSurfaces, GeodeticOriginOverride = sharedOrigin }, null);
     }
 
+    public static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitForTerrainProjection(
+        ParsedCityObject cityObject,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas = null,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
+        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
+                 in SplitParsedCityObject(
+                     cityObject,
+                     demTerrainTextureOverlays,
+                     requestedMeshAreas,
+                     progressReporter,
+                     cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (splitCityObject.Overlay is not null
+                || string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return splitCityObject;
+                continue;
+            }
+
+            foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) nonDemSplit
+                     in SplitNonDemCityObjectByTerrainOverlay(
+                         splitCityObject.CityObject,
+                         demTerrainTextureOverlays,
+                         requestedMeshAreas,
+                         progressReporter,
+                         cancellationToken))
+            {
+                yield return nonDemSplit;
+            }
+        }
+    }
+
+    public static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitForValidatedTerrainProjection(
+        ParsedCityObject cityObject,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        string requestedMeshCode,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        string validationContext,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(cityObject);
+        ArgumentNullException.ThrowIfNull(demTerrainTextureOverlays);
+        ArgumentException.ThrowIfNullOrWhiteSpace(requestedMeshCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(validationContext);
+
+        IReadOnlyList<MeshCodeBounds> requestedAreas = requestedMeshAreas ?? [];
+        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
+                 in SplitForTerrainProjection(
+                     cityObject,
+                     demTerrainTextureOverlays,
+                     requestedAreas,
+                     progressReporter,
+                     cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!ShouldProjectTerrainOverlaySplit(
+                    splitCityObject.CityObject.ActualMeshCode,
+                    requestedMeshCode,
+                    requestedAreas,
+                    splitCityObject.Overlay))
+            {
+                throw TerrainTextureMeshCodeResolver.CreateMismatchException(
+                    validationContext,
+                    splitCityObject.CityObject.ActualMeshCode,
+                    requestedMeshCode,
+                    requestedMeshAreas,
+                    splitCityObject.Overlay);
+            }
+
+            yield return splitCityObject;
+        }
+    }
+
+    public static bool ShouldProjectTerrainOverlaySplit(
+        string actualMeshCode,
+        string requestedMeshCode,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        TerrainTextureOverlay? terrainOverlay)
+    {
+        if (terrainOverlay is null)
+        {
+            return true;
+        }
+
+        if (requestedMeshAreas.Count > 0)
+        {
+            return TerrainTextureMeshCodeResolver.IsRequestedOverlay(terrainOverlay, requestedMeshAreas);
+        }
+
+        return TerrainTextureMeshCodeResolver.ResolveForMaterialOverlay(
+                actualMeshCode,
+                requestedMeshCode,
+                requestedMeshAreas,
+                terrainOverlay)
+            is not null;
+    }
+
+    private static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitNonDemCityObjectByTerrainOverlay(
+        ParsedCityObject cityObject,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken)
+    {
+        if (demTerrainTextureOverlays.Count == 0 || !PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName))
+        {
+            yield return (cityObject, null);
+            yield break;
+        }
+
+        GeodeticPoint cityObjectOrigin = CityObjectGeometryMetrics.GetCenterOrigin(cityObject);
+        LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
+            ? new LocalCartesian(
+                cityObjectOrigin.Latitude,
+                cityObjectOrigin.Longitude,
+                cityObjectOrigin.Altitude,
+                cityObject.ReferenceSystem.Geocentric)
+            : null;
+        GeodeticPoint[] cityObjectVertices =
+        [
+            .. cityObject.Surfaces.SelectMany(static surface => surface.Vertices)
+        ];
+        if (cityObjectVertices.Length == 0)
+        {
+            yield return (cityObject, null);
+            yield break;
+        }
+
+        double cityObjectMinAltitude = cityObjectVertices.Min(static vertex => vertex.Altitude);
+
+        List<ParsedSurface> untexturedSurfaces = [];
+        List<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> terrainOverlaySurfaces = [];
+        foreach (ParsedSurface surface in cityObject.Surfaces)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsNonDemTerrainTextureSurface(cityObject, surface, cityObjectMinAltitude, cityObjectOrigin, cityObjectCartesian)
+                || !TryCreateSurfaceGeographicBounds(surface, out GeographicRectangle surfaceBounds))
+            {
+                untexturedSurfaces.Add(surface);
+                continue;
+            }
+
+            ParsedSurface terrainProjectionSurface = NormalizeNonDemTerrainTextureSurface(surface);
+
+            TerrainTextureOverlay[] candidateOverlays = demTerrainTextureOverlays
+                .Where(overlay => TerrainTextureMeshCodeResolver.IsRequestedOverlay(overlay, requestedMeshAreas)
+                    || TerrainTextureMeshCodeResolver.ResolveForOverlay(cityObject.ActualMeshCode, overlay) is not null)
+                .Where(overlay => BoundsOverlap(surfaceBounds, overlay.GeographicBounds))
+                .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
+                .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
+                .ToArray();
+            if (candidateOverlays.Length == 0)
+            {
+                TerrainTextureOverlay? overlappingOverlay = demTerrainTextureOverlays
+                    .FirstOrDefault(overlay => BoundsOverlap(surfaceBounds, overlay.GeographicBounds));
+                if (overlappingOverlay is not null)
+                {
+                    throw TerrainTextureMeshCodeResolver.CreateMismatchException(
+                        "non-dem-terrain-candidate",
+                        cityObject.ActualMeshCode,
+                        cityObject.ActualMeshCode,
+                        requestedMeshAreas,
+                        overlappingOverlay);
+                }
+
+                untexturedSurfaces.Add(surface);
+                continue;
+            }
+
+            if (candidateOverlays.Length == 1)
+            {
+                terrainOverlaySurfaces.Add((terrainProjectionSurface, candidateOverlays[0]));
+                continue;
+            }
+
+            TerrainTextureOverlay? containingOverlay = candidateOverlays.FirstOrDefault(overlay =>
+                ContainsBounds(overlay.GeographicBounds, surfaceBounds));
+            if (containingOverlay is not null)
+            {
+                terrainOverlaySurfaces.Add((terrainProjectionSurface, containingOverlay));
+                continue;
+            }
+
+            IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
+                DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
+                    terrainProjectionSurface,
+                    candidateOverlays,
+                    progressReporter,
+                    cancellationToken);
+            if (clippedSurfaces.Count == 0)
+            {
+                untexturedSurfaces.Add(surface);
+                continue;
+            }
+
+            terrainOverlaySurfaces.AddRange(clippedSurfaces);
+        }
+
+        IGrouping<TerrainTextureOverlay, (ParsedSurface Surface, TerrainTextureOverlay Overlay)>[] terrainGroups =
+            terrainOverlaySurfaces
+                .GroupBy(static entry => entry.Overlay)
+                .OrderBy(static group => group.Key.GeographicBounds.MinLatitude)
+                .ThenBy(static group => group.Key.GeographicBounds.MinLongitude)
+                .ToArray();
+        int splitCount = terrainGroups.Length + (untexturedSurfaces.Count == 0 ? 0 : 1);
+        if (splitCount == 0)
+        {
+            yield break;
+        }
+
+        if (splitCount == 1)
+        {
+            if (terrainGroups.Length == 1)
+            {
+                string terrainMeshCode = TerrainTextureMeshCodeResolver.ResolveForMaterialOverlay(
+                        cityObject.ActualMeshCode,
+                        cityObject.ActualMeshCode,
+                        requestedMeshAreas,
+                        terrainGroups[0].Key)
+                    ?? throw TerrainTextureMeshCodeResolver.CreateMismatchException(
+                        "non-dem-terrain-single-split",
+                        cityObject.ActualMeshCode,
+                        cityObject.ActualMeshCode,
+                        requestedMeshAreas,
+                        terrainGroups[0].Key);
+                yield return (
+                    cityObject with
+                    {
+                        ActualMeshCode = terrainMeshCode,
+                        Surfaces = terrainGroups[0].Select(static entry => MarkUsesGeneratedDemTexture(entry.Surface)).ToArray(),
+                        GeodeticOriginOverride = cityObjectOrigin,
+                    },
+                    terrainGroups[0].Key);
+                yield break;
+            }
+
+            yield return (
+                cityObject with
+                {
+                    Surfaces = untexturedSurfaces.ToArray(),
+                    GeodeticOriginOverride = cityObjectOrigin,
+                },
+                null);
+            yield break;
+        }
+
+        int splitIndex = 0;
+        foreach (IGrouping<TerrainTextureOverlay, (ParsedSurface Surface, TerrainTextureOverlay Overlay)> group in terrainGroups)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string terrainMeshCode = TerrainTextureMeshCodeResolver.ResolveForMaterialOverlay(
+                    cityObject.ActualMeshCode,
+                    cityObject.ActualMeshCode,
+                    requestedMeshAreas,
+                    group.Key)
+                ?? throw TerrainTextureMeshCodeResolver.CreateMismatchException(
+                    "non-dem-terrain-split",
+                    cityObject.ActualMeshCode,
+                    cityObject.ActualMeshCode,
+                    requestedMeshAreas,
+                    group.Key);
+            yield return (
+                cityObject with
+                {
+                    ActualMeshCode = terrainMeshCode,
+                    SlotKey = $"{cityObject.SlotKey}_terrain_{terrainMeshCode}",
+                    DisplayName = $"{cityObject.DisplayName} ({splitIndex + 1})",
+                    Surfaces = group.Select(static entry => MarkUsesGeneratedDemTexture(entry.Surface)).ToArray(),
+                    GeodeticOriginOverride = cityObjectOrigin,
+                },
+                group.Key);
+            splitIndex++;
+        }
+
+        if (untexturedSurfaces.Count != 0)
+        {
+            yield return (
+                cityObject with
+                {
+                    SlotKey = $"{cityObject.SlotKey}_terrain_none",
+                    DisplayName = $"{cityObject.DisplayName} ({splitIndex + 1})",
+                    Surfaces = untexturedSurfaces.ToArray(),
+                    GeodeticOriginOverride = cityObjectOrigin,
+                },
+                null);
+        }
+    }
+
+
     private static ParsedSurface[] ClipGeneratedSurfaceToRequestedMeshAreas(
         ParsedSurface generatedSurface,
         GeographicRectangle[] requestedMeshBounds,
@@ -338,7 +634,7 @@ internal static class DemTerrainOverlayAssignment
 
     public static (Float2? TextureScale, Float2? TextureOffset) TryCreateTerrainGridTextureTransform(
         ParsedCityObject cityObject,
-        LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
+        ResolvedSurfaceMaterial materializedSurface,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         GeographicRectangle? cityObjectGeographicBounds = null)
     {
@@ -356,7 +652,7 @@ internal static class DemTerrainOverlayAssignment
 
     public static TextureUvRect? TryCreateTerrainGridOccupiedUvRect(
         ParsedCityObject cityObject,
-        LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
+        ResolvedSurfaceMaterial materializedSurface,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         GeographicRectangle? cityObjectGeographicBounds = null)
     {
@@ -587,6 +883,69 @@ internal static class DemTerrainOverlayAssignment
         }
 
         return origin!;
+    }
+
+    private static ParsedSurface MarkUsesGeneratedDemTexture(ParsedSurface surface)
+    {
+        return surface with { UsesGeneratedDemTexture = true };
+    }
+
+    private static ParsedSurface NormalizeNonDemTerrainTextureSurface(ParsedSurface surface)
+    {
+        return surface.Semantic == ParsedSurfaceSemantic.Roof
+            ? surface
+            : surface with { Semantic = ParsedSurfaceSemantic.Roof };
+    }
+
+    private static bool IsNonDemTerrainTextureSurface(
+        ParsedCityObject cityObject,
+        ParsedSurface surface,
+        double cityObjectMinAltitude,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        return surface.TexturePayload is null
+            && !surface.UsesGeneratedDemTexture
+            && SurfaceMaterialResolver.IsRoofTerrainTextureSurface(
+                surface,
+                cityObjectMinAltitude,
+                cityObjectOrigin,
+                cityObjectCartesian);
+    }
+
+    private static bool BoundsOverlap(GeographicRectangle left, GeographicRectangle right)
+    {
+        return left.MaxLatitude >= right.MinLatitude
+            && left.MinLatitude <= right.MaxLatitude
+            && left.MaxLongitude >= right.MinLongitude
+            && left.MinLongitude <= right.MaxLongitude;
+    }
+
+    private static bool ContainsBounds(GeographicRectangle outer, GeographicRectangle inner)
+    {
+        return inner.MinLatitude >= outer.MinLatitude
+            && inner.MaxLatitude <= outer.MaxLatitude
+            && inner.MinLongitude >= outer.MinLongitude
+            && inner.MaxLongitude <= outer.MaxLongitude;
+    }
+
+    private static bool TryCreateSurfaceGeographicBounds(
+        ParsedSurface surface,
+        out GeographicRectangle bounds)
+    {
+        GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
+        if (vertices.Length == 0)
+        {
+            bounds = new GeographicRectangle(0.0, 0.0, 0.0, 0.0);
+            return false;
+        }
+
+        bounds = new GeographicRectangle(
+            vertices.Min(static vertex => vertex.Latitude),
+            vertices.Max(static vertex => vertex.Latitude),
+            vertices.Min(static vertex => vertex.Longitude),
+            vertices.Max(static vertex => vertex.Longitude));
+        return true;
     }
 
     private static GeographicRectangle GetCityObjectGeographicBounds(

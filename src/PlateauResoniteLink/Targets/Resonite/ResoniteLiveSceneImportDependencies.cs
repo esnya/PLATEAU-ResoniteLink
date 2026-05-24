@@ -2,15 +2,15 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed record ResoniteLiveSceneImportDependencies(
+internal sealed record ResoniteLiveSceneImportSession(
     ILiveSendClientSession ClientSession,
-    ResoniteLinkSendDiagnostics Diagnostics,
-    ITerrainTextureAssetGenerator TerrainTextureAssetGenerator,
-    Execution.IResoniteSceneSetupInterpreter SceneSetupInterpreter,
-    Execution.IResoniteDatasetLicenseWriter DatasetLicenseWriter,
-    Execution.IResoniteGeometryAssetAssembler GeometryAssetAssembler,
-    Execution.IResoniteMaterialPlanning MaterialPlanning,
-    Execution.IResoniteBatchEmissionPlanner BatchEmissionPlanner,
-    Execution.IResoniteSceneBatchEmitter BatchEmitter,
-    Execution.IResoniteSlotCreator SlotCreator,
-    IResoniteBufferedCityObjectBakerFactory CityObjectBakerFactory);
+    ResoniteLinkSendDiagnostics Diagnostics);
+
+internal sealed record ResoniteLiveSceneImportExecutionServices(
+    IResoniteLiveSendExecutionGate ExecutionGate,
+    IResoniteLiveSendRunStarter RunStarter,
+    IResoniteImportedObjectUnitStreamQueueWriter ObjectUnitStreamQueueWriter,
+    IResoniteLiveSendRunFinalizer RunFinalizer,
+    IResoniteLiveSendExecutionResultFactory ExecutionResultFactory,
+    IResoniteLiveSendRunResourceReleaser RunResourceReleaser,
+    IResoniteQueuedCityObjectSender QueuedCityObjectSender);
