@@ -6,17 +6,7 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed record ParsedRing(
     string RingId,
     GeodeticPoint[] Vertices,
-    IReadOnlyList<Float2>? UVs)
-{
-    internal LocalCityGmlObjectProjection.ParsedRing ToProjectionModel()
-    {
-        return new LocalCityGmlObjectProjection.ParsedRing(
-            RingId,
-            Vertices.Select(static point => point.ToProjectionModel()).ToArray(),
-            UVs);
-    }
-
-}
+    IReadOnlyList<Float2>? UVs);
 
 internal enum ParsedSurfaceSemantic
 {
@@ -41,20 +31,6 @@ internal sealed record ParsedSurface(
 {
     public IEnumerable<GeodeticPoint> Vertices =>
         ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));
-
-    internal LocalCityGmlObjectProjection.ParsedSurface ToProjectionModel()
-    {
-        return new LocalCityGmlObjectProjection.ParsedSurface(
-            PolygonId,
-            (LocalCityGmlObjectProjection.ParsedSurfaceSemantic)Semantic,
-            ExteriorRing.ToProjectionModel(),
-            InteriorRings.Select(static ring => ring.ToProjectionModel()).ToArray(),
-            BaseColor,
-            TexturePayload,
-            UsesGeneratedDemTexture,
-            OpticalProperties);
-    }
-
 }
 
 internal sealed record ParsedCityObject(
@@ -72,26 +48,4 @@ internal sealed record ParsedCityObject(
     int? FloorsAboveGround = null,
     double? MeasuredHeightMeters = null,
     BuildingAttributeContext? BuildingAttributes = null,
-    double? GeometryHeightMeters = null)
-{
-    internal LocalCityGmlObjectProjection.ParsedCityObject ToProjectionModel()
-    {
-        return new LocalCityGmlObjectProjection.ParsedCityObject(
-            SlotKey,
-            DisplayName,
-            PackageName,
-            ActualMeshCode,
-            LodLevel,
-            Surfaces.Select(static surface => surface.ToProjectionModel()).ToArray(),
-            ReferenceSystem.ToProjectionModel(),
-            SourceFileRelativePath,
-            SharedAcrossMeshCodes,
-            TerrainAligned,
-            GeodeticOriginOverride?.ToProjectionModel(),
-            FloorsAboveGround,
-            MeasuredHeightMeters,
-            BuildingAttributes,
-            GeometryHeightMeters);
-    }
-
-}
+    double? GeometryHeightMeters = null);
