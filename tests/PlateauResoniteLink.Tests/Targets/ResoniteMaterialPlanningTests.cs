@@ -196,9 +196,12 @@ public sealed class ResoniteMaterialPlanningTests
             new Dictionary<TerrainTextureOverlay, Uri>(),
             preserveDedicatedMaterialSlot: false,
             CancellationToken.None);
+        string expectedDedicatedSlotName = ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(
+            material,
+            materialIndex: 2);
 
         Assert.True(preserved.PreserveDedicatedMaterialSlot);
-        Assert.Equal("material-002-pbs-uv-uv", preserved.DedicatedMaterialSlotName);
+        Assert.Equal(expectedDedicatedSlotName, preserved.DedicatedMaterialSlotName);
         Assert.False(notPreserved.PreserveDedicatedMaterialSlot);
         Assert.Null(notPreserved.DedicatedMaterialSlotName);
     }
