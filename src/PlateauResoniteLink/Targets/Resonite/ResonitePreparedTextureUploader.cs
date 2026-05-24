@@ -60,8 +60,11 @@ internal static class ResonitePreparedTextureUploader
                 importClient.ImportTextureAsync(texture.TextureImport, cancellationToken)));
         }
 
-        await Task.WhenAll(textureImportTasks.Select(static textureImport => textureImport.ImportTask));
-        await Task.WhenAll(terrainTextureImportTasks.Select(static textureImport => textureImport.ImportTask));
+        Task[] importTasks = textureImportTasks
+            .Select(static textureImport => (Task)textureImport.ImportTask)
+            .Concat(terrainTextureImportTasks.Select(static textureImport => (Task)textureImport.ImportTask))
+            .ToArray();
+        await Task.WhenAll(importTasks);
 
         foreach ((PreparedTextureReference texture, Task<Uri> importTask) in textureImportTasks)
         {

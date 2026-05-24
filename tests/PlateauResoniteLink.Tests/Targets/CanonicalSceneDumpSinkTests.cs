@@ -25,7 +25,7 @@ public sealed class CanonicalSceneDumpSinkTests
     {
         using TemporaryDirectory outputDirectory = new();
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
-        using SceneSinkRecordingClient client = new();
+        SceneSinkRecordingClient client = new();
         await using CanonicalSceneDumpSink sink = new(
             new RecordingInnerSceneSink(client),
             client,
@@ -51,7 +51,7 @@ public sealed class CanonicalSceneDumpSinkTests
     {
         using TemporaryDirectory outputDirectory = new();
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
-        using SceneSinkRecordingClient client = new();
+        SceneSinkRecordingClient client = new();
         await using CanonicalSceneDumpSink sink = new(
             new FailingInnerSceneSink(),
             client,
