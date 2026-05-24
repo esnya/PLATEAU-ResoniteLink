@@ -344,11 +344,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     private async Task ProcessQueuedCityObjectsAsync(
         LiveSendRunState state,
-        ChannelReader<QueuedCityObject> reader,
+        ChannelReader<LiveSendQueuedCityObject> reader,
         int laneIndex,
         CancellationToken cancellationToken)
     {
-        QueuedCityObject? currentCityObject = null;
+        LiveSendQueuedCityObject? currentCityObject = null;
         try
         {
             if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectStreamingStartedLogged, 1, 0) == 0)
@@ -359,7 +359,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                         $"City-object send pipeline is active and waiting for queue on lane {laneIndex + 1}/{connectionCount}."));
             }
 
-            await foreach (QueuedCityObject queuedCityObject in reader.ReadAllAsync(cancellationToken))
+            await foreach (LiveSendQueuedCityObject queuedCityObject in reader.ReadAllAsync(cancellationToken))
             {
                 currentCityObject = queuedCityObject;
                 if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectDequeuedLogged, 1, 0) == 0)
@@ -406,7 +406,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     private async Task ProcessQueuedCityObjectsOnLaneAsync(
         LiveSendRunState state,
-        ChannelReader<QueuedCityObject> reader,
+        ChannelReader<LiveSendQueuedCityObject> reader,
         int laneIndex,
         CancellationToken cancellationToken)
     {
@@ -636,7 +636,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Justification = "Live send should log and skip individual city object send failures while keeping the lane alive.")]
     private async Task ProcessQueuedCityObjectAsync(
         LiveSendRunState state,
-        QueuedCityObject queuedCityObject,
+        LiveSendQueuedCityObject queuedCityObject,
         CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref state.Progress.AttemptedCityObjectCount);
@@ -736,7 +736,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         try
         {
             await runtime.WriteAsync(
-                new QueuedCityObject(cityObject, objectHierarchyTask, cityObjectMemoryLease),
+                new LiveSendQueuedCityObject(cityObject, objectHierarchyTask, cityObjectMemoryLease),
                 enqueueCancellation.Token);
         }
         catch (OperationCanceledException) when (runtime.IsCancellationRequested)
@@ -1364,7 +1364,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     private async Task ImportPreparedCityObjectAsync(
         LiveSendRunState state,
-        QueuedCityObject queuedCityObject,
+        LiveSendQueuedCityObject queuedCityObject,
         PreparedCityObject preparedCityObject,
         CancellationToken cancellationToken)
     {
@@ -2311,11 +2311,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(origin);
         return new ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }
-
-    internal sealed record QueuedCityObject(
-        ResoniteConstructionCityObject CityObject,
-        Task<ResoniteSharedSlotIndex.ObjectSlotHierarchy> ObjectHierarchyTask,
-        AsyncWeightedGate.Lease MemoryLease);
 
     private sealed record UploadedTextureAssetSet(
         Dictionary<ResoniteTexturePayload, Uri> TextureUrisByPayload,
