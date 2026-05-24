@@ -269,6 +269,63 @@ public sealed class DemTerrainOverlayAssignmentTests
     }
 
     [Fact]
+    public void HasOverlayCoverageReturnsTrueWhenRequestedMeshExcludesGeneratedSurface()
+    {
+        ParsedCityObject cityObject = CreateCityObject(
+            CreateGeneratedSurface(
+                "dem-outside-request",
+                [
+                    new GeodeticPoint(35.0000, 139.0000, 0.0),
+                    new GeodeticPoint(35.0100, 139.0000, 1.0),
+                    new GeodeticPoint(35.0100, 139.0200, 2.0),
+                ]));
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, 139.0200),
+        ];
+        MeshCodeBounds[] requestedMeshCodeBounds =
+        [
+            new(35.0000, 35.0200, 139.0300, 139.0400),
+        ];
+
+        bool hasCoverage = DemTerrainOverlayAssignment.HasOverlayCoverage(
+            cityObject,
+            overlays,
+            requestedMeshCodeBounds);
+
+        Assert.True(hasCoverage);
+    }
+
+    [Fact]
+    public void SplitParsedCityObjectSkipsGeneratedSurfaceWhenRequestedMeshExcludesIt()
+    {
+        ParsedSurface surface = CreateGeneratedSurface(
+            "dem-outside-request",
+            [
+                new GeodeticPoint(35.0000, 139.0000, 0.0),
+                new GeodeticPoint(35.0100, 139.0000, 1.0),
+                new GeodeticPoint(35.0100, 139.0200, 2.0),
+            ]);
+        ParsedCityObject cityObject = CreateCityObject(surface);
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, 139.0200),
+        ];
+        MeshCodeBounds[] requestedMeshCodeBounds =
+        [
+            new(35.0000, 35.0200, 139.0300, 139.0400),
+        ];
+
+        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+            DemTerrainOverlayAssignment.SplitParsedCityObject(
+                cityObject,
+                overlays,
+                requestedMeshCodeBounds).ToArray();
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
     public void SplitParsedCityObjectClipsSharedDemToRequestedMeshEvenWhenNoOverlaysExist()
     {
         ParsedSurface surface = CreateGeneratedSurface(
