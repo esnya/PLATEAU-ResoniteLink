@@ -9,10 +9,12 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal static partial class ResoniteSourceMeshCodeAnchor
+internal static class ResoniteSourceMeshCodeAnchor
 {
-    [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})(?!\d)", RegexOptions.CultureInvariant)]
-    private static partial Regex MeshCodeRegex();
+    private static readonly Regex MeshCodeRegex = new(
+        @"(?<!\d)(\d{8}|\d{6})(?!\d)",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        TimeSpan.FromSeconds(1));
 
     public static bool TryGetConcreteMeshCode(string value, out string meshCode)
     {
@@ -22,7 +24,16 @@ internal static partial class ResoniteSourceMeshCodeAnchor
             return false;
         }
 
-        Match[] matches = MeshCodeRegex().Matches(value).Cast<Match>().ToArray();
+        Match[] matches;
+        try
+        {
+            matches = MeshCodeRegex.Matches(value).Cast<Match>().ToArray();
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return false;
+        }
+
         foreach (Match match in matches.OrderByDescending(static entry => entry.Value.Length).ThenByDescending(static entry => entry.Index))
         {
             if (PlateauMeshCode.TryGetGeodeticCenter(match.Value, out _))
