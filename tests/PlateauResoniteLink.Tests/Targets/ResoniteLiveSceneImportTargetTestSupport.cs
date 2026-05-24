@@ -320,7 +320,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory()));
+                new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
     }
 
     private static async IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsAsync(

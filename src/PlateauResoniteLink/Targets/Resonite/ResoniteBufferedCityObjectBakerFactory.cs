@@ -6,19 +6,16 @@ internal interface IResoniteBufferedCityObjectBakerFactory
 {
     CompositeCityObjectBaker? Create(
         bool enableMeshBake,
-        ResoniteTextureImageLoader textureImageLoader,
         ResoniteImportBudgetProfile resourceBudget);
 }
 
-internal sealed class ResoniteBufferedCityObjectBakerFactory : IResoniteBufferedCityObjectBakerFactory
+internal sealed class ResoniteBufferedCityObjectBakerFactory(
+    ResoniteTextureImageLoader textureImageLoader) : IResoniteBufferedCityObjectBakerFactory
 {
     public CompositeCityObjectBaker? Create(
         bool enableMeshBake,
-        ResoniteTextureImageLoader textureImageLoader,
         ResoniteImportBudgetProfile resourceBudget)
     {
-        ArgumentNullException.ThrowIfNull(textureImageLoader);
-
         _ = resourceBudget.Name switch
         {
             ResoniteImportMemoryProfile.Small or ResoniteImportMemoryProfile.Large => true,

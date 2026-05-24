@@ -77,7 +77,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory()));
+                new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
 
         Assert.Same(diagnostics, importTarget.Diagnostics);
     }
@@ -291,7 +291,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory()));
+                new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
     }
 
     private sealed class RecordingTerrainTextureAssetGeneratorFactory : ITerrainTextureAssetGeneratorFactory
@@ -344,10 +344,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         int cityObjectCount,
         Func<int, ResoniteConstructionCityObject> createCityObject)
     {
-        ResoniteBufferedCityObjectBakerFactory factory = new();
+        ResoniteBufferedCityObjectBakerFactory factory = new(new ResoniteTextureImageLoader());
         CompositeCityObjectBaker baker = factory.Create(
                 enableMeshBake: true,
-                new ResoniteTextureImageLoader(),
                 ResoniteImportBudgetProfiles.ForProfile(memoryProfile))
             ?? throw new InvalidOperationException("Expected mesh bake composite baker.");
 

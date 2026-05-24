@@ -61,7 +61,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory()));
+                new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
 
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
@@ -123,7 +123,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory()));
+                new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -176,7 +176,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory()));
+                new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -266,7 +266,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory()));
+                new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -316,7 +316,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory()));
+                new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -389,7 +389,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory()));
+                new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,

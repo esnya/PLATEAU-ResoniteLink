@@ -181,7 +181,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             PlateauLog.Info(
                 "live",
                 "Reusing dataset content source provided by caller."));
-        ResoniteTextureImageLoader textureImageLoader = new();
         ReportProgress(
             PlateauLog.Info("live", "Setting up mutable helpers (baker)."));
         ReportProgress(
@@ -262,7 +261,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ResoniteImportBudgetProfile resourceBudget = runPlan.ResourceBudget;
         CompositeCityObjectBaker? cityObjectBaker = cityObjectBakerFactory.Create(
             runPlan.MeshBakeEnabled,
-            textureImageLoader,
             resourceBudget);
         LiveSendRunContext context = new(
             runPlan,
