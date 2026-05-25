@@ -324,20 +324,21 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             queuedCityObjectEnqueuer,
             new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
-            new ResoniteQueuedCityObjectSender(
-                new ResoniteQueuedCityObjectPreparer(
-                    new ResoniteQueuedGeometryPreparer(),
-                    new ResoniteQueuedTexturePreparer(
-                        terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
-                        new ResoniteDatasetLicenseWriter())),
-                new ResoniteQueuedSendFailurePolicy(),
-                new ResonitePreparedCityObjectImporter(
-                    new ResonitePreparedCityObjectAssetPlanner(
-                        new ResonitePreparedTextureUploader(new ResoniteSharedTerrainTextureAssetWriter()),
-                        new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
-                        new ResoniteSceneMaterialPlanComposer(materialPlanning)),
-                    new ResoniteBatchEmissionPlanner(),
-                    new PlannedBatchEmissionInterpreter())));
+            new ResoniteQueuedCityObjectLaneProcessor(
+                new ResoniteQueuedCityObjectSender(
+                    new ResoniteQueuedCityObjectPreparer(
+                        new ResoniteQueuedGeometryPreparer(),
+                        new ResoniteQueuedTexturePreparer(
+                            terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
+                            new ResoniteDatasetLicenseWriter())),
+                    new ResoniteQueuedSendFailurePolicy(),
+                    new ResonitePreparedCityObjectImporter(
+                        new ResonitePreparedCityObjectAssetPlanner(
+                            new ResonitePreparedTextureUploader(new ResoniteSharedTerrainTextureAssetWriter()),
+                            new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
+                            new ResoniteSceneMaterialPlanComposer(materialPlanning)),
+                        new ResoniteBatchEmissionPlanner(),
+                        new PlannedBatchEmissionInterpreter()))));
         return new ResoniteLiveSceneImportTarget(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),

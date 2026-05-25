@@ -237,14 +237,15 @@ internal sealed class DefaultCanonicalSceneDumpSinkFactory : ICanonicalSceneDump
             queuedCityObjectEnqueuer,
             new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
-            new ResoniteQueuedCityObjectSender(
-                new ResoniteQueuedCityObjectPreparer(
-                    new ResoniteQueuedGeometryPreparer(),
-                    new ResoniteQueuedTexturePreparer(
-                        new DeterministicTerrainTextureAssetGenerator(),
-                        serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>())),
-                new ResoniteQueuedSendFailurePolicy(),
-                serviceProvider.GetRequiredService<IResonitePreparedCityObjectImporter>()));
+            new ResoniteQueuedCityObjectLaneProcessor(
+                new ResoniteQueuedCityObjectSender(
+                    new ResoniteQueuedCityObjectPreparer(
+                        new ResoniteQueuedGeometryPreparer(),
+                        new ResoniteQueuedTexturePreparer(
+                            new DeterministicTerrainTextureAssetGenerator(),
+                            serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>())),
+                    new ResoniteQueuedSendFailurePolicy(),
+                    serviceProvider.GetRequiredService<IResonitePreparedCityObjectImporter>())));
         return new ResoniteLiveSceneImportTarget(
             targetOptions,
             new ResoniteLiveSceneImportDependencies(

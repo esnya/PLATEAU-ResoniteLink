@@ -52,14 +52,15 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         IResoniteMaterialPlanning materialPlanning)
     {
         return new ResoniteQueuedCityObjectWorker(
-            new ResoniteQueuedCityObjectSender(
+            new ResoniteQueuedCityObjectLaneProcessor(
+                new ResoniteQueuedCityObjectSender(
                 new ResoniteQueuedCityObjectPreparer(
                     new ResoniteQueuedGeometryPreparer(),
                     new ResoniteQueuedTexturePreparer(
                         new TerrainTextureAssetGenerator(),
                         new ResoniteDatasetLicenseWriter())),
                 new ResoniteQueuedSendFailurePolicy(),
-                CreatePreparedCityObjectImporter(materialPlanning)));
+                    CreatePreparedCityObjectImporter(materialPlanning))));
     }
 
     private static ResoniteLiveSendRunStarter CreateRunStarter(

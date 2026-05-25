@@ -45,7 +45,8 @@ internal interface IResoniteLiveSendWorkerLauncherFactory
 }
 
 internal sealed class ResoniteLiveSendWorkerLauncherFactory(
-    IResoniteQueuedCityObjectSenderFactory queuedCityObjectSenderFactory) : IResoniteLiveSendWorkerLauncherFactory
+    IResoniteQueuedCityObjectSenderFactory queuedCityObjectSenderFactory,
+    IResoniteQueuedCityObjectLaneProcessorFactory laneProcessorFactory) : IResoniteLiveSendWorkerLauncherFactory
 {
     public IResoniteLiveSendWorkerLauncher Create(
         HttpClient terrainTextureAssetHttpClient,
@@ -54,8 +55,10 @@ internal sealed class ResoniteLiveSendWorkerLauncherFactory(
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
         ArgumentNullException.ThrowIfNull(options);
 
+        IResoniteQueuedCityObjectSender queuedCityObjectSender =
+            queuedCityObjectSenderFactory.Create(terrainTextureAssetHttpClient, options);
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
-            queuedCityObjectSenderFactory.Create(terrainTextureAssetHttpClient, options));
+            laneProcessorFactory.Create(queuedCityObjectSender));
         return new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker);
     }
 }

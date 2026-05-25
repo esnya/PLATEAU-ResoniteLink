@@ -40,6 +40,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteQueuedSendFailurePolicy, ResoniteQueuedSendFailurePolicy>();
         services.TryAddScoped<IResoniteQueuedCityObjectPreparerFactory, ResoniteQueuedCityObjectPreparerFactory>();
         services.TryAddScoped<IResoniteQueuedCityObjectSenderFactory, ResoniteQueuedCityObjectSenderFactory>();
+        services.TryAddScoped<IResoniteQueuedCityObjectLaneProcessorFactory, ResoniteQueuedCityObjectLaneProcessorFactory>();
         services.TryAddScoped<IResoniteQueuedCityObjectEnqueuer, ResoniteQueuedCityObjectEnqueuer>();
         services.TryAddScoped<IResoniteLiveSendFinalizer, ResoniteLiveSendFinalizer>();
         services.TryAddScoped<IResoniteLiveSendQueue, ResoniteLiveSendQueue>();
