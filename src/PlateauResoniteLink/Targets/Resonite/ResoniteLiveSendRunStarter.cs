@@ -1,12 +1,9 @@
 using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -36,12 +33,11 @@ internal interface IResoniteLiveSendRunStarter
 }
 
 internal sealed class ResoniteLiveSendRunStarter(
-    IResoniteSceneSetupInterpreter sceneSetupInterpreter,
-    IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
     ILiveSendRunPlanFactory runPlanFactory,
+    IResoniteLiveSendConnectionInitializer connectionInitializer,
+    IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     ILiveSendRunStateFactory runStateFactory,
-    IResoniteLiveSendWorkerLauncher workerLauncher,
-    IResoniteSlotCreator slotCreator) : IResoniteLiveSendRunStarter
+    IResoniteLiveSendWorkerLauncher workerLauncher) : IResoniteLiveSendRunStarter
 {
     public async Task<LiveSendRunState> StartAsync(
         LiveSendRunStartRequest request,
@@ -65,139 +61,29 @@ internal sealed class ResoniteLiveSendRunStarter(
             request.MemoryProfile,
             request.ConnectionCount,
             request.MeshBakeEnabled);
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Initializing scene state for dataset '{request.SetupInfo.Dataset}' "
-                + $"mesh '{request.SetupInfo.MeshCode}' at '{runPlan.ResolvedWorkRoot}'."));
-        Stopwatch connectionStopwatch = Stopwatch.StartNew();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Connecting ResoniteLink connection pool to {context.Endpoint} "
-                + $"with {request.ConnectionCount} available routed connection(s)."));
-        await context.ClientSession.EnsureConnectedAsync(
-            new LiveSendConnectionRequest(
-                request.NormalizedRequest.Dataset,
-                request.NormalizedRequest.MeshCode),
-            cancellationToken);
-        connectionStopwatch.Stop();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"ResoniteLink connection pool ready in {connectionStopwatch.Elapsed.TotalSeconds:F2}s "
-                + $"(dataset='{request.SetupInfo.Dataset}', mesh='{request.SetupInfo.MeshCode}')."));
-        LiveSendProgressSink progress = new();
-        CommonMaterialAssetCache materials = new();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                "Reusing dataset content source provided by caller."));
-        ReportProgress(
-            context,
-            PlateauLog.Info("live", "Setting up mutable helpers (baker)."));
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                "Starting setup slot setup: dataset root, assets root, common assets root, location slot, and source-file root reference."));
-        Stopwatch setupStopwatch = Stopwatch.StartNew();
-        ResoniteSceneSetupState setupState = await sceneSetupInterpreter.SetupAsync(
-            GetRoutedClient(context),
-            runPlan.SetupInfo,
-            request.CommonMaterials,
-            cancellationToken);
-        setupStopwatch.Stop();
-        ResoniteSharedSlotIndex placement = new(
-            setupState.DatasetRootSlot,
-            setupState.DatasetAssetsRootSlot,
-            runPlan.RequestLocalOrigin,
-            runPlan.SourceFileSlotNamesByRelativePath,
-            setupState.SceneAnchor,
-            slotCreator.CreateAsync);
-        placement.IndexSetupHierarchy(setupState);
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Scene setup complete in {setupStopwatch.Elapsed.TotalSeconds:F2}s "
-                + $"(dataset_root={setupState.DatasetRootSlot.SlotName}, assets_root={setupState.DatasetAssetsRootSlot.SlotName}, "
-                + $"common_root={setupState.CommonAssetsRootSlot.SlotName}, "
-                + $"dataset_root_existed={setupState.DatasetRootExisted}, "
-                + $"location_slot='{setupState.SceneAnchor.LocationSlot.Value}', "
-                + $"anchor_mesh='{setupState.SceneAnchor.MeshCode}', "
-                + $"anchor_source_file_root='{setupState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
-        foreach (CommonMaterialCatalogMember<ResoniteCommonMaterialAsset> materialAsset in setupState.CommonMaterialAssets.EnumerateMembers())
-        {
-            materials.CommonMaterialAssets.Set(materialAsset.Item);
-        }
-
-        foreach (string family in setupState.CommonMaterialFamilies)
-        {
-            materials.CommonMaterialFamilyWarmupTasks[family] = Task.CompletedTask;
-        }
-
-        if (setupState.CommonMaterialAssets.Count > 0)
-        {
-            ReportProgress(
-                context,
-                PlateauLog.Info(
-                    "live",
-                    $"Setup batch prepared {setupState.CommonMaterialAssets.Count} textureless common materials."));
-        }
-        else
-        {
-            ReportProgress(context, PlateauLog.Info("live", "Setup created common material slots; no textureless common material components were needed in setup batch."));
-        }
-
-        await commonMaterialSetupPreparer.PrepareAsync(
-            GetRoutedClient(context),
-            setupState,
-            materials,
-            request.CommonMaterials,
-            context.ProgressReporter,
-            cancellationToken);
-
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                "setup fixed dataset license metadata/component before city-object streaming starts."));
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Dataset metadata/license phase complete during setup. "
-                + $"Dataset root existed={setupState.DatasetRootExisted}."));
-        LiveSendRunState state = runStateFactory.Create(
+        await connectionInitializer.EnsureConnectedAsync(
+            request,
             runPlan,
-            setupState,
-            progress,
-            materials,
-            placement,
+            context,
+            cancellationToken);
+        LiveSendPreparedRunSetup preparedSetup = await runSetupPreparer.PrepareAsync(
+            runPlan,
+            request,
+            context,
+            cancellationToken);
+        LiveSendRunState state = runStateFactory.Create(
+            preparedSetup.RunPlan,
+            preparedSetup.SetupState,
+            preparedSetup.Progress,
+            preparedSetup.Materials,
+            preparedSetup.Placement,
             cancellationToken);
         workerLauncher.Launch(
             new LiveSendWorkerLaunchRequest(
                 state,
-                runPlan.Queue,
-                runPlan.ResourceBudget),
+                preparedSetup.RunPlan.Queue,
+                preparedSetup.RunPlan.ResourceBudget),
             context);
         return state;
-    }
-
-    private static IResoniteLinkClient GetRoutedClient(LiveSendRunStartContext context)
-    {
-        return context.ClientSession.GetRequiredClient();
-    }
-
-    private static void ReportProgress(
-        LiveSendRunStartContext context,
-        string message)
-    {
-        context.ProgressReporter?.Invoke(message);
     }
 }

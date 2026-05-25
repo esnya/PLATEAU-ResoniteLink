@@ -4,7 +4,6 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed record ResoniteLiveSceneImportDependencies(
     ILiveSendClientSession ClientSession,
-    ResoniteLinkSendDiagnostics Diagnostics,
     IResoniteLiveSendStartRequestFactory StartRequestFactory,
     IResoniteLiveSendRunExecutor RunExecutor,
     IResoniteLiveSendRunResourceReleaser ResourceReleaser);
