@@ -9,18 +9,53 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class ParsedSurfaceStableSortKey
 {
+    internal static string Create(ParsedSurface surface)
+    {
+        return Create(
+            surface.PolygonId,
+            (int)surface.Semantic,
+            surface.ExteriorRing,
+            surface.InteriorRings,
+            static ring => ring.RingId,
+            static ring => ring.Vertices,
+            static ring => ring.UVs,
+            WritePoint);
+    }
+
     internal static string Create(LocalCityGmlObjectProjection.ParsedSurface surface)
+    {
+        return Create(
+            surface.PolygonId,
+            (int)surface.Semantic,
+            surface.ExteriorRing,
+            surface.InteriorRings,
+            static ring => ring.RingId,
+            static ring => ring.Vertices,
+            static ring => ring.UVs,
+            WritePoint);
+    }
+
+    private static string Create<TRing, TPoint>(
+        string polygonId,
+        int semanticValue,
+        TRing exteriorRing,
+        IReadOnlyCollection<TRing> interiorRings,
+        Func<TRing, string> getRingId,
+        Func<TRing, IReadOnlyCollection<TPoint>> getVertices,
+        Func<TRing, IReadOnlyList<Float2>?> getUvs,
+        Action<BinaryWriter, TPoint> writePoint)
+        where TPoint : notnull
     {
         using MemoryStream stream = new();
         using (BinaryWriter writer = new(stream, Encoding.UTF8, leaveOpen: true))
         {
-            writer.Write(surface.PolygonId);
-            writer.Write((int)surface.Semantic);
-            WriteRing(writer, surface.ExteriorRing);
-            writer.Write(surface.InteriorRings.Length);
-            foreach (LocalCityGmlObjectProjection.ParsedRing ring in surface.InteriorRings.OrderBy(static ring => ring.RingId, StringComparer.Ordinal))
+            writer.Write(polygonId);
+            writer.Write(semanticValue);
+            WriteRing(writer, exteriorRing, getRingId, getVertices, getUvs, writePoint);
+            writer.Write(interiorRings.Count);
+            foreach (TRing ring in interiorRings.OrderBy(getRingId, StringComparer.Ordinal))
             {
-                WriteRing(writer, ring);
+                WriteRing(writer, ring, getRingId, getVertices, getUvs, writePoint);
             }
         }
 
@@ -28,18 +63,24 @@ internal static class ParsedSurfaceStableSortKey
         return Convert.ToHexString(hash.AsSpan(0, 16)).ToLowerInvariant();
     }
 
-    private static void WriteRing(BinaryWriter writer, LocalCityGmlObjectProjection.ParsedRing ring)
+    private static void WriteRing<TRing, TPoint>(
+        BinaryWriter writer,
+        TRing ring,
+        Func<TRing, string> getRingId,
+        Func<TRing, IReadOnlyCollection<TPoint>> getVertices,
+        Func<TRing, IReadOnlyList<Float2>?> getUvs,
+        Action<BinaryWriter, TPoint> writePoint)
+        where TPoint : notnull
     {
-        writer.Write(ring.RingId);
-        writer.Write(ring.Vertices.Length);
-        foreach (LocalCityGmlObjectProjection.GeodeticPoint vertex in ring.Vertices)
+        writer.Write(getRingId(ring));
+        IReadOnlyCollection<TPoint> vertices = getVertices(ring);
+        writer.Write(vertices.Count);
+        foreach (TPoint vertex in vertices)
         {
-            writer.Write(vertex.Latitude);
-            writer.Write(vertex.Longitude);
-            writer.Write(vertex.Altitude);
+            writePoint(writer, vertex);
         }
 
-        IReadOnlyList<Float2>? uvs = ring.UVs;
+        IReadOnlyList<Float2>? uvs = getUvs(ring);
         writer.Write(uvs?.Count ?? -1);
         if (uvs is null)
         {
@@ -51,5 +92,19 @@ internal static class ParsedSurfaceStableSortKey
             writer.Write(uv.X);
             writer.Write(uv.Y);
         }
+    }
+
+    private static void WritePoint(BinaryWriter writer, GeodeticPoint vertex)
+    {
+        writer.Write(vertex.Latitude);
+        writer.Write(vertex.Longitude);
+        writer.Write(vertex.Altitude);
+    }
+
+    private static void WritePoint(BinaryWriter writer, LocalCityGmlObjectProjection.GeodeticPoint vertex)
+    {
+        writer.Write(vertex.Latitude);
+        writer.Write(vertex.Longitude);
+        writer.Write(vertex.Altitude);
     }
 }

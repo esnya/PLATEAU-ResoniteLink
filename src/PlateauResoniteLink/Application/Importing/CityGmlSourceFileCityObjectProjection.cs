@@ -23,7 +23,7 @@ internal static class CityGmlSourceFileCityObjectProjection
             return null;
         }
 
-        LocalCityGmlObjectProjection.ParsedCityObject? cityObject = LocalCityGmlObjectProjection.ParseCityObject(
+        return CityGmlParsedCityObjectReader.Parse(
             cityObjectElement,
             sourceFile.PackageName,
             sourceFile.RelativePath,
@@ -31,10 +31,8 @@ internal static class CityGmlSourceFileCityObjectProjection
             sourceFile.RequiresMeshCodeBoundsFilter,
             appearanceStore,
             lodSelector,
-            coordinateReferenceSystem.ToProjectionModel(),
+            coordinateReferenceSystem,
             sourceFile.RequiresMeshCodeBoundsFilter ? requestedMeshAreas : null,
             lodFilteringStrategy);
-
-        return cityObject is null ? null : CityGmlProjectionModelAdapter.FromProjectionModel(cityObject);
     }
 }

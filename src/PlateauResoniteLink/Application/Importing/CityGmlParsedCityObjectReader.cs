@@ -8,11 +8,11 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal static class CityGmlProjectionCityObjectParser
+internal static class CityGmlParsedCityObjectReader
 {
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
 
-    internal static LocalCityGmlObjectProjection.ParsedCityObject? Parse(
+    internal static ParsedCityObject? Parse(
         XElement cityObjectElement,
         string packageName,
         string relativeSourceFile,
@@ -20,7 +20,7 @@ internal static class CityGmlProjectionCityObjectParser
         bool sharedAcrossMeshCodes,
         ICityGmlAppearanceStore appearanceStore,
         ICityGmlLodSelector lodSelector,
-        LocalCityGmlObjectProjection.CoordinateReferenceSystem coordinateReferenceSystem,
+        CoordinateReferenceSystem coordinateReferenceSystem,
         IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         LodFilteringStrategy lodFilteringStrategy)
     {
@@ -64,7 +64,7 @@ internal static class CityGmlProjectionCityObjectParser
             return null;
         }
 
-        LocalCityGmlObjectProjection.ParsedSurface[] surfaces = preferredSurfaceElements
+        ParsedSurface[] surfaces = preferredSurfaceElements
             .Select(surfaceElement => CityGmlParsedSurfaceReader.Parse(surfaceElement, appearanceStore))
             .Where(static surface => surface is not null)
             .Select(static surface => surface!)
@@ -89,7 +89,7 @@ internal static class CityGmlProjectionCityObjectParser
 
         string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
         string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
-        return new LocalCityGmlObjectProjection.ParsedCityObject(
+        return new ParsedCityObject(
             slotKey,
             displayName!,
             packageName,
