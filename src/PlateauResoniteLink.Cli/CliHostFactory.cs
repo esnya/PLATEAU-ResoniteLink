@@ -205,6 +205,8 @@ internal sealed class DefaultSceneSinkFactory(
 
         IServiceProvider serviceProvider = scope.ServiceProvider;
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
+        IResoniteLiveSendRunResourceReleaser resourceReleaser =
+            serviceProvider.GetRequiredService<IResoniteLiveSendRunResourceReleaser>();
         IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new ResoniteQueuedCityObjectEnqueuer();
         ResoniteLiveSendQueue queue = new(
             queuedCityObjectEnqueuer,
@@ -221,14 +223,17 @@ internal sealed class DefaultSceneSinkFactory(
                 new SingleRecordingClientSession(recordingClient),
                 diagnostics,
                 serviceProvider.GetRequiredService<IResoniteLiveSendStartRequestFactory>(),
-                new ResoniteLiveSendRunStarter(
-                    serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
-                    serviceProvider.GetRequiredService<IResoniteCommonMaterialSetupPreparer>(),
-                    serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
-                    serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
-                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
-                    serviceProvider.GetRequiredService<IResoniteSlotCreator>()),
-                queue));
+                new ResoniteLiveSendRunExecutor(
+                    new ResoniteLiveSendRunStarter(
+                        serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
+                        serviceProvider.GetRequiredService<IResoniteCommonMaterialSetupPreparer>(),
+                        serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
+                        serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
+                        new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
+                        serviceProvider.GetRequiredService<IResoniteSlotCreator>()),
+                    queue,
+                    resourceReleaser),
+                resourceReleaser));
     }
 }
 

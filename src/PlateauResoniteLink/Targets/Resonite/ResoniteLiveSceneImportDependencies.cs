@@ -6,5 +6,5 @@ internal sealed record ResoniteLiveSceneImportDependencies(
     ILiveSendClientSession ClientSession,
     ResoniteLinkSendDiagnostics Diagnostics,
     IResoniteLiveSendStartRequestFactory StartRequestFactory,
-    IResoniteLiveSendRunStarter RunStarter,
-    IResoniteLiveSendQueue Queue);
+    IResoniteLiveSendRunExecutor RunExecutor,
+    IResoniteLiveSendRunResourceReleaser ResourceReleaser);

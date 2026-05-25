@@ -59,12 +59,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
-            new ResoniteLiveSceneImportDependencies(
+            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
-                new ResoniteLiveSendStartRequestFactory(),
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning),
-                ResoniteLiveSceneImportTargetTestSupport.CreateQueue()));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
 
         Assert.Same(diagnostics, importTarget.Diagnostics);
     }
@@ -290,12 +288,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
-            new ResoniteLiveSceneImportDependencies(
+            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
-                new ResoniteLiveSendStartRequestFactory(),
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning),
-                ResoniteLiveSceneImportTargetTestSupport.CreateQueue()));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
     }
 
     private sealed class RecordingTerrainTextureAssetGeneratorFactory : ITerrainTextureAssetGeneratorFactory
