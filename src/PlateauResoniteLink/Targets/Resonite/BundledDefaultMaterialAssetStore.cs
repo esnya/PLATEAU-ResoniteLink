@@ -49,20 +49,19 @@ internal sealed class BundledDefaultMaterialAssetStore
 
         lock (SyncRoot)
         {
+            using Stream resourceStream = Assembly.GetManifestResourceStream(resourceName)
+                ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' was not found.");
             if (File.Exists(absolutePath))
             {
-                return absolutePath;
+                FileInfo existingFile = new(absolutePath);
+                if (existingFile.Length == resourceStream.Length)
+                {
+                    return absolutePath;
+                }
             }
 
             Directory.CreateDirectory(directory);
-            using Stream resourceStream = Assembly.GetManifestResourceStream(resourceName)
-                ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' was not found.");
-            using FileStream fileStream = new(
-                absolutePath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.Read);
-            resourceStream.CopyTo(fileStream);
+            WriteResourceAtomically(absolutePath, resourceStream);
         }
 
         return absolutePath;
@@ -163,6 +162,31 @@ internal sealed class BundledDefaultMaterialAssetStore
     private static string GetExtractionRoot()
     {
         return ExtractionRootOverride.Value ?? DefaultExtractionRoot;
+    }
+
+    private static void WriteResourceAtomically(string absolutePath, Stream resourceStream)
+    {
+        string temporaryPath = $"{absolutePath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            using (FileStream fileStream = new(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None))
+            {
+                resourceStream.CopyTo(fileStream);
+            }
+
+            File.Move(temporaryPath, absolutePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
     }
 
     private sealed class ExtractionRootOverrideScope(string? previousRoot) : IDisposable
