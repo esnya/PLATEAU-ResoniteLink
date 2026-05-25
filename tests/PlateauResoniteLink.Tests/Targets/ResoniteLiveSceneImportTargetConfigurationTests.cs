@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -49,14 +50,15 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         IResoniteMaterialPlanning materialPlanning)
     {
         return new ResoniteQueuedCityObjectWorker(
-            new ResoniteQueuedCityObjectSender(
+            new ResoniteQueuedCityObjectLaneProcessor(
+                new ResoniteQueuedCityObjectSender(
                 new ResoniteQueuedCityObjectPreparer(
                     new ResoniteQueuedGeometryPreparer(),
                     new ResoniteQueuedTexturePreparer(
                         new TerrainTextureAssetGenerator(),
                         new ResoniteDatasetLicenseWriter())),
                 new ResoniteQueuedSendFailurePolicy(),
-                CreatePreparedCityObjectImporter(materialPlanning)));
+                    CreatePreparedCityObjectImporter(materialPlanning))));
     }
 
     private static ResoniteLiveSendRunStarter CreateRunStarter(
@@ -64,12 +66,16 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
     {
         return new ResoniteLiveSendRunStarter(
-            sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-            CreateCommonMaterialSetupPreparer(materialPlanning),
-            new LiveSendRunPlanFactory(),
-            CreateRunStateFactory(),
-            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)),
-            new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator()));
+            new ResoniteLiveSendRunPlanInitializer(new LiveSendRunPlanFactory()),
+            new ResoniteLiveSendConnectionInitializer(),
+            new ResoniteLiveSendSetupInitializer(
+                sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
+                CreateCommonMaterialSetupPreparer(materialPlanning),
+                new ResoniteCommonMaterialSetupCachePrimer(),
+                new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
+            new ResoniteLiveSendRunActivator(
+                CreateRunStateFactory(),
+                new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning))));
     }
 
     private static ResoniteLiveSendQueue CreateQueue()
@@ -122,6 +128,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
 
         Assert.Same(diagnostics, importTarget.Diagnostics);
@@ -252,6 +259,36 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredQueuedLaneProcessorFactory()
+    {
+        RecordingQueuedCityObjectLaneProcessorFactory laneProcessorFactory = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteQueuedCityObjectLaneProcessorFactory>(_ => laneProcessorFactory)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        ISceneSink target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false,
+                    ProgressReporter: null),
+                terrainTextureAssetHttpClient);
+        await using ResoniteLiveSceneImportTarget _ = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+
+        Assert.Equal(1, laneProcessorFactory.CreateCallCount);
+        Assert.IsAssignableFrom<IResoniteQueuedCityObjectSender>(laneProcessorFactory.LastSender);
+    }
+
+    [Fact]
     public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredNonDemSourceFileBakeEmitterFactory()
     {
         RecordingNonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory = new();
@@ -288,6 +325,22 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             .GetRequiredService<IResoniteSharedSlotIndexFactory>();
 
         Assert.Same(sharedSlotIndexFactory, resolvedFactory);
+    }
+
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredCommonMaterialSetupCachePrimer()
+    {
+        RecordingCommonMaterialSetupCachePrimer cachePrimer = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteCommonMaterialSetupCachePrimer>(_ => cachePrimer)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        IResoniteCommonMaterialSetupCachePrimer resolvedPrimer = scope.ServiceProvider
+            .GetRequiredService<IResoniteCommonMaterialSetupCachePrimer>();
+
+        Assert.Same(cachePrimer, resolvedPrimer);
     }
 
     [Fact]
@@ -402,6 +455,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
     }
 
@@ -507,6 +561,39 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         }
     }
 
+    private sealed class RecordingQueuedCityObjectLaneProcessorFactory : IResoniteQueuedCityObjectLaneProcessorFactory
+    {
+        public int CreateCallCount { get; private set; }
+
+        public IResoniteQueuedCityObjectSender? LastSender { get; private set; }
+
+        public IResoniteQueuedCityObjectLaneProcessor Create(
+            IResoniteQueuedCityObjectSender queuedCityObjectSender)
+        {
+            CreateCallCount++;
+            LastSender = queuedCityObjectSender;
+            return new RecordingQueuedCityObjectLaneProcessor();
+        }
+    }
+
+    private sealed class RecordingQueuedCityObjectLaneProcessor : IResoniteQueuedCityObjectLaneProcessor
+    {
+        public Task ProcessAsync(
+            LiveSendRunState state,
+            LiveSendWorkerContext context,
+            ChannelReader<LiveSendQueuedCityObject> reader,
+            int laneIndex,
+            CancellationToken cancellationToken)
+        {
+            _ = state;
+            _ = context;
+            _ = reader;
+            _ = laneIndex;
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
+        }
+    }
+
     private sealed class RecordingSharedSlotIndexFactory : IResoniteSharedSlotIndexFactory
     {
         public ResoniteSharedSlotIndex Create(
@@ -515,6 +602,22 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         {
             _ = setupState;
             _ = runPlan;
+            throw new NotSupportedException("This test only verifies DI override preservation.");
+        }
+    }
+
+    private sealed class RecordingCommonMaterialSetupCachePrimer : IResoniteCommonMaterialSetupCachePrimer
+    {
+        public void Prime(
+            ResoniteSceneSetupState setupState,
+            CommonMaterialAssetCache materials,
+            LiveSendProgressSink progress,
+            Action<string>? progressReporter)
+        {
+            _ = setupState;
+            _ = materials;
+            _ = progress;
+            _ = progressReporter;
             throw new NotSupportedException("This test only verifies DI override preservation.");
         }
     }

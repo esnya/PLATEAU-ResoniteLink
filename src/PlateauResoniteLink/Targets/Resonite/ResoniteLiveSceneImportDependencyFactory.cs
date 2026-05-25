@@ -16,6 +16,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteClientSessionFactory clientSessionFactory,
     IResoniteLiveSendRunStarterFactory runStarterFactory,
     IResoniteLiveSendStartRequestFactory startRequestFactory,
+    IResoniteLiveSendContextFactory contextFactory,
     IResoniteLiveSendQueue queue)
     : IResoniteLiveSceneImportDependencyFactory
 {
@@ -34,6 +35,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             diagnostics,
             startRequestFactory,
             runStarterFactory.Create(terrainTextureAssetHttpClient, options),
+            contextFactory,
             queue);
     }
 }

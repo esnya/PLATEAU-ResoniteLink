@@ -1,8 +1,6 @@
 using System;
 using System.Net.Http;
 
-using PlateauResoniteLink.Targets.Resonite.Execution;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface IResoniteLiveSendRunStarterFactory
@@ -13,12 +11,11 @@ internal interface IResoniteLiveSendRunStarterFactory
 }
 
 internal sealed class ResoniteLiveSendRunStarterFactory(
-    IResoniteSceneSetupInterpreter sceneSetupInterpreter,
-    IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
-    ILiveSendRunPlanFactory runPlanFactory,
-    ILiveSendRunStateFactory runStateFactory,
-    IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory,
-    IResoniteSharedSlotIndexFactory sharedSlotIndexFactory) : IResoniteLiveSendRunStarterFactory
+    IResoniteLiveSendConnectionInitializer connectionInitializer,
+    IResoniteLiveSendSetupInitializer setupInitializer,
+    IResoniteLiveSendRunPlanInitializer runPlanInitializer,
+    IResoniteLiveSendRunActivatorFactory runActivatorFactory,
+    IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory) : IResoniteLiveSendRunStarterFactory
 {
     public IResoniteLiveSendRunStarter Create(
         HttpClient terrainTextureAssetHttpClient,
@@ -27,35 +24,12 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
         ArgumentNullException.ThrowIfNull(options);
 
+        IResoniteLiveSendWorkerLauncher workerLauncher =
+            workerLauncherFactory.Create(terrainTextureAssetHttpClient, options);
         return new ResoniteLiveSendRunStarter(
-            sceneSetupInterpreter,
-            commonMaterialSetupPreparer,
-            runPlanFactory,
-            runStateFactory,
-            workerLauncherFactory.Create(terrainTextureAssetHttpClient, options),
-            sharedSlotIndexFactory);
-    }
-}
-
-internal interface IResoniteLiveSendWorkerLauncherFactory
-{
-    IResoniteLiveSendWorkerLauncher Create(
-        HttpClient terrainTextureAssetHttpClient,
-        ResoniteLiveSceneImportTargetOptions options);
-}
-
-internal sealed class ResoniteLiveSendWorkerLauncherFactory(
-    IResoniteQueuedCityObjectSenderFactory queuedCityObjectSenderFactory) : IResoniteLiveSendWorkerLauncherFactory
-{
-    public IResoniteLiveSendWorkerLauncher Create(
-        HttpClient terrainTextureAssetHttpClient,
-        ResoniteLiveSceneImportTargetOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
-        ArgumentNullException.ThrowIfNull(options);
-
-        ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
-            queuedCityObjectSenderFactory.Create(terrainTextureAssetHttpClient, options));
-        return new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker);
+            runPlanInitializer,
+            connectionInitializer,
+            setupInitializer,
+            runActivatorFactory.Create(workerLauncher));
     }
 }

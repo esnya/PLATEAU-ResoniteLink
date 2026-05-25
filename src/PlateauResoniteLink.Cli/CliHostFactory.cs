@@ -10,11 +10,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Targets.Resonite.Diagnostics;
-using PlateauResoniteLink.Transport.ResoniteLink;
 namespace PlateauResoniteLink.Cli;
 
 internal static class CliHostFactory
@@ -51,6 +48,7 @@ internal static class CliServiceCollectionExtensions
         services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
         services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();
+        services.AddScoped<ICanonicalDumpLiveSceneImportTargetFactory, DefaultCanonicalDumpLiveSceneImportTargetFactory>();
         services.AddSingleton<ICanonicalSceneDumpSinkFactory, DefaultCanonicalSceneDumpSinkFactory>();
         services.AddSingleton<ISceneSinkFactory, DefaultSceneSinkFactory>();
         services.AddSingleton<CliApplication>(_ => new CliApplication(
@@ -156,12 +154,7 @@ internal sealed class DefaultSceneSinkFactory(
                 options.ResoniteLinkUri!,
                 options.ResoniteLinkConnectionCount,
                 options.EnableSendMetrics,
-                options.MemoryProfile switch
-                {
-                    PlateauImportMemoryProfile.Small => ResoniteImportMemoryProfile.Small,
-                    PlateauImportMemoryProfile.Large => ResoniteImportMemoryProfile.Large,
-                    _ => throw new ArgumentOutOfRangeException(nameof(options), options.MemoryProfile, "Unsupported memory profile."),
-                },
+                CliResoniteTargetOptions.MapMemoryProfile(options.MemoryProfile, nameof(options.MemoryProfile)),
                 options.EnableMeshBake,
                 options.TerrainTileCacheRoot,
                 options.DisableTerrainTileCache,
@@ -199,8 +192,9 @@ internal sealed class DefaultCanonicalSceneDumpSinkFactory : ICanonicalSceneDump
         SceneSinkRecordingClient recordingClient = new();
         try
         {
-            ResoniteLiveSceneImportTarget dumpTarget = CreateCanonicalDumpTarget(
-                serviceProvider,
+            ICanonicalDumpLiveSceneImportTargetFactory targetFactory =
+                serviceProvider.GetRequiredService<ICanonicalDumpLiveSceneImportTargetFactory>();
+            ResoniteLiveSceneImportTarget dumpTarget = targetFactory.Create(
                 recordingClient,
                 options,
                 progressReporter);
@@ -221,57 +215,6 @@ internal sealed class DefaultCanonicalSceneDumpSinkFactory : ICanonicalSceneDump
         }
 
         return canonicalSceneDumpPath;
-    }
-
-    private static ResoniteLiveSceneImportTarget CreateCanonicalDumpTarget(
-        IServiceProvider serviceProvider,
-        SceneSinkRecordingClient recordingClient,
-        ImportCommandOptions options,
-        Action<string>? progressReporter)
-    {
-        ResoniteLiveSceneImportTargetOptions targetOptions = new(
-            new Uri("ws://localhost:1/"),
-            ConnectionCount: 1,
-            EnableSendMetrics: false,
-            options.MemoryProfile switch
-            {
-                PlateauImportMemoryProfile.Small => ResoniteImportMemoryProfile.Small,
-                PlateauImportMemoryProfile.Large => ResoniteImportMemoryProfile.Large,
-                _ => throw new ArgumentOutOfRangeException(nameof(options), options.MemoryProfile, "Unsupported memory profile."),
-            },
-            options.EnableMeshBake,
-            TerrainTileCacheRoot: null,
-            DisableTerrainTileCache: true,
-            progressReporter);
-
-        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
-        IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new ResoniteQueuedCityObjectEnqueuer();
-        ResoniteLiveSendQueue queue = new(
-            queuedCityObjectEnqueuer,
-            new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
-        ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
-            new ResoniteQueuedCityObjectSender(
-                new ResoniteQueuedCityObjectPreparer(
-                    new ResoniteQueuedGeometryPreparer(),
-                    new ResoniteQueuedTexturePreparer(
-                        new DeterministicTerrainTextureAssetGenerator(),
-                        serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>())),
-                new ResoniteQueuedSendFailurePolicy(),
-                serviceProvider.GetRequiredService<IResonitePreparedCityObjectImporter>()));
-        return new ResoniteLiveSceneImportTarget(
-            targetOptions,
-            new ResoniteLiveSceneImportDependencies(
-                new SingleRecordingClientSession(recordingClient),
-                diagnostics,
-                serviceProvider.GetRequiredService<IResoniteLiveSendStartRequestFactory>(),
-                new ResoniteLiveSendRunStarter(
-                    serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
-                    serviceProvider.GetRequiredService<IResoniteCommonMaterialSetupPreparer>(),
-                    serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
-                    serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
-                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
-                    serviceProvider.GetRequiredService<IResoniteSharedSlotIndexFactory>()),
-                queue));
     }
 }
 

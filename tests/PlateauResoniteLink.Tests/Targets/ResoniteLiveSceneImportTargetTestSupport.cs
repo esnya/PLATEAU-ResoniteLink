@@ -324,20 +324,21 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             queuedCityObjectEnqueuer,
             new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
-            new ResoniteQueuedCityObjectSender(
-                new ResoniteQueuedCityObjectPreparer(
-                    new ResoniteQueuedGeometryPreparer(),
-                    new ResoniteQueuedTexturePreparer(
-                        terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
-                        new ResoniteDatasetLicenseWriter())),
-                new ResoniteQueuedSendFailurePolicy(),
-                new ResonitePreparedCityObjectImporter(
-                    new ResonitePreparedCityObjectAssetPlanner(
-                        new ResonitePreparedTextureUploader(new ResoniteSharedTerrainTextureAssetWriter()),
-                        new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
-                        new ResoniteSceneMaterialPlanComposer(materialPlanning)),
-                    new ResoniteBatchEmissionPlanner(),
-                    new PlannedBatchEmissionInterpreter())));
+            new ResoniteQueuedCityObjectLaneProcessor(
+                new ResoniteQueuedCityObjectSender(
+                    new ResoniteQueuedCityObjectPreparer(
+                        new ResoniteQueuedGeometryPreparer(),
+                        new ResoniteQueuedTexturePreparer(
+                            terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
+                            new ResoniteDatasetLicenseWriter())),
+                    new ResoniteQueuedSendFailurePolicy(),
+                    new ResonitePreparedCityObjectImporter(
+                        new ResonitePreparedCityObjectAssetPlanner(
+                            new ResonitePreparedTextureUploader(new ResoniteSharedTerrainTextureAssetWriter()),
+                            new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
+                            new ResoniteSceneMaterialPlanComposer(materialPlanning)),
+                        new ResoniteBatchEmissionPlanner(),
+                        new PlannedBatchEmissionInterpreter()))));
         return new ResoniteLiveSceneImportTarget(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -353,16 +354,21 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 new ResoniteLiveSendRunStarter(
-                    new ResoniteSceneSetupInterpreter(
-                        new ResoniteSceneSlotLocator(),
-                        new ResoniteSceneAnchorResolver()),
-                    new ResoniteCommonMaterialSetupPreparer(materialPlanning),
-                    new LiveSendRunPlanFactory(),
-                    new LiveSendRunStateFactory(
-                        new ResoniteBufferedCityObjectBakerFactory(
-                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
-                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
-                    new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
+                    new ResoniteLiveSendRunPlanInitializer(new LiveSendRunPlanFactory()),
+                    new ResoniteLiveSendConnectionInitializer(),
+                    new ResoniteLiveSendSetupInitializer(
+                        new ResoniteSceneSetupInterpreter(
+                            new ResoniteSceneSlotLocator(),
+                            new ResoniteSceneAnchorResolver()),
+                        new ResoniteCommonMaterialSetupPreparer(materialPlanning),
+                        new ResoniteCommonMaterialSetupCachePrimer(),
+                        new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
+                    new ResoniteLiveSendRunActivator(
+                        new LiveSendRunStateFactory(
+                            new ResoniteBufferedCityObjectBakerFactory(
+                                new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
+                        new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker))),
+                new ResoniteLiveSendContextFactory(),
                 queue));
     }
 
