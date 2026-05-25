@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,8 +21,8 @@ internal sealed class NonDemCityObjectBaker(
 {
     internal const int DefaultMaxAtlasSize = 4096;
     internal const int DefaultTilePaddingPixels = 2;
-    private readonly Dictionary<SourceFileBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceFile = [];
-    private readonly Dictionary<SourceFileBatchKey, int> nextBatchIndexBySourceFile = [];
+    private readonly Dictionary<NonDemSourceFileBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceFile = [];
+    private readonly Dictionary<NonDemSourceFileBatchKey, int> nextBatchIndexBySourceFile = [];
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? throw new ArgumentNullException(nameof(bakePolicies));
 
@@ -59,7 +57,7 @@ internal sealed class NonDemCityObjectBaker(
         }
 
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-        SourceFileBatchKey sourceFileKey = CreateSourceFileKey(cityObject, policy);
+        NonDemSourceFileBatchKey sourceFileKey = NonDemSourceFileBatching.CreateKey(cityObject, policy);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
         BufferedCityObject bufferedCityObject = new(cityObject, policy);
         if (!bufferedCityObjectsBySourceFile.TryGetValue(sourceFileKey, out List<BufferedCityObject>? bufferedCityObjects))
@@ -97,17 +95,17 @@ internal sealed class NonDemCityObjectBaker(
             return;
         }
 
-        SourceFileBatchKey[] orderedSourceFileKeys = bufferedCityObjectsBySourceFile.Keys
-            .OrderBy(static key => key, SourceFileBatchKeyComparer.Instance)
+        NonDemSourceFileBatchKey[] orderedSourceFileKeys = bufferedCityObjectsBySourceFile.Keys
+            .OrderBy(static key => key, NonDemSourceFileBatching.KeyComparer)
             .ToArray();
-        foreach (SourceFileBatchKey sourceFileKey in orderedSourceFileKeys)
+        foreach (NonDemSourceFileBatchKey sourceFileKey in orderedSourceFileKeys)
         {
             await EmitSourceFileAsync(sourceFileKey, onBakedCityObject, cancellationToken);
         }
     }
 
     private async Task EmitSourceFileAsync(
-        SourceFileBatchKey sourceFileKey,
+        NonDemSourceFileBatchKey sourceFileKey,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
@@ -135,7 +133,7 @@ internal sealed class NonDemCityObjectBaker(
     }
 
     private async Task BakeSourceFileAsync(
-        SourceFileBatchKey sourceFileKey,
+        NonDemSourceFileBatchKey sourceFileKey,
         IReadOnlyList<BufferedCityObject> cityObjects,
         int batchStartIndex,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
@@ -428,7 +426,7 @@ internal sealed class NonDemCityObjectBaker(
     }
 
     private async Task<ResoniteConstructionCityObject> BakeBatchAsync(
-        SourceFileBatchKey sourceFileKey,
+        NonDemSourceFileBatchKey sourceFileKey,
         IReadOnlyList<CityObjectBakeCandidate> candidates,
         int batchIndex,
         bool preservePrimaryIdentity,
@@ -465,10 +463,10 @@ internal sealed class NonDemCityObjectBaker(
         ResoniteConstructionCityObject firstCityObject = candidates[0].CityObject;
         string slotKey = preservePrimaryIdentity
             ? firstCityObject.SlotKey
-            : CreateBatchSlotKey(sourceFileKey, batchIndex);
+            : NonDemSourceFileBatching.CreateBatchSlotKey(sourceFileKey, batchIndex);
         string displayName = preservePrimaryIdentity
             ? firstCityObject.DisplayName
-            : CreateBatchDisplayName(sourceFileKey, batchIndex, slotKey);
+            : NonDemSourceFileBatching.CreateBatchDisplayName(sourceFileKey, batchIndex, slotKey);
         string? sourceFileRelativePath = string.IsNullOrWhiteSpace(firstCityObject.SourceFileRelativePath)
             ? null
             : sourceFileKey.SourceFileRelativePath;
@@ -480,7 +478,7 @@ internal sealed class NonDemCityObjectBaker(
 
         if (layout is not null)
         {
-            string textureIdentity = CreateAtlasTextureIdentity(sourceFileKey, batchIndex);
+            string textureIdentity = NonDemSourceFileBatching.CreateAtlasTextureIdentity(sourceFileKey, batchIndex);
             List<int> atlasTriangleIndices = [];
             foreach (NonDemAtlasPlacement<AtlasBatchEntry> placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
             {
@@ -737,50 +735,6 @@ internal sealed class NonDemCityObjectBaker(
         };
     }
 
-    private static SourceFileBatchKey CreateSourceFileKey(
-        ResoniteConstructionCityObject cityObject,
-        NonDemCityObjectBakePolicy policy)
-    {
-        string context = policy.Name;
-        string? sourceFileRelativePath = string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath) ? null : cityObject.SourceFileRelativePath;
-        if (sourceFileRelativePath is null)
-        {
-            throw new InvalidOperationException(
-                $"Non-DEM batch candidate '{cityObject.DisplayName}' did not provide source scope. "
-                + "source-file-owned batching requires SourceFileRelativePath.");
-        }
-
-        return new SourceFileBatchKey(
-            cityObject.ActualMeshCode,
-            cityObject.PackageName.ToLowerInvariant(),
-            cityObject.LodLevel,
-            context,
-            SourceFileRelativePath: sourceFileRelativePath);
-    }
-
-    private static string CreateBatchSlotKey(SourceFileBatchKey sourceFileKey, int batchIndex)
-    {
-        string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.SourceFileRelativePath)}-{sourceFileKey.PackageName}-lod{lodToken}-{batchIndex + 1}");
-    }
-
-    private static string CreateBatchDisplayName(SourceFileBatchKey sourceFileKey, int batchIndex, string batchSlotKey)
-    {
-        string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"AtlasBake {sourceFileKey.PackageName} LOD{lodToken} #{batchIndex + 1} [{batchSlotKey}]");
-    }
-
-    private static string CreateAtlasTextureIdentity(SourceFileBatchKey sourceFileKey, int batchIndex)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"atlastex-{sourceFileKey.SourceFileRelativePath}-{batchIndex + 1}");
-    }
-
     private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
     {
         return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
@@ -871,7 +825,7 @@ internal sealed class NonDemCityObjectBaker(
     }
 
     private async Task EmitAtlasBatchAsync(
-        SourceFileBatchKey sourceFileKey,
+        NonDemSourceFileBatchKey sourceFileKey,
         IReadOnlyList<CityObjectBakeCandidate> batchCandidates,
         int batchIndex,
         bool preservePrimaryIdentity,
@@ -980,52 +934,5 @@ internal sealed class NonDemCityObjectBaker(
     private sealed record AtlasBatchPlan(
         IReadOnlyList<IReadOnlyList<CityObjectBakeCandidate>> Batches,
         IReadOnlyList<CityObjectBakeCandidate> FallbackCandidates);
-
-    private readonly record struct SourceFileBatchKey(
-        string ActualMeshCode,
-        string PackageName,
-        int? LodLevel,
-        string PolicyContext,
-        string SourceFileRelativePath);
-
-    private sealed class SourceFileBatchKeyComparer : IComparer<SourceFileBatchKey>
-    {
-        internal static readonly SourceFileBatchKeyComparer Instance = new();
-
-        public int Compare(SourceFileBatchKey x, SourceFileBatchKey y)
-        {
-            int compare = string.CompareOrdinal(x.ActualMeshCode, y.ActualMeshCode);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = string.CompareOrdinal(x.PackageName, y.PackageName);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = Nullable.Compare(x.LodLevel, y.LodLevel);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = string.CompareOrdinal(x.PolicyContext, y.PolicyContext);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            compare = string.CompareOrdinal(x.SourceFileRelativePath, y.SourceFileRelativePath);
-            if (compare != 0)
-            {
-                return compare;
-            }
-
-            return 0;
-        }
-    }
 
 }
