@@ -22,6 +22,9 @@ internal interface IResoniteLiveSendWorkerLauncher
 internal sealed class ResoniteLiveSendWorkerLauncher(
     IResoniteQueuedCityObjectWorker queuedCityObjectWorker) : IResoniteLiveSendWorkerLauncher
 {
+    private readonly IResoniteQueuedCityObjectWorker queuedCityObjectWorker =
+        queuedCityObjectWorker ?? throw new ArgumentNullException(nameof(queuedCityObjectWorker));
+
     public void Launch(
         LiveSendWorkerLaunchRequest request,
         LiveSendRunStartContext context)
