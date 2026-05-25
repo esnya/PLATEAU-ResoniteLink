@@ -27,9 +27,10 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(options.ProgressReporter)
             : ResoniteLinkSendDiagnostics.Disabled;
+        ILiveSendClientSession clientSession = clientSessionFactory.Create(options, diagnostics);
 
         return new ResoniteLiveSceneImportDependencies(
-            clientSessionFactory.Create(options, diagnostics),
+            clientSession,
             diagnostics,
             executorFactory.Create(options, terrainTextureAssetHttpClient),
             resourceReleaser);

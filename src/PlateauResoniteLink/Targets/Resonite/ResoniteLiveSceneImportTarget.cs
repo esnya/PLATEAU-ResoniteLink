@@ -10,14 +10,9 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 {
-    private readonly Uri endpoint;
-    private readonly int connectionCount;
+    private readonly ResoniteLiveSceneImportTargetRuntime runtime;
     private readonly IResoniteLiveSceneImportExecutor executor;
     private readonly IResoniteLiveSendResourceReleaser resourceReleaser;
-#pragma warning disable CA1859
-    private ILiveSendClientSession ClientSessionInternal { get; }
-#pragma warning restore CA1859
-    private readonly Action<string>? progressReporter;
 
     private int executionClaimed;
 
@@ -28,27 +23,22 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
+        ArgumentNullException.ThrowIfNull(dependencies.Diagnostics);
         ArgumentNullException.ThrowIfNull(dependencies.Executor);
         ArgumentNullException.ThrowIfNull(dependencies.ResourceReleaser);
 
-        endpoint = options.Endpoint;
-        connectionCount = options.ConnectionCount;
-        MemoryProfile = options.MemoryProfile;
-        Diagnostics = dependencies.Diagnostics;
-        MeshBakeEnabled = options.EnableMeshBake;
-        progressReporter = options.ProgressReporter;
+        runtime = dependencies.CreateRuntime(options);
         executor = dependencies.Executor;
         resourceReleaser = dependencies.ResourceReleaser;
-        ClientSessionInternal = dependencies.ClientSession;
     }
 
-    internal bool MeshBakeEnabled { get; }
+    internal bool MeshBakeEnabled => runtime.ExecutionContext.MeshBakeEnabled;
 
-    internal ResoniteLinkSendDiagnostics Diagnostics { get; }
+    internal ResoniteLinkSendDiagnostics Diagnostics => runtime.Diagnostics;
 
-    internal ILiveSendClientSession ClientSession => ClientSessionInternal;
+    internal ILiveSendClientSession ClientSession => runtime.ClientSession;
 
-    internal ResoniteImportMemoryProfile MemoryProfile { get; }
+    internal ResoniteImportMemoryProfile MemoryProfile => runtime.ExecutionContext.MemoryProfile;
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
@@ -66,7 +56,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             return await executor.ExecuteAsync(
                 plan,
                 objectUnits,
-                CreateExecutionContext(),
+                runtime.ExecutionContext,
                 cancellationToken);
         }
         finally
@@ -89,26 +79,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     {
         return new ResoniteLiveSendResourceRelease(
             state,
-            ClientSessionInternal,
+            runtime.ClientSession,
             clientRelease);
-    }
-
-    private ResoniteLiveSceneImportExecutionContext CreateExecutionContext()
-    {
-        return new ResoniteLiveSceneImportExecutionContext(
-            MemoryProfile,
-            connectionCount,
-            MeshBakeEnabled,
-            CreateLiveSendContext());
-    }
-
-    private ResoniteLiveSendTargetContext CreateLiveSendContext()
-    {
-        return new ResoniteLiveSendTargetContext(
-            endpoint,
-            connectionCount,
-            ClientSessionInternal,
-            Diagnostics,
-            progressReporter);
     }
 }
