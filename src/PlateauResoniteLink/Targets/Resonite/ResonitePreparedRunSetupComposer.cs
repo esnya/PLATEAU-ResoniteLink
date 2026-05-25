@@ -21,6 +21,7 @@ internal sealed class ResonitePreparedRunSetupComposer(
         ResoniteSceneSetupState setupState)
     {
         ArgumentNullException.ThrowIfNull(runPlan);
+        ValidateSetupState(setupState);
 
         LiveSendProgressSink progress = new();
         CommonMaterialAssetCache materials = CreateMaterialCache(setupState);
@@ -56,5 +57,20 @@ internal sealed class ResonitePreparedRunSetupComposer(
         }
 
         return materials;
+    }
+
+    private static void ValidateSetupState(ResoniteSceneSetupState setupState)
+    {
+        if (string.IsNullOrWhiteSpace(setupState.DatasetRootSlot.Locator.Value)
+            || string.IsNullOrWhiteSpace(setupState.DatasetAssetsRootSlot.Locator.Value)
+            || string.IsNullOrWhiteSpace(setupState.CommonAssetsRootSlot.Locator.Value)
+            || string.IsNullOrWhiteSpace(setupState.SceneAnchor.LocationSlot.Value)
+            || setupState.CommonMaterialAssets is null
+            || setupState.CommonMaterialFamilies is null)
+        {
+            throw new ArgumentException(
+                "Setup state must be created by the scene setup interpreter before composing a prepared run setup.",
+                nameof(setupState));
+        }
     }
 }

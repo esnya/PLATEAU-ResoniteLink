@@ -133,6 +133,22 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public void PreparedRunSetupComposerRejectsDefaultSetupState()
+    {
+        ResonitePreparedRunSetupComposer composer = new(new ResoniteSlotCreator());
+        LiveSendRunPlan runPlan = new(
+            SetupInfo: null!,
+            ResolvedWorkRoot: "work",
+            RequestLocalOrigin: new ResoniteLocalOrigin(0.0, 0.0, 0.0),
+            SourceFileSlotNamesByRelativePath: new Dictionary<string, string>(),
+            ResourceBudget: ResoniteImportBudgetProfiles.ForProfile(ResoniteImportMemoryProfile.Large),
+            Queue: new LiveSendQueuePlan(ConnectionCount: 1, QueueCapacity: 4, MemoryBudgetBytes: 1),
+            MeshBakeEnabled: true);
+
+        Assert.Throws<ArgumentException>(() => composer.Compose(runPlan, setupState: default));
+    }
+
+    [Fact]
     public void AddResoniteLiveSendTargetServicesRegistersRunRuntimeComponentsFactory()
     {
         using ServiceProvider provider = new ServiceCollection()
