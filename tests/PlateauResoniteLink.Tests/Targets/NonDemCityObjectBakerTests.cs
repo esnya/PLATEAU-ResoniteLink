@@ -939,17 +939,17 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     private static NonDemCityObjectBaker CreateBaker(
-        int maxAtlasSize = NonDemCityObjectBaker.DefaultMaxAtlasSize,
-        int tilePaddingPixels = NonDemCityObjectBaker.DefaultTilePaddingPixels,
+        int maxAtlasSize = NonDemAtlasBakeBudget.DefaultMaxAtlasSize,
+        int tilePaddingPixels = NonDemAtlasBakeBudget.DefaultTilePaddingPixels,
         IReadOnlyList<NonDemCityObjectBakePolicy>? bakePolicies = null,
         ResoniteImportBudgetProfile? resourceBudget = null)
     {
-        return new NonDemCityObjectBaker(
+        NonDemSourceFileBakeEmitter sourceFileBakeEmitter = new NonDemSourceFileBakeEmitterFactory(
             new ResoniteTextureImageLoader(),
+            new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget)).Create();
+        return new NonDemCityObjectBaker(
             bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies,
-            maxAtlasSize,
-            tilePaddingPixels,
-            resourceBudget);
+            sourceFileBakeEmitter);
     }
 
     private static async Task AssertBufferedAsync(NonDemCityObjectBaker baker, ResoniteConstructionCityObject cityObject)

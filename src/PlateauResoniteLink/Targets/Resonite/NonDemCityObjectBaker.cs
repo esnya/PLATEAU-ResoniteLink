@@ -7,35 +7,21 @@ using System.Threading.Tasks;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemCityObjectBaker(
-    ResoniteTextureImageLoader textureImageLoader,
     IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies,
-    int maxAtlasSize = 4096,
-    int tilePaddingPixels = 2,
-    ResoniteImportBudgetProfile? resourceBudget = null) : IResoniteBufferedCityObjectBaker
+    NonDemSourceFileBakeEmitter sourceFileBakeEmitter) : IResoniteBufferedCityObjectBaker
 {
-    internal const int DefaultMaxAtlasSize = 4096;
-    internal const int DefaultTilePaddingPixels = 2;
     private readonly Dictionary<NonDemSourceFileBatchKey, List<NonDemBufferedCityObject>> bufferedCityObjectsBySourceFile = [];
     private readonly Dictionary<NonDemSourceFileBatchKey, int> nextBatchIndexBySourceFile = [];
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? throw new ArgumentNullException(nameof(bakePolicies));
+    private readonly NonDemSourceFileBakeEmitter sourceFileBakeEmitter = sourceFileBakeEmitter
+        ?? throw new ArgumentNullException(nameof(sourceFileBakeEmitter));
 
     public string Name => "AtlasBake";
 
     public int BakedInputCityObjectCount { get; private set; }
 
     public int BakedOutputCityObjectCount { get; private set; }
-
-    private int EffectiveMaxAtlasSize => Math.Max(1, Math.Min(maxAtlasSize, resourceBudget?.MaxAtlasSize ?? maxAtlasSize));
-
-    private int EffectiveMaxAtlasTextureEdge
-    {
-        get
-        {
-            int profileMaxTileEdge = resourceBudget?.MaxAtlasTextureEdge ?? EffectiveMaxAtlasSize;
-            return Math.Max(1, Math.Min(EffectiveMaxAtlasSize - (tilePaddingPixels * 2), profileMaxTileEdge));
-        }
-    }
 
     public ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
         ResoniteConstructionCityObject cityObject,
@@ -109,9 +95,7 @@ internal sealed class NonDemCityObjectBaker(
         }
 
         int batchStartIndex = nextBatchIndexBySourceFile.GetValueOrDefault(sourceFileKey);
-        NonDemSourceFileBakeEmitter emitter = CreateSourceFileBakeEmitter();
-
-        int emittedCount = await emitter.EmitAsync(
+        int emittedCount = await sourceFileBakeEmitter.EmitAsync(
             sourceFileKey,
             cityObjects,
             batchStartIndex,
@@ -135,28 +119,5 @@ internal sealed class NonDemCityObjectBaker(
         }
 
         return null;
-    }
-
-    private NonDemAtlasLayoutFactory CreateAtlasLayoutFactory()
-    {
-        return new NonDemAtlasLayoutFactory(EffectiveMaxAtlasSize, tilePaddingPixels);
-    }
-
-    private NonDemCityObjectBakeCandidateFactory CreateCandidateFactory()
-    {
-        return new NonDemCityObjectBakeCandidateFactory(textureImageLoader, EffectiveMaxAtlasTextureEdge);
-    }
-
-    private NonDemAtlasBatchFitPolicy CreateBatchFitPolicy()
-    {
-        return new NonDemAtlasBatchFitPolicy(CreateAtlasLayoutFactory());
-    }
-
-    private NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter()
-    {
-        return new NonDemSourceFileBakeEmitter(
-            CreateCandidateFactory(),
-            new NonDemCityObjectBakeAssembler(CreateAtlasLayoutFactory(), new NonDemAtlasImageRenderer(tilePaddingPixels)),
-            CreateBatchFitPolicy());
     }
 }
