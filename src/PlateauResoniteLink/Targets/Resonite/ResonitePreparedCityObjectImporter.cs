@@ -50,7 +50,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
         ReportImportStep(progressReporter, cityObject, "Creating object slot hierarchy.");
         Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = await AwaitWithSlowCityObjectWarningAsync(
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = await AwaitWithCancellationAsync(
             queuedCityObject.ObjectHierarchyTask,
             cancellationToken);
         slotHierarchyStopwatch.Stop();
@@ -182,7 +182,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
         return Task.WhenAll(tasks.Select(ObserveTaskFailureAsync));
     }
 
-    private static Task<T> AwaitWithSlowCityObjectWarningAsync<T>(
+    private static Task<T> AwaitWithCancellationAsync<T>(
         Task<T> operationTask,
         CancellationToken cancellationToken)
     {

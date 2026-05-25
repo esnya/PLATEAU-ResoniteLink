@@ -110,6 +110,7 @@ internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
         }
         catch (AggregateException)
         {
+            // Cancellation callbacks may throw; cancel remains best-effort so callers can still observe shutdown.
         }
         catch (ObjectDisposedException)
         {
