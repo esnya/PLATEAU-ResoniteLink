@@ -68,14 +68,15 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
     {
         return new ResoniteLiveSendRunStarter(
-            sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
             new ResoniteLiveSendConnectionInitializer(),
-            CreateCommonMaterialSetupPreparer(materialPlanning),
-            new ResoniteCommonMaterialSetupCachePrimer(),
+            new ResoniteLiveSendSetupInitializer(
+                sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
+                CreateCommonMaterialSetupPreparer(materialPlanning),
+                new ResoniteCommonMaterialSetupCachePrimer(),
+                new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
             new LiveSendRunPlanFactory(),
             CreateRunStateFactory(),
-            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)),
-            new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator()));
+            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)));
     }
 
     private static ResoniteLiveSendQueue CreateQueue()

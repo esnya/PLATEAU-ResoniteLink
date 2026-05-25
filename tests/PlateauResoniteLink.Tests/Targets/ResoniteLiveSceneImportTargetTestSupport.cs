@@ -354,18 +354,19 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 new ResoniteLiveSendRunStarter(
-                    new ResoniteSceneSetupInterpreter(
-                        new ResoniteSceneSlotLocator(),
-                        new ResoniteSceneAnchorResolver()),
                     new ResoniteLiveSendConnectionInitializer(),
-                    new ResoniteCommonMaterialSetupPreparer(materialPlanning),
-                    new ResoniteCommonMaterialSetupCachePrimer(),
+                    new ResoniteLiveSendSetupInitializer(
+                        new ResoniteSceneSetupInterpreter(
+                            new ResoniteSceneSlotLocator(),
+                            new ResoniteSceneAnchorResolver()),
+                        new ResoniteCommonMaterialSetupPreparer(materialPlanning),
+                        new ResoniteCommonMaterialSetupCachePrimer(),
+                        new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
                     new LiveSendRunPlanFactory(),
                     new LiveSendRunStateFactory(
                         new ResoniteBufferedCityObjectBakerFactory(
                             new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
-                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
-                    new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
+                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker)),
                 queue));
     }
 

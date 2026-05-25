@@ -1,8 +1,6 @@
 using System;
 using System.Net.Http;
 
-using PlateauResoniteLink.Targets.Resonite.Execution;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface IResoniteLiveSendRunStarterFactory
@@ -13,14 +11,11 @@ internal interface IResoniteLiveSendRunStarterFactory
 }
 
 internal sealed class ResoniteLiveSendRunStarterFactory(
-    IResoniteSceneSetupInterpreter sceneSetupInterpreter,
     IResoniteLiveSendConnectionInitializer connectionInitializer,
-    IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
-    IResoniteCommonMaterialSetupCachePrimer commonMaterialSetupCachePrimer,
+    IResoniteLiveSendSetupInitializer setupInitializer,
     ILiveSendRunPlanFactory runPlanFactory,
     ILiveSendRunStateFactory runStateFactory,
-    IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory,
-    IResoniteSharedSlotIndexFactory sharedSlotIndexFactory) : IResoniteLiveSendRunStarterFactory
+    IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory) : IResoniteLiveSendRunStarterFactory
 {
     public IResoniteLiveSendRunStarter Create(
         HttpClient terrainTextureAssetHttpClient,
@@ -30,14 +25,11 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
         ArgumentNullException.ThrowIfNull(options);
 
         return new ResoniteLiveSendRunStarter(
-            sceneSetupInterpreter,
             connectionInitializer,
-            commonMaterialSetupPreparer,
-            commonMaterialSetupCachePrimer,
+            setupInitializer,
             runPlanFactory,
             runStateFactory,
-            workerLauncherFactory.Create(terrainTextureAssetHttpClient, options),
-            sharedSlotIndexFactory);
+            workerLauncherFactory.Create(terrainTextureAssetHttpClient, options));
     }
 }
 
