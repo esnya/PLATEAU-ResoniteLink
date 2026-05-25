@@ -1,14 +1,11 @@
 using System;
 
-using ProjectionGeodeticPoint = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.GeodeticPoint;
-using ProjectionParsedRing = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedRing;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class RoadSurfaceEdgePairSelector
 {
     internal static EdgePairSelection Select(
-        ProjectionGeodeticPoint[] vertices,
+        GeodeticPoint[] vertices,
         Float3[] positions)
     {
         double edge01 = Distance(positions[0], positions[1]);
@@ -45,7 +42,7 @@ internal static class RoadSurfaceEdgePairSelector
     }
 
     internal static EdgePairSelection Select(
-        ProjectionParsedRing ring,
+        ParsedRing ring,
         Float3[] positions)
     {
         EdgePairSelection pair = Select(ring.Vertices, positions);
@@ -78,7 +75,7 @@ internal static class RoadSurfaceEdgePairSelector
         return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
     }
 
-    private static bool AreSamePoint(ProjectionGeodeticPoint left, ProjectionGeodeticPoint right)
+    private static bool AreSamePoint(GeodeticPoint left, GeodeticPoint right)
     {
         return Math.Abs(left.Latitude - right.Latitude) < 1e-8
             && Math.Abs(left.Longitude - right.Longitude) < 1e-8
@@ -87,8 +84,8 @@ internal static class RoadSurfaceEdgePairSelector
 }
 
 internal sealed record EdgePairSelection(
-    ProjectionGeodeticPoint[] Side0,
-    ProjectionGeodeticPoint[] Side1,
+    GeodeticPoint[] Side0,
+    GeodeticPoint[] Side1,
     Float3[] Side0Positions,
     Float3[] Side1Positions,
     Float2[]? Side0Uvs,

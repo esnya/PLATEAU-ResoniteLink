@@ -99,8 +99,15 @@ internal static class LocalCityGmlObjectProjection
             return [surface];
         }
 
-        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(surface.ExteriorRing, positions);
-        return TerrainAlignedTransportationSurfaceSplitter.Split(surface, positions, edgePair);
+        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(
+            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel(surface.ExteriorRing),
+            positions);
+        List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> strips =
+            TerrainAlignedTransportationSurfaceSplitter.Split(
+                global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel(surface),
+                positions,
+                edgePair);
+        return strips.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel).ToList();
     }
 
     private static List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> SubdivideTransportationSurfaceForTerrainAlignment(
@@ -129,14 +136,8 @@ internal static class LocalCityGmlObjectProjection
             return [surface];
         }
 
-        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(
-            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface.ExteriorRing),
-            positions);
-        List<ParsedSurface> strips = TerrainAlignedTransportationSurfaceSplitter.Split(
-            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface),
-            positions,
-            edgePair);
-        return strips.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel).ToList();
+        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(surface.ExteriorRing, positions);
+        return TerrainAlignedTransportationSurfaceSplitter.Split(surface, positions, edgePair);
     }
 
     private static bool IsTerrainDependentCityObject(ParsedCityObject cityObject)
@@ -267,10 +268,12 @@ internal static class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
+        global::PlateauResoniteLink.Application.Importing.ParsedSurface resolvedSurface =
+            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel(surface);
         if (surface.UsesGeneratedDemTexture)
         {
             return new ResolvedSurfaceMaterial(
-                surface,
+                resolvedSurface,
                 new ResolvedMaterial(
                     MaterialType.Standard,
                     TexturePayload: null,
@@ -294,7 +297,7 @@ internal static class LocalCityGmlObjectProjection
         if (roofTerrainTextureMaterial is not null)
         {
             return new ResolvedSurfaceMaterial(
-                surface with { BaseColor = DefaultMaterialColor },
+                resolvedSurface with { BaseColor = DefaultMaterialColor },
                 roofTerrainTextureMaterial,
                 DepthOffset: null);
         }
@@ -305,7 +308,7 @@ internal static class LocalCityGmlObjectProjection
             if (HasExplicitMaterialColor(surface.BaseColor))
             {
                 return new ResolvedSurfaceMaterial(
-                    surface,
+                    resolvedSurface,
                     new ResolvedMaterial(
                         MaterialType.VertexColor,
                         TexturePayload: null,
@@ -318,7 +321,7 @@ internal static class LocalCityGmlObjectProjection
             }
 
             return new ResolvedSurfaceMaterial(
-                surface with { BaseColor = DefaultVegetationMaterialColor },
+                resolvedSurface with { BaseColor = DefaultVegetationMaterialColor },
                 new ResolvedMaterial(
                     MaterialType.Standard,
                     TexturePayload: null,
@@ -333,7 +336,7 @@ internal static class LocalCityGmlObjectProjection
         if (IsGeneratedRoadMarkingSurface(surface))
         {
             return new ResolvedSurfaceMaterial(
-                surface,
+                resolvedSurface,
                 new ResolvedMaterial(
                     MaterialType.VertexColor,
                     TexturePayload: null,
@@ -367,7 +370,7 @@ internal static class LocalCityGmlObjectProjection
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
-        return new ResolvedSurfaceMaterial(surface, resolvedMaterial, depthOffset);
+        return new ResolvedSurfaceMaterial(resolvedSurface, resolvedMaterial, depthOffset);
     }
 
     private static ResolvedMaterial? TryCreateRoofTerrainTextureMaterial(
