@@ -55,6 +55,25 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     }
 
     [Fact]
+    public void CreateSkipsObjectWhoseGeneratedRoofSurfaceIdContainsEarlierGeneratedToken()
+    {
+        ParsedCityObject cityObject = CreateCityObject(
+            [
+                CreateSurface("source_generated_part_generated_shed-roof", ParsedSurfaceSemantic.Roof, altitude: 10.0),
+                CreateSurface("lod1-bottom", ParsedSurfaceSemantic.Ground, altitude: 0.0),
+            ],
+            CoordinateReferenceSystem.Parse("EPSG:6697"),
+            BuildingAttributeContext.Empty with
+            {
+                RoofShape = new BuildingCodeValue<CityGmlRoofShape>(CityGmlRoofShape.Shed, "shed"),
+            });
+
+        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+
+        Assert.Same(cityObject, generated);
+    }
+
+    [Fact]
     public void CreateDoesNotTreatOtherGeneratedSurfaceIdsAsGeneratedRoof()
     {
         ParsedCityObject cityObject = CreateCityObject(
