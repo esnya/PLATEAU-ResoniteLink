@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,8 +9,7 @@ internal sealed class NonDemCityObjectBaker(
     INonDemCityObjectBakePolicyResolver bakePolicyResolver,
     INonDemSourceFileBakeEmitter sourceFileBakeEmitter) : IResoniteBufferedCityObjectBaker
 {
-    private readonly Dictionary<NonDemSourceFileBatchKey, List<NonDemBufferedCityObject>> bufferedCityObjectsBySourceFile = [];
-    private readonly Dictionary<NonDemSourceFileBatchKey, int> nextBatchIndexBySourceFile = [];
+    private readonly NonDemSourceFileBakeBuffer sourceFileBuffer = new();
     private readonly INonDemCityObjectBakePolicyResolver bakePolicyResolver = bakePolicyResolver
         ?? throw new ArgumentNullException(nameof(bakePolicyResolver));
     private readonly INonDemSourceFileBakeEmitter sourceFileBakeEmitter = sourceFileBakeEmitter
@@ -39,14 +37,7 @@ internal sealed class NonDemCityObjectBaker(
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         NonDemSourceFileBatchKey sourceFileKey = NonDemSourceFileBatching.CreateKey(cityObject, policy);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
-        NonDemBufferedCityObject bufferedCityObject = new(cityObject, policy);
-        if (!bufferedCityObjectsBySourceFile.TryGetValue(sourceFileKey, out List<NonDemBufferedCityObject>? bufferedCityObjects))
-        {
-            bufferedCityObjects = [];
-            bufferedCityObjectsBySourceFile.Add(sourceFileKey, bufferedCityObjects);
-        }
-
-        bufferedCityObjects.Add(bufferedCityObject);
+        sourceFileBuffer.Add(sourceFileKey, new NonDemBufferedCityObject(cityObject, policy));
         BakedInputCityObjectCount++;
         return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects));
     }
@@ -70,15 +61,12 @@ internal sealed class NonDemCityObjectBaker(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(onBakedCityObject);
-        if (bufferedCityObjectsBySourceFile.Count == 0)
+        if (sourceFileBuffer.IsEmpty)
         {
             return;
         }
 
-        NonDemSourceFileBatchKey[] orderedSourceFileKeys = bufferedCityObjectsBySourceFile.Keys
-            .OrderBy(static key => key, NonDemSourceFileBatching.KeyComparer)
-            .ToArray();
-        foreach (NonDemSourceFileBatchKey sourceFileKey in orderedSourceFileKeys)
+        foreach (NonDemSourceFileBatchKey sourceFileKey in sourceFileBuffer.SnapshotOrderedSourceFileKeys())
         {
             await EmitSourceFileAsync(sourceFileKey, onBakedCityObject, cancellationToken);
         }
@@ -89,19 +77,18 @@ internal sealed class NonDemCityObjectBaker(
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
-        if (!bufferedCityObjectsBySourceFile.Remove(sourceFileKey, out List<NonDemBufferedCityObject>? cityObjects))
+        if (!sourceFileBuffer.TryTake(sourceFileKey, out NonDemSourceFileBakeBufferEntry bufferEntry))
         {
             return;
         }
 
-        int batchStartIndex = nextBatchIndexBySourceFile.GetValueOrDefault(sourceFileKey);
         int emittedCount = 0;
         try
         {
             await sourceFileBakeEmitter.EmitAsync(
-                sourceFileKey,
-                cityObjects,
-                batchStartIndex,
+                bufferEntry.SourceFileKey,
+                bufferEntry.CityObjects,
+                bufferEntry.BatchStartIndex,
                 async (bakedCityObject, callbackCancellationToken) =>
                 {
                     emittedCount++;
@@ -112,8 +99,7 @@ internal sealed class NonDemCityObjectBaker(
         }
         finally
         {
-            nextBatchIndexBySourceFile[sourceFileKey] = batchStartIndex + emittedCount;
-            cityObjects.Clear();
+            sourceFileBuffer.Complete(bufferEntry, emittedCount);
         }
     }
 }
