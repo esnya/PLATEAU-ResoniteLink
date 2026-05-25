@@ -254,6 +254,7 @@ internal sealed class DefaultCanonicalSceneDumpSinkFactory : ICanonicalSceneDump
                 serviceProvider.GetRequiredService<IResoniteLiveSendStartRequestFactory>(),
                 new ResoniteLiveSendRunStarter(
                     serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
+                    serviceProvider.GetRequiredService<IResoniteLiveSendConnectionInitializer>(),
                     serviceProvider.GetRequiredService<IResoniteCommonMaterialSetupPreparer>(),
                     serviceProvider.GetRequiredService<IResoniteCommonMaterialSetupCachePrimer>(),
                     serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),

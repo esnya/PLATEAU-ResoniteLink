@@ -14,6 +14,7 @@ internal interface IResoniteLiveSendRunStarterFactory
 
 internal sealed class ResoniteLiveSendRunStarterFactory(
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
+    IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
     IResoniteCommonMaterialSetupCachePrimer commonMaterialSetupCachePrimer,
     ILiveSendRunPlanFactory runPlanFactory,
@@ -30,6 +31,7 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
 
         return new ResoniteLiveSendRunStarter(
             sceneSetupInterpreter,
+            connectionInitializer,
             commonMaterialSetupPreparer,
             commonMaterialSetupCachePrimer,
             runPlanFactory,

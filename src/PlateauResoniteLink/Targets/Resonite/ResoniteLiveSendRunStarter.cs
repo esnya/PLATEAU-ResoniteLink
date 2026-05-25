@@ -37,6 +37,7 @@ internal interface IResoniteLiveSendRunStarter
 
 internal sealed class ResoniteLiveSendRunStarter(
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
+    IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
     IResoniteCommonMaterialSetupCachePrimer commonMaterialSetupCachePrimer,
     ILiveSendRunPlanFactory runPlanFactory,
@@ -72,25 +73,7 @@ internal sealed class ResoniteLiveSendRunStarter(
                 "live",
                 $"Initializing scene state for dataset '{request.SetupInfo.Dataset}' "
                 + $"mesh '{request.SetupInfo.MeshCode}' at '{runPlan.ResolvedWorkRoot}'."));
-        Stopwatch connectionStopwatch = Stopwatch.StartNew();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Connecting ResoniteLink connection pool to {context.Endpoint} "
-                + $"with {request.ConnectionCount} available routed connection(s)."));
-        await context.ClientSession.EnsureConnectedAsync(
-            new LiveSendConnectionRequest(
-                request.NormalizedRequest.Dataset,
-                request.NormalizedRequest.MeshCode),
-            cancellationToken);
-        connectionStopwatch.Stop();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"ResoniteLink connection pool ready in {connectionStopwatch.Elapsed.TotalSeconds:F2}s "
-                + $"(dataset='{request.SetupInfo.Dataset}', mesh='{request.SetupInfo.MeshCode}')."));
+        await connectionInitializer.EnsureConnectedAsync(request, context, cancellationToken);
         LiveSendProgressSink progress = new();
         CommonMaterialAssetCache materials = new();
         ReportProgress(
