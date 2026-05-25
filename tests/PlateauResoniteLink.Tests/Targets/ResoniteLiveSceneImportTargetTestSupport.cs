@@ -329,12 +329,31 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: progressReporter),
-            new ResoniteLiveSceneImportDependencies(
+            CreateDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,
-                new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning, terrainTextureAssetGenerator: terrainTextureAssetGenerator, progressReporter: progressReporter),
-                CreateQueue()));
+                CreateRunStarter(materialPlanning, terrainTextureAssetGenerator: terrainTextureAssetGenerator, progressReporter: progressReporter)));
+    }
+
+    public static ResoniteLiveSceneImportDependencies CreateDependencies(
+        ILiveSendClientSession session,
+        ResoniteLinkSendDiagnostics diagnostics,
+        IResoniteLiveSendRunStarter runStarter,
+        IResoniteLiveSendQueue? queue = null,
+        IResoniteLiveSendRunResourceReleaser? resourceReleaser = null)
+    {
+        IResoniteLiveSendQueue effectiveQueue = queue ?? CreateQueue();
+        IResoniteLiveSendRunResourceReleaser effectiveResourceReleaser =
+            resourceReleaser ?? new ResoniteLiveSendRunResourceReleaser();
+        return new ResoniteLiveSceneImportDependencies(
+            session,
+            diagnostics,
+            new ResoniteLiveSendStartRequestFactory(),
+            new ResoniteLiveSendRunExecutor(
+                runStarter,
+                effectiveQueue,
+                effectiveResourceReleaser),
+            effectiveResourceReleaser);
     }
 
     public static ResoniteLiveSendRunStarter CreateRunStarter(

@@ -13,8 +13,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private readonly Uri endpoint;
     private readonly int connectionCount;
     private readonly IResoniteLiveSendStartRequestFactory startRequestFactory;
-    private readonly IResoniteLiveSendRunStarter runStarter;
-    private readonly IResoniteLiveSendQueue queue;
+    private readonly IResoniteLiveSendRunExecutor runExecutor;
+    private readonly IResoniteLiveSendRunResourceReleaser resourceReleaser;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
@@ -30,8 +30,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
         ArgumentNullException.ThrowIfNull(dependencies.StartRequestFactory);
-        ArgumentNullException.ThrowIfNull(dependencies.RunStarter);
-        ArgumentNullException.ThrowIfNull(dependencies.Queue);
+        ArgumentNullException.ThrowIfNull(dependencies.RunExecutor);
+        ArgumentNullException.ThrowIfNull(dependencies.ResourceReleaser);
 
         endpoint = options.Endpoint;
         connectionCount = options.ConnectionCount;
@@ -40,8 +40,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
         startRequestFactory = dependencies.StartRequestFactory;
-        runStarter = dependencies.RunStarter;
-        queue = dependencies.Queue;
+        runExecutor = dependencies.RunExecutor;
+        resourceReleaser = dependencies.ResourceReleaser;
         ClientSessionInternal = dependencies.ClientSession;
     }
 
@@ -64,110 +64,36 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             throw new InvalidOperationException("A live scene import run is already active on this live scene import target instance.");
         }
-        bool completedSuccessfully = false;
-        LiveSendRunState? state = null;
-
         try
         {
-            state = await runStarter.StartAsync(
+            return await runExecutor.ExecuteAsync(
                 startRequestFactory.Create(
                     plan,
                     MemoryProfile,
                     connectionCount,
                     MeshBakeEnabled),
-                CreateRunStartContext(),
+                objectUnits,
+                new LiveSendRunExecutionContext(
+                    endpoint,
+                    connectionCount,
+                    ClientSessionInternal,
+                    Diagnostics,
+                    progressReporter),
                 cancellationToken);
-
-            LiveSendEnqueueContext enqueueContext = CreateEnqueueContext();
-            await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
-            {
-                await queue.QueueUnitAsync(
-                    state,
-                    objectUnit,
-                    enqueueContext,
-                    cancellationToken);
-            }
-
-            SceneImportExecutionResult result = await queue.CompleteAsync(
-                state,
-                CreateFinalizationContext(),
-                cancellationToken);
-            completedSuccessfully = true;
-            return result;
         }
         finally
         {
-            try
-            {
-                await ReleaseRunResourcesAsync(
-                    state,
-                    disposeClients: false,
-                    resetClients: !completedSuccessfully);
-            }
-            finally
-            {
-                Volatile.Write(ref executionClaimed, 0);
-            }
+            Volatile.Write(ref executionClaimed, 0);
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        await ReleaseRunResourcesAsync(
+        await resourceReleaser.ReleaseAsync(
             state: null,
+            clientSession: ClientSessionInternal,
             disposeClients: true,
             resetClients: false);
-    }
-
-    private async ValueTask ReleaseRunResourcesAsync(
-        LiveSendRunState? state,
-        bool disposeClients,
-        bool resetClients)
-    {
-        if (state is not null)
-        {
-            await state.Runtime.DisposeAsync();
-        }
-
-        if (disposeClients)
-        {
-            ClientSessionInternal.DisposeClients();
-        }
-        else if (resetClients)
-        {
-            await ClientSessionInternal.ResetClientsAsync();
-        }
-    }
-
-    private IResoniteLinkClient GetRoutedClient()
-    {
-        return ClientSessionInternal.GetRequiredClient();
-    }
-
-    private LiveSendEnqueueContext CreateEnqueueContext()
-    {
-        return new LiveSendEnqueueContext(
-            connectionCount,
-            GetRoutedClient,
-            progressReporter);
-    }
-
-    private LiveSendFinalizationContext CreateFinalizationContext()
-    {
-        return new LiveSendFinalizationContext(
-            endpoint,
-            CreateEnqueueContext(),
-            Diagnostics,
-            progressReporter);
-    }
-
-    private LiveSendRunStartContext CreateRunStartContext()
-    {
-        return new LiveSendRunStartContext(
-            endpoint,
-            ClientSessionInternal,
-            Diagnostics,
-            progressReporter);
     }
 
 }

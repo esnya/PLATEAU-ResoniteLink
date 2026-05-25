@@ -16,7 +16,8 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteClientSessionFactory clientSessionFactory,
     IResoniteLiveSendRunStarterFactory runStarterFactory,
     IResoniteLiveSendStartRequestFactory startRequestFactory,
-    IResoniteLiveSendQueue queue)
+    IResoniteLiveSendRunExecutorFactory runExecutorFactory,
+    IResoniteLiveSendRunResourceReleaser resourceReleaser)
     : IResoniteLiveSceneImportDependencyFactory
 {
     public ResoniteLiveSceneImportDependencies Create(
@@ -29,11 +30,14 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             ? ResoniteLinkSendDiagnostics.CreateEnabled(options.ProgressReporter)
             : ResoniteLinkSendDiagnostics.Disabled;
 
+        ILiveSendClientSession clientSession = clientSessionFactory.Create(options, diagnostics);
+        IResoniteLiveSendRunStarter runStarter = runStarterFactory.Create(terrainTextureAssetHttpClient, options);
+
         return new ResoniteLiveSceneImportDependencies(
-            clientSessionFactory.Create(options, diagnostics),
+            clientSession,
             diagnostics,
             startRequestFactory,
-            runStarterFactory.Create(terrainTextureAssetHttpClient, options),
-            queue);
+            runExecutorFactory.Create(runStarter),
+            resourceReleaser);
     }
 }
