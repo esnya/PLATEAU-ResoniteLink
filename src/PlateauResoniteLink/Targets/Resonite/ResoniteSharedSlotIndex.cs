@@ -1,14 +1,10 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
-
-using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -23,29 +19,15 @@ internal sealed class ResoniteSharedSlotIndex(
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> sharedSlotCache = new();
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> runScopedSourceFileRootCache = new();
     private readonly AsyncCompletedResultCache<CanonicalParentSourceFile, CanonicalParentScope> canonicalParentScopeCache = new();
-    private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<SharedSlotIndexKey, CreatedSlot> sharedSlotIndex = new();
-    private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
-    private Slot[]? observedDatasetSourceRoots;
+    private readonly ResoniteSlotSnapshotIndex slotSnapshotIndex = new(datasetRootSlot);
     public SceneAnchor? SceneAnchor { get; private set; } = initialSceneAnchor;
 
     public void IndexSetupHierarchy(ResoniteSceneSetupState setupState)
     {
-        observedDatasetSourceRoots = null;
-        if (setupState.DatasetRootSnapshot is not null)
-        {
-            observedSlotSnapshotsById.Clear();
-            IndexObservedSlotSnapshot(setupState.DatasetRootSnapshot);
-        }
-        else
-        {
-            IndexCreatedSharedSlot(ResoniteSlotLocator.Root, setupState.DatasetRootSlot);
-        }
-
-        IndexCreatedSharedSlot(setupState.DatasetRootSlot.Locator, setupState.DatasetAssetsRootSlot);
+        slotSnapshotIndex.IndexSetupHierarchy(setupState);
     }
 
-    public Task<ObjectSlotHierarchy> CreateObjectHierarchyTask(
+    public Task<ResoniteObjectSlotHierarchy> CreateObjectHierarchyTask(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         CancellationToken processingCancellationToken,
@@ -67,7 +49,7 @@ internal sealed class ResoniteSharedSlotIndex(
         return GetOrCreateSharedChildSlotByIdAsync(client, parent, slotName, null, null, cancellationToken);
     }
 
-    private async Task<ObjectSlotHierarchy> CreateObjectHierarchyWithLinkedCancellationAsync(
+    private async Task<ResoniteObjectSlotHierarchy> CreateObjectHierarchyWithLinkedCancellationAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         CancellationToken processingCancellationToken,
@@ -79,7 +61,7 @@ internal sealed class ResoniteSharedSlotIndex(
         return await CreateObjectSlotHierarchyAsync(client, cityObject, linkedCancellation.Token);
     }
 
-    private async Task<ObjectSlotHierarchy> CreateObjectSlotHierarchyAsync(
+    private async Task<ResoniteObjectSlotHierarchy> CreateObjectSlotHierarchyAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken)
@@ -92,7 +74,7 @@ internal sealed class ResoniteSharedSlotIndex(
             new CanonicalParentSourceFile(sourceFileRelativePath, rootMeshCode, cityObject.LodLevel),
             ct => CreateCanonicalParentScopeAsync(client, sourceFileSlotName, rootMeshCode, cityObject.LodLevel, sourceRootPlacement.RootPosition, ct),
             cancellationToken);
-        return new ObjectSlotHierarchy(
+        return new ResoniteObjectSlotHierarchy(
             parentScope.AssetLodSlot,
             parentScope.LodSlot,
             cityObject.DisplayName,
@@ -186,8 +168,8 @@ internal sealed class ResoniteSharedSlotIndex(
             async ct =>
             {
                 CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, null, ct);
-                createdSlotIds[createdSlot.Locator.Value] = 0;
-                return IndexCreatedSharedSlot(parent, createdSlot, position);
+                slotSnapshotIndex.MarkCreated(createdSlot);
+                return slotSnapshotIndex.IndexCreatedSharedSlot(parent, createdSlot, position);
             },
             cancellationToken);
     }
@@ -203,133 +185,37 @@ internal sealed class ResoniteSharedSlotIndex(
         CreatedSlot? indexedSlot = TryGetIndexedSharedChildSlot(parent, slotName);
         if (indexedSlot is not null)
         {
-            createdSlotIds[indexedSlot.Value.Locator.Value] = 0;
+            slotSnapshotIndex.MarkCreated(indexedSlot.Value);
             return indexedSlot.Value;
         }
 
         CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, rotation, cancellationToken);
-        createdSlotIds[createdSlot.Locator.Value] = 0;
-        return IndexCreatedSharedSlot(parent, createdSlot, position);
-    }
-
-    private void IndexObservedSlotSnapshot(Slot slot)
-    {
-        if (string.IsNullOrWhiteSpace(slot.ID))
-        {
-            return;
-        }
-
-        observedSlotSnapshotsById[slot.ID] = slot;
-        if (slot.Children is null || slot.Children.Count == 0)
-        {
-            return;
-        }
-
-        foreach (Slot child in slot.Children)
-        {
-            if (!string.IsNullOrWhiteSpace(child.ID) && !string.IsNullOrWhiteSpace(child.Name?.Value))
-            {
-                sharedSlotIndex[new SharedSlotIndexKey(slot.ID!, child.Name!.Value)] = new CreatedSlot(new ResoniteSlotLocator(child.ID!), child.Name.Value);
-            }
-
-            IndexObservedSlotSnapshot(child);
-        }
+        slotSnapshotIndex.MarkCreated(createdSlot);
+        return slotSnapshotIndex.IndexCreatedSharedSlot(parent, createdSlot, position);
     }
 
     private CreatedSlot? TryGetIndexedSharedChildSlot(ResoniteSlotLocator parent, string slotName)
     {
-        return sharedSlotIndex.TryGetValue(new SharedSlotIndexKey(parent.Value, slotName), out CreatedSlot createdSlot)
-            ? createdSlot
-            : null;
-    }
-
-    private CreatedSlot IndexCreatedSharedSlot(ResoniteSlotLocator parent, CreatedSlot createdSlot, ResoniteFloat3? position = null)
-    {
-        sharedSlotIndex[new SharedSlotIndexKey(parent.Value, createdSlot.SlotName)] = createdSlot;
-        observedSlotSnapshotsById[createdSlot.Locator.Value] = new Slot
-        {
-            ID = createdSlot.Locator.Value,
-            Name = new Field_string { Value = createdSlot.SlotName },
-            Parent = new Reference { TargetID = parent.Value },
-            Position = position is null ? null : CreateFloat3(position),
-        };
-        return createdSlot;
+        return slotSnapshotIndex.TryGetSharedChildSlot(parent, slotName);
     }
 
     private SourceRootPlacement ResolveSourceRootPlacement(
         string sourceFileSlotName,
         string rootMeshCode)
     {
-        ObservedSourceRootPlacement? observedRootPlacement = TryResolveObservedSourceRootPosition(sourceFileSlotName, rootMeshCode);
-        ResoniteFloat3 rootPosition = observedRootPlacement?.Position
-            ?? ResolveDatasetRootAnchoredSourceRootPosition(rootMeshCode)
-            ?? ResonitePlacementPolicy.ResolveMeshRootPosition(requestLocalOrigin, rootMeshCode);
-
-        return new SourceRootPlacement(rootPosition, rootPosition);
-    }
-
-    private ResoniteFloat3? ResolveDatasetRootAnchoredSourceRootPosition(string rootMeshCode)
-    {
-        if (SceneAnchor is not { ReferenceSourceFileRoot: null } anchor)
-        {
-            return null;
-        }
-
-        return ResonitePlacementPolicy.ComputeMeshCodeOffset(anchor.MeshCode, rootMeshCode);
-    }
-
-    private ObservedSourceRootPlacement? TryResolveObservedSourceRootPosition(
-        string sourceFileSlotName,
-        string rootMeshCode)
-    {
-        return ObservedSourceRootPlacementResolver.TryResolve(
+        return SourceRootPlacementResolver.Resolve(
             sourceFileSlotName,
             rootMeshCode,
-            GetObservedDatasetSourceRoots());
+            requestLocalOrigin,
+            SceneAnchor,
+            slotSnapshotIndex.GetObservedDatasetSourceRoots());
     }
-
-    private IEnumerable<Slot> EnumerateObservedDatasetSourceRoots()
-    {
-        return observedSlotSnapshotsById.Values
-            .Where(slot => string.Equals(slot.Parent?.TargetID, datasetRootSlot.Locator.Value, StringComparison.Ordinal))
-            .Where(slot => string.IsNullOrWhiteSpace(slot.ID) || !createdSlotIds.ContainsKey(slot.ID!))
-            .Where(static slot => !string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal));
-    }
-
-    private Slot[] GetObservedDatasetSourceRoots()
-    {
-        return observedDatasetSourceRoots ??= EnumerateObservedDatasetSourceRoots().ToArray();
-    }
-
-    private static Field_float3 CreateFloat3(ResoniteFloat3 value)
-    {
-        return new Field_float3
-        {
-            Value = new float3
-            {
-                x = (float)value.X,
-                y = (float)value.Y,
-                z = (float)value.Z,
-            },
-        };
-    }
-
-    internal sealed record ObjectSlotHierarchy(
-        CreatedSlot AssetLodSlot,
-        CreatedSlot LodSlot,
-        string CityObjectSlotName,
-        ResoniteFloat3 CityObjectLocalPosition,
-        ResoniteFloatQ? CityObjectRotation);
 
     private sealed record CanonicalParentScope(
         CreatedSlot SourceFileSlot,
         CreatedSlot AssetSourceFileSlot,
         CreatedSlot LodSlot,
         CreatedSlot AssetLodSlot);
-
-    private readonly record struct SourceRootPlacement(
-        ResoniteFloat3 RootPosition,
-        ResoniteFloat3 LocalPositionReferenceRoot);
 
     private readonly record struct CanonicalParentSourceFile(
         string SourceFileRelativePath,
