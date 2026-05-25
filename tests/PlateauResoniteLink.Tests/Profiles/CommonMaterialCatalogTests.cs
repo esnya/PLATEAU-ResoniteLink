@@ -305,7 +305,7 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
-    public void Map_MapsOnlyFilteredActiveDefinitions()
+    public void Map_PreservesInactiveTypedMembersWhileEnumeratingOnlyFilteredDefinitions()
     {
         CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
         CommonMaterialDefinition activeDefinition = catalog.Generic.Uv.Definition;
@@ -321,11 +321,13 @@ public sealed class CommonMaterialCatalogTests
         CommonMaterialCatalogMember<string> mappedMember = Assert.Single(mapped.EnumerateMembers());
         Assert.Same(activeDefinition, mappedMember.Definition);
         Assert.Equal(activeDefinition.MemberName, mappedMember.Item);
-        Assert.Equal([activeDefinition], mappedDefinitions);
+        Assert.Contains(activeDefinition, mappedDefinitions);
+        Assert.Contains(catalog.VertexColor.Uv.Definition, mappedDefinitions);
+        Assert.Equal(catalog.VertexColor.Uv.Definition.MemberName, mapped.VertexColor.Uv);
     }
 
     [Fact]
-    public async Task MapAsync_MapsOnlyFilteredActiveDefinitions()
+    public async Task MapAsync_PreservesInactiveTypedMembersWhileEnumeratingOnlyFilteredDefinitions()
     {
         CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
         CommonMaterialDefinition activeDefinition = catalog.Generic.Uv.Definition;
@@ -344,7 +346,9 @@ public sealed class CommonMaterialCatalogTests
         CommonMaterialCatalogMember<string> mappedMember = Assert.Single(mapped.EnumerateMembers());
         Assert.Same(activeDefinition, mappedMember.Definition);
         Assert.Equal(activeDefinition.MemberName, mappedMember.Item);
-        Assert.Equal([activeDefinition], mappedDefinitions);
+        Assert.Contains(activeDefinition, mappedDefinitions);
+        Assert.Contains(catalog.VertexColor.Uv.Definition, mappedDefinitions);
+        Assert.Equal(catalog.VertexColor.Uv.Definition.MemberName, mapped.VertexColor.Uv);
     }
 
     [Fact]

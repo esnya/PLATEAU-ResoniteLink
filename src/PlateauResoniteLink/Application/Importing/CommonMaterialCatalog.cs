@@ -170,7 +170,7 @@ public sealed class CommonMaterialCatalog<TItem>
                 .Where(member => activeDefinitions.Contains(member.Definition))
                 .ToArray();
         itemsByDefinition = new Dictionary<CommonMaterialDefinition, TItem>(ReferenceEqualityComparer.Instance);
-        foreach (CommonMaterialCatalogMember<TItem> member in members)
+        foreach (CommonMaterialCatalogMember<TItem> member in allMembers)
         {
             itemsByDefinition.Add(member.Definition, member.Item);
         }
@@ -222,13 +222,13 @@ public sealed class CommonMaterialCatalog<TItem>
     {
         ArgumentNullException.ThrowIfNull(map);
         Dictionary<CommonMaterialDefinition, TOut> mapped = new(ReferenceEqualityComparer.Instance);
-        foreach (CommonMaterialCatalogMember<TItem> member in members)
+        foreach (CommonMaterialCatalogMember<TItem> member in allMembers)
         {
             mapped.Add(member.Definition, map(member.Item));
         }
 
         return new CommonMaterialCatalog<TOut>(
-            definition => mapped.TryGetValue(definition, out TOut? value) ? value : default!,
+            definition => mapped[definition],
             CreateActiveDefinitionSet());
     }
 
@@ -238,14 +238,14 @@ public sealed class CommonMaterialCatalog<TItem>
     {
         ArgumentNullException.ThrowIfNull(map);
         Dictionary<CommonMaterialDefinition, TOut> mapped = new(ReferenceEqualityComparer.Instance);
-        foreach (CommonMaterialCatalogMember<TItem> member in members)
+        foreach (CommonMaterialCatalogMember<TItem> member in allMembers)
         {
             cancellationToken.ThrowIfCancellationRequested();
             mapped.Add(member.Definition, await map(member.Item, cancellationToken).ConfigureAwait(false));
         }
 
         return new CommonMaterialCatalog<TOut>(
-            definition => mapped.TryGetValue(definition, out TOut? value) ? value : default!,
+            definition => mapped[definition],
             CreateActiveDefinitionSet());
     }
 
@@ -275,7 +275,7 @@ public sealed class CommonMaterialCatalog<TItem>
         foreach (CommonMaterialDefinition definition in definitions)
         {
             ArgumentNullException.ThrowIfNull(definition);
-            if (!itemsByDefinition.ContainsKey(definition))
+            if (!IsActiveDefinition(definition))
             {
                 throw new ArgumentException($"Common material definition '{definition.MemberName}' is not active in this catalog.", nameof(definitions));
             }
@@ -284,8 +284,21 @@ public sealed class CommonMaterialCatalog<TItem>
         }
 
         return new CommonMaterialCatalog<TItem>(
-            definition => itemsByDefinition.TryGetValue(definition, out TItem? value) ? value : default!,
+            definition => itemsByDefinition[definition],
             activeDefinitions);
+    }
+
+    private bool IsActiveDefinition(CommonMaterialDefinition definition)
+    {
+        foreach (CommonMaterialCatalogMember<TItem> member in members)
+        {
+            if (ReferenceEquals(member.Definition, definition))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private HashSet<CommonMaterialDefinition> CreateActiveDefinitionSet()
