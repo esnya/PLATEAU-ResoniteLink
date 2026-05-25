@@ -51,6 +51,7 @@ internal static class CliServiceCollectionExtensions
         services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
         services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();
+        services.AddSingleton<ICanonicalSceneDumpSinkFactory, DefaultCanonicalSceneDumpSinkFactory>();
         services.AddSingleton<ISceneSinkFactory, DefaultSceneSinkFactory>();
         services.AddSingleton<CliApplication>(_ => new CliApplication(
             standardOutput,
@@ -75,6 +76,14 @@ internal interface IPlateauDatasetSourceResolverFactory
 internal interface ISceneSinkFactory
 {
     ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter);
+}
+
+internal interface ICanonicalSceneDumpSinkFactory
+{
+    ISceneSink Create(
+        IServiceProvider serviceProvider,
+        ImportCommandOptions options,
+        Action<string>? progressReporter);
 }
 
 internal sealed class DefaultImportServiceFactory(
@@ -119,7 +128,8 @@ internal sealed class DefaultPlateauDatasetSourceResolverFactory(
 
 internal sealed class DefaultSceneSinkFactory(
     IHttpClientFactory httpClientFactory,
-    IServiceScopeFactory serviceScopeFactory)
+    IServiceScopeFactory serviceScopeFactory,
+    ICanonicalSceneDumpSinkFactory canonicalSceneDumpSinkFactory)
     : ISceneSinkFactory
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -135,23 +145,11 @@ internal sealed class DefaultSceneSinkFactory(
         {
             if (!string.IsNullOrWhiteSpace(options.CanonicalSceneDumpPath))
             {
-                SceneSinkRecordingClient recordingClient = new();
-                try
-                {
-                    ResoniteLiveSceneImportTarget dumpTarget = CreateCanonicalDumpTarget(
-                        scope,
-                        recordingClient,
-                        options,
-                        progressReporter);
-                    return new ScopedSceneSink(
-                        scope,
-                        new CanonicalSceneDumpSink(dumpTarget, recordingClient, options.CanonicalSceneDumpPath));
-                }
-                catch
-                {
-                    recordingClient.Dispose();
-                    throw;
-                }
+                ISceneSink canonicalSceneDumpSink = canonicalSceneDumpSinkFactory.Create(
+                    scope.ServiceProvider,
+                    options,
+                    progressReporter);
+                return new ScopedSceneSink(scope, canonicalSceneDumpSink);
             }
 
             ResoniteLiveSceneImportTargetOptions targetOptions = new(
@@ -181,9 +179,52 @@ internal sealed class DefaultSceneSinkFactory(
             throw;
         }
     }
+}
+
+internal sealed class DefaultCanonicalSceneDumpSinkFactory : ICanonicalSceneDumpSinkFactory
+{
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "The returned CanonicalSceneDumpSink owns the target and recording client for the import run.")]
+    public ISceneSink Create(
+        IServiceProvider serviceProvider,
+        ImportCommandOptions options,
+        Action<string>? progressReporter)
+    {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(options);
+
+        string canonicalSceneDumpPath = GetRequiredCanonicalSceneDumpPath(options.CanonicalSceneDumpPath);
+        SceneSinkRecordingClient recordingClient = new();
+        try
+        {
+            ResoniteLiveSceneImportTarget dumpTarget = CreateCanonicalDumpTarget(
+                serviceProvider,
+                recordingClient,
+                options,
+                progressReporter);
+            return new CanonicalSceneDumpSink(dumpTarget, recordingClient, canonicalSceneDumpPath);
+        }
+        catch
+        {
+            recordingClient.Dispose();
+            throw;
+        }
+    }
+
+    private static string GetRequiredCanonicalSceneDumpPath(string? canonicalSceneDumpPath)
+    {
+        if (string.IsNullOrWhiteSpace(canonicalSceneDumpPath))
+        {
+            throw new ArgumentException("Canonical scene dump path must be provided.", nameof(canonicalSceneDumpPath));
+        }
+
+        return canonicalSceneDumpPath;
+    }
 
     private static ResoniteLiveSceneImportTarget CreateCanonicalDumpTarget(
-        AsyncServiceScope scope,
+        IServiceProvider serviceProvider,
         SceneSinkRecordingClient recordingClient,
         ImportCommandOptions options,
         Action<string>? progressReporter)
@@ -203,7 +244,6 @@ internal sealed class DefaultSceneSinkFactory(
             DisableTerrainTileCache: true,
             progressReporter);
 
-        IServiceProvider serviceProvider = scope.ServiceProvider;
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new ResoniteQueuedCityObjectEnqueuer();
         ResoniteLiveSendQueue queue = new(
