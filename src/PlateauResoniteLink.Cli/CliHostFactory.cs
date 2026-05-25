@@ -151,7 +151,7 @@ internal sealed class DefaultSceneSinkFactory(
                 options.ResoniteLinkUri!,
                 options.ResoniteLinkConnectionCount,
                 options.EnableSendMetrics,
-                CliResoniteTargetOptions.MapMemoryProfile(options.MemoryProfile, nameof(options)),
+                CliResoniteTargetOptions.MapMemoryProfile(options.MemoryProfile, nameof(options.MemoryProfile)),
                 options.EnableMeshBake,
                 options.TerrainTileCacheRoot,
                 options.DisableTerrainTileCache,

@@ -22,8 +22,12 @@ internal sealed class DefaultCanonicalDumpLiveSceneImportTargetFactory(
     IResoniteLiveSendRunPlanInitializer runPlanInitializer,
     IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendSetupInitializer setupInitializer,
-    IResoniteLiveSendRunActivatorFactory runActivatorFactory) : ICanonicalDumpLiveSceneImportTargetFactory
+    IResoniteLiveSendRunActivatorFactory runActivatorFactory,
+    IResoniteLiveSendContextFactory contextFactory) : ICanonicalDumpLiveSceneImportTargetFactory
 {
+    private readonly IResoniteLiveSendContextFactory contextFactory =
+        contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
+
     public ResoniteLiveSceneImportTarget Create(
         SceneSinkRecordingClient recordingClient,
         ImportCommandOptions options,
@@ -36,7 +40,7 @@ internal sealed class DefaultCanonicalDumpLiveSceneImportTargetFactory(
             new Uri("ws://localhost:1/"),
             ConnectionCount: 1,
             EnableSendMetrics: false,
-            CliResoniteTargetOptions.MapMemoryProfile(options.MemoryProfile, nameof(options)),
+            CliResoniteTargetOptions.MapMemoryProfile(options.MemoryProfile, nameof(options.MemoryProfile)),
             options.EnableMeshBake,
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: true,
@@ -55,7 +59,7 @@ internal sealed class DefaultCanonicalDumpLiveSceneImportTargetFactory(
                     connectionInitializer,
                     setupInitializer,
                     runActivatorFactory.Create(workerLauncher)),
-                new ResoniteLiveSendContextFactory(),
+                contextFactory,
                 queue));
     }
 
