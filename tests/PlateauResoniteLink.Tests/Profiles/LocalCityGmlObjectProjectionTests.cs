@@ -2385,26 +2385,26 @@ public sealed class LocalCityGmlObjectProjectionTests
     [Fact]
     public void DemTerrainGridSpatialIndexDoesNotScanEveryTriangleForEmptyCells()
     {
-        object spatialIndex = CreateTerrainGridSpatialIndexForTest(
+        TerrainGridSpatialIndex spatialIndex = TerrainGridSpatialIndex.Create(
             [
-                (new Float3(0.0, 0.0, 0.0), new Float3(1.0, 0.0, 0.0), new Float3(0.0, 0.0, 1.0)),
-                (new Float3(100.0, 0.0, 100.0), new Float3(101.0, 0.0, 100.0), new Float3(100.0, 0.0, 101.0)),
+                new TerrainGridTriangle(new Float3(0.0, 0.0, 0.0), new Float3(1.0, 0.0, 0.0), new Float3(0.0, 0.0, 1.0)),
+                new TerrainGridTriangle(new Float3(100.0, 0.0, 100.0), new Float3(101.0, 0.0, 100.0), new Float3(100.0, 0.0, 101.0)),
             ],
             minX: 0.0,
             maxX: 101.0,
             minZ: 0.0,
             maxZ: 101.0);
 
-        object emptySpatialIndex = CreateTerrainGridSpatialIndexForTest(
+        TerrainGridSpatialIndex emptySpatialIndex = TerrainGridSpatialIndex.Create(
             [],
             minX: 0.0,
             maxX: 1.0,
             minZ: 0.0,
             maxZ: 1.0);
-        IReadOnlyList<int> populatedCellCandidates = GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(spatialIndex, 0.25, 0.25);
+        IReadOnlyList<int> populatedCellCandidates = spatialIndex.GetCandidateTriangleIndices(0.25, 0.25);
 
-        Assert.Empty(GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(emptySpatialIndex, 0.5, 0.5));
-        Assert.Empty(GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(spatialIndex, 25.0, 75.0));
+        Assert.Empty(emptySpatialIndex.GetCandidateTriangleIndices(0.5, 0.5));
+        Assert.Empty(spatialIndex.GetCandidateTriangleIndices(25.0, 75.0));
         Assert.NotEmpty(populatedCellCandidates);
         Assert.IsType<int[]>(populatedCellCandidates);
     }
@@ -3630,55 +3630,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 null,
                 CancellationToken.None,
             ])!;
-    }
-
-    private static object CreateTerrainGridSpatialIndexForTest(
-        IReadOnlyList<(Float3 A, Float3 B, Float3 C)> triangles,
-        double minX,
-        double maxX,
-        double minZ,
-        double maxZ)
-    {
-        Type triangleType = typeof(LocalCityGmlObjectProjection).GetNestedType(
-                "TerrainGridTriangle",
-                BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Failed to resolve TerrainGridTriangle.");
-        Type indexType = typeof(LocalCityGmlObjectProjection).GetNestedType(
-                "TerrainGridSpatialIndex",
-                BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Failed to resolve TerrainGridSpatialIndex.");
-        ConstructorInfo triangleConstructor = triangleType.GetConstructor(
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                binder: null,
-                [typeof(Float3), typeof(Float3), typeof(Float3)],
-                modifiers: null)
-            ?? throw new InvalidOperationException("Failed to resolve TerrainGridTriangle constructor.");
-
-        Array triangleArray = Array.CreateInstance(triangleType, triangles.Count);
-        for (int index = 0; index < triangles.Count; index++)
-        {
-            (Float3 a, Float3 b, Float3 c) = triangles[index];
-            triangleArray.SetValue(triangleConstructor.Invoke([a, b, c]), index);
-        }
-
-        MethodInfo createMethod = indexType.GetMethod(
-                "Create",
-                BindingFlags.Public | BindingFlags.Static)
-            ?? throw new InvalidOperationException("Failed to resolve TerrainGridSpatialIndex.Create.");
-        return createMethod.Invoke(null, [triangleArray, minX, maxX, minZ, maxZ])!;
-    }
-
-    private static IReadOnlyList<int> GetTerrainGridSpatialIndexCandidateTriangleIndicesForTest(
-        object spatialIndex,
-        double x,
-        double z)
-    {
-        MethodInfo method = spatialIndex.GetType().GetMethod(
-                "GetCandidateTriangleIndices",
-                BindingFlags.Public | BindingFlags.Instance)
-            ?? throw new InvalidOperationException("Failed to resolve GetCandidateTriangleIndices.");
-
-        return (IReadOnlyList<int>)method.Invoke(spatialIndex, [x, z])!;
     }
 
     private static void AssertGeneratedUpperFacadeTrianglesFaceOutward(
