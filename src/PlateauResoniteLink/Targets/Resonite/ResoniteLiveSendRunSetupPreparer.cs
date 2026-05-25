@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -29,7 +28,7 @@ internal interface IResoniteLiveSendRunSetupPreparer
 internal sealed class ResoniteLiveSendRunSetupPreparer(
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
     IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
-    IResoniteSlotCreator slotCreator) : IResoniteLiveSendRunSetupPreparer
+    IResonitePreparedRunSetupComposer preparedRunSetupComposer) : IResoniteLiveSendRunSetupPreparer
 {
     public async Task<LiveSendPreparedRunSetup> PrepareAsync(
         LiveSendRunPlan runPlan,
@@ -43,8 +42,6 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(context.ClientSession);
 
-        LiveSendProgressSink progress = new();
-        CommonMaterialAssetCache materials = new();
         ReportProgress(
             context,
             PlateauLog.Info(
@@ -65,14 +62,6 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
             request.CommonMaterials,
             cancellationToken);
         setupStopwatch.Stop();
-        ResoniteSharedSlotIndex placement = new(
-            setupState.DatasetRootSlot,
-            setupState.DatasetAssetsRootSlot,
-            runPlan.RequestLocalOrigin,
-            runPlan.SourceFileSlotNamesByRelativePath,
-            setupState.SceneAnchor,
-            slotCreator.CreateAsync);
-        placement.IndexSetupHierarchy(setupState);
         ReportProgress(
             context,
             PlateauLog.Info(
@@ -84,12 +73,14 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
                 + $"location_slot='{setupState.SceneAnchor.LocationSlot.Value}', "
                 + $"anchor_mesh='{setupState.SceneAnchor.MeshCode}', "
                 + $"anchor_source_file_root='{setupState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
-        CacheSetupCommonMaterials(setupState, materials);
+        LiveSendPreparedRunSetup preparedSetup = preparedRunSetupComposer.Compose(
+            runPlan,
+            setupState);
         ReportSetupCommonMaterials(setupState, context);
         await commonMaterialSetupPreparer.PrepareAsync(
             GetRoutedClient(context),
             setupState,
-            materials,
+            preparedSetup.Materials,
             request.CommonMaterials,
             context.ProgressReporter,
             cancellationToken);
@@ -104,27 +95,7 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
                 "live",
                 $"Dataset metadata/license phase complete during setup. "
                 + $"Dataset root existed={setupState.DatasetRootExisted}."));
-        return new LiveSendPreparedRunSetup(
-            runPlan,
-            setupState,
-            progress,
-            materials,
-            placement);
-    }
-
-    private static void CacheSetupCommonMaterials(
-        ResoniteSceneSetupState setupState,
-        CommonMaterialAssetCache materials)
-    {
-        foreach (CommonMaterialCatalogMember<ResoniteCommonMaterialAsset> materialAsset in setupState.CommonMaterialAssets.EnumerateMembers())
-        {
-            materials.CommonMaterialAssets.Set(materialAsset.Item);
-        }
-
-        foreach (string family in setupState.CommonMaterialFamilies)
-        {
-            materials.CommonMaterialFamilyWarmupTasks[family] = Task.CompletedTask;
-        }
+        return preparedSetup;
     }
 
     private static void ReportSetupCommonMaterials(

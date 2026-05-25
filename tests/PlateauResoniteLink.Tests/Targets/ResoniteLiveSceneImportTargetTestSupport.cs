@@ -368,7 +368,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSendRunSetupPreparer(
                 sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 new ResoniteCommonMaterialSetupPreparer(materialPlanning),
-                new ResoniteSlotCreator()),
+                new ResonitePreparedRunSetupComposer(new ResoniteSlotCreator())),
             new LiveSendRunStateFactory(
                 new ResoniteBufferedCityObjectBakerFactory(
                     new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
