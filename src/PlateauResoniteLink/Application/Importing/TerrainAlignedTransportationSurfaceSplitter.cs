@@ -304,15 +304,3 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
         Float2? UV,
         double LateralPosition);
 }
-
-internal sealed record EdgePairSelection(
-    ProjectionGeodeticPoint[] Side0,
-    ProjectionGeodeticPoint[] Side1,
-    Float3[] Side0Positions,
-    Float3[] Side1Positions,
-    Float2[]? Side0Uvs,
-    Float2[]? Side1Uvs,
-    double Length,
-    double Width,
-    double Side0EdgeLength,
-    double Side1EdgeLength);
