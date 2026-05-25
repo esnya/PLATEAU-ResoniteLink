@@ -3216,7 +3216,7 @@ internal static class LocalCityGmlObjectProjection
         List<ImportedCityObject> generatedRoadMarkings = [];
 
         foreach ((global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
-                 in SplitParsedCityObjectForTerrainProjection(
+                 in TerrainOverlayProjectionSplitPolicy.SplitParsedCityObject(
                      terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshCodeBounds,
@@ -3224,7 +3224,7 @@ internal static class LocalCityGmlObjectProjection
                      cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!ShouldProjectTerrainOverlaySplit(
+            if (!TerrainOverlayProjectionSplitPolicy.ShouldProjectSplit(
                     splitCityObject.CityObject.ActualMeshCode,
                     request.MeshCode,
                     requestedMeshCodeBounds,
@@ -3328,12 +3328,12 @@ internal static class LocalCityGmlObjectProjection
             };
 
         foreach ((global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
-                 in SplitParsedCityObjectForTerrainProjection(
+                 in TerrainOverlayProjectionSplitPolicy.SplitParsedCityObject(
                      terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshCodeBounds))
         {
-            if (!ShouldProjectTerrainOverlaySplit(
+            if (!TerrainOverlayProjectionSplitPolicy.ShouldProjectSplit(
                     splitCityObject.CityObject.ActualMeshCode,
                     request.MeshCode,
                     requestedMeshCodeBounds ?? [],
@@ -4386,307 +4386,6 @@ internal static class LocalCityGmlObjectProjection
             requestedMeshCode,
             requestedMeshCodeBounds,
             terrainOverlay);
-    }
-
-    private static IEnumerable<(global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObjectForTerrainProjection(
-        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
-        Action<string>? progressReporter = null,
-        CancellationToken cancellationToken = default)
-    {
-        foreach ((global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
-                 in DemTerrainOverlayAssignment.SplitParsedCityObject(
-                     cityObject,
-                     demTerrainTextureOverlays,
-                     requestedMeshCodeBounds,
-                     progressReporter,
-                     cancellationToken))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (splitCityObject.Overlay is not null
-                || string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-            {
-                yield return splitCityObject;
-                continue;
-            }
-
-            foreach ((global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) nonDemSplit
-                     in SplitNonDemCityObjectByTerrainOverlay(
-                         splitCityObject.CityObject,
-                         demTerrainTextureOverlays,
-                         requestedMeshCodeBounds,
-                         progressReporter,
-                         cancellationToken))
-            {
-                yield return nonDemSplit;
-            }
-        }
-    }
-
-    private static IEnumerable<(global::PlateauResoniteLink.Application.Importing.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitNonDemCityObjectByTerrainOverlay(
-        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
-        Action<string>? progressReporter,
-        CancellationToken cancellationToken)
-    {
-        if (demTerrainTextureOverlays.Count == 0 || !IsBuildingPackage(cityObject.PackageName))
-        {
-            yield return (cityObject, null);
-            yield break;
-        }
-
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = ResolveParsedCityObjectOrigin(cityObject);
-        LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
-            ? new LocalCartesian(
-                cityObjectOrigin.Latitude,
-                cityObjectOrigin.Longitude,
-                cityObjectOrigin.Altitude,
-                cityObject.ReferenceSystem.Geocentric)
-            : null;
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] cityObjectVertices =
-        [
-            .. cityObject.Surfaces.SelectMany(static surface => surface.Vertices)
-        ];
-        if (cityObjectVertices.Length == 0)
-        {
-            yield return (cityObject, null);
-            yield break;
-        }
-
-        double cityObjectMinAltitude = CityObjectAltitudeMetricsResolver.GetMinimumAltitude(cityObjectVertices);
-
-        List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> untexturedSurfaces = [];
-        List<(global::PlateauResoniteLink.Application.Importing.ParsedSurface Surface, TerrainTextureOverlay Overlay)> terrainOverlaySurfaces = [];
-        foreach (global::PlateauResoniteLink.Application.Importing.ParsedSurface surface in cityObject.Surfaces)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!IsNonDemTerrainTextureSurface(cityObject, surface, cityObjectMinAltitude, cityObjectOrigin, cityObjectCartesian)
-                || !TryCreateSurfaceGeographicBounds(surface, out GeographicRectangle surfaceBounds))
-            {
-                untexturedSurfaces.Add(surface);
-                continue;
-            }
-
-            global::PlateauResoniteLink.Application.Importing.ParsedSurface terrainProjectionSurface =
-                NormalizeNonDemTerrainTextureSurface(surface);
-
-            TerrainTextureOverlay[] candidateOverlays = demTerrainTextureOverlays
-                .Where(overlay => TerrainOverlayMeshCodeResolver.IsRequestedOverlay(overlay, requestedMeshCodeBounds)
-                    || TerrainOverlayMeshCodeResolver.ResolveMeshCode(cityObject.ActualMeshCode, overlay) is not null)
-                .Where(overlay => TerrainOverlayMeshCodeResolver.BoundsOverlap(surfaceBounds, overlay.GeographicBounds))
-                .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
-                .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
-                .ToArray();
-            if (candidateOverlays.Length == 0)
-            {
-                TerrainTextureOverlay? overlappingOverlay = demTerrainTextureOverlays
-                    .FirstOrDefault(overlay => TerrainOverlayMeshCodeResolver.BoundsOverlap(surfaceBounds, overlay.GeographicBounds));
-                if (overlappingOverlay is not null)
-                {
-                    throw CreateTerrainOverlayMeshCodeMismatchException(
-                        "non-dem-terrain-candidate",
-                        cityObject.ActualMeshCode,
-                        cityObject.ActualMeshCode,
-                        requestedMeshCodeBounds,
-                        overlappingOverlay);
-                }
-
-                untexturedSurfaces.Add(surface);
-                continue;
-            }
-
-            if (candidateOverlays.Length == 1)
-            {
-                terrainOverlaySurfaces.Add((terrainProjectionSurface, candidateOverlays[0]));
-                continue;
-            }
-
-            TerrainTextureOverlay? containingOverlay = candidateOverlays.FirstOrDefault(overlay =>
-                TerrainOverlayMeshCodeResolver.ContainsBounds(overlay.GeographicBounds, surfaceBounds));
-            if (containingOverlay is not null)
-            {
-                terrainOverlaySurfaces.Add((terrainProjectionSurface, containingOverlay));
-                continue;
-            }
-
-            IReadOnlyList<(global::PlateauResoniteLink.Application.Importing.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
-                DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
-                    terrainProjectionSurface,
-                    candidateOverlays,
-                    progressReporter,
-                    cancellationToken);
-            if (clippedSurfaces.Count == 0)
-            {
-                untexturedSurfaces.Add(surface);
-                continue;
-            }
-
-            terrainOverlaySurfaces.AddRange(clippedSurfaces);
-        }
-
-        IGrouping<TerrainTextureOverlay, (global::PlateauResoniteLink.Application.Importing.ParsedSurface Surface, TerrainTextureOverlay Overlay)>[] terrainGroups =
-            terrainOverlaySurfaces
-                .GroupBy(static entry => entry.Overlay)
-                .OrderBy(static group => group.Key.GeographicBounds.MinLatitude)
-                .ThenBy(static group => group.Key.GeographicBounds.MinLongitude)
-                .ToArray();
-        int splitCount = terrainGroups.Length + (untexturedSurfaces.Count == 0 ? 0 : 1);
-        if (splitCount == 0)
-        {
-            yield break;
-        }
-
-        if (splitCount == 1)
-        {
-            if (terrainGroups.Length == 1)
-            {
-                string terrainMeshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
-                        cityObject.ActualMeshCode,
-                        cityObject.ActualMeshCode,
-                        requestedMeshCodeBounds,
-                        terrainGroups[0].Key)
-                    ?? throw CreateTerrainOverlayMeshCodeMismatchException(
-                        "non-dem-terrain-single-split",
-                        cityObject.ActualMeshCode,
-                        cityObject.ActualMeshCode,
-                        requestedMeshCodeBounds,
-                        terrainGroups[0].Key);
-                yield return (
-                    cityObject with
-                    {
-                        ActualMeshCode = terrainMeshCode,
-                        Surfaces = terrainGroups[0].Select(static entry => MarkUsesGeneratedDemTexture(entry.Surface)).ToArray(),
-                        GeodeticOriginOverride = cityObjectOrigin,
-                    },
-                    terrainGroups[0].Key);
-                yield break;
-            }
-
-            yield return (
-                cityObject with
-                {
-                    Surfaces = untexturedSurfaces.ToArray(),
-                    GeodeticOriginOverride = cityObjectOrigin,
-                },
-                null);
-            yield break;
-        }
-
-        int splitIndex = 0;
-        foreach (IGrouping<TerrainTextureOverlay, (global::PlateauResoniteLink.Application.Importing.ParsedSurface Surface, TerrainTextureOverlay Overlay)> group in terrainGroups)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            string terrainMeshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
-                    cityObject.ActualMeshCode,
-                    cityObject.ActualMeshCode,
-                    requestedMeshCodeBounds,
-                    group.Key)
-                ?? throw CreateTerrainOverlayMeshCodeMismatchException(
-                    "non-dem-terrain-split",
-                    cityObject.ActualMeshCode,
-                    cityObject.ActualMeshCode,
-                    requestedMeshCodeBounds,
-                    group.Key);
-            yield return (
-                cityObject with
-                {
-                    ActualMeshCode = terrainMeshCode,
-                    SlotKey = $"{cityObject.SlotKey}_terrain_{terrainMeshCode}",
-                    DisplayName = $"{cityObject.DisplayName} ({splitIndex + 1})",
-                    Surfaces = group.Select(static entry => MarkUsesGeneratedDemTexture(entry.Surface)).ToArray(),
-                    GeodeticOriginOverride = cityObjectOrigin,
-                },
-                group.Key);
-            splitIndex++;
-        }
-
-        if (untexturedSurfaces.Count != 0)
-        {
-            yield return (
-                cityObject with
-                {
-                    SlotKey = $"{cityObject.SlotKey}_terrain_none",
-                    DisplayName = $"{cityObject.DisplayName} ({splitIndex + 1})",
-                    Surfaces = untexturedSurfaces.ToArray(),
-                    GeodeticOriginOverride = cityObjectOrigin,
-                },
-                null);
-        }
-    }
-
-    private static global::PlateauResoniteLink.Application.Importing.ParsedSurface MarkUsesGeneratedDemTexture(
-        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface)
-    {
-        return surface with { UsesGeneratedDemTexture = true };
-    }
-
-    private static global::PlateauResoniteLink.Application.Importing.ParsedSurface NormalizeNonDemTerrainTextureSurface(
-        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface)
-    {
-        return surface.Semantic == global::PlateauResoniteLink.Application.Importing.ParsedSurfaceSemantic.Roof
-            ? surface
-            : surface with { Semantic = global::PlateauResoniteLink.Application.Importing.ParsedSurfaceSemantic.Roof };
-    }
-
-    private static bool IsNonDemTerrainTextureSurface(
-        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
-        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface,
-        double cityObjectMinAltitude,
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        return surface.TexturePayload is null
-            && !surface.UsesGeneratedDemTexture
-            && IsRoofTerrainTextureSurface(
-                global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface),
-                cityObjectMinAltitude,
-                cityObjectOrigin.ToProjectionModel(),
-                cityObjectCartesian);
-    }
-
-    private static bool ShouldProjectTerrainOverlaySplit(
-        string actualMeshCode,
-        string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
-        TerrainTextureOverlay? terrainOverlay)
-    {
-        if (terrainOverlay is null)
-        {
-            return true;
-        }
-
-        if (requestedMeshCodeBounds.Count > 0)
-        {
-            return TerrainOverlayMeshCodeResolver.IsRequestedOverlay(terrainOverlay, requestedMeshCodeBounds);
-        }
-
-        return TerrainOverlayMeshCodeResolver.ResolveForOverlay(
-                actualMeshCode,
-                requestedMeshCode,
-                requestedMeshCodeBounds,
-                terrainOverlay)
-            is not null;
-    }
-
-    private static bool TryCreateSurfaceGeographicBounds(
-        global::PlateauResoniteLink.Application.Importing.ParsedSurface surface,
-        out GeographicRectangle bounds)
-    {
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
-        if (vertices.Length == 0)
-        {
-            bounds = new GeographicRectangle(0.0, 0.0, 0.0, 0.0);
-            return false;
-        }
-
-        bounds = new GeographicRectangle(
-            vertices.Min(static vertex => vertex.Latitude),
-            vertices.Max(static vertex => vertex.Latitude),
-            vertices.Min(static vertex => vertex.Longitude),
-            vertices.Max(static vertex => vertex.Longitude));
-        return true;
     }
 
     private static Float2 ToContractFloat2(Float2 value) => new(value.X, value.Y);
