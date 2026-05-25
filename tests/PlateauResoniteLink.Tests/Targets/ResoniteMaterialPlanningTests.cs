@@ -42,7 +42,7 @@ public sealed class ResoniteMaterialPlanningTests
         PlannedDedicatedMaterialAsset plannedAsset = await planning.PlanCommonMaterialAssetAsync(
             client,
             material,
-            new AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri>(),
+            new AsyncInFlightResultCache<BundledTextureImportKey, Uri>(),
             CancellationToken.None);
 
         PlannedTextureAsset metallicAsset = Assert.Single(
@@ -63,7 +63,7 @@ public sealed class ResoniteMaterialPlanningTests
     {
         using SceneSinkRecordingClient client = new();
         ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
-        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> bundledTextureImportTasks = new();
+        AsyncInFlightResultCache<BundledTextureImportKey, Uri> bundledTextureImportTasks = new();
         ResoniteMaterialBinding uvMaterial = CreateRoadMaterial(ResoniteMaterialProjection.Uv);
         ResoniteMaterialBinding triplanarMaterial = CreateRoadMaterial(ResoniteMaterialProjection.Triplanar);
 
@@ -88,7 +88,7 @@ public sealed class ResoniteMaterialPlanningTests
     {
         using SceneSinkRecordingClient client = new();
         ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
-        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> bundledTextureImportTasks = new();
+        AsyncInFlightResultCache<BundledTextureImportKey, Uri> bundledTextureImportTasks = new();
         ResoniteMaterialBinding baseMaterial = CreateBundledMaterial(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 0);
         ResoniteMaterialBinding colorVariantMaterial = CreateBundledMaterial(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 1);
 
@@ -128,7 +128,7 @@ public sealed class ResoniteMaterialPlanningTests
     {
         using SceneSinkRecordingClient client = new();
         ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
-        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> bundledTextureImportTasks = new();
+        AsyncInFlightResultCache<BundledTextureImportKey, Uri> bundledTextureImportTasks = new();
         ResoniteMaterialBinding baseMaterial = CreateBundledMaterial(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0);
         ResoniteMaterialBinding colorVariantMaterial = CreateBundledMaterial(BundledDefaultMaterialFamilies.FacadeHighriseNightLow, 0);
 
