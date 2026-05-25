@@ -13,7 +13,7 @@ internal interface IResoniteLiveSendRunStarterFactory
 internal sealed class ResoniteLiveSendRunStarterFactory(
     IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendSetupInitializer setupInitializer,
-    ILiveSendRunPlanFactory runPlanFactory,
+    IResoniteLiveSendRunPlanInitializer runPlanInitializer,
     IResoniteLiveSendRunActivatorFactory runActivatorFactory,
     IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory) : IResoniteLiveSendRunStarterFactory
 {
@@ -27,9 +27,9 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
         IResoniteLiveSendWorkerLauncher workerLauncher =
             workerLauncherFactory.Create(terrainTextureAssetHttpClient, options);
         return new ResoniteLiveSendRunStarter(
+            runPlanInitializer,
             connectionInitializer,
             setupInitializer,
-            runPlanFactory,
             runActivatorFactory.Create(workerLauncher));
     }
 }

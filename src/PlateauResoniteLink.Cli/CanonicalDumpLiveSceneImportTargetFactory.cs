@@ -19,9 +19,9 @@ internal sealed class DefaultCanonicalDumpLiveSceneImportTargetFactory(
     IResoniteDatasetLicenseWriter datasetLicenseWriter,
     IResonitePreparedCityObjectImporter preparedCityObjectImporter,
     IResoniteLiveSendStartRequestFactory startRequestFactory,
+    IResoniteLiveSendRunPlanInitializer runPlanInitializer,
     IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendSetupInitializer setupInitializer,
-    ILiveSendRunPlanFactory runPlanFactory,
     IResoniteLiveSendRunActivatorFactory runActivatorFactory) : ICanonicalDumpLiveSceneImportTargetFactory
 {
     public ResoniteLiveSceneImportTarget Create(
@@ -51,9 +51,9 @@ internal sealed class DefaultCanonicalDumpLiveSceneImportTargetFactory(
                 ResoniteLinkSendDiagnostics.Disabled,
                 startRequestFactory,
                 new ResoniteLiveSendRunStarter(
+                    runPlanInitializer,
                     connectionInitializer,
                     setupInitializer,
-                    runPlanFactory,
                     runActivatorFactory.Create(workerLauncher)),
                 queue));
     }

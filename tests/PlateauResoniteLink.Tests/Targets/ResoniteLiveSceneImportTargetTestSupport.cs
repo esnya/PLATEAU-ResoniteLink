@@ -354,6 +354,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 new ResoniteLiveSendRunStarter(
+                    new ResoniteLiveSendRunPlanInitializer(new LiveSendRunPlanFactory()),
                     new ResoniteLiveSendConnectionInitializer(),
                     new ResoniteLiveSendSetupInitializer(
                         new ResoniteSceneSetupInterpreter(
@@ -362,7 +363,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                         new ResoniteCommonMaterialSetupPreparer(materialPlanning),
                         new ResoniteCommonMaterialSetupCachePrimer(),
                         new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
-                    new LiveSendRunPlanFactory(),
                     new ResoniteLiveSendRunActivator(
                         new LiveSendRunStateFactory(
                             new ResoniteBufferedCityObjectBakerFactory(

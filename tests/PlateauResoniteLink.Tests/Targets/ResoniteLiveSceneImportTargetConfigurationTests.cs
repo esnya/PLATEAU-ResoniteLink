@@ -66,13 +66,13 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
     {
         return new ResoniteLiveSendRunStarter(
+            new ResoniteLiveSendRunPlanInitializer(new LiveSendRunPlanFactory()),
             new ResoniteLiveSendConnectionInitializer(),
             new ResoniteLiveSendSetupInitializer(
                 sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
                 CreateCommonMaterialSetupPreparer(materialPlanning),
                 new ResoniteCommonMaterialSetupCachePrimer(),
                 new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
-            new LiveSendRunPlanFactory(),
             new ResoniteLiveSendRunActivator(
                 CreateRunStateFactory(),
                 new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning))));
