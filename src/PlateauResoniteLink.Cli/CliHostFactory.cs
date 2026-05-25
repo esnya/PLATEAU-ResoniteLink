@@ -207,6 +207,9 @@ internal sealed class DefaultSceneSinkFactory(
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         IResoniteMaterialPlanning materialPlanning = serviceProvider.GetRequiredService<IResoniteMaterialPlanning>();
         IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new ResoniteQueuedCityObjectEnqueuer();
+        ResoniteLiveSendQueue queue = new(
+            queuedCityObjectEnqueuer,
+            new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
             new ResoniteQueuedCityObjectSender(
                 new DeterministicTerrainTextureAssetGenerator(),
@@ -217,6 +220,7 @@ internal sealed class DefaultSceneSinkFactory(
             new ResoniteLiveSceneImportDependencies(
                 new SingleRecordingClientSession(recordingClient),
                 diagnostics,
+                serviceProvider.GetRequiredService<IResoniteLiveSendStartRequestFactory>(),
                 new ResoniteLiveSendRunStarter(
                     serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
                     new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
@@ -224,8 +228,7 @@ internal sealed class DefaultSceneSinkFactory(
                     serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
                     queuedCityObjectWorker,
                     serviceProvider.GetRequiredService<IResoniteSlotCreator>()),
-                queuedCityObjectEnqueuer,
-                new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer)));
+                queue));
     }
 }
 

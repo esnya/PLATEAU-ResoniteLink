@@ -5,6 +5,6 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed record ResoniteLiveSceneImportDependencies(
     ILiveSendClientSession ClientSession,
     ResoniteLinkSendDiagnostics Diagnostics,
+    IResoniteLiveSendStartRequestFactory StartRequestFactory,
     IResoniteLiveSendRunStarter RunStarter,
-    IResoniteQueuedCityObjectEnqueuer QueuedCityObjectEnqueuer,
-    IResoniteLiveSendFinalizer Finalizer);
+    IResoniteLiveSendQueue Queue);

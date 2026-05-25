@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -13,9 +12,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 {
     private readonly Uri endpoint;
     private readonly int connectionCount;
+    private readonly IResoniteLiveSendStartRequestFactory startRequestFactory;
     private readonly IResoniteLiveSendRunStarter runStarter;
-    private readonly IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer;
-    private readonly IResoniteLiveSendFinalizer finalizer;
+    private readonly IResoniteLiveSendQueue queue;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
@@ -30,7 +29,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
+        ArgumentNullException.ThrowIfNull(dependencies.StartRequestFactory);
         ArgumentNullException.ThrowIfNull(dependencies.RunStarter);
+        ArgumentNullException.ThrowIfNull(dependencies.Queue);
 
         endpoint = options.Endpoint;
         connectionCount = options.ConnectionCount;
@@ -38,9 +39,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Diagnostics = dependencies.Diagnostics;
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
+        startRequestFactory = dependencies.StartRequestFactory;
         runStarter = dependencies.RunStarter;
-        queuedCityObjectEnqueuer = dependencies.QueuedCityObjectEnqueuer;
-        finalizer = dependencies.Finalizer;
+        queue = dependencies.Queue;
         ClientSessionInternal = dependencies.ClientSession;
     }
 
@@ -68,25 +69,25 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
         try
         {
-            SceneImportRequest request = plan.SceneImportRequest;
-            state = await CreateRunStateAsync(
-                CreateSceneSetupInfo(request),
-                request.WorkRoot,
-                request.CommonMaterials,
-                plan.NormalizedRequest,
-                CreateLocalOrigin(plan.SceneImportRequest.Metadata.GeodeticOrigin),
+            state = await runStarter.StartAsync(
+                startRequestFactory.Create(
+                    plan,
+                    MemoryProfile,
+                    connectionCount,
+                    MeshBakeEnabled),
+                CreateRunStartContext(),
                 cancellationToken);
 
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
-                await queuedCityObjectEnqueuer.QueueUnitAsync(
+                await queue.QueueUnitAsync(
                     state,
                     objectUnit,
                     CreateEnqueueContext(),
                     cancellationToken);
             }
 
-            SceneImportExecutionResult result = await finalizer.CompleteAsync(
+            SceneImportExecutionResult result = await queue.CompleteAsync(
                 state,
                 CreateFinalizationContext(),
                 cancellationToken);
@@ -107,37 +108,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 Volatile.Write(ref executionClaimed, 0);
             }
         }
-    }
-
-    private async Task<LiveSendRunState> CreateRunStateAsync(
-        ResoniteSceneSetupInfo SetupInfo,
-        string workRoot,
-        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
-        PlateauImportRequest normalizedRequest,
-        ResoniteLocalOrigin requestLocalOrigin,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(SetupInfo);
-        ArgumentNullException.ThrowIfNull(commonMaterials);
-        ArgumentNullException.ThrowIfNull(normalizedRequest);
-        ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
-
-        return await runStarter.StartAsync(
-            new LiveSendRunStartRequest(
-                SetupInfo,
-                workRoot,
-                commonMaterials,
-                normalizedRequest,
-                requestLocalOrigin,
-                MemoryProfile,
-                connectionCount,
-                MeshBakeEnabled),
-            new LiveSendRunStartContext(
-                endpoint,
-                ClientSessionInternal,
-                Diagnostics,
-                progressReporter),
-            cancellationToken);
     }
 
     public async ValueTask DisposeAsync()
@@ -190,26 +160,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             progressReporter);
     }
 
-    private static ResoniteSceneSetupInfo CreateSceneSetupInfo(SceneImportRequest request)
+    private LiveSendRunStartContext CreateRunStartContext()
     {
-        ArgumentNullException.ThrowIfNull(request);
-
-        return new ResoniteSceneSetupInfo(
-            request.Metadata.Request.Dataset,
-            request.Metadata.Request.MeshCode,
-            request.Metadata.SourceDataset.SourceFiles,
-            request.Metadata.SourceDataset.SelectedMeshCodes ?? [],
-            new ResoniteLicenseAttributionMetadata(
-                request.Metadata.Attribution.DatasetLicense.RequireCredit,
-                request.Metadata.Attribution.DatasetLicense.CreditText,
-                request.Metadata.Attribution.DatasetLicense.LicenseName,
-                request.Metadata.Attribution.DatasetLicense.LicenseUrl));
-    }
-
-    private static ResoniteLocalOrigin CreateLocalOrigin(GeodeticOrigin origin)
-    {
-        ArgumentNullException.ThrowIfNull(origin);
-        return new ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
+        return new LiveSendRunStartContext(
+            endpoint,
+            ClientSessionInternal,
+            Diagnostics,
+            progressReporter);
     }
 
 }

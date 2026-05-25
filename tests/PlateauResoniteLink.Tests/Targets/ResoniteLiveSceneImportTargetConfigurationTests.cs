@@ -67,6 +67,12 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new ResoniteSlotCreator());
     }
 
+    private static ResoniteLiveSendQueue CreateQueue()
+    {
+        ResoniteQueuedCityObjectEnqueuer enqueuer = new();
+        return new ResoniteLiveSendQueue(enqueuer, new ResoniteLiveSendFinalizer(enqueuer));
+    }
+
     [Fact]
     public async Task OptionsConstructorEnablesMeshBakeByDefault()
     {
@@ -109,9 +115,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new ResoniteLiveSceneImportDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
+                new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
-                new ResoniteQueuedCityObjectEnqueuer(),
-                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer())));
+                CreateQueue()));
 
         Assert.Same(diagnostics, importTarget.Diagnostics);
     }
@@ -317,9 +323,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new ResoniteLiveSceneImportDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
+                new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
-                new ResoniteQueuedCityObjectEnqueuer(),
-                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer())));
+                CreateQueue()));
     }
 
     private sealed class RecordingTerrainTextureAssetGeneratorFactory : ITerrainTextureAssetGeneratorFactory

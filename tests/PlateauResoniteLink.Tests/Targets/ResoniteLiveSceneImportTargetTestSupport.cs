@@ -296,6 +296,9 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new ResoniteQueuedCityObjectEnqueuer();
+        ResoniteLiveSendQueue queue = new(
+            queuedCityObjectEnqueuer,
+            new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
             new ResoniteQueuedCityObjectSender(
                 terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
@@ -318,6 +321,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,
+                new ResoniteLiveSendStartRequestFactory(),
                 new ResoniteLiveSendRunStarter(
                     new ResoniteSceneSetupInterpreter(
                         new ResoniteSceneSlotLocator(),
@@ -327,8 +331,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     new LiveSendRunStateFactory(new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())),
                     queuedCityObjectWorker,
                     new ResoniteSlotCreator()),
-                queuedCityObjectEnqueuer,
-                new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer)));
+                queue));
     }
 
     private static async IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsAsync(
