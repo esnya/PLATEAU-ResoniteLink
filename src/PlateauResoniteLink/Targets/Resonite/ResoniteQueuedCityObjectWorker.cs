@@ -148,16 +148,7 @@ internal sealed class ResoniteQueuedCityObjectWorker(
                     + $"against routed connections to {context.Endpoint} for dataset '{setupInfo.Dataset}' mesh '{setupInfo.MeshCode}'."));
         }
 
-        try
-        {
-            await ProcessQueuedCityObjectsAsync(state, context, reader, laneIndex, cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            TryMarkProcessingFailure(state, exception);
-            CancelProcessing(state);
-            throw;
-        }
+        await ProcessQueuedCityObjectsAsync(state, context, reader, laneIndex, cancellationToken);
     }
 
     private static void ReportProgress(LiveSendWorkerContext context, string message)

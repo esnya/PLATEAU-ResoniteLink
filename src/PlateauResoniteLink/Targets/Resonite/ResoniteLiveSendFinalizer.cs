@@ -50,7 +50,7 @@ internal sealed class ResoniteLiveSendFinalizer(
             PlateauLog.Info(
                 "live",
                 $"Completing live send. Closing lane writers (attempted={state.Progress.AttemptedCityObjectCount}, "
-                + $"prepared={state.Progress.ProcessedCityObjectCount}, failed={state.Progress.FailedCityObjectCount})."));
+                + $"processed={state.Progress.ProcessedCityObjectCount}, failed={state.Progress.FailedCityObjectCount})."));
         runtime.CompleteWriter();
 
         ReportProgress(
