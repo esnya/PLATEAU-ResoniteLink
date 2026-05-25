@@ -148,7 +148,17 @@ internal static class GeneratedLod1RoofCityObjectFactory
 
     private static bool IsGeneratedLod1RoofSurface(ParsedSurface surface)
     {
-        return surface.PolygonId.Contains("_generated_", StringComparison.Ordinal);
+        const string generatedToken = "_generated_";
+        int generatedTokenIndex = surface.PolygonId.IndexOf(generatedToken, StringComparison.Ordinal);
+        if (generatedTokenIndex < 0)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> suffix = surface.PolygonId.AsSpan(generatedTokenIndex + generatedToken.Length);
+        return suffix.StartsWith("shed-", StringComparison.Ordinal)
+            || suffix.StartsWith("gable-", StringComparison.Ordinal)
+            || suffix.StartsWith("hip-", StringComparison.Ordinal);
     }
 
     private static GeodeticPoint[] RemoveClosingPoint(GeodeticPoint[] vertices)
