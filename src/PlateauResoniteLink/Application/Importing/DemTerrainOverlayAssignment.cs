@@ -359,7 +359,7 @@ internal static class DemTerrainOverlayAssignment
 
     public static (Float2? TextureScale, Float2? TextureOffset) TryCreateTerrainGridTextureTransform(
         ParsedCityObject cityObject,
-        LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
+        ResolvedSurfaceMaterial materializedSurface,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         GeographicRectangle? cityObjectGeographicBounds = null)
     {
@@ -377,7 +377,7 @@ internal static class DemTerrainOverlayAssignment
 
     public static TextureUvRect? TryCreateTerrainGridOccupiedUvRect(
         ParsedCityObject cityObject,
-        LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
+        ResolvedSurfaceMaterial materializedSurface,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         GeographicRectangle? cityObjectGeographicBounds = null)
     {

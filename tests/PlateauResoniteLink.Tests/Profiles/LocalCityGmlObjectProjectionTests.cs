@@ -3646,29 +3646,12 @@ public sealed class LocalCityGmlObjectProjectionTests
         LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
         GeographicLib.LocalCartesian cartesian)
     {
-        MethodInfo method = typeof(LocalCityGmlObjectProjection)
-            .GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
-            .Single(candidate =>
-            {
-                if (!string.Equals(candidate.Name, "CreateCommonMaterialBindings", StringComparison.Ordinal))
-                {
-                    return false;
-                }
-
-                ParameterInfo[] parameters = candidate.GetParameters();
-                return parameters.Length == 5
-                    && parameters[0].ParameterType == typeof(ParsedCityObject);
-            });
-
-        return (MaterialBinding[])method.Invoke(
-            null,
-            [
-                cityObject,
-                GeodeticPoint.FromProjectionModel(cityObjectOrigin),
-                cartesian,
-                null,
-                new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
-            ])!;
+        return CityGmlSurfaceMaterialResolver.CreateSharedCommonMaterialBindings(
+            cityObject,
+            GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            cartesian,
+            demTerrainTextureOverlay: null,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
     }
 
     private static bool IsBuildingFacadeMaterial(MaterialBinding material)
