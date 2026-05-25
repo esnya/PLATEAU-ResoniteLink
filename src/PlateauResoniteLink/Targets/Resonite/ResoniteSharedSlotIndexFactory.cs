@@ -14,6 +14,9 @@ internal interface IResoniteSharedSlotIndexFactory
 internal sealed class ResoniteSharedSlotIndexFactory(
     IResoniteSlotCreator slotCreator) : IResoniteSharedSlotIndexFactory
 {
+    private readonly IResoniteSlotCreator slotCreator =
+        slotCreator ?? throw new ArgumentNullException(nameof(slotCreator));
+
     public ResoniteSharedSlotIndex Create(
         ResoniteSceneSetupState setupState,
         LiveSendRunPlan runPlan)
