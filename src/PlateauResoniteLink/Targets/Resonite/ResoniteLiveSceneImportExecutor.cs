@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -36,7 +35,7 @@ internal sealed class ResoniteLiveSceneImportExecutor(
         ArgumentNullException.ThrowIfNull(context.LiveSendContext);
 
         bool completedSuccessfully = false;
-        ExceptionDispatchInfo? failure = null;
+        bool hadFailure = false;
         LiveSendRunState? state = null;
 
         try
@@ -66,9 +65,9 @@ internal sealed class ResoniteLiveSceneImportExecutor(
             completedSuccessfully = true;
             return result;
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            failure = ExceptionDispatchInfo.Capture(exception);
+            hadFailure = true;
             throw;
         }
         finally
@@ -84,7 +83,7 @@ internal sealed class ResoniteLiveSceneImportExecutor(
                             : ResoniteLiveSendClientRelease.Reset));
             }
 #pragma warning disable CA1031
-            catch when (failure is not null)
+            catch when (hadFailure)
             {
             }
 #pragma warning restore CA1031
