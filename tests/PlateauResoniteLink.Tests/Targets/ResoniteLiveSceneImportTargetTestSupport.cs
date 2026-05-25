@@ -295,6 +295,16 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new ResoniteQueuedCityObjectEnqueuer();
+        ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
+            new ResoniteQueuedCityObjectSender(
+                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
+                new ResoniteDatasetLicenseWriter(),
+                new ResonitePreparedCityObjectImporter(
+                    new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
+                    new ResoniteSceneMaterialPlanComposer(materialPlanning),
+                    new ResoniteBatchEmissionPlanner(),
+                    new PlannedBatchEmissionInterpreter())));
         return new ResoniteLiveSceneImportTarget(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -308,25 +318,17 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,
-                new ResoniteSceneSetupInterpreter(
-                    new ResoniteSceneSlotLocator(),
-                    new ResoniteSceneAnchorResolver()),
-                new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
-                new LiveSendRunPlanFactory(),
-                new LiveSendRunStateFactory(new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())),
-                new ResoniteQueuedCityObjectWorker(
-                    new ResoniteQueuedCityObjectSender(
-                        terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
-                        new ResoniteDatasetLicenseWriter(),
-                        new ResonitePreparedCityObjectImporter(
-                            new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
-                            new ResoniteSceneMaterialPlanComposer(materialPlanning),
-                            new ResoniteBatchEmissionPlanner(),
-                            new PlannedBatchEmissionInterpreter()))),
-                new ResoniteQueuedCityObjectEnqueuer(),
-                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
-                new ResoniteSlotCreator(),
-                new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())));
+                new ResoniteLiveSendRunStarter(
+                    new ResoniteSceneSetupInterpreter(
+                        new ResoniteSceneSlotLocator(),
+                        new ResoniteSceneAnchorResolver()),
+                    new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
+                    new LiveSendRunPlanFactory(),
+                    new LiveSendRunStateFactory(new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())),
+                    queuedCityObjectWorker,
+                    new ResoniteSlotCreator()),
+                queuedCityObjectEnqueuer,
+                new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer)));
     }
 
     private static async IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsAsync(

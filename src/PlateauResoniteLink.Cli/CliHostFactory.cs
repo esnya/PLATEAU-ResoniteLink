@@ -206,24 +206,26 @@ internal sealed class DefaultSceneSinkFactory(
         IServiceProvider serviceProvider = scope.ServiceProvider;
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         IResoniteMaterialPlanning materialPlanning = serviceProvider.GetRequiredService<IResoniteMaterialPlanning>();
+        IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new ResoniteQueuedCityObjectEnqueuer();
+        ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
+            new ResoniteQueuedCityObjectSender(
+                new DeterministicTerrainTextureAssetGenerator(),
+                serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>(),
+                serviceProvider.GetRequiredService<IResonitePreparedCityObjectImporter>()));
         return new ResoniteLiveSceneImportTarget(
             targetOptions,
             new ResoniteLiveSceneImportDependencies(
                 new SingleRecordingClientSession(recordingClient),
                 diagnostics,
-                serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
-                new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
-                serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
-                serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
-                new ResoniteQueuedCityObjectWorker(
-                    new ResoniteQueuedCityObjectSender(
-                        new DeterministicTerrainTextureAssetGenerator(),
-                        serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>(),
-                        serviceProvider.GetRequiredService<IResonitePreparedCityObjectImporter>())),
-                new ResoniteQueuedCityObjectEnqueuer(),
-                new ResoniteLiveSendFinalizer(new ResoniteQueuedCityObjectEnqueuer()),
-                serviceProvider.GetRequiredService<IResoniteSlotCreator>(),
-                serviceProvider.GetRequiredService<IResoniteBufferedCityObjectBakerFactory>()));
+                new ResoniteLiveSendRunStarter(
+                    serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
+                    new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
+                    serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
+                    serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
+                    queuedCityObjectWorker,
+                    serviceProvider.GetRequiredService<IResoniteSlotCreator>()),
+                queuedCityObjectEnqueuer,
+                new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer)));
     }
 }
 
