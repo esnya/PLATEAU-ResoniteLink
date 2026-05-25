@@ -19,7 +19,6 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class LocalCityGmlObjectProjection
 {
-    private const double BuildingBottomCullBandMeters = 0.1;
     private const double UnknownRoofBottomAltitudeToleranceMeters = 0.1;
     public const string DefaultDemTerrainTexturePath = DemTerrainTextureDefaults.PlateauOrthoPath;
     public const string DefaultDemTerrainTextureUrlTemplate = DemTerrainTextureDefaults.PlateauOrthoUrlTemplate;
@@ -426,10 +425,10 @@ internal static class LocalCityGmlObjectProjection
             cityObjectOrigin.ToProjectionModel(),
             globalOriginPoint.ToProjectionModel(),
             globalCartesian);
-        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
+        HashSet<string> culledSurfaceIds = CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
             cityObject.PackageName,
-            cityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel),
-            cityObjectOrigin.ToProjectionModel(),
+            cityObject.Surfaces,
+            cityObjectOrigin,
             cityObjectCartesian);
         List<MeshVertex> vertices = [];
         List<MeshSubmesh> submeshes = [];
@@ -463,10 +462,10 @@ internal static class LocalCityGmlObjectProjection
         {
             IGrouping<MaterialGroupingKey, ResolvedSurfaceMaterial> materialGroup = materialGroups[materialIndex];
             List<int> indices = [];
-            FacadeUvProjectionContext? facadeUvProjectionContext = TryCreateFacadeUvProjectionContext(
+            FacadeUvProjectionContext? facadeUvProjectionContext = CityGmlSurfaceProjectionPolicy.TryCreateFacadeUvProjectionContext(
                 cityObject.PackageName,
-                cityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel),
-                cityObjectOrigin.ToProjectionModel(),
+                cityObject.Surfaces,
+                cityObjectOrigin,
                 cityObjectCartesian);
 
             foreach (ResolvedSurfaceMaterial resolvedSurface in materialGroup
@@ -940,16 +939,10 @@ internal static class LocalCityGmlObjectProjection
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
-        Float3[] positions = surface.Vertices
-            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
-            .ToArray();
-        Float3? normal = ComputePolygonNormal(positions);
-        if (normal is null)
-        {
-            return false;
-        }
-
-        return Math.Abs(normal.Y) < 0.45;
+        return CityGmlSurfaceProjectionPolicy.IsFacadeSurface(
+            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel(surface),
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            cityObjectCartesian);
     }
 
     private static bool IsNearHorizontalSurface(
@@ -957,25 +950,10 @@ internal static class LocalCityGmlObjectProjection
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
-        Float3[] positions = surface.Vertices
-            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
-            .ToArray();
-        Float3? normal = ComputePolygonNormal(positions);
-        return normal is not null && Math.Abs(normal.Y) >= 0.98;
-    }
-
-    private static bool ShouldCullSurfaceBeforeProjection(
-        string packageName,
-        ParsedSurface surface,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        if (!IsBuildingPackage(packageName))
-        {
-            return false;
-        }
-
-        return IsDownwardNearHorizontalSurface(surface, cityObjectOrigin, cityObjectCartesian);
+        return CityGmlSurfaceProjectionPolicy.IsNearHorizontalSurface(
+            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel(surface),
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            cityObjectCartesian);
     }
 
     private static HashSet<string> GetCulledSurfaceIdsBeforeProjection(
@@ -984,49 +962,11 @@ internal static class LocalCityGmlObjectProjection
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
-        if (!IsBuildingPackage(packageName))
-        {
-            return [];
-        }
-
-        SurfaceProjectionInfo[] candidates = surfaces
-            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
-            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
-            .ToArray();
-
-        if (candidates.Length == 0)
-        {
-            return [];
-        }
-
-        double objectMinimumY = candidates.Min(static info => info.MinimumY!.Value);
-        double objectMaximumY = candidates.Max(static info => info.MaximumY!.Value);
-
-        return candidates
-            .Where(static info => IsBottomBandCullCandidate(info))
-            .Where(info => info.MaximumY!.Value <= objectMinimumY + BuildingBottomCullBandMeters)
-            .Where(info => objectMaximumY > info.MaximumY!.Value + BuildingBottomCullBandMeters)
-            .Select(static info => info.Surface.PolygonId)
-            .ToHashSet(StringComparer.Ordinal);
-    }
-
-    private static bool IsBottomBandCullCandidate(SurfaceProjectionInfo info)
-    {
-        return info.IsNearHorizontal;
-    }
-
-    private static bool IsDownwardNearHorizontalSurface(
-        ParsedSurface surface,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        if (ComputeSurfaceNormal(surface, cityObjectOrigin, cityObjectCartesian) is not Float3 normal)
-        {
-            return false;
-        }
-
-        return Math.Abs(normal.Y) >= 0.98
-            && normal.Y <= -0.98;
+        return CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
+            packageName,
+            surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel),
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            cityObjectCartesian);
     }
 
     private static Float3? ComputeSurfaceNormal(
@@ -1034,35 +974,10 @@ internal static class LocalCityGmlObjectProjection
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
-        Float3[] positions = surface.Vertices
-            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
-            .ToArray();
-        return ComputePolygonNormal(positions);
-    }
-
-    private static SurfaceProjectionInfo CreateSurfaceProjectionInfo(
-        ParsedSurface surface,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        Float3[] positions = surface.Vertices
-            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
-            .ToArray();
-        if (positions.Length == 0)
-        {
-            return new SurfaceProjectionInfo(surface, null, null, false, false);
-        }
-
-        Float3? normal = ComputePolygonNormal(positions);
-        bool isNearHorizontal = normal is not null && Math.Abs(normal.Y) >= 0.98;
-        bool isDownwardNearHorizontal = isNearHorizontal && normal is not null && normal.Y <= -0.98;
-
-        return new SurfaceProjectionInfo(
-            surface,
-            positions.Min(static position => position.Y),
-            positions.Max(static position => position.Y),
-            isNearHorizontal,
-            isDownwardNearHorizontal);
+        return CityGmlSurfaceProjectionPolicy.ComputeSurfaceNormal(
+            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel(surface),
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            cityObjectCartesian);
     }
 
     private static FacadeUvProjectionContext? TryCreateFacadeUvProjectionContext(
@@ -1071,75 +986,12 @@ internal static class LocalCityGmlObjectProjection
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
-        if (!IsBuildingPackage(packageName))
-        {
-            return null;
-        }
-
-        SurfaceProjectionInfo[] surfaceInfos = surfaces
-            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
-            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
-            .ToArray();
-        if (surfaceInfos.Length == 0)
-        {
-            return null;
-        }
-
-        SurfaceProjectionInfo[] contextSurfaceInfos = surfaceInfos
-            .Where(static info => !IsGeneratedLod1RoofSurface(info.Surface))
-            .ToArray();
-        if (contextSurfaceInfos.Length == 0)
-        {
-            contextSurfaceInfos = surfaceInfos;
-        }
-
-        (double minimumY, double maximumY) = ResolveFacadeUvVerticalRange(contextSurfaceInfos, surfaceInfos);
-        double geometryHeightMeters = Math.Max(maximumY - minimumY, 0.0);
-        int floorCount = Math.Max(
-            1,
-            (int)Math.Ceiling(Math.Max(geometryHeightMeters, FacadeFloorMetrics.DefaultFloorUnitMeters) / FacadeFloorMetrics.DefaultFloorUnitMeters));
-        double floorHeightMeters = Math.Max(
-            geometryHeightMeters / floorCount,
-            1e-6);
-
-        return new FacadeUvProjectionContext(
-            minimumY,
-            maximumY,
-            floorHeightMeters,
-            floorCount);
+        return CityGmlSurfaceProjectionPolicy.TryCreateFacadeUvProjectionContext(
+            packageName,
+            surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel),
+            global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            cityObjectCartesian);
     }
-
-    private static (double MinimumY, double MaximumY) ResolveFacadeUvVerticalRange(
-        IReadOnlyList<SurfaceProjectionInfo> contextSurfaceInfos,
-        IReadOnlyList<SurfaceProjectionInfo> allSurfaceInfos)
-    {
-        double minimumY = contextSurfaceInfos.Min(static info => info.MinimumY!.Value);
-        double maximumY = contextSurfaceInfos.Max(static info => info.MaximumY!.Value);
-        if (maximumY - minimumY > 1e-6 || contextSurfaceInfos.Count == allSurfaceInfos.Count)
-        {
-            return (minimumY, maximumY);
-        }
-
-        double fallbackMinimumY = allSurfaceInfos.Min(static info => info.MinimumY!.Value);
-        double fallbackMaximumY = allSurfaceInfos.Max(static info => info.MaximumY!.Value);
-        return fallbackMaximumY - fallbackMinimumY > maximumY - minimumY
-            ? (fallbackMinimumY, fallbackMaximumY)
-            : (minimumY, maximumY);
-    }
-
-    private static bool IsGeneratedLod1RoofSurface(ParsedSurface surface)
-    {
-        return surface.PolygonId.Contains("_generated_shed-", StringComparison.Ordinal)
-            || surface.PolygonId.Contains("_generated_gable-", StringComparison.Ordinal)
-            || surface.PolygonId.Contains("_generated_hip-", StringComparison.Ordinal);
-    }
-
-    private readonly record struct SurfaceProjectionInfo(
-        ParsedSurface Surface,
-        double? MinimumY,
-        double? MaximumY,
-        bool IsNearHorizontal,
-        bool IsDownwardNearHorizontal);
 
     private static bool IsGeneratedRoadMarkingSurface(ParsedSurface surface)
     {
