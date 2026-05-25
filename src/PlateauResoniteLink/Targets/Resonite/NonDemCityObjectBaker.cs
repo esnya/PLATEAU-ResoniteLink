@@ -543,7 +543,7 @@ internal sealed class NonDemCityObjectBaker(
         CancellationToken cancellationToken)
     {
         List<AtlasBatchEntry> entries = candidates.SelectMany(static candidate => candidate.AtlasEntries).ToList();
-        AtlasLayout? layout = null;
+        NonDemAtlasLayout<AtlasBatchEntry>? layout = null;
         if (entries.Count > 0
             && (!TryCreateAtlasLayout(entries, out layout) || layout is null))
         {
@@ -558,7 +558,7 @@ internal sealed class NonDemCityObjectBaker(
             : new bool[layout.Width * layout.Height];
         if (layout is not null)
         {
-            foreach (AtlasPlacement placement in layout.Placements)
+            foreach (NonDemAtlasPlacement<AtlasBatchEntry> placement in layout.Placements)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 DrawAtlasTile(atlasImage!, atlasCoverage!, layout.Width, placement);
@@ -590,7 +590,7 @@ internal sealed class NonDemCityObjectBaker(
         {
             string textureIdentity = CreateAtlasTextureIdentity(sourceFileKey, batchIndex);
             List<int> atlasTriangleIndices = [];
-            foreach (AtlasPlacement placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
+            foreach (NonDemAtlasPlacement<AtlasBatchEntry> placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 AppendPlacementGeometry(vertices, atlasTriangleIndices, bakeOrigin, placement, layout.Width, layout.Height);
@@ -662,13 +662,13 @@ internal sealed class NonDemCityObjectBaker(
         List<ResoniteMeshVertex> vertices,
         List<int> triangleIndices,
         ResoniteFloat3 bakeOrigin,
-        AtlasPlacement placement,
+        NonDemAtlasPlacement<AtlasBatchEntry> placement,
         int atlasWidth,
         int atlasHeight)
     {
         IReadOnlyList<ResoniteMeshVertex> sourceVertices = placement.Entry.CityObject.Mesh.Vertices;
         ResoniteFloat3 cityObjectOffset = Subtract(placement.Entry.CityObject.Transform.Position, bakeOrigin);
-        Rect innerRect = placement.InnerRect;
+        NonDemAtlasRect innerRect = placement.InnerRect;
 
         foreach (int sourceIndex in placement.Entry.Submesh.TriangleVertexIndices)
         {
@@ -707,7 +707,7 @@ internal sealed class NonDemCityObjectBaker(
     private static ResoniteFloat2 MapUvToAtlas(
         ResoniteFloat2 sourceUv,
         TextureUvRect uvBounds,
-        Rect atlasRect,
+        NonDemAtlasRect atlasRect,
         double atlasWidth,
         double atlasHeight)
     {
@@ -747,7 +747,7 @@ internal sealed class NonDemCityObjectBaker(
             : new ResoniteFloat3(minX, minY, minZ);
     }
 
-    private void DrawAtlasTile(Image<Rgba32> atlasImage, bool[] atlasCoverage, int atlasWidth, AtlasPlacement placement)
+    private void DrawAtlasTile(Image<Rgba32> atlasImage, bool[] atlasCoverage, int atlasWidth, NonDemAtlasPlacement<AtlasBatchEntry> placement)
     {
         for (int y = 0; y < placement.Entry.Tile.Image.Height; y++)
         {
@@ -816,253 +816,13 @@ internal sealed class NonDemCityObjectBaker(
 
     private bool TryCreateAtlasLayout(
         IReadOnlyList<AtlasBatchEntry> entries,
-        out AtlasLayout? layout)
+        out NonDemAtlasLayout<AtlasBatchEntry>? layout)
     {
-        int atlasMaxSize = EffectiveMaxAtlasSize;
-        AtlasSizeRequirements requirements = ComputeAtlasSizeRequirements(entries, atlasMaxSize);
-        if (!requirements.IsValid)
-        {
-            layout = null;
-            return false;
-        }
-
-        foreach (AtlasCanvasCandidate candidate in EnumerateAtlasCanvasCandidates(requirements, atlasMaxSize))
-        {
-            if (TryCreateAtlasLayoutForCanvas(entries, candidate.Width, candidate.Height, out layout))
-            {
-                return true;
-            }
-        }
-
-        layout = null;
-        return false;
-    }
-
-    private bool TryCreateAtlasLayoutForCanvas(
-        IReadOnlyList<AtlasBatchEntry> entries,
-        int atlasWidth,
-        int atlasHeight,
-        out AtlasLayout? layout)
-    {
-        List<AtlasPlacement> placements = [];
-        List<Rect> freeRectangles = [new Rect(0, 0, atlasWidth, atlasHeight)];
-
-        foreach (AtlasBatchEntry entry in entries)
-        {
-            AtlasEntrySize entrySize = GetAtlasEntrySize(entry);
-            if (entrySize.PaddedWidth > atlasWidth || entrySize.PaddedHeight > atlasHeight)
-            {
-                layout = null;
-                return false;
-            }
-
-            if (!TryChooseFreeRectangle(freeRectangles, entrySize.PaddedWidth, entrySize.PaddedHeight, out Rect selectedRect))
-            {
-                layout = null;
-                return false;
-            }
-
-            Rect outerRect = new(selectedRect.X, selectedRect.Y, entrySize.PaddedWidth, entrySize.PaddedHeight);
-            Rect innerRect = new(selectedRect.X + tilePaddingPixels, selectedRect.Y + tilePaddingPixels, entry.Tile.Image.Width, entry.Tile.Image.Height);
-            placements.Add(new AtlasPlacement(entry, outerRect, innerRect));
-            SplitFreeRectangles(freeRectangles, outerRect);
-            PruneFreeRectangles(freeRectangles);
-        }
-
-        layout = new AtlasLayout(
-            atlasWidth,
-            atlasHeight,
-            placements);
-        return true;
-    }
-
-    private AtlasSizeRequirements ComputeAtlasSizeRequirements(
-        IReadOnlyList<AtlasBatchEntry> entries,
-        int atlasMaxSize)
-    {
-        long requiredArea = 0;
-        int minWidth = 1;
-        int minHeight = 1;
-
-        foreach (AtlasBatchEntry entry in entries)
-        {
-            AtlasEntrySize entrySize = GetAtlasEntrySize(entry);
-            if (entrySize.PaddedWidth > atlasMaxSize || entrySize.PaddedHeight > atlasMaxSize)
-            {
-                return AtlasSizeRequirements.Invalid;
-            }
-
-            minWidth = Math.Max(minWidth, entrySize.PaddedWidth);
-            minHeight = Math.Max(minHeight, entrySize.PaddedHeight);
-            requiredArea += (long)entrySize.PaddedWidth * entrySize.PaddedHeight;
-        }
-
-        return new AtlasSizeRequirements(minWidth, minHeight, requiredArea);
-    }
-
-    private static IEnumerable<AtlasCanvasCandidate> EnumerateAtlasCanvasCandidates(
-        AtlasSizeRequirements requirements,
-        int atlasMaxSize)
-    {
-        List<int> widthCandidates = EnumeratePowerOfTwoEdges(requirements.MinWidth, atlasMaxSize).ToList();
-        List<int> heightCandidates = EnumeratePowerOfTwoEdges(requirements.MinHeight, atlasMaxSize).ToList();
-
-        return widthCandidates
-            .SelectMany(
-                width => heightCandidates,
-                (width, height) => new AtlasCanvasCandidate(width, height, requirements))
-            .OrderBy(static candidate => candidate.Area)
-            .ThenBy(static candidate => candidate.AreaSlack)
-            .ThenBy(static candidate => candidate.DimensionSlack)
-            .ThenBy(static candidate => candidate.Height)
-            .ThenBy(static candidate => candidate.Width);
-    }
-
-    private static IEnumerable<int> EnumeratePowerOfTwoEdges(int minimumEdge, int maxEdge)
-    {
-        if (minimumEdge > maxEdge)
-        {
-            yield break;
-        }
-
-        for (int edge = 1; edge > 0 && edge <= maxEdge; edge <<= 1)
-        {
-            if (edge >= minimumEdge)
-            {
-                yield return edge;
-            }
-        }
-    }
-
-    private AtlasEntrySize GetAtlasEntrySize(AtlasBatchEntry entry)
-    {
-        return new AtlasEntrySize(
-            entry.Tile.Image.Width + (tilePaddingPixels * 2),
-            entry.Tile.Image.Height + (tilePaddingPixels * 2));
-    }
-
-    private static bool TryChooseFreeRectangle(
-        IReadOnlyList<Rect> freeRectangles,
-        int requiredWidth,
-        int requiredHeight,
-        out Rect selectedRect)
-    {
-        selectedRect = default;
-        bool found = false;
-        int bestAreaFit = int.MaxValue;
-        int bestShortSideFit = int.MaxValue;
-
-        foreach (Rect freeRect in freeRectangles)
-        {
-            if (requiredWidth > freeRect.Width || requiredHeight > freeRect.Height)
-            {
-                continue;
-            }
-
-            int areaFit = (freeRect.Width * freeRect.Height) - (requiredWidth * requiredHeight);
-            int shortSideFit = Math.Min(freeRect.Width - requiredWidth, freeRect.Height - requiredHeight);
-            if (areaFit < bestAreaFit
-                || (areaFit == bestAreaFit && shortSideFit < bestShortSideFit)
-                || (areaFit == bestAreaFit && shortSideFit == bestShortSideFit
-                    && (freeRect.Y < selectedRect.Y
-                        || (freeRect.Y == selectedRect.Y && freeRect.X < selectedRect.X))))
-            {
-                selectedRect = freeRect;
-                bestAreaFit = areaFit;
-                bestShortSideFit = shortSideFit;
-                found = true;
-            }
-        }
-
-        return found;
-    }
-
-    private static void SplitFreeRectangles(List<Rect> freeRectangles, Rect usedRect)
-    {
-        for (int index = freeRectangles.Count - 1; index >= 0; index--)
-        {
-            Rect freeRect = freeRectangles[index];
-            if (!Intersects(freeRect, usedRect))
-            {
-                continue;
-            }
-
-            freeRectangles.RemoveAt(index);
-
-            if (usedRect.X > freeRect.X)
-            {
-                freeRectangles.Add(new Rect(
-                    freeRect.X,
-                    freeRect.Y,
-                    usedRect.X - freeRect.X,
-                    freeRect.Height));
-            }
-
-            if (usedRect.X + usedRect.Width < freeRect.X + freeRect.Width)
-            {
-                freeRectangles.Add(new Rect(
-                    usedRect.X + usedRect.Width,
-                    freeRect.Y,
-                    (freeRect.X + freeRect.Width) - (usedRect.X + usedRect.Width),
-                    freeRect.Height));
-            }
-
-            if (usedRect.Y > freeRect.Y)
-            {
-                freeRectangles.Add(new Rect(
-                    freeRect.X,
-                    freeRect.Y,
-                    freeRect.Width,
-                    usedRect.Y - freeRect.Y));
-            }
-
-            if (usedRect.Y + usedRect.Height < freeRect.Y + freeRect.Height)
-            {
-                freeRectangles.Add(new Rect(
-                    freeRect.X,
-                    usedRect.Y + usedRect.Height,
-                    freeRect.Width,
-                    (freeRect.Y + freeRect.Height) - (usedRect.Y + usedRect.Height)));
-            }
-        }
-    }
-
-    private static void PruneFreeRectangles(List<Rect> freeRectangles)
-    {
-        for (int leftIndex = freeRectangles.Count - 1; leftIndex >= 0; leftIndex--)
-        {
-            Rect left = freeRectangles[leftIndex];
-            for (int rightIndex = freeRectangles.Count - 1; rightIndex >= 0; rightIndex--)
-            {
-                if (leftIndex == rightIndex)
-                {
-                    continue;
-                }
-
-                Rect right = freeRectangles[rightIndex];
-                if (Contains(right, left))
-                {
-                    freeRectangles.RemoveAt(leftIndex);
-                    break;
-                }
-            }
-        }
-    }
-
-    private static bool Intersects(Rect left, Rect right)
-    {
-        return left.X < right.X + right.Width
-            && left.X + left.Width > right.X
-            && left.Y < right.Y + right.Height
-            && left.Y + left.Height > right.Y;
-    }
-
-    private static bool Contains(Rect outer, Rect inner)
-    {
-        return inner.X >= outer.X
-            && inner.Y >= outer.Y
-            && inner.X + inner.Width <= outer.X + outer.Width
-            && inner.Y + inner.Height <= outer.Y + outer.Height;
+        NonDemAtlasLayoutPacker packer = new(EffectiveMaxAtlasSize, tilePaddingPixels);
+        return packer.TryCreate(
+            entries,
+            static entry => new NonDemAtlasTileSize(entry.Tile.Image.Width, entry.Tile.Image.Height),
+            out layout);
     }
 
     private static void ApplyBaseColor(Image<Rgba32> image, ResoniteColor color)
@@ -1404,13 +1164,13 @@ internal sealed class NonDemCityObjectBaker(
         return (byte)Math.Clamp(Math.Round(blended), 0.0, 255.0);
     }
 
-    private static Rgba32 ComputeAtlasBackgroundColor(IReadOnlyList<AtlasPlacement> placements)
+    private static Rgba32 ComputeAtlasBackgroundColor(IReadOnlyList<NonDemAtlasPlacement<AtlasBatchEntry>> placements)
     {
         long sumR = 0;
         long sumG = 0;
         long sumB = 0;
         long totalWeight = 0;
-        foreach (AtlasPlacement placement in placements)
+        foreach (NonDemAtlasPlacement<AtlasBatchEntry> placement in placements)
         {
             long weight = Math.Max(1, placement.Entry.Tile.Image.Width * placement.Entry.Tile.Image.Height);
             sumR += placement.Entry.Tile.BackgroundColor.R * weight;
@@ -1669,44 +1429,6 @@ internal sealed class NonDemCityObjectBaker(
     private sealed record AtlasBatchPlan(
         IReadOnlyList<IReadOnlyList<CityObjectBakeCandidate>> Batches,
         IReadOnlyList<CityObjectBakeCandidate> FallbackCandidates);
-
-    private sealed record AtlasLayout(
-        int Width,
-        int Height,
-        IReadOnlyList<AtlasPlacement> Placements);
-
-    private readonly record struct AtlasSizeRequirements(
-        int MinWidth,
-        int MinHeight,
-        long RequiredArea)
-    {
-        internal static AtlasSizeRequirements Invalid => new(0, 0, 0);
-
-        internal bool IsValid => MinWidth > 0 && MinHeight > 0;
-    }
-
-    private readonly record struct AtlasCanvasCandidate(
-        int Width,
-        int Height,
-        AtlasSizeRequirements Requirements)
-    {
-        internal long Area => (long)Width * Height;
-
-        internal long AreaSlack => Area - Requirements.RequiredArea;
-
-        internal int DimensionSlack => (Width - Requirements.MinWidth) + (Height - Requirements.MinHeight);
-    }
-
-    private readonly record struct AtlasEntrySize(
-        int PaddedWidth,
-        int PaddedHeight);
-
-    private sealed record AtlasPlacement(
-        AtlasBatchEntry Entry,
-        Rect OuterRect,
-        Rect InnerRect);
-
-    private readonly record struct Rect(int X, int Y, int Width, int Height);
 
     private readonly record struct SourceFileBatchKey(
         string ActualMeshCode,
