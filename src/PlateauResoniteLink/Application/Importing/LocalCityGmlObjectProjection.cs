@@ -338,27 +338,6 @@ internal static class LocalCityGmlObjectProjection
         return strips.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel).ToList();
     }
 
-    private static Float3 NormalizeHorizontal(Float3 value)
-    {
-        double length = Math.Sqrt((value.X * value.X) + (value.Z * value.Z));
-        if (length <= 1e-8)
-        {
-            return new Float3(0.0, 0.0, 0.0);
-        }
-
-        return new Float3(value.X / length, 0.0, value.Z / length);
-    }
-
-    private static double DotHorizontal(Float3 left, Float3 right)
-    {
-        return (left.X * right.X) + (left.Z * right.Z);
-    }
-
-    private static double LengthSquared(Float3 value)
-    {
-        return (value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z);
-    }
-
     private static ParsedSurface[] ConformSurfacesToTerrain(
         string packageName,
         ParsedSurface[] surfaces,
@@ -706,7 +685,7 @@ internal static class LocalCityGmlObjectProjection
     {
         double? geometryHeightMeters = cityObject.GeometryHeightMeters
             ?? ResolveParsedGeometryHeightMeters(cityObject.Surfaces);
-        cityObject = ApplyGeneratedLod1Roof(cityObject) with
+        cityObject = GeneratedLod1RoofCityObjectFactory.Create(cityObject) with
         {
             GeometryHeightMeters = geometryHeightMeters,
         };
@@ -804,192 +783,6 @@ internal static class LocalCityGmlObjectProjection
             Mesh: new ImportedMesh(vertices.ToArray(), submeshes.ToArray()),
             Materials: materials,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
-    }
-
-    private static global::PlateauResoniteLink.Application.Importing.ParsedCityObject ApplyGeneratedLod1Roof(
-        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject)
-    {
-        if (!IsBuildingPackage(cityObject.PackageName)
-            || cityObject.LodLevel != 1
-            || !cityObject.ReferenceSystem.IsGeographic
-            || cityObject.Surfaces.Any(static surface => IsGeneratedLod1RoofSurface(
-                global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface))))
-        {
-            return cityObject;
-        }
-
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = ResolveParsedCityObjectOrigin(cityObject);
-        LocalCartesian cityObjectCartesian = new(
-            cityObjectOrigin.Latitude,
-            cityObjectOrigin.Longitude,
-            cityObjectOrigin.Altitude,
-            cityObject.ReferenceSystem.Geocentric);
-        if (!TryCreateLod1RoofFootprint(cityObject, cityObjectOrigin, cityObjectCartesian, out Lod1RoofFootprint? footprint))
-        {
-            return cityObject;
-        }
-
-        Lod1RoofFootprint resolvedFootprint = footprint!;
-        GeneratedLod1RoofShape roofShape = Lod1RoofShapePolicy.Select(
-            cityObject.SlotKey,
-            resolvedFootprint.Attributes,
-            resolvedFootprint.GeometryHeightMeters,
-            resolvedFootprint.LengthMeters,
-            resolvedFootprint.WidthMeters);
-        if (roofShape == GeneratedLod1RoofShape.Flat)
-        {
-            return cityObject;
-        }
-
-        global::PlateauResoniteLink.Application.Importing.ParsedSurface[] generatedSurfaces =
-            GeneratedLod1RoofSurfaceFactory.Create(resolvedFootprint, roofShape);
-        if (generatedSurfaces.Length == 0)
-        {
-            return cityObject;
-        }
-
-        global::PlateauResoniteLink.Application.Importing.ParsedSurface[] surfaces =
-        [
-            .. cityObject.Surfaces.Where(surface => !string.Equals(surface.PolygonId, resolvedFootprint.TopSurface.PolygonId, StringComparison.Ordinal)),
-            .. generatedSurfaces,
-        ];
-        return cityObject with { Surfaces = surfaces };
-    }
-
-    private static bool TryCreateLod1RoofFootprint(
-        global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject,
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
-        LocalCartesian cityObjectCartesian,
-        out Lod1RoofFootprint? footprint)
-    {
-        footprint = null;
-        SurfaceProjectionInfo[] surfaceInfos = cityObject.Surfaces
-            .Select(surface => CreateSurfaceProjectionInfo(
-                global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface),
-                cityObjectOrigin.ToProjectionModel(),
-                cityObjectCartesian))
-            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
-            .ToArray();
-        if (surfaceInfos.Length == 0)
-        {
-            return false;
-        }
-
-        double objectMinimumY = surfaceInfos.Min(static info => info.MinimumY!.Value);
-        double objectMaximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
-        double geometryHeight = objectMaximumY - objectMinimumY;
-        SurfaceProjectionInfo[] topCandidates = surfaceInfos
-            .Where(static info => info.IsNearHorizontal)
-            .Where(info => info.MaximumY!.Value >= objectMaximumY - 0.1)
-            .Where(info => info.MinimumY!.Value > objectMinimumY + BuildingBottomCullBandMeters)
-            .ToArray();
-        if (topCandidates.Length != 1)
-        {
-            return false;
-        }
-
-        ParsedSurface topProjectionSurface = topCandidates[0].Surface;
-        global::PlateauResoniteLink.Application.Importing.ParsedSurface? topSurface = cityObject.Surfaces
-            .FirstOrDefault(surface => string.Equals(surface.PolygonId, topProjectionSurface.PolygonId, StringComparison.Ordinal));
-        if (topSurface is null
-            || topSurface.TexturePayload is not null
-            || topSurface.InteriorRings.Length != 0)
-        {
-            return false;
-        }
-
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] ring = RemoveClosingPoint(topSurface.ExteriorRing.Vertices);
-        if (ring.Length != 4)
-        {
-            return false;
-        }
-
-        Float3[] positions = ring
-            .Select(point => CreateScenePosition(point.ToProjectionModel(), cityObjectOrigin.ToProjectionModel(), cityObjectCartesian))
-            .ToArray();
-        if (!TryClassifyRectangle(positions, out bool firstEdgeIsLongAxis, out double length, out double width))
-        {
-            return false;
-        }
-
-        footprint = new Lod1RoofFootprint(
-            topSurface,
-            ring,
-            length,
-            width,
-            geometryHeight,
-            cityObject.BuildingAttributes ?? BuildingAttributeContext.Empty,
-            firstEdgeIsLongAxis);
-        return true;
-    }
-
-    private static global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] RemoveClosingPoint(
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint[] vertices)
-    {
-        if (vertices.Length > 1 && AreSamePoint(vertices[0].ToProjectionModel(), vertices[^1].ToProjectionModel()))
-        {
-            return vertices.Take(vertices.Length - 1).ToArray();
-        }
-
-        return vertices.ToArray();
-    }
-
-    private static bool TryClassifyRectangle(
-        Float3[] positions,
-        out bool firstEdgeIsLongAxis,
-        out double length,
-        out double width)
-    {
-        firstEdgeIsLongAxis = false;
-        length = 0.0;
-        width = 0.0;
-        if (positions.Length != 4)
-        {
-            return false;
-        }
-
-        double[] edges =
-        [
-            HorizontalDistance(positions[0], positions[1]),
-            HorizontalDistance(positions[1], positions[2]),
-            HorizontalDistance(positions[2], positions[3]),
-            HorizontalDistance(positions[3], positions[0]),
-        ];
-        if (edges.Any(static edge => edge < 1.0))
-        {
-            return false;
-        }
-
-        if (!ApproximatelyEqual(edges[0], edges[2], 0.15)
-            || !ApproximatelyEqual(edges[1], edges[3], 0.15))
-        {
-            return false;
-        }
-
-        Float3 edge0 = NormalizeHorizontal(Subtract(positions[1], positions[0]));
-        Float3 edge1 = NormalizeHorizontal(Subtract(positions[2], positions[1]));
-        if (Math.Abs(Dot(edge0, edge1)) > 0.15)
-        {
-            return false;
-        }
-
-        firstEdgeIsLongAxis = edges[0] >= edges[1];
-        length = Math.Max(edges[0], edges[1]);
-        width = Math.Min(edges[0], edges[1]);
-        return true;
-    }
-
-    private static double HorizontalDistance(Float3 left, Float3 right)
-    {
-        double deltaX = left.X - right.X;
-        double deltaZ = left.Z - right.Z;
-        return Math.Sqrt((deltaX * deltaX) + (deltaZ * deltaZ));
-    }
-
-    private static bool ApproximatelyEqual(double left, double right, double relativeTolerance)
-    {
-        double scale = Math.Max(Math.Max(Math.Abs(left), Math.Abs(right)), 1.0);
-        return Math.Abs(left - right) <= scale * relativeTolerance;
     }
 
     private static GeodeticPoint ResolveProjectionCityObjectOrigin(ParsedCityObject cityObject)
@@ -2344,7 +2137,7 @@ internal static class LocalCityGmlObjectProjection
 
         double? geometryHeightMeters = ResolveParsedGeometryHeightMeters(parsedCityObject.Surfaces);
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject terrainAlignedParsedCityObject =
-            ApplyGeneratedLod1Roof(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler)) with
+            GeneratedLod1RoofCityObjectFactory.Create(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler)) with
             {
                 GeometryHeightMeters = geometryHeightMeters,
             };
@@ -2458,7 +2251,7 @@ internal static class LocalCityGmlObjectProjection
 
         double? geometryHeightMeters = ResolveParsedGeometryHeightMeters(parsedCityObject.Surfaces);
         global::PlateauResoniteLink.Application.Importing.ParsedCityObject terrainAlignedParsedCityObject =
-            ApplyGeneratedLod1Roof(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler)) with
+            GeneratedLod1RoofCityObjectFactory.Create(ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler)) with
             {
                 GeometryHeightMeters = geometryHeightMeters,
             };
