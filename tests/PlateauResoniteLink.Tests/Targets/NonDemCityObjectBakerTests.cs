@@ -948,7 +948,7 @@ public sealed class NonDemCityObjectBakerTests
             new ResoniteTextureImageLoader(),
             new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget)).Create();
         return new NonDemCityObjectBaker(
-            bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies,
+            new NonDemCityObjectBakePolicyResolver(bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies),
             sourceFileBakeEmitter);
     }
 

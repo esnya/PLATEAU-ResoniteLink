@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemCityObjectBaker(
-    IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies,
+    INonDemCityObjectBakePolicyResolver bakePolicyResolver,
     INonDemSourceFileBakeEmitter sourceFileBakeEmitter) : IResoniteBufferedCityObjectBaker
 {
     private readonly Dictionary<NonDemSourceFileBatchKey, List<NonDemBufferedCityObject>> bufferedCityObjectsBySourceFile = [];
     private readonly Dictionary<NonDemSourceFileBatchKey, int> nextBatchIndexBySourceFile = [];
-    private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
-        ?? throw new ArgumentNullException(nameof(bakePolicies));
+    private readonly INonDemCityObjectBakePolicyResolver bakePolicyResolver = bakePolicyResolver
+        ?? throw new ArgumentNullException(nameof(bakePolicyResolver));
     private readonly INonDemSourceFileBakeEmitter sourceFileBakeEmitter = sourceFileBakeEmitter
         ?? throw new ArgumentNullException(nameof(sourceFileBakeEmitter));
 
@@ -30,7 +30,7 @@ internal sealed class NonDemCityObjectBaker(
         ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
 
-        NonDemCityObjectBakePolicy? policy = ResolvePolicy(cityObject);
+        NonDemCityObjectBakePolicy? policy = bakePolicyResolver.Resolve(cityObject);
         if (policy is null)
         {
             return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
@@ -105,19 +105,5 @@ internal sealed class NonDemCityObjectBaker(
         BakedOutputCityObjectCount += emittedCount;
         nextBatchIndexBySourceFile[sourceFileKey] = batchStartIndex + emittedCount;
         cityObjects.Clear();
-    }
-
-    private NonDemCityObjectBakePolicy? ResolvePolicy(ResoniteConstructionCityObject cityObject)
-    {
-        foreach (NonDemCityObjectBakePolicy policy in bakePolicies)
-        {
-            if (policy.CanBuffer(cityObject)
-                && NonDemCityObjectBakeMaterialClassifier.CanBufferCityObjectMaterials(cityObject, policy))
-            {
-                return policy;
-            }
-        }
-
-        return null;
     }
 }
