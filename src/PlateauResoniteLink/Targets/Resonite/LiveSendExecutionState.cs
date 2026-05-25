@@ -24,8 +24,6 @@ internal sealed class LiveSendProgressSink
 
     public int FirstCityObjectPreparationStartedLogged;
 
-    public int FirstCommonMaterialPrepLogged;
-
     public int FirstCityObjectStreamingStartedLogged;
 
     public int FirstCityObjectDequeuedLogged;
@@ -39,7 +37,6 @@ internal sealed class LiveSendProgressSink
         FirstPreparedCityObjectLogged = 0;
         FirstImportedCityObjectLogged = 0;
         FirstCityObjectPreparationStartedLogged = 0;
-        FirstCommonMaterialPrepLogged = 0;
         FirstCityObjectStreamingStartedLogged = 0;
         FirstCityObjectDequeuedLogged = 0;
     }

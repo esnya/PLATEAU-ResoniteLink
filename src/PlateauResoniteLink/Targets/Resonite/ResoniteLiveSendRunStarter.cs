@@ -143,7 +143,6 @@ internal sealed class ResoniteLiveSendRunStarter(
 
         if (setupState.CommonMaterialAssets.Count > 0)
         {
-            progress.FirstCommonMaterialPrepLogged = setupState.CommonMaterialAssets.Count;
             ReportProgress(
                 context,
                 PlateauLog.Info(
