@@ -6,7 +6,14 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed class NonDemAtlasImageRenderer(int tilePaddingPixels)
+internal interface INonDemAtlasImageRenderer
+{
+    void Draw(
+        Image<Rgba32> atlasImage,
+        IReadOnlyList<NonDemAtlasPlacement<NonDemAtlasBatchEntry>> placements);
+}
+
+internal sealed class NonDemAtlasImageRenderer(int tilePaddingPixels) : INonDemAtlasImageRenderer
 {
     public void Draw(
         Image<Rgba32> atlasImage,
