@@ -21,31 +21,35 @@ internal interface IResoniteCommonMaterialSetupPreparer
         ResoniteSceneSetupState setupState,
         CommonMaterialAssetCache materials,
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
+        Action<string>? progressReporter,
         CancellationToken cancellationToken);
 }
 
 internal sealed class ResoniteCommonMaterialSetupPreparer(
-    IResoniteMaterialPlanning materialPlanning,
-    Action<string>? progressReporter) : IResoniteCommonMaterialSetupPreparer
+    IResoniteMaterialPlanning materialPlanning) : IResoniteCommonMaterialSetupPreparer
 {
     public async Task PrepareAsync(
         IResoniteLinkClient client,
         ResoniteSceneSetupState setupState,
         CommonMaterialAssetCache materials,
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
+        Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
         CommonMaterialCatalog<ResoniteCommonMaterialPlan> commonMaterialPlans =
             ResoniteCommonMaterialPlans.CreateCatalogPlans(commonMaterials);
         if (commonMaterialPlans.Count == 0)
         {
-            ReportProgress(PlateauLog.Info("live", "No common material assets are required during scene setup."));
+            ReportProgress(
+                progressReporter,
+                PlateauLog.Info("live", "No common material assets are required during scene setup."));
             return;
         }
 
         Stopwatch stopwatch = Stopwatch.StartNew();
         int preparedCount = 0;
         ReportProgress(
+            progressReporter,
             PlateauLog.Info(
                 "live",
                 $"Preparing {commonMaterialPlans.Count} common material assets during scene setup before object streaming."));
@@ -72,6 +76,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
 
             Stopwatch materialStopwatch = Stopwatch.StartNew();
             ReportProgress(
+                progressReporter,
                 PlateauLog.Info(
                     "live",
                     $"Preparing common material asset {preparedCount + 1}/{commonMaterialPlans.Count}: "
@@ -95,6 +100,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
                     new CreatedMaterialAsset(existingComponent.Value, null)));
                 preparedCount++;
                 ReportProgress(
+                    progressReporter,
                     PlateauLog.Info(
                         "live",
                         $"Reused common material asset {preparedCount}/{commonMaterialPlans.Count}: "
@@ -135,6 +141,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
                 pendingMaterialComponent));
             preparedCount++;
             ReportProgress(
+                progressReporter,
                 PlateauLog.Info(
                     "live",
                     $"Planned common material asset {preparedCount}/{commonMaterialPlans.Count}: "
@@ -160,6 +167,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
             }
 
             ReportProgress(
+                progressReporter,
                 PlateauLog.Info(
                     "live",
                     $"Created {preparedMaterials.Count} common material assets in one setup component batch."));
@@ -171,6 +179,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
         }
 
         ReportProgress(
+            progressReporter,
             PlateauLog.Info(
                 "live",
                 $"Prepared {preparedCount} common material assets during scene setup in {stopwatch.Elapsed.TotalSeconds:F2}s."));
@@ -256,7 +265,9 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
         return (reusableSlotWithoutComponent, null);
     }
 
-    private void ReportProgress(string message)
+    private static void ReportProgress(
+        Action<string>? progressReporter,
+        string message)
     {
         progressReporter?.Invoke(message);
     }

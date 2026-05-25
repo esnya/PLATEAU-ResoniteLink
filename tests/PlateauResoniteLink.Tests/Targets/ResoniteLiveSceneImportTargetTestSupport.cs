@@ -37,7 +37,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             metadata,
             workDirectory.Path,
             cityObjects,
-            commonMaterials: commonMaterials ?? CommonMaterialCatalog.Create());
+            commonMaterials: commonMaterials ?? CreateReferencedCommonMaterials(cityObjects, enableMeshBake));
     }
 
     public static ResoniteImportedMesh CreateTriangleMesh(
@@ -112,7 +112,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         IReadOnlyList<ResoniteConstructionCityObject> firstRunCityObjects,
         IReadOnlyList<ResoniteConstructionCityObject> secondRunCityObjects,
         SceneSinkRecordingClient client,
-        bool enableMeshBake = true)
+        bool enableMeshBake = false)
     {
         using TemporaryDirectory firstWorkDirectory = new();
         await using (ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(client, enableMeshBake: enableMeshBake))
@@ -122,7 +122,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 metadata,
                 firstWorkDirectory.Path,
                 firstRunCityObjects,
-                commonMaterials: CommonMaterialCatalog.Create());
+                commonMaterials: CreateReferencedCommonMaterials(firstRunCityObjects, enableMeshBake));
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
@@ -133,7 +133,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 metadata,
                 secondWorkDirectory.Path,
                 secondRunCityObjects,
-                commonMaterials: CommonMaterialCatalog.Create());
+                commonMaterials: CreateReferencedCommonMaterials(secondRunCityObjects, enableMeshBake));
         }
     }
 
@@ -149,7 +149,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             CreateExecutionPlan(
                 metadata,
                 workDirectory,
-                commonMaterials: commonMaterials ?? CommonMaterialCatalog.Create()),
+                commonMaterials: commonMaterials ?? CreateReferencedCommonMaterials(cityObjects, importTarget.MeshBakeEnabled)),
             CreateImportedObjectUnitsAsync(cityObjects, cancellationToken),
             cancellationToken);
     }
@@ -177,7 +177,31 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             effectiveMetadata,
             GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
-            commonMaterials ?? CommonMaterialCatalog.Create());
+            commonMaterials ?? CreateReferencedCommonMaterials([], enableMeshBake: false));
+    }
+
+    public static CommonMaterialCatalog<DefaultCommonMaterialMember> CreateReferencedCommonMaterials(
+        IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
+        bool enableMeshBake)
+    {
+        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
+        IEnumerable<CommonMaterialDefinition> definitions =
+            cityObjects
+                .SelectMany(static cityObject => cityObject.Materials)
+                .Select(static material => material.CommonMaterial?.Definition)
+                .Where(static definition => definition is not null)
+                .Cast<CommonMaterialDefinition>();
+        if (enableMeshBake)
+        {
+            definitions = definitions.Concat(
+            [
+                catalog.Generic.Uv.Definition,
+                catalog.VertexColor.Uv.Definition,
+                catalog.VertexColor.TerrainAlignedUv.Definition,
+            ]);
+        }
+
+        return catalog.FilterToDefinitions(definitions);
     }
 
     private static PlateauImportRequest CreateImportRequest(
@@ -301,8 +325,9 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
             new ResoniteQueuedCityObjectSender(
-                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
-                new ResoniteDatasetLicenseWriter(),
+                new ResoniteQueuedTexturePreparer(
+                    terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
+                    new ResoniteDatasetLicenseWriter()),
                 new ResonitePreparedCityObjectImporter(
                     new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
                     new ResoniteSceneMaterialPlanComposer(materialPlanning),
@@ -326,9 +351,11 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     new ResoniteSceneSetupInterpreter(
                         new ResoniteSceneSlotLocator(),
                         new ResoniteSceneAnchorResolver()),
-                    new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
+                    new ResoniteCommonMaterialSetupPreparer(materialPlanning),
                     new LiveSendRunPlanFactory(),
-                    new LiveSendRunStateFactory(new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())),
+                    new LiveSendRunStateFactory(
+                        new ResoniteBufferedCityObjectBakerFactory(
+                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
                     new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
                     new ResoniteSlotCreator()),
                 queue));

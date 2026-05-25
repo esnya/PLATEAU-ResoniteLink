@@ -75,8 +75,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [cityObject],
             client,
-            terrainTextureGenerator,
-            commonMaterials: CommonMaterialCatalog.Create());
+            terrainTextureGenerator);
 
         ResoniteRawTextureImport importedTexture = Assert.Single(
             client.ImportedRawTextures,
@@ -257,8 +256,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [first, second],
             client,
-            terrainTextureGenerator,
-            commonMaterials: CommonMaterialCatalog.Create());
+            terrainTextureGenerator);
 
         AddComponent[] sharedTextures = client.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
@@ -302,8 +300,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [sharedTerrain],
             client,
-            terrainTextureGenerator,
-            commonMaterials: CommonMaterialCatalog.Create());
+            terrainTextureGenerator);
 
         AddComponent sharedTexture = Assert.Single(
             client.AddedComponents,
@@ -332,8 +329,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [dedicatedTerrain],
             client,
-            terrainTextureGenerator,
-            commonMaterials: CommonMaterialCatalog.Create());
+            terrainTextureGenerator);
 
         Assert.DoesNotContain(
             client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
@@ -510,8 +506,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [cityObject],
             client,
-            terrainTextureGenerator,
-            commonMaterials: CommonMaterialCatalog.Create());
+            terrainTextureGenerator);
 
         Component meshRenderer = Assert.Single(
             client.AddedComponents,
@@ -894,8 +889,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [cityObject],
             client,
-            terrainTextureGenerator,
-            commonMaterials: CommonMaterialCatalog.Create());
+            terrainTextureGenerator);
 
         Component gridMesh = Assert.Single(
             client.ComponentsById.Values,

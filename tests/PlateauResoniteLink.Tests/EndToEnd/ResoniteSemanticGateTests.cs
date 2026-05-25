@@ -44,7 +44,10 @@ public sealed class ResoniteSemanticGateTests
             actualPath);
 
         _ = await dumpSink.ExecuteAsync(
-            ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(source.Metadata, workDirectory.Path),
+            ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
+                source.Metadata,
+                workDirectory.Path,
+                commonMaterials: CommonMaterialCatalog.Create()),
             source.ReadObjectUnitsAsync());
 
         string actual = await File.ReadAllTextAsync(actualPath, Encoding.UTF8);

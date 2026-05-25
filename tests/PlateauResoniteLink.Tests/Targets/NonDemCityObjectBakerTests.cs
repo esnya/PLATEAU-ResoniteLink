@@ -938,18 +938,109 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(512, atlasPayload.Height);
     }
 
+    [Fact]
+    public async Task FlushAllAsyncCountsOutputsAcceptedBeforeCallbackFailure()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 10, tilePaddingPixels: 0);
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-a",
+                CreateCheckerPayload("textures/a.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 9, 3),
+                0,
+                "unit-a"));
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-b",
+                CreateCheckerPayload("textures/b.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 255, 255, 255), 9, 3),
+                2,
+                "unit-a"));
+
+        int callbackCount = 0;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => baker.FlushAllAsync(
+            (_, _) =>
+            {
+                callbackCount++;
+                if (callbackCount == 2)
+                {
+                    throw new InvalidOperationException("stop after first accepted output");
+                }
+
+                return Task.CompletedTask;
+            }));
+
+        Assert.Equal(2, callbackCount);
+        Assert.Equal(1, baker.BakedOutputCityObjectCount);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncAdvancesBatchIdentityAfterCallbackFailure()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 16, tilePaddingPixels: 0);
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-a",
+                CreateCheckerPayload("textures/a.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 9, 9),
+                0,
+                "unit-a"));
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-b",
+                CreateCheckerPayload("textures/b.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 255, 255, 255), 9, 9),
+                2,
+                "unit-a"));
+
+        int callbackCount = 0;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => baker.FlushAllAsync(
+            (_, _) =>
+            {
+                callbackCount++;
+                if (callbackCount == 2)
+                {
+                    throw new InvalidOperationException("stop after second reserved output");
+                }
+
+                return Task.CompletedTask;
+            }));
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-c",
+                CreateCheckerPayload("textures/c.png", new Rgba32(0, 0, 255, 255), new Rgba32(255, 0, 255, 255), 4, 4),
+                4,
+                "unit-a"));
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-d",
+                CreateCheckerPayload("textures/d.png", new Rgba32(255, 255, 255, 255), new Rgba32(0, 0, 0, 255), 4, 4),
+                6,
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+
+        Assert.Equal("atlasbake-unit-a-bldg-lod2-3", cityObject.SlotKey);
+        Assert.Equal(
+            "atlastex-unit-a.gml-3",
+            Assert.IsType<ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload).Identity);
+    }
+
     private static NonDemCityObjectBaker CreateBaker(
-        int maxAtlasSize = NonDemCityObjectBaker.DefaultMaxAtlasSize,
-        int tilePaddingPixels = NonDemCityObjectBaker.DefaultTilePaddingPixels,
+        int maxAtlasSize = NonDemAtlasBakeBudget.DefaultMaxAtlasSize,
+        int tilePaddingPixels = NonDemAtlasBakeBudget.DefaultTilePaddingPixels,
         IReadOnlyList<NonDemCityObjectBakePolicy>? bakePolicies = null,
         ResoniteImportBudgetProfile? resourceBudget = null)
     {
+        INonDemSourceFileBakeEmitter sourceFileBakeEmitter = new NonDemSourceFileBakeEmitterFactory(
+            new ResoniteTextureImageLoader()).Create(
+            new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget));
         return new NonDemCityObjectBaker(
-            new ResoniteTextureImageLoader(),
-            bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies,
-            maxAtlasSize,
-            tilePaddingPixels,
-            resourceBudget);
+            new NonDemCityObjectBakePolicyResolver(bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies),
+            sourceFileBakeEmitter);
     }
 
     private static async Task AssertBufferedAsync(NonDemCityObjectBaker baker, ResoniteConstructionCityObject cityObject)
