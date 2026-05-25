@@ -23,6 +23,11 @@ internal static class GeneratedRoadMarkingCityObjectFactory
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
+        if (!string.Equals(cityObject.PackageName, "tran", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
         ProjectionParsedCityObject? markingCityObject = Create(
             CityGmlProjectionModelAdapter.ToProjectionModel(cityObject),
             cityObjectOrigin.ToProjectionModel(),
