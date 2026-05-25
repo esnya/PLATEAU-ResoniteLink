@@ -51,8 +51,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         return new ResoniteQueuedCityObjectWorker(
             new ResoniteQueuedCityObjectSender(
-                new TerrainTextureAssetGenerator(),
-                new ResoniteDatasetLicenseWriter(),
+                new ResoniteQueuedTexturePreparer(
+                    new TerrainTextureAssetGenerator(),
+                    new ResoniteDatasetLicenseWriter()),
                 CreatePreparedCityObjectImporter(materialPlanning)));
     }
 
