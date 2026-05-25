@@ -21,7 +21,7 @@ internal sealed class NonDemCityObjectBaker(
 {
     internal const int DefaultMaxAtlasSize = 4096;
     internal const int DefaultTilePaddingPixels = 2;
-    private readonly Dictionary<NonDemSourceFileBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceFile = [];
+    private readonly Dictionary<NonDemSourceFileBatchKey, List<NonDemBufferedCityObject>> bufferedCityObjectsBySourceFile = [];
     private readonly Dictionary<NonDemSourceFileBatchKey, int> nextBatchIndexBySourceFile = [];
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? throw new ArgumentNullException(nameof(bakePolicies));
@@ -59,8 +59,8 @@ internal sealed class NonDemCityObjectBaker(
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         NonDemSourceFileBatchKey sourceFileKey = NonDemSourceFileBatching.CreateKey(cityObject, policy);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
-        BufferedCityObject bufferedCityObject = new(cityObject, policy);
-        if (!bufferedCityObjectsBySourceFile.TryGetValue(sourceFileKey, out List<BufferedCityObject>? bufferedCityObjects))
+        NonDemBufferedCityObject bufferedCityObject = new(cityObject, policy);
+        if (!bufferedCityObjectsBySourceFile.TryGetValue(sourceFileKey, out List<NonDemBufferedCityObject>? bufferedCityObjects))
         {
             bufferedCityObjects = [];
             bufferedCityObjectsBySourceFile.Add(sourceFileKey, bufferedCityObjects);
@@ -109,7 +109,7 @@ internal sealed class NonDemCityObjectBaker(
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
-        if (!bufferedCityObjectsBySourceFile.Remove(sourceFileKey, out List<BufferedCityObject>? cityObjects))
+        if (!bufferedCityObjectsBySourceFile.Remove(sourceFileKey, out List<NonDemBufferedCityObject>? cityObjects))
         {
             return;
         }
@@ -134,22 +134,22 @@ internal sealed class NonDemCityObjectBaker(
 
     private async Task BakeSourceFileAsync(
         NonDemSourceFileBatchKey sourceFileKey,
-        IReadOnlyList<BufferedCityObject> cityObjects,
+        List<NonDemBufferedCityObject> cityObjects,
         int batchStartIndex,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
-        List<CityObjectBakeCandidate> passThroughCandidates = [];
-        List<CityObjectBakeCandidate> currentAtlasBatch = [];
+        List<NonDemCityObjectBakeCandidate> passThroughCandidates = [];
+        List<NonDemCityObjectBakeCandidate> currentAtlasBatch = [];
         int batchIndex = batchStartIndex;
         bool preservePrimaryIdentity = cityObjects.Count == 1;
 
-        foreach (BufferedCityObject bufferedCityObject in cityObjects.OrderBy(
+        foreach (NonDemBufferedCityObject bufferedCityObject in cityObjects.OrderBy(
                      static bufferedCityObject => bufferedCityObject.CityObject.SlotKey,
                      StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            CityObjectBakeCandidate? candidate = await CreateCandidateAsync(bufferedCityObject, cancellationToken);
+            NonDemCityObjectBakeCandidate? candidate = await CreateCandidateAsync(bufferedCityObject, cancellationToken);
             if (candidate is null)
             {
                 continue;
@@ -214,7 +214,7 @@ internal sealed class NonDemCityObjectBaker(
 
         if (passThroughCandidates.Count == 1)
         {
-            CityObjectBakeCandidate passThroughCandidate = passThroughCandidates[0];
+            NonDemCityObjectBakeCandidate passThroughCandidate = passThroughCandidates[0];
             BakedOutputCityObjectCount++;
             await onBakedCityObject(passThroughCandidate.CityObject, cancellationToken);
             DisposeCandidateImages(passThroughCandidate);
@@ -253,8 +253,8 @@ internal sealed class NonDemCityObjectBaker(
         return null;
     }
 
-    private async Task<CityObjectBakeCandidate?> CreateCandidateAsync(
-        BufferedCityObject bufferedCityObject,
+    private async Task<NonDemCityObjectBakeCandidate?> CreateCandidateAsync(
+        NonDemBufferedCityObject bufferedCityObject,
         CancellationToken cancellationToken)
     {
         ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
@@ -272,8 +272,8 @@ internal sealed class NonDemCityObjectBaker(
                 $"Non-DEM bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
         }
 
-        List<AtlasBatchEntry> atlasEntries = [];
-        List<PreservedSubmeshEntry> preservedEntries = [];
+        List<NonDemAtlasBatchEntry> atlasEntries = [];
+        List<NonDemPreservedSubmeshEntry> preservedEntries = [];
         bool hadAtlasCandidateMaterial = false;
         foreach (ResoniteMeshSubmesh submesh in normalizedCityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
         {
@@ -289,7 +289,7 @@ internal sealed class NonDemCityObjectBaker(
             {
                 case NonDemMaterialBakeCategory.AtlasCandidate:
                     hadAtlasCandidateMaterial = true;
-                    AtlasOrPreservedEntry bakeEntry = await CreateAtlasOrPreservedEntryAsync(
+                    NonDemAtlasOrPreservedEntry bakeEntry = await CreateAtlasOrPreservedEntryAsync(
                         normalizedCityObject,
                         submesh,
                         material,
@@ -311,14 +311,14 @@ internal sealed class NonDemCityObjectBaker(
                 case NonDemMaterialBakeCategory.PreservedOther:
                     ResoniteMeshSubmesh normalizedSubmesh = normalizedCityObject.Mesh.Submeshes.Single(candidate => candidate.Index == submesh.Index);
                     ResoniteMaterialBinding normalizedMaterial = normalizedCityObject.Materials.Single(candidate => candidate.SubmeshIndices.Contains(submesh.Index));
-                    preservedEntries.Add(new PreservedSubmeshEntry(normalizedCityObject, normalizedSubmesh, normalizedMaterial));
+                    preservedEntries.Add(new NonDemPreservedSubmeshEntry(normalizedCityObject, normalizedSubmesh, normalizedMaterial));
                     break;
             }
         }
 
         if (policy.RequireAtlasCandidateMaterial && !hadAtlasCandidateMaterial)
         {
-            DisposeCandidateImages(new CityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries));
+            DisposeCandidateImages(new NonDemCityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries));
             return null;
         }
 
@@ -328,10 +328,10 @@ internal sealed class NonDemCityObjectBaker(
                 $"Non-DEM bake city object '{cityObject.DisplayName}' produced no atlas or preserved submesh candidate.");
         }
 
-        return new CityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries);
+        return new NonDemCityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries);
     }
 
-    private async Task<AtlasOrPreservedEntry> CreateAtlasOrPreservedEntryAsync(
+    private async Task<NonDemAtlasOrPreservedEntry> CreateAtlasOrPreservedEntryAsync(
         ResoniteConstructionCityObject cityObject,
         ResoniteMeshSubmesh submesh,
         ResoniteMaterialBinding material,
@@ -354,9 +354,9 @@ internal sealed class NonDemCityObjectBaker(
             Rgba32 tintedUniformColor = NonDemTextureImageProcessing.MultiplyPixel(
                 uniformDatasetColor,
                 NonDemTextureImageProcessing.ToPixel(material.BaseColor));
-            return new AtlasOrPreservedEntry(
+            return new NonDemAtlasOrPreservedEntry(
                 AtlasEntry: null,
-                PreservedEntry: new PreservedSubmeshEntry(
+                PreservedEntry: new NonDemPreservedSubmeshEntry(
                     cityObject,
                     submesh,
                     CreateVertexColorMaterial(material, submesh.Index),
@@ -374,12 +374,12 @@ internal sealed class NonDemCityObjectBaker(
             targetHeight);
 
         NonDemTextureImageProcessing.ApplyBaseColor(bakedImage, material.BaseColor);
-        return new AtlasOrPreservedEntry(
-            AtlasEntry: new AtlasBatchEntry(
+        return new NonDemAtlasOrPreservedEntry(
+            AtlasEntry: new NonDemAtlasBatchEntry(
                 cityObject,
                 submesh,
                 material,
-                new MaterialAtlasTile(
+                new NonDemMaterialAtlasTile(
                     bakedImage.Clone(),
                     NonDemTextureImageProcessing.MultiplyPixel(
                         detectedBackgroundColor,
@@ -388,54 +388,18 @@ internal sealed class NonDemCityObjectBaker(
             PreservedEntry: null);
     }
 
-    private AtlasBatchPlan CreateAtlasCandidateBatches(
-        IReadOnlyList<CityObjectBakeCandidate> candidates)
-    {
-        List<IReadOnlyList<CityObjectBakeCandidate>> batches = [];
-        List<CityObjectBakeCandidate> fallbackCandidates = [];
-        List<CityObjectBakeCandidate> pending = candidates
-            .OrderByDescending(static candidate => candidate.AtlasEntries.Sum(entry => entry.Tile.Image.Width * entry.Tile.Image.Height))
-            .ThenBy(static candidate => candidate.CityObject.SlotKey, StringComparer.Ordinal)
-            .ToList();
-
-        while (pending.Count > 0)
-        {
-            List<CityObjectBakeCandidate> currentBatch = [];
-            foreach (CityObjectBakeCandidate candidate in pending.ToArray())
-            {
-                List<AtlasBatchEntry> candidateEntries = [.. currentBatch.SelectMany(static current => current.AtlasEntries), .. candidate.AtlasEntries];
-                if (TryCreateAtlasLayout(candidateEntries, out _))
-                {
-                    currentBatch.Add(candidate);
-                    pending.Remove(candidate);
-                }
-            }
-
-            if (currentBatch.Count == 0)
-            {
-                CityObjectBakeCandidate oversizedCandidate = pending[0];
-                pending.RemoveAt(0);
-                fallbackCandidates.Add(oversizedCandidate);
-                continue;
-            }
-
-            batches.Add(currentBatch);
-        }
-
-        return new AtlasBatchPlan(batches, fallbackCandidates);
-    }
-
     private async Task<ResoniteConstructionCityObject> BakeBatchAsync(
         NonDemSourceFileBatchKey sourceFileKey,
-        IReadOnlyList<CityObjectBakeCandidate> candidates,
+        IReadOnlyList<NonDemCityObjectBakeCandidate> candidates,
         int batchIndex,
         bool preservePrimaryIdentity,
         CancellationToken cancellationToken)
     {
-        List<AtlasBatchEntry> entries = candidates.SelectMany(static candidate => candidate.AtlasEntries).ToList();
-        NonDemAtlasLayout<AtlasBatchEntry>? layout = null;
+        List<NonDemAtlasBatchEntry> entries = candidates.SelectMany(static candidate => candidate.AtlasEntries).ToList();
+        NonDemAtlasLayout<NonDemAtlasBatchEntry>? layout = null;
+        NonDemAtlasLayoutFactory atlasLayoutFactory = CreateAtlasLayoutFactory();
         if (entries.Count > 0
-            && (!TryCreateAtlasLayout(entries, out layout) || layout is null))
+            && (!atlasLayoutFactory.TryCreate(entries, out layout) || layout is null))
         {
             throw new InvalidOperationException("Failed to create non-DEM atlas layout.");
         }
@@ -448,7 +412,7 @@ internal sealed class NonDemCityObjectBaker(
             : new bool[layout.Width * layout.Height];
         if (layout is not null)
         {
-            foreach (NonDemAtlasPlacement<AtlasBatchEntry> placement in layout.Placements)
+            foreach (NonDemAtlasPlacement<NonDemAtlasBatchEntry> placement in layout.Placements)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 DrawAtlasTile(atlasImage!, atlasCoverage!, layout.Width, placement);
@@ -480,7 +444,7 @@ internal sealed class NonDemCityObjectBaker(
         {
             string textureIdentity = NonDemSourceFileBatching.CreateAtlasTextureIdentity(sourceFileKey, batchIndex);
             List<int> atlasTriangleIndices = [];
-            foreach (NonDemAtlasPlacement<AtlasBatchEntry> placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
+            foreach (NonDemAtlasPlacement<NonDemAtlasBatchEntry> placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 AppendPlacementGeometry(vertices, atlasTriangleIndices, bakeOrigin, placement, layout.Width, layout.Height);
@@ -499,15 +463,15 @@ internal sealed class NonDemCityObjectBaker(
                     CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv));
         }
 
-        foreach (IGrouping<NonDemPreservedMaterialGroupingKey, OrderedPreservedSubmeshEntry> preservedGroup in candidates
+        foreach (IGrouping<NonDemPreservedMaterialGroupingKey, NonDemOrderedPreservedSubmeshEntry> preservedGroup in candidates
                      .SelectMany(static candidate => candidate.PreservedEntries)
-                     .Select(static (entry, order) => new OrderedPreservedSubmeshEntry(entry, order))
+                     .Select(static (entry, order) => new NonDemOrderedPreservedSubmeshEntry(entry, order))
                      .GroupBy(static entry => NonDemPreservedMaterialGrouping.CreateKey(entry.Entry.Material), NonDemPreservedMaterialGrouping.KeyComparer)
                      .OrderBy(static group => group.Min(static entry => entry.Order)))
         {
             cancellationToken.ThrowIfCancellationRequested();
             List<int> preservedTriangleIndices = [];
-            foreach (PreservedSubmeshEntry preservedEntry in preservedGroup
+            foreach (NonDemPreservedSubmeshEntry preservedEntry in preservedGroup
                          .Select(static entry => entry.Entry)
                          .OrderBy(static entry => entry.CityObject.SlotKey, StringComparer.Ordinal)
                          .ThenBy(static entry => entry.Submesh.Index))
@@ -552,7 +516,7 @@ internal sealed class NonDemCityObjectBaker(
         List<ResoniteMeshVertex> vertices,
         List<int> triangleIndices,
         ResoniteFloat3 bakeOrigin,
-        NonDemAtlasPlacement<AtlasBatchEntry> placement,
+        NonDemAtlasPlacement<NonDemAtlasBatchEntry> placement,
         int atlasWidth,
         int atlasHeight)
     {
@@ -578,7 +542,7 @@ internal sealed class NonDemCityObjectBaker(
         List<ResoniteMeshVertex> vertices,
         List<int> triangleIndices,
         ResoniteFloat3 bakeOrigin,
-        PreservedSubmeshEntry preservedEntry)
+        NonDemPreservedSubmeshEntry preservedEntry)
     {
         IReadOnlyList<ResoniteMeshVertex> sourceVertices = preservedEntry.CityObject.Mesh.Vertices;
         ResoniteFloat3 cityObjectOffset = Subtract(preservedEntry.CityObject.Transform.Position, bakeOrigin);
@@ -615,7 +579,7 @@ internal sealed class NonDemCityObjectBaker(
         return new ResoniteFloat2(remapped.X, remapped.Y);
     }
 
-    private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<CityObjectBakeCandidate> candidates)
+    private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
     {
         double minX = double.PositiveInfinity;
         double minY = double.PositiveInfinity;
@@ -637,7 +601,7 @@ internal sealed class NonDemCityObjectBaker(
             : new ResoniteFloat3(minX, minY, minZ);
     }
 
-    private void DrawAtlasTile(Image<Rgba32> atlasImage, bool[] atlasCoverage, int atlasWidth, NonDemAtlasPlacement<AtlasBatchEntry> placement)
+    private void DrawAtlasTile(Image<Rgba32> atlasImage, bool[] atlasCoverage, int atlasWidth, NonDemAtlasPlacement<NonDemAtlasBatchEntry> placement)
     {
         for (int y = 0; y < placement.Entry.Tile.Image.Height; y++)
         {
@@ -704,15 +668,9 @@ internal sealed class NonDemCityObjectBaker(
         }
     }
 
-    private bool TryCreateAtlasLayout(
-        IReadOnlyList<AtlasBatchEntry> entries,
-        out NonDemAtlasLayout<AtlasBatchEntry>? layout)
+    private NonDemAtlasLayoutFactory CreateAtlasLayoutFactory()
     {
-        NonDemAtlasLayoutPacker packer = new(EffectiveMaxAtlasSize, tilePaddingPixels);
-        return packer.TryCreate(
-            entries,
-            static entry => new NonDemAtlasTileSize(entry.Tile.Image.Width, entry.Tile.Image.Height),
-            out layout);
+        return new NonDemAtlasLayoutFactory(EffectiveMaxAtlasSize, tilePaddingPixels);
     }
 
     private static ResoniteMaterialBinding CreateVertexColorMaterial(ResoniteMaterialBinding material, int submeshIndex)
@@ -774,13 +732,13 @@ internal sealed class NonDemCityObjectBaker(
         return new TextureUvRect(minU, minV, width, height);
     }
 
-    private static Rgba32 ComputeAtlasBackgroundColor(IReadOnlyList<NonDemAtlasPlacement<AtlasBatchEntry>> placements)
+    private static Rgba32 ComputeAtlasBackgroundColor(IReadOnlyList<NonDemAtlasPlacement<NonDemAtlasBatchEntry>> placements)
     {
         long sumR = 0;
         long sumG = 0;
         long sumB = 0;
         long totalWeight = 0;
-        foreach (NonDemAtlasPlacement<AtlasBatchEntry> placement in placements)
+        foreach (NonDemAtlasPlacement<NonDemAtlasBatchEntry> placement in placements)
         {
             long weight = Math.Max(1, placement.Entry.Tile.Image.Width * placement.Entry.Tile.Image.Height);
             sumR += placement.Entry.Tile.BackgroundColor.R * weight;
@@ -826,7 +784,7 @@ internal sealed class NonDemCityObjectBaker(
 
     private async Task EmitAtlasBatchAsync(
         NonDemSourceFileBatchKey sourceFileKey,
-        IReadOnlyList<CityObjectBakeCandidate> batchCandidates,
+        IReadOnlyList<NonDemCityObjectBakeCandidate> batchCandidates,
         int batchIndex,
         bool preservePrimaryIdentity,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
@@ -850,7 +808,7 @@ internal sealed class NonDemCityObjectBaker(
     }
 
     private async Task EmitFallbackCandidateAsync(
-        CityObjectBakeCandidate fallbackCandidate,
+        NonDemCityObjectBakeCandidate fallbackCandidate,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
@@ -865,25 +823,25 @@ internal sealed class NonDemCityObjectBaker(
         }
     }
 
-    private bool CanFitSingleCandidate(CityObjectBakeCandidate candidate)
+    private bool CanFitSingleCandidate(NonDemCityObjectBakeCandidate candidate)
     {
-        return candidate.AtlasEntries.Count == 0 || TryCreateAtlasLayout(candidate.AtlasEntries, out _);
+        return candidate.AtlasEntries.Count == 0 || CreateAtlasLayoutFactory().CanFit(candidate.AtlasEntries);
     }
 
     private bool CanAppendToAtlasBatch(
-        IReadOnlyList<CityObjectBakeCandidate> batchCandidates,
-        CityObjectBakeCandidate candidate)
+        IReadOnlyList<NonDemCityObjectBakeCandidate> batchCandidates,
+        NonDemCityObjectBakeCandidate candidate)
     {
-        List<AtlasBatchEntry> candidateEntries = [.. batchCandidates.SelectMany(static current => current.AtlasEntries), .. candidate.AtlasEntries];
-        return TryCreateAtlasLayout(candidateEntries, out _);
+        List<NonDemAtlasBatchEntry> candidateEntries = [.. batchCandidates.SelectMany(static current => current.AtlasEntries), .. candidate.AtlasEntries];
+        return CreateAtlasLayoutFactory().CanFit(candidateEntries);
     }
 
-    private static void DisposeCandidateImages(CityObjectBakeCandidate candidate)
+    private static void DisposeCandidateImages(NonDemCityObjectBakeCandidate candidate)
     {
         DisposeCandidateImages([candidate]);
     }
 
-    private static void DisposeCandidateImages(IReadOnlyList<CityObjectBakeCandidate> candidates)
+    private static void DisposeCandidateImages(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
     {
         foreach (Image<Rgba32> tileImage in candidates
                      .SelectMany(static candidate => candidate.AtlasEntries)
@@ -894,45 +852,9 @@ internal sealed class NonDemCityObjectBaker(
         }
     }
 
-    private sealed record MaterialAtlasTile(Image<Rgba32> Image, Rgba32 BackgroundColor);
-
-    private sealed record AtlasOrPreservedEntry(
-        AtlasBatchEntry? AtlasEntry,
-        PreservedSubmeshEntry? PreservedEntry);
-
-    private readonly record struct BufferedCityObject(
-        ResoniteConstructionCityObject CityObject,
-        NonDemCityObjectBakePolicy Policy);
-
-    private sealed record AtlasBatchEntry(
-        ResoniteConstructionCityObject CityObject,
-        ResoniteMeshSubmesh Submesh,
-        ResoniteMaterialBinding Material,
-        MaterialAtlasTile Tile,
-        TextureUvRect UvBounds);
-
-    private sealed record PreservedSubmeshEntry(
-        ResoniteConstructionCityObject CityObject,
-        ResoniteMeshSubmesh Submesh,
-        ResoniteMaterialBinding Material,
-        ResoniteColor? VertexColorOverride = null);
-
-    private sealed record OrderedPreservedSubmeshEntry(
-        PreservedSubmeshEntry Entry,
-        int Order);
-
-    private sealed record CityObjectBakeCandidate(
-        ResoniteConstructionCityObject CityObject,
-        IReadOnlyList<AtlasBatchEntry> AtlasEntries,
-        IReadOnlyList<PreservedSubmeshEntry> PreservedEntries);
-
-    private static bool RequiresBakeEmission(CityObjectBakeCandidate candidate)
+    private static bool RequiresBakeEmission(NonDemCityObjectBakeCandidate candidate)
     {
         return candidate.PreservedEntries.Any(static entry => entry.VertexColorOverride is not null);
     }
-
-    private sealed record AtlasBatchPlan(
-        IReadOnlyList<IReadOnlyList<CityObjectBakeCandidate>> Batches,
-        IReadOnlyList<CityObjectBakeCandidate> FallbackCandidates);
 
 }
