@@ -348,6 +348,20 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
+    public void FilterToDefinitions_RejectsDefinitionsOutsideCurrentActiveSet()
+    {
+        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
+        CommonMaterialDefinition activeDefinition = catalog.Generic.Uv.Definition;
+        CommonMaterialDefinition inactiveDefinition = catalog.VertexColor.Uv.Definition;
+        CommonMaterialCatalog<DefaultCommonMaterialMember> filtered = catalog.FilterToDefinitions([activeDefinition]);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => filtered.FilterToDefinitions([inactiveDefinition]));
+
+        Assert.Contains(inactiveDefinition.MemberName, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("not active", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Create_IncludesOnlyResolverReachableRoadAndGenericVariants()
     {
         IReadOnlyList<MaterialBinding> materials = CreateMaterialCatalog();

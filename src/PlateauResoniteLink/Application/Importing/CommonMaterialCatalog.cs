@@ -11,7 +11,6 @@ public sealed class CommonMaterialCatalog<TItem>
     private readonly CommonMaterialCatalogMember<TItem>[] allMembers;
     private readonly CommonMaterialCatalogMember<TItem>[] members;
     private readonly Dictionary<CommonMaterialDefinition, TItem> itemsByDefinition;
-    private readonly HashSet<CommonMaterialDefinition> knownDefinitions;
 
     internal CommonMaterialCatalog(Func<CommonMaterialDefinition, TItem> create)
         : this(create, activeDefinitions: null)
@@ -170,12 +169,6 @@ public sealed class CommonMaterialCatalog<TItem>
             : allMembers
                 .Where(member => activeDefinitions.Contains(member.Definition))
                 .ToArray();
-        knownDefinitions = new HashSet<CommonMaterialDefinition>(ReferenceEqualityComparer.Instance);
-        foreach (CommonMaterialCatalogMember<TItem> member in allMembers)
-        {
-            knownDefinitions.Add(member.Definition);
-        }
-
         itemsByDefinition = new Dictionary<CommonMaterialDefinition, TItem>(ReferenceEqualityComparer.Instance);
         foreach (CommonMaterialCatalogMember<TItem> member in members)
         {
@@ -282,9 +275,9 @@ public sealed class CommonMaterialCatalog<TItem>
         foreach (CommonMaterialDefinition definition in definitions)
         {
             ArgumentNullException.ThrowIfNull(definition);
-            if (!knownDefinitions.Contains(definition))
+            if (!itemsByDefinition.ContainsKey(definition))
             {
-                throw new ArgumentException($"Unknown common material definition '{definition.MemberName}'.", nameof(definitions));
+                throw new ArgumentException($"Common material definition '{definition.MemberName}' is not active in this catalog.", nameof(definitions));
             }
 
             activeDefinitions.Add(definition);
