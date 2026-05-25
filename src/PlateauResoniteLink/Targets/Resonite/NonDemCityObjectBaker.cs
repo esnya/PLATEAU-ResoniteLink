@@ -96,19 +96,24 @@ internal sealed class NonDemCityObjectBaker(
 
         int batchStartIndex = nextBatchIndexBySourceFile.GetValueOrDefault(sourceFileKey);
         int emittedCount = 0;
-        await sourceFileBakeEmitter.EmitAsync(
-            sourceFileKey,
-            cityObjects,
-            batchStartIndex,
-            async (bakedCityObject, callbackCancellationToken) =>
-            {
-                await onBakedCityObject(bakedCityObject, callbackCancellationToken);
-                emittedCount++;
-                BakedOutputCityObjectCount++;
-            },
-            cancellationToken);
-
-        nextBatchIndexBySourceFile[sourceFileKey] = batchStartIndex + emittedCount;
-        cityObjects.Clear();
+        try
+        {
+            await sourceFileBakeEmitter.EmitAsync(
+                sourceFileKey,
+                cityObjects,
+                batchStartIndex,
+                async (bakedCityObject, callbackCancellationToken) =>
+                {
+                    emittedCount++;
+                    await onBakedCityObject(bakedCityObject, callbackCancellationToken);
+                    BakedOutputCityObjectCount++;
+                },
+                cancellationToken);
+        }
+        finally
+        {
+            nextBatchIndexBySourceFile[sourceFileKey] = batchStartIndex + emittedCount;
+            cityObjects.Clear();
+        }
     }
 }
