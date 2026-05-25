@@ -111,6 +111,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
 
         PlateauImportRequest normalizedRequest = new(
@@ -167,6 +168,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
@@ -214,6 +216,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -298,6 +301,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 ResoniteLinkSendDiagnostics.Disabled,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning, new MissingCommonMaterialSetupInterpreter()),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -342,6 +346,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 ResoniteLinkSendDiagnostics.Disabled,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning, new MissingCommonMaterialSetupInterpreter()),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -409,6 +414,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 ResoniteLinkSendDiagnostics.Disabled,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(

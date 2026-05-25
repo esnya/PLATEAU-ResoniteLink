@@ -128,6 +128,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
 
         Assert.Same(diagnostics, importTarget.Diagnostics);
@@ -454,6 +455,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
     }
 

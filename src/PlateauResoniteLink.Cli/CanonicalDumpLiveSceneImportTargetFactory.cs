@@ -55,6 +55,7 @@ internal sealed class DefaultCanonicalDumpLiveSceneImportTargetFactory(
                     connectionInitializer,
                     setupInitializer,
                     runActivatorFactory.Create(workerLauncher)),
+                new ResoniteLiveSendContextFactory(),
                 queue));
     }
 
