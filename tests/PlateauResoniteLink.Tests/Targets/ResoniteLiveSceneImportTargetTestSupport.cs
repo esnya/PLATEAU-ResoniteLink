@@ -329,7 +329,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
                     new LiveSendRunPlanFactory(),
                     new LiveSendRunStateFactory(new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())),
-                    queuedCityObjectWorker,
+                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
                     new ResoniteSlotCreator()),
                 queue));
     }
