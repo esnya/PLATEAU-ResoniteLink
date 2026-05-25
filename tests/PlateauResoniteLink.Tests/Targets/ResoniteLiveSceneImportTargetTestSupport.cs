@@ -402,7 +402,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
             new ResoniteSceneMaterialPlanComposer(materialPlanning),
             new ResoniteBatchEmissionPlanner(),
-            new PlannedBatchEmissionInterpreter());
+            new PlannedBatchEmissionInterpreter(),
+            new ResoniteImportStepTaskCleanup());
     }
 
     private static async IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsAsync(

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -28,7 +27,8 @@ internal sealed class ResonitePreparedCityObjectImporter(
     IResoniteGeometryAssetPlanner geometryAssetPlanner,
     IResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer,
     IResoniteBatchEmissionPlanner batchEmissionPlanner,
-    IResoniteSceneBatchEmitter batchEmitter) : IResonitePreparedCityObjectImporter
+    IResoniteSceneBatchEmitter batchEmitter,
+    IResoniteImportStepTaskCleanup importStepTaskCleanup) : IResonitePreparedCityObjectImporter
 {
     public async Task ImportAsync(
         LiveSendRunState state,
@@ -96,19 +96,12 @@ internal sealed class ResonitePreparedCityObjectImporter(
         }
         catch
         {
-            try
-            {
-                await importStepCancellation.CancelAsync();
-            }
-            catch (AggregateException)
-            {
-                // Cancellation callbacks may throw; preserve the primary import failure and continue cleanup.
-            }
-
             IEnumerable<Task> tasksToObserve = materialPlanningTask is null
                 ? [uploadedTextureAssetsTask, geometryPlanningTask]
                 : [uploadedTextureAssetsTask, materialPlanningTask, geometryPlanningTask];
-            await ObserveTaskFailuresAsync(tasksToObserve);
+            await importStepTaskCleanup.CancelAndObserveFailuresAsync(
+                importStepCancellation,
+                tasksToObserve);
             throw;
         }
 
@@ -168,26 +161,6 @@ internal sealed class ResonitePreparedCityObjectImporter(
         }
 
         return generatedTerrainTexturesByOverlay;
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Design",
-        "CA1031:Do not catch general exception types",
-        Justification = "Best-effort cleanup should observe and suppress orphaned import task failures after the primary send failure.")]
-    private static async Task ObserveTaskFailureAsync(Task task)
-    {
-        try
-        {
-            await task;
-        }
-        catch
-        {
-        }
-    }
-
-    private static Task ObserveTaskFailuresAsync(IEnumerable<Task> tasks)
-    {
-        return Task.WhenAll(tasks.Select(ObserveTaskFailureAsync));
     }
 
     private static Task<T> AwaitWithCancellationAsync<T>(

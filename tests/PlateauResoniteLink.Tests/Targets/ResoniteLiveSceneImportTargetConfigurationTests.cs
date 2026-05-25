@@ -157,6 +157,18 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public void AddResoniteLiveSendTargetServicesRegistersImportStepTaskCleanup()
+    {
+        using ServiceProvider provider = new ServiceCollection()
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.IsType<ResoniteImportStepTaskCleanup>(
+            scope.ServiceProvider.GetRequiredService<IResoniteImportStepTaskCleanup>());
+    }
+
+    [Fact]
     public void AddResoniteLiveSendTargetServicesRegistersWorkerPipelineFactory()
     {
         using ServiceProvider provider = new ServiceCollection()
