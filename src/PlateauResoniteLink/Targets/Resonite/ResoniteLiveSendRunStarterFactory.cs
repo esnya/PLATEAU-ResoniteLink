@@ -15,6 +15,7 @@ internal interface IResoniteLiveSendRunStarterFactory
 internal sealed class ResoniteLiveSendRunStarterFactory(
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
     IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
+    IResoniteCommonMaterialSetupCachePrimer commonMaterialSetupCachePrimer,
     ILiveSendRunPlanFactory runPlanFactory,
     ILiveSendRunStateFactory runStateFactory,
     IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory,
@@ -30,6 +31,7 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
         return new ResoniteLiveSendRunStarter(
             sceneSetupInterpreter,
             commonMaterialSetupPreparer,
+            commonMaterialSetupCachePrimer,
             runPlanFactory,
             runStateFactory,
             workerLauncherFactory.Create(terrainTextureAssetHttpClient, options),
