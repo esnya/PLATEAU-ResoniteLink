@@ -256,8 +256,9 @@ internal sealed class DefaultCanonicalSceneDumpSinkFactory : ICanonicalSceneDump
                     serviceProvider.GetRequiredService<IResoniteLiveSendConnectionInitializer>(),
                     serviceProvider.GetRequiredService<IResoniteLiveSendSetupInitializer>(),
                     serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
-                    serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
-                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker)),
+                    new ResoniteLiveSendRunActivator(
+                        serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
+                        new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker))),
                 queue));
     }
 }

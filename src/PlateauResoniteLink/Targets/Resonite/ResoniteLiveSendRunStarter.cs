@@ -2,28 +2,9 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
-
-internal sealed record LiveSendRunStartRequest(
-    ResoniteSceneSetupInfo SetupInfo,
-    string WorkRoot,
-    CommonMaterialCatalog<DefaultCommonMaterialMember> CommonMaterials,
-    PlateauImportRequest NormalizedRequest,
-    ResoniteLocalOrigin RequestLocalOrigin,
-    ResoniteImportMemoryProfile MemoryProfile,
-    int ConnectionCount,
-    bool MeshBakeEnabled);
-
-internal sealed record LiveSendRunStartContext(
-    Uri Endpoint,
-    ILiveSendClientSession ClientSession,
-    ResoniteLinkSendDiagnostics Diagnostics,
-    Action<string>? ProgressReporter);
 
 internal interface IResoniteLiveSendRunStarter
 {
@@ -37,8 +18,7 @@ internal sealed class ResoniteLiveSendRunStarter(
     IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendSetupInitializer setupInitializer,
     ILiveSendRunPlanFactory runPlanFactory,
-    ILiveSendRunStateFactory runStateFactory,
-    IResoniteLiveSendWorkerLauncher workerLauncher) : IResoniteLiveSendRunStarter
+    IResoniteLiveSendRunActivator runActivator) : IResoniteLiveSendRunStarter
 {
     public async Task<LiveSendRunState> StartAsync(
         LiveSendRunStartRequest request,
@@ -74,21 +54,12 @@ internal sealed class ResoniteLiveSendRunStarter(
             context,
             runPlan,
             cancellationToken);
-        LiveSendRunState state = runStateFactory.Create(
+        return runActivator.Activate(
             runPlan,
-            setup.SetupState,
-            setup.Progress,
-            setup.Materials,
-            setup.Placement,
+            setup,
+            request,
+            context,
             cancellationToken);
-        workerLauncher.Launch(
-            new LiveSendWorkerLaunchRequest(
-                state,
-                runPlan.Queue,
-                runPlan.ResourceBudget,
-                request.ConnectionCount),
-            context);
-        return state;
     }
 
     private static void ReportProgress(

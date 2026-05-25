@@ -28,8 +28,9 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
             connectionInitializer,
             setupInitializer,
             runPlanFactory,
-            runStateFactory,
-            workerLauncherFactory.Create(terrainTextureAssetHttpClient, options));
+            new ResoniteLiveSendRunActivator(
+                runStateFactory,
+                workerLauncherFactory.Create(terrainTextureAssetHttpClient, options)));
     }
 }
 

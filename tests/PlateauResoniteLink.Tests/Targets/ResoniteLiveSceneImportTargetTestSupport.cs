@@ -363,10 +363,11 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                         new ResoniteCommonMaterialSetupCachePrimer(),
                         new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
                     new LiveSendRunPlanFactory(),
-                    new LiveSendRunStateFactory(
-                        new ResoniteBufferedCityObjectBakerFactory(
-                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
-                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker)),
+                    new ResoniteLiveSendRunActivator(
+                        new LiveSendRunStateFactory(
+                            new ResoniteBufferedCityObjectBakerFactory(
+                                new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
+                        new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker))),
                 queue));
     }
 
