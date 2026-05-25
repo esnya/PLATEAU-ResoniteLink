@@ -149,7 +149,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
     private static bool IsGeneratedLod1RoofSurface(ParsedSurface surface)
     {
         const string generatedToken = "_generated_";
-        int generatedTokenIndex = surface.PolygonId.IndexOf(generatedToken, StringComparison.Ordinal);
+        int generatedTokenIndex = surface.PolygonId.LastIndexOf(generatedToken, StringComparison.Ordinal);
         if (generatedTokenIndex < 0)
         {
             return false;
