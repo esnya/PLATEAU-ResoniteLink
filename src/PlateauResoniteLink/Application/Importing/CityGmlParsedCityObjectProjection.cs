@@ -6,7 +6,6 @@ using System.Threading;
 using PlateauResoniteLink.Domain.Importing;
 
 using LocalCartesian = GeographicLib.LocalCartesian;
-using ProjectionSurface = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedSurface;
 
 namespace PlateauResoniteLink.Application.Importing;
 
@@ -410,14 +409,8 @@ internal static class CityGmlParsedCityObjectProjection
             return [surface];
         }
 
-        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(
-            CityGmlProjectionModelAdapter.ToProjectionModel(surface.ExteriorRing),
-            positions);
-        List<ProjectionSurface> strips = TerrainAlignedTransportationSurfaceSplitter.Split(
-            CityGmlProjectionModelAdapter.ToProjectionModel(surface),
-            positions,
-            edgePair);
-        return strips.Select(CityGmlProjectionModelAdapter.FromProjectionModel).ToList();
+        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(surface.ExteriorRing, positions);
+        return TerrainAlignedTransportationSurfaceSplitter.Split(surface, positions, edgePair);
     }
 
     private static bool ShouldSubdivideTerrainAlignedCityObject(string packageName, int? lodLevel)

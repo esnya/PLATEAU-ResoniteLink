@@ -76,7 +76,7 @@ internal static class GeneratedRoadMarkingCityObjectFactory
             return [];
         }
 
-        ParsedEdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(vertices, positions);
+        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(vertices, positions);
         if (edgePair.Length < 1.0 || edgePair.Width < 0.3)
         {
             return [];

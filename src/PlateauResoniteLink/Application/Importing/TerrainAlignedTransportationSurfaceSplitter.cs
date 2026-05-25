@@ -2,10 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-using ProjectionGeodeticPoint = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.GeodeticPoint;
-using ProjectionParsedRing = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedRing;
-using ProjectionParsedSurface = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedSurface;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class TerrainAlignedTransportationSurfaceSplitter
@@ -14,8 +10,8 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
     internal const double MinSegmentLengthMeters = 2.0;
     internal const double SegmentLengthByWidthRatio = 0.8;
 
-    internal static List<ProjectionParsedSurface> Split(
-        ProjectionParsedSurface surface,
+    internal static List<ParsedSurface> Split(
+        ParsedSurface surface,
         Float3[] positions,
         EdgePairSelection edgePair)
     {
@@ -29,7 +25,7 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
             return [surface];
         }
 
-        List<ProjectionParsedSurface> strips = CreateStrips(surface, positions, edgePair, segmentLength);
+        List<ParsedSurface> strips = CreateStrips(surface, positions, edgePair, segmentLength);
         return strips.Count > 0 ? strips : [surface];
     }
 
@@ -42,8 +38,8 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
             DefaultSegmentLengthMeters);
     }
 
-    private static List<ProjectionParsedSurface> CreateStrips(
-        ProjectionParsedSurface surface,
+    private static List<ParsedSurface> CreateStrips(
+        ParsedSurface surface,
         Float3[] positions,
         EdgePairSelection edgePair,
         double segmentLength)
@@ -82,7 +78,7 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
             }
         }
 
-        List<ProjectionParsedSurface> strips = [];
+        List<ParsedSurface> strips = [];
         for (int index = 1; index < slices.Count; index++)
         {
             SurfaceSliceSample[] previousSamples = slices[index - 1].Samples;
@@ -120,8 +116,8 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
         return strips;
     }
 
-    private static ProjectionParsedSurface CreateStripSurface(
-        ProjectionParsedSurface sourceSurface,
+    private static ParsedSurface CreateStripSurface(
+        ParsedSurface sourceSurface,
         string suffix,
         params SurfaceSliceSample[] samples)
     {
@@ -143,7 +139,7 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
         return sourceSurface with
         {
             PolygonId = $"{sourceSurface.PolygonId}_{suffix}",
-            ExteriorRing = new ProjectionParsedRing(
+            ExteriorRing = new ParsedRing(
                 $"{sourceSurface.ExteriorRing.RingId}_{suffix}",
                 [.. samples.Select(static sample => sample.Point)],
                 uvs),
@@ -151,7 +147,7 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
     }
 
     private static SurfaceSliceSample[] IntersectAtStation(
-        ProjectionParsedRing ring,
+        ParsedRing ring,
         Float3[] positions,
         Float3 axis,
         double station)
@@ -183,7 +179,7 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
             }
 
             ratio = Math.Clamp(ratio, 0.0, 1.0);
-            ProjectionGeodeticPoint point = InterpolateAlongEdge(ring.Vertices[index], ring.Vertices[nextIndex], ratio);
+            GeodeticPoint point = InterpolateAlongEdge(ring.Vertices[index], ring.Vertices[nextIndex], ratio);
             TryAddSliceSample(intersections, ring, positions, lateralAxis, index, point, ratio);
         }
 
@@ -193,11 +189,11 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
 
     private static void TryAddSliceSample(
         List<SurfaceSliceSample> intersections,
-        ProjectionParsedRing ring,
+        ParsedRing ring,
         Float3[] positions,
         Float3 lateralAxis,
         int edgeStartIndex,
-        ProjectionGeodeticPoint point,
+        GeodeticPoint point,
         double ratio)
     {
         if (intersections.Any(existing => AreSamePoint(existing.Point, point)))
@@ -235,12 +231,12 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
         return NormalizeHorizontal(Add(side0Vector, side1Vector));
     }
 
-    private static ProjectionGeodeticPoint InterpolateAlongEdge(
-        ProjectionGeodeticPoint start,
-        ProjectionGeodeticPoint end,
+    private static GeodeticPoint InterpolateAlongEdge(
+        GeodeticPoint start,
+        GeodeticPoint end,
         double ratio)
     {
-        return new ProjectionGeodeticPoint(
+        return new GeodeticPoint(
             start.Latitude + ((end.Latitude - start.Latitude) * ratio),
             start.Longitude + ((end.Longitude - start.Longitude) * ratio),
             start.Altitude + ((end.Altitude - start.Altitude) * ratio));
@@ -292,7 +288,7 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
             source.Y + ((target.Y - source.Y) * ratio));
     }
 
-    private static bool AreSamePoint(ProjectionGeodeticPoint left, ProjectionGeodeticPoint right)
+    private static bool AreSamePoint(GeodeticPoint left, GeodeticPoint right)
     {
         return Math.Abs(left.Latitude - right.Latitude) < 1e-8
             && Math.Abs(left.Longitude - right.Longitude) < 1e-8
@@ -300,7 +296,7 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
     }
 
     private readonly record struct SurfaceSliceSample(
-        ProjectionGeodeticPoint Point,
+        GeodeticPoint Point,
         Float2? UV,
         double LateralPosition);
 }

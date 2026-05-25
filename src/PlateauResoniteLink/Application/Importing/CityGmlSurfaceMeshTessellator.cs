@@ -9,10 +9,6 @@ using LibTessDotNet;
 
 using PlateauResoniteLink.Domain.Importing;
 
-using ProjectionPoint = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.GeodeticPoint;
-using ProjectionRing = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedRing;
-using ProjectionSurface = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedSurface;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class CityGmlSurfaceMeshTessellator
@@ -221,8 +217,8 @@ internal static class CityGmlSurfaceMeshTessellator
     }
 
     private static List<TessellatedRing> CreateSurfaceTessellatedRings(
-        ProjectionSurface surface,
-        ProjectionPoint cityObjectOrigin,
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         DemUvProjection? generatedDemUvProjection,
         SurfaceUvProjection? generatedSurfaceUvProjection,
@@ -249,8 +245,8 @@ internal static class CityGmlSurfaceMeshTessellator
     }
 
     private static TessellatedRing CreateTessellatedRing(
-        ProjectionRing ring,
-        ProjectionPoint cityObjectOrigin,
+        ParsedRing ring,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         DemUvProjection? generatedDemUvProjection,
         SurfaceUvProjection? generatedSurfaceUvProjection,
@@ -272,7 +268,7 @@ internal static class CityGmlSurfaceMeshTessellator
     }
 
     private static Float2 CreateGeneratedDemUv(
-        ProjectionPoint point,
+        GeodeticPoint point,
         DemUvProjection demUvProjection)
     {
         double pointX = WebMercatorTileMath.LongitudeToNormalizedX(point.Longitude);
@@ -284,9 +280,9 @@ internal static class CityGmlSurfaceMeshTessellator
     }
 
     private static SurfaceUvProjection? CreateGeneratedSurfaceUvProjection(
-        ProjectionSurface surface,
+        ParsedSurface surface,
         string packageName,
-        ProjectionPoint cityObjectOrigin,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         FacadeUvProjectionContext? facadeUvProjectionContext)
     {
@@ -326,8 +322,8 @@ internal static class CityGmlSurfaceMeshTessellator
     }
 
     private static Float2 CreateGeneratedSurfaceUv(
-        ProjectionPoint point,
-        ProjectionPoint cityObjectOrigin,
+        GeodeticPoint point,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         SurfaceUvProjection projection)
     {
@@ -575,8 +571,8 @@ internal static class CityGmlSurfaceMeshTessellator
     }
 
     private static Float3 CreateScenePosition(
-        ProjectionPoint point,
-        ProjectionPoint origin,
+        GeodeticPoint point,
+        GeodeticPoint origin,
         LocalCartesian? cartesian)
     {
         return SceneAxisMapper.CreatePosition(
@@ -663,9 +659,9 @@ internal static class CityGmlSurfaceMeshTessellator
 
 internal sealed record SurfaceMeshTessellationRequest(
     string PackageName,
-    ProjectionSurface Surface,
+    ParsedSurface Surface,
     ResolvedMaterial Material,
-    ProjectionPoint CityObjectOrigin,
+    GeodeticPoint CityObjectOrigin,
     LocalCartesian? CityObjectCartesian,
     FacadeUvProjectionContext? FacadeUvProjectionContext,
     DemUvProjection? DemUvProjection);

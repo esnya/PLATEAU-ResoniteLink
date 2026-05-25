@@ -81,7 +81,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
                         cityObject.PackageName,
                         resolvedSurface.Surface,
                         resolvedSurface.Material,
-                        cityObjectOrigin.ToProjectionModel(),
+                        cityObjectOrigin,
                         cityObjectCartesian,
                         facadeUvProjectionContext,
                         demUvProjection));
