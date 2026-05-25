@@ -17,12 +17,10 @@ internal interface IResoniteLiveSendRunStarterFactory
 }
 
 internal sealed class ResoniteLiveSendRunStarterFactory(
-    IResoniteSceneSetupInterpreter sceneSetupInterpreter,
-    IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
     ILiveSendRunPlanFactory runPlanFactory,
+    IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     ILiveSendRunStateFactory runStateFactory,
-    IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory,
-    IResoniteSlotCreator slotCreator) : IResoniteLiveSendRunStarterFactory
+    IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory) : IResoniteLiveSendRunStarterFactory
 {
     public IResoniteLiveSendRunStarter Create(
         HttpClient terrainTextureAssetHttpClient,
@@ -56,12 +54,10 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
         ArgumentNullException.ThrowIfNull(options);
 
         return new ResoniteLiveSendRunStarter(
-            sceneSetupInterpreter,
-            commonMaterialSetupPreparer,
             runPlanFactory,
+            runSetupPreparer,
             runStateFactory,
-            workerLauncher,
-            slotCreator);
+            workerLauncher);
     }
 }
 

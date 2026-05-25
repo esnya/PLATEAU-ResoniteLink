@@ -363,14 +363,15 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         Action<string>? progressReporter = null)
     {
         return new ResoniteLiveSendRunStarter(
-            sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-            new ResoniteCommonMaterialSetupPreparer(materialPlanning),
             new LiveSendRunPlanFactory(),
+            new ResoniteLiveSendRunSetupPreparer(
+                sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
+                new ResoniteCommonMaterialSetupPreparer(materialPlanning),
+                new ResoniteSlotCreator()),
             new LiveSendRunStateFactory(
                 new ResoniteBufferedCityObjectBakerFactory(
                     new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
-            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning, terrainTextureAssetGenerator)),
-            new ResoniteSlotCreator());
+            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning, terrainTextureAssetGenerator)));
     }
 
     public static ResoniteLiveSendQueue CreateQueue()
