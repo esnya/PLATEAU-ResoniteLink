@@ -128,17 +128,16 @@ public sealed class LocalCityGmlObjectProjectionTests
             LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Wall,
             [.. wallVertices, wallVertices[0]]);
 
-        object projection = CreateGeneratedSurfaceUvProjectionForTest(wallSurface, "bldg", origin, cartesian);
-        Float2 uvOrigin = CreateGeneratedSurfaceUvForTest(origin, origin, cartesian, projection);
-        Float2 uvHorizontal = CreateGeneratedSurfaceUvForTest(wallVertices[1], origin, cartesian, projection);
-        Float2 uvVertical = CreateGeneratedSurfaceUvForTest(wallVertices[3], origin, cartesian, projection);
+        MeshVertex[] vertices = TessellateSurfaceForTest(wallSurface, "bldg", origin, cartesian).Vertices;
+        double uSpan = vertices.Max(static vertex => vertex.UV0.X) - vertices.Min(static vertex => vertex.UV0.X);
+        double vSpan = vertices.Max(static vertex => vertex.UV0.Y) - vertices.Min(static vertex => vertex.UV0.Y);
 
         Assert.InRange(
-            Math.Abs(uvHorizontal.X - uvOrigin.X),
+            Math.Abs(uSpan),
             0.95,
             1.05);
         Assert.InRange(
-            Math.Abs(uvVertical.Y - uvOrigin.Y),
+            Math.Abs(vSpan),
             0.95,
             1.05);
     }
@@ -166,7 +165,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Wall,
             [.. wallVertices, wallVertices[0]]);
 
-        object projection = CreateGeneratedSurfaceUvProjectionForTest(
+        MeshVertex[] vertices = TessellateSurfaceForTest(
             wallSurface,
             "bldg",
             origin,
@@ -174,12 +173,20 @@ public sealed class LocalCityGmlObjectProjectionTests
             minimumY: 0.0,
             maximumY: 7.0,
             floorHeightMeters: 3.5,
-            floorCount: 2);
-        Float2 uvBottom = CreateGeneratedSurfaceUvForTest(origin, origin, cartesian, projection);
-        Float2 uvTop = CreateGeneratedSurfaceUvForTest(wallVertices[3], origin, cartesian, projection);
+            floorCount: 2).Vertices;
+        double uvBottomY = vertices
+            .Where(static vertex => Math.Abs(vertex.Position.Y) < 1e-6)
+            .Select(static vertex => vertex.UV0.Y)
+            .Distinct()
+            .Single();
+        double uvTopY = vertices
+            .Where(static vertex => Math.Abs(vertex.Position.Y - 7.0) < 1e-6)
+            .Select(static vertex => vertex.UV0.Y)
+            .Distinct()
+            .Single();
 
-        Assert.Equal(0.0, uvBottom.Y, 6);
-        Assert.Equal(2.0, uvTop.Y, 6);
+        Assert.Equal(0.0, uvBottomY, 6);
+        Assert.Equal(2.0, uvTopY, 6);
     }
 
     [Fact]
@@ -3249,7 +3256,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         return min + ((max - min) * ratio);
     }
 
-    private static object CreateGeneratedSurfaceUvProjectionForTest(
+    private static SurfaceMeshTessellation TessellateSurfaceForTest(
         LocalCityGmlObjectProjection.ParsedSurface surface,
         string packageName,
         LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
@@ -3259,38 +3266,32 @@ public sealed class LocalCityGmlObjectProjectionTests
         double? floorHeightMeters = null,
         int floorCount = 1)
     {
-        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
-                "CreateGeneratedSurfaceUvProjection",
-                BindingFlags.NonPublic | BindingFlags.Static)
-            ?? throw new InvalidOperationException("Failed to resolve CreateGeneratedSurfaceUvProjection.");
-        Type contextType = typeof(LocalCityGmlObjectProjection).GetNestedType(
-                "FacadeUvProjectionContext",
-                BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Failed to resolve FacadeUvProjectionContext.");
-        object? context = string.Equals(packageName, "bldg", StringComparison.Ordinal)
+        FacadeUvProjectionContext? context = string.Equals(packageName, "bldg", StringComparison.Ordinal)
             || string.Equals(packageName, "ubld", StringComparison.Ordinal)
-                ? Activator.CreateInstance(
-                    contextType,
+                ? new FacadeUvProjectionContext(
                     minimumY,
                     maximumY ?? minimumY + (floorHeightMeters ?? FacadeFloorMetrics.DefaultFloorUnitMeters) * floorCount,
                     floorHeightMeters ?? FacadeFloorMetrics.DefaultFloorUnitMeters,
                     floorCount)
                 : null;
-        return method.Invoke(null, [surface, packageName, cityObjectOrigin, cartesian, context])!
-            ?? throw new InvalidOperationException("CreateGeneratedSurfaceUvProjection returned null.");
-    }
-
-    private static Float2 CreateGeneratedSurfaceUvForTest(
-        LocalCityGmlObjectProjection.GeodeticPoint point,
-        LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
-        GeographicLib.LocalCartesian cartesian,
-        object projection)
-    {
-        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
-                "CreateGeneratedSurfaceUv",
-                BindingFlags.NonPublic | BindingFlags.Static)
-            ?? throw new InvalidOperationException("Failed to resolve CreateGeneratedSurfaceUv.");
-        return (Float2)method.Invoke(null, [point, cityObjectOrigin, cartesian, projection])!;
+        ResolvedMaterial material = new(
+            MaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind.Bundled,
+            MaterialProjection.Uv,
+            Family: null,
+            TextureScale: null,
+            ReuseScope: MaterialReuseScope.PerObject);
+        return CityGmlSurfaceMeshTessellator.Tessellate(new SurfaceMeshTessellationRequest(
+            packageName,
+            surface,
+            material,
+            cityObjectOrigin,
+            cartesian,
+            cityObjectOrigin,
+            cartesian,
+            context,
+            DemUvProjection: null));
     }
 
     private static LocalCityGmlObjectProjection.ParsedSurface CreateParsedSurface(
