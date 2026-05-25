@@ -149,7 +149,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             CreateExecutionPlan(
                 metadata,
                 workDirectory,
-                commonMaterials: commonMaterials ?? CreateReferencedCommonMaterials(cityObjects, enableMeshBake: true)),
+                commonMaterials: commonMaterials ?? CreateReferencedCommonMaterials(cityObjects, importTarget.MeshBakeEnabled)),
             CreateImportedObjectUnitsAsync(cityObjects, cancellationToken),
             cancellationToken);
     }
