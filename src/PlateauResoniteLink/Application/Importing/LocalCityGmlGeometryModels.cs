@@ -63,20 +63,20 @@ internal sealed record TerrainHeightTriangle(
     GeodeticPoint Vertex1,
     GeodeticPoint Vertex2)
 {
-    internal LocalCityGmlObjectProjection.TerrainHeightTriangle ToProjectionModel()
+    internal ProjectionTerrainHeightTriangle ToProjectionModel()
     {
-        return new LocalCityGmlObjectProjection.TerrainHeightTriangle(
-            Vertex0.ToProjectionModel(),
-            Vertex1.ToProjectionModel(),
-            Vertex2.ToProjectionModel());
+        return new ProjectionTerrainHeightTriangle(
+            Vertex0,
+            Vertex1,
+            Vertex2);
     }
 
-    internal static TerrainHeightTriangle FromProjectionModel(LocalCityGmlObjectProjection.TerrainHeightTriangle triangle)
+    internal static TerrainHeightTriangle FromProjectionModel(ProjectionTerrainHeightTriangle triangle)
     {
         return new TerrainHeightTriangle(
-            GeodeticPoint.FromProjectionModel(triangle.Vertex0),
-            GeodeticPoint.FromProjectionModel(triangle.Vertex1),
-            GeodeticPoint.FromProjectionModel(triangle.Vertex2));
+            triangle.Vertex0,
+            triangle.Vertex1,
+            triangle.Vertex2);
     }
 }
 
@@ -180,19 +180,19 @@ internal sealed record CoordinateReferenceSystem(
 
 internal sealed class TerrainHeightSampler
 {
-    private readonly LocalCityGmlObjectProjection.TerrainHeightSampler projectionSampler;
+    private readonly ProjectionTerrainHeightSampler projectionSampler;
 
-    internal TerrainHeightSampler(LocalCityGmlObjectProjection.TerrainHeightSampler projectionSampler)
+    internal TerrainHeightSampler(ProjectionTerrainHeightSampler projectionSampler)
     {
         this.projectionSampler = projectionSampler;
     }
 
-    internal static TerrainHeightSampler? FromProjectionModel(LocalCityGmlObjectProjection.TerrainHeightSampler? terrainHeightSampler)
+    internal static TerrainHeightSampler? FromProjectionModel(ProjectionTerrainHeightSampler? terrainHeightSampler)
     {
         return terrainHeightSampler is null ? null : new TerrainHeightSampler(terrainHeightSampler);
     }
 
-    internal LocalCityGmlObjectProjection.TerrainHeightSampler ToProjectionModel()
+    internal ProjectionTerrainHeightSampler ToProjectionModel()
     {
         return projectionSampler;
     }
@@ -203,9 +203,9 @@ internal sealed class TerrainHeightSampler
         Geocentric geocentric)
     {
         return new TerrainHeightSampler(
-            LocalCityGmlObjectProjection.TerrainHeightSampler.Create(
+            ProjectionTerrainHeightSampler.Create(
                 terrainTriangles.Select(static triangle => triangle.ToProjectionModel()).ToArray(),
-                globalOriginPoint.ToProjectionModel(),
+                globalOriginPoint,
                 geocentric));
     }
 }
