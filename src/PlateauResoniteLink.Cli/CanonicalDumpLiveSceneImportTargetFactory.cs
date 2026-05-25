@@ -1,6 +1,5 @@
 using System;
 
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 using PlateauResoniteLink.Targets.Resonite.Execution;
@@ -37,12 +36,7 @@ internal sealed class DefaultCanonicalDumpLiveSceneImportTargetFactory(
             new Uri("ws://localhost:1/"),
             ConnectionCount: 1,
             EnableSendMetrics: false,
-            options.MemoryProfile switch
-            {
-                PlateauImportMemoryProfile.Small => ResoniteImportMemoryProfile.Small,
-                PlateauImportMemoryProfile.Large => ResoniteImportMemoryProfile.Large,
-                _ => throw new ArgumentOutOfRangeException(nameof(options), options.MemoryProfile, "Unsupported memory profile."),
-            },
+            CliResoniteTargetOptions.MapMemoryProfile(options.MemoryProfile, nameof(options)),
             options.EnableMeshBake,
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: true,

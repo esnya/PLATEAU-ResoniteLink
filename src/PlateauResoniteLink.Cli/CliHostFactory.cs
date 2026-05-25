@@ -10,7 +10,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 namespace PlateauResoniteLink.Cli;
@@ -152,12 +151,7 @@ internal sealed class DefaultSceneSinkFactory(
                 options.ResoniteLinkUri!,
                 options.ResoniteLinkConnectionCount,
                 options.EnableSendMetrics,
-                options.MemoryProfile switch
-                {
-                    PlateauImportMemoryProfile.Small => ResoniteImportMemoryProfile.Small,
-                    PlateauImportMemoryProfile.Large => ResoniteImportMemoryProfile.Large,
-                    _ => throw new ArgumentOutOfRangeException(nameof(options), options.MemoryProfile, "Unsupported memory profile."),
-                },
+                CliResoniteTargetOptions.MapMemoryProfile(options.MemoryProfile, nameof(options)),
                 options.EnableMeshBake,
                 options.TerrainTileCacheRoot,
                 options.DisableTerrainTileCache,
