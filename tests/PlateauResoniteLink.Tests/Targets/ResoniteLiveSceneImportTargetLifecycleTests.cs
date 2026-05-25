@@ -115,6 +115,50 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_DoesNotLaunchWorkersWhenRunSetupFails()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneSinkRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
+        RecordingWorkerLauncher workerLauncher = new();
+        await using ResoniteLiveSceneImportTarget importTarget = new(
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                ResoniteImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
+            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
+                session,
+                diagnostics,
+                new ResoniteLiveSendRunStarter(
+                    new LiveSendRunPlanFactory(),
+                    new ThrowingRunSetupPreparer(),
+                    new LiveSendRunStateFactory(
+                        new ResoniteBufferedCityObjectBakerFactory(
+                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
+                    workerLauncher)));
+
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(
+            request,
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => importTarget.ExecuteAsync(
+                ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
+                EmptyImportedObjectUnits()));
+        Assert.Equal("setup failed", exception.Message);
+        Assert.Equal(1, session.EnsureConnectedCallCount);
+        Assert.Equal(0, workerLauncher.LaunchCallCount);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_RejectsConcurrentRunsBeforeSetupCompletes()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -1219,6 +1263,36 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteMeshSubmesh(0, [0, 1, 2]),
                 new ResoniteMeshSubmesh(1, [3, 4, 5]),
             ]);
+    }
+
+    private sealed class ThrowingRunSetupPreparer : IResoniteLiveSendRunSetupPreparer
+    {
+        public Task<LiveSendPreparedRunSetup> PrepareAsync(
+            LiveSendRunPlan runPlan,
+            LiveSendRunStartRequest request,
+            LiveSendRunStartContext context,
+            CancellationToken cancellationToken)
+        {
+            _ = runPlan;
+            _ = request;
+            _ = context;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromException<LiveSendPreparedRunSetup>(new InvalidOperationException("setup failed"));
+        }
+    }
+
+    private sealed class RecordingWorkerLauncher : IResoniteLiveSendWorkerLauncher
+    {
+        public int LaunchCallCount { get; private set; }
+
+        public void Launch(
+            LiveSendWorkerLaunchRequest request,
+            LiveSendRunStartContext context)
+        {
+            _ = request;
+            _ = context;
+            LaunchCallCount++;
+        }
     }
 
     private sealed class MissingCommonMaterialSetupInterpreter : IResoniteSceneSetupInterpreter
