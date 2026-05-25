@@ -37,8 +37,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         IResoniteMaterialPlanning materialPlanning)
     {
         return new ResonitePreparedCityObjectImporter(
-            new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
-            new ResoniteSceneMaterialPlanComposer(materialPlanning),
+            new ResonitePreparedCityObjectAssetPlanner(
+                new ResonitePreparedTextureUploader(new ResoniteSharedTerrainTextureAssetWriter()),
+                new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
+                new ResoniteSceneMaterialPlanComposer(materialPlanning)),
             new ResoniteBatchEmissionPlanner(),
             new PlannedBatchEmissionInterpreter());
     }

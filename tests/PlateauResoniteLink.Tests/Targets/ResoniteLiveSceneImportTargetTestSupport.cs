@@ -330,8 +330,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
                     new ResoniteDatasetLicenseWriter()),
                 new ResonitePreparedCityObjectImporter(
-                    new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
-                    new ResoniteSceneMaterialPlanComposer(materialPlanning),
+                    new ResonitePreparedCityObjectAssetPlanner(
+                        new ResonitePreparedTextureUploader(new ResoniteSharedTerrainTextureAssetWriter()),
+                        new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
+                        new ResoniteSceneMaterialPlanComposer(materialPlanning)),
                     new ResoniteBatchEmissionPlanner(),
                     new PlannedBatchEmissionInterpreter())));
         return new ResoniteLiveSceneImportTarget(

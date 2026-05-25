@@ -1,12 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Logging;
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -25,11 +22,13 @@ internal interface IResonitePreparedCityObjectImporter
 }
 
 internal sealed class ResonitePreparedCityObjectImporter(
-    IResoniteGeometryAssetPlanner geometryAssetPlanner,
-    IResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer,
+    IResonitePreparedCityObjectAssetPlanner assetPlanner,
     IResoniteBatchEmissionPlanner batchEmissionPlanner,
     IResoniteSceneBatchEmitter batchEmitter) : IResonitePreparedCityObjectImporter
 {
+    private readonly IResonitePreparedCityObjectAssetPlanner assetPlanner =
+        assetPlanner ?? throw new ArgumentNullException(nameof(assetPlanner));
+
     public async Task ImportAsync(
         LiveSendRunState state,
         IResoniteLinkClient routedClient,
@@ -54,64 +53,21 @@ internal sealed class ResonitePreparedCityObjectImporter(
             queuedCityObject.ObjectHierarchyTask,
             cancellationToken);
         slotHierarchyStopwatch.Stop();
-        using CancellationTokenSource importStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay =
-            CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
-        Task<ResoniteUploadedTextureAssetSet> uploadedTextureAssetsTask = ResonitePreparedTextureUploader.UploadAsync(
+        PreparedCityObjectAssetPlan assetPlan = await assetPlanner.PlanAsync(
             state,
             routedClient,
             preparedCityObject,
-            importStepCancellation.Token);
-        Stopwatch geometryStopwatch = Stopwatch.StartNew();
-        Task<PlannedGeometryAsset> geometryPlanningTask = geometryAssetPlanner.PlanAsync(
-            routedClient,
-            cityObject,
-            preparedCityObject,
-            preparedTerrainTextureDataByOverlay,
-            progressReporter,
-            importStepCancellation.Token);
-        Stopwatch materialStopwatch = new();
-        Task<PlannedSceneMaterialPlan>? materialPlanningTask = null;
-        PlannedSceneMaterialPlan plannedMaterials;
-        PlannedGeometryAsset plannedGeometryAsset;
-        try
-        {
-            ResoniteUploadedTextureAssetSet uploadedTextureAssets = await uploadedTextureAssetsTask;
-            materialStopwatch.Start();
-            materialPlanningTask = sceneMaterialPlanComposer.ComposeAsync(
-                state,
-                routedClient,
-                cityObject,
-                uploadedTextureAssets.TextureUrisByPayload,
-                uploadedTextureAssets.TerrainTextureUrisByOverlay,
-                uploadedTextureAssets.TerrainTexturePropertyBlockComponentsByMeshCode,
-                message => ReportImportStep(progressReporter, cityObject, message),
-                importStepCancellation.Token);
-            plannedMaterials = await materialPlanningTask;
-            materialStopwatch.Stop();
-
-            ReportImportStep(progressReporter, cityObject, $"Preparing geometry assets ({PreparedConstructionGeometryFormatter.Describe(preparedCityObject.Geometry)}).");
-            plannedGeometryAsset = await geometryPlanningTask;
-            geometryStopwatch.Stop();
-        }
-        catch
-        {
-            await importStepCancellation.CancelAsync();
-            IEnumerable<Task> tasksToObserve = materialPlanningTask is null
-                ? [uploadedTextureAssetsTask, geometryPlanningTask]
-                : [uploadedTextureAssetsTask, materialPlanningTask, geometryPlanningTask];
-            await ObserveTaskFailuresAsync(tasksToObserve);
-            throw;
-        }
+            message => ReportImportStep(progressReporter, cityObject, message),
+            cancellationToken);
 
         PlannedSceneObjectEmission emissionPlan = new(
-            plannedGeometryAsset,
-            plannedMaterials.MaterialAssets,
+            assetPlan.GeometryAsset,
+            assetPlan.Materials.MaterialAssets,
             new PlannedRenderer(
-                plannedGeometryAsset.Identity,
-                plannedMaterials.RendererMaterialBindings),
+                assetPlan.GeometryAsset.Identity,
+                assetPlan.Materials.RendererMaterialBindings),
             new PlannedCollider(
-                plannedGeometryAsset.Identity,
+                assetPlan.GeometryAsset.Identity,
                 cityObject.CollisionEnabled));
         PlannedBatchEmission batchEmission = batchEmissionPlanner.Create(objectSlots, emissionPlan);
 
@@ -132,8 +88,8 @@ internal sealed class ResonitePreparedCityObjectImporter(
                 "live",
                 $"City object '{cityObject.DisplayName}' phase timings: "
                 + $"slot_hierarchy_s={slotHierarchyStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"geometry_assets_s={geometryStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"materials_s={materialStopwatch.Elapsed.TotalSeconds:F3} "
+                + $"geometry_assets_s={assetPlan.GeometryAssetSeconds:F3} "
+                + $"materials_s={assetPlan.MaterialSeconds:F3} "
                 + $"batch_s={batchStopwatch.Elapsed.TotalSeconds:F3} "
                 + $"total_send_s={cityObjectStopwatch.Elapsed.TotalSeconds:F3}."));
         sendScope.MarkSent();
@@ -145,41 +101,6 @@ internal sealed class ResonitePreparedCityObjectImporter(
                     $"First city object imported after {state.Runtime.ElapsedTotalSeconds:F3}s: "
                     + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})"));
         }
-    }
-
-    private static Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> CreatePreparedTerrainTextureDataByOverlay(
-        PreparedCityObject preparedCityObject)
-    {
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> generatedTerrainTexturesByOverlay = [];
-        foreach (PreparedTextureReference texture in preparedCityObject.Textures)
-        {
-            if (texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
-            {
-                generatedTerrainTexturesByOverlay.TryAdd(texture.TerrainOverlay, texture.GeneratedTerrainTexture);
-            }
-        }
-
-        return generatedTerrainTexturesByOverlay;
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Design",
-        "CA1031:Do not catch general exception types",
-        Justification = "Best-effort cleanup should observe and suppress orphaned import task failures after the primary send failure.")]
-    private static async Task ObserveTaskFailureAsync(Task task)
-    {
-        try
-        {
-            await task;
-        }
-        catch
-        {
-        }
-    }
-
-    private static Task ObserveTaskFailuresAsync(IEnumerable<Task> tasks)
-    {
-        return Task.WhenAll(tasks.Select(ObserveTaskFailureAsync));
     }
 
     private static Task<T> AwaitWithSlowCityObjectWarningAsync<T>(
