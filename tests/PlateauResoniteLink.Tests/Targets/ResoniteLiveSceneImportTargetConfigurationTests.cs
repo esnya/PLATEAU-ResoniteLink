@@ -20,59 +20,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 {
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
 
-    private static ResoniteCommonMaterialSetupPreparer CreateCommonMaterialSetupPreparer(
-        IResoniteMaterialPlanning materialPlanning,
-        Action<string>? progressReporter = null)
-    {
-        return new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter);
-    }
-
-    private static LiveSendRunStateFactory CreateRunStateFactory()
-    {
-        return new LiveSendRunStateFactory(
-            new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader()));
-    }
-
-    private static ResonitePreparedCityObjectImporter CreatePreparedCityObjectImporter(
-        IResoniteMaterialPlanning materialPlanning)
-    {
-        return new ResonitePreparedCityObjectImporter(
-            new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
-            new ResoniteSceneMaterialPlanComposer(materialPlanning),
-            new ResoniteBatchEmissionPlanner(),
-            new PlannedBatchEmissionInterpreter());
-    }
-
-    private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
-        IResoniteMaterialPlanning materialPlanning)
-    {
-        return new ResoniteQueuedCityObjectWorker(
-            new ResoniteQueuedCityObjectSender(
-                new TerrainTextureAssetGenerator(),
-                new ResoniteDatasetLicenseWriter(),
-                CreatePreparedCityObjectImporter(materialPlanning)));
-    }
-
-    private static ResoniteLiveSendRunStarter CreateRunStarter(
-        IResoniteMaterialPlanning materialPlanning,
-        IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null,
-        Action<string>? progressReporter = null)
-    {
-        return new ResoniteLiveSendRunStarter(
-            sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-            CreateCommonMaterialSetupPreparer(materialPlanning, progressReporter),
-            new LiveSendRunPlanFactory(),
-            CreateRunStateFactory(),
-            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)),
-            new ResoniteSlotCreator());
-    }
-
-    private static ResoniteLiveSendQueue CreateQueue()
-    {
-        ResoniteQueuedCityObjectEnqueuer enqueuer = new();
-        return new ResoniteLiveSendQueue(enqueuer, new ResoniteLiveSendFinalizer(enqueuer));
-    }
-
     [Fact]
     public async Task OptionsConstructorEnablesMeshBakeByDefault()
     {
@@ -116,8 +63,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new DelegatingClientSession(),
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning),
-                CreateQueue()));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning),
+                ResoniteLiveSceneImportTargetTestSupport.CreateQueue()));
 
         Assert.Same(diagnostics, importTarget.Diagnostics);
     }
@@ -324,8 +271,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new DelegatingClientSession(),
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning),
-                CreateQueue()));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning),
+                ResoniteLiveSceneImportTargetTestSupport.CreateQueue()));
     }
 
     private sealed class RecordingTerrainTextureAssetGeneratorFactory : ITerrainTextureAssetGeneratorFactory
