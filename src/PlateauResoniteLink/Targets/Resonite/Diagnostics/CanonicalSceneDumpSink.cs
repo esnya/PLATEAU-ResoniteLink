@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -9,6 +10,61 @@ using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
+
+internal interface IResoniteCanonicalSceneDumpSinkFactory
+{
+    ISceneSink Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        string outputPath);
+}
+
+internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
+    IResoniteLiveSceneImportDependencyFactory dependencyFactory) : IResoniteCanonicalSceneDumpSinkFactory
+{
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "CanonicalSceneDumpSink owns the recording client after successful construction; failures dispose it here.")]
+    public ISceneSink Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        string outputPath)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        SceneSinkRecordingClient recordingClient = new();
+        try
+        {
+            ResoniteLiveSceneImportDependencies dependencies = dependencyFactory.Create(
+                options,
+                new SingleRecordingClientSession(recordingClient),
+                ResoniteLinkSendDiagnostics.Disabled,
+                new DeterministicTerrainTextureAssetGenerator());
+            return CreateOwnedDumpSink(options, dependencies, recordingClient, outputPath);
+        }
+        catch
+        {
+            recordingClient.Dispose();
+            throw;
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "CanonicalSceneDumpSink owns the created target and disposes it with the recording client.")]
+    private static CanonicalSceneDumpSink CreateOwnedDumpSink(
+        ResoniteLiveSceneImportTargetOptions options,
+        ResoniteLiveSceneImportDependencies dependencies,
+        SceneSinkRecordingClient recordingClient,
+        string outputPath)
+    {
+        return new CanonicalSceneDumpSink(
+            new ResoniteLiveSceneImportTarget(options, dependencies),
+            recordingClient,
+            outputPath);
+    }
+}
 
 internal sealed class CanonicalSceneDumpSink(
     ISceneSink inner,

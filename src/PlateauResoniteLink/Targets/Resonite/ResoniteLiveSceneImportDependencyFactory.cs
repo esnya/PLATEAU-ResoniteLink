@@ -10,6 +10,12 @@ internal interface IResoniteLiveSceneImportDependencyFactory
     ResoniteLiveSceneImportDependencies Create(
         ResoniteLiveSceneImportTargetOptions options,
         HttpClient terrainTextureAssetHttpClient);
+
+    ResoniteLiveSceneImportDependencies Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        ILiveSendClientSession clientSession,
+        ResoniteLinkSendDiagnostics diagnostics,
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator);
 }
 
 internal sealed class ResoniteLiveSceneImportDependencyFactory(
@@ -32,6 +38,35 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
 
         ILiveSendClientSession clientSession = clientSessionFactory.Create(options, diagnostics);
         IResoniteLiveSendRunStarter runStarter = runStarterFactory.Create(terrainTextureAssetHttpClient, options);
+
+        return Create(options, clientSession, diagnostics, runStarter);
+    }
+
+    public ResoniteLiveSceneImportDependencies Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        ILiveSendClientSession clientSession,
+        ResoniteLinkSendDiagnostics diagnostics,
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(clientSession);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
+
+        IResoniteLiveSendRunStarter runStarter = runStarterFactory.Create(terrainTextureAssetGenerator, options);
+        return Create(options, clientSession, diagnostics, runStarter);
+    }
+
+    private ResoniteLiveSceneImportDependencies Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        ILiveSendClientSession clientSession,
+        ResoniteLinkSendDiagnostics diagnostics,
+        IResoniteLiveSendRunStarter runStarter)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(clientSession);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        ArgumentNullException.ThrowIfNull(runStarter);
 
         return new ResoniteLiveSceneImportDependencies(
             clientSession,

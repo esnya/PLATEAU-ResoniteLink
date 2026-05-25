@@ -12,9 +12,7 @@ using Microsoft.Extensions.Logging;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Targets.Resonite.Diagnostics;
-using PlateauResoniteLink.Transport.ResoniteLink;
 namespace PlateauResoniteLink.Cli;
 
 internal static class CliHostFactory
@@ -135,23 +133,13 @@ internal sealed class DefaultSceneSinkFactory(
         {
             if (!string.IsNullOrWhiteSpace(options.CanonicalSceneDumpPath))
             {
-                SceneSinkRecordingClient recordingClient = new();
-                try
-                {
-                    ResoniteLiveSceneImportTarget dumpTarget = CreateCanonicalDumpTarget(
-                        scope,
-                        recordingClient,
-                        options,
-                        progressReporter);
-                    return new ScopedSceneSink(
-                        scope,
-                        new CanonicalSceneDumpSink(dumpTarget, recordingClient, options.CanonicalSceneDumpPath));
-                }
-                catch
-                {
-                    recordingClient.Dispose();
-                    throw;
-                }
+                IResoniteCanonicalSceneDumpSinkFactory dumpSinkFactory =
+                    scope.ServiceProvider.GetRequiredService<IResoniteCanonicalSceneDumpSinkFactory>();
+                return new ScopedSceneSink(
+                    scope,
+                    dumpSinkFactory.Create(
+                        CreateCanonicalDumpTargetOptions(options, progressReporter),
+                        options.CanonicalSceneDumpPath));
             }
 
             ResoniteLiveSceneImportTargetOptions targetOptions = new(
@@ -182,13 +170,11 @@ internal sealed class DefaultSceneSinkFactory(
         }
     }
 
-    private static ResoniteLiveSceneImportTarget CreateCanonicalDumpTarget(
-        AsyncServiceScope scope,
-        SceneSinkRecordingClient recordingClient,
+    private static ResoniteLiveSceneImportTargetOptions CreateCanonicalDumpTargetOptions(
         ImportCommandOptions options,
         Action<string>? progressReporter)
     {
-        ResoniteLiveSceneImportTargetOptions targetOptions = new(
+        return new ResoniteLiveSceneImportTargetOptions(
             new Uri("ws://localhost:1/"),
             ConnectionCount: 1,
             EnableSendMetrics: false,
@@ -202,38 +188,6 @@ internal sealed class DefaultSceneSinkFactory(
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: true,
             progressReporter);
-
-        IServiceProvider serviceProvider = scope.ServiceProvider;
-        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
-        IResoniteLiveSendRunResourceReleaser resourceReleaser =
-            serviceProvider.GetRequiredService<IResoniteLiveSendRunResourceReleaser>();
-        IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new ResoniteQueuedCityObjectEnqueuer();
-        ResoniteLiveSendQueue queue = new(
-            queuedCityObjectEnqueuer,
-            new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
-        ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
-            new ResoniteQueuedCityObjectSender(
-                new ResoniteQueuedTexturePreparer(
-                    new DeterministicTerrainTextureAssetGenerator(),
-                    serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>()),
-                serviceProvider.GetRequiredService<IResonitePreparedCityObjectImporter>()));
-        return new ResoniteLiveSceneImportTarget(
-            targetOptions,
-            new ResoniteLiveSceneImportDependencies(
-                new SingleRecordingClientSession(recordingClient),
-                diagnostics,
-                serviceProvider.GetRequiredService<IResoniteLiveSendStartRequestFactory>(),
-                new ResoniteLiveSendRunExecutor(
-                    new ResoniteLiveSendRunStarter(
-                        serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
-                        serviceProvider.GetRequiredService<IResoniteCommonMaterialSetupPreparer>(),
-                        serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
-                        serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
-                        new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
-                        serviceProvider.GetRequiredService<IResoniteSlotCreator>()),
-                    queue,
-                    resourceReleaser),
-                resourceReleaser));
     }
 }
 

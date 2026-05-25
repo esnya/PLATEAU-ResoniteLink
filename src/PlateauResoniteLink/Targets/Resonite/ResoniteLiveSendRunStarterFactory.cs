@@ -10,6 +10,10 @@ internal interface IResoniteLiveSendRunStarterFactory
     IResoniteLiveSendRunStarter Create(
         HttpClient terrainTextureAssetHttpClient,
         ResoniteLiveSceneImportTargetOptions options);
+
+    IResoniteLiveSendRunStarter Create(
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator,
+        ResoniteLiveSceneImportTargetOptions options);
 }
 
 internal sealed class ResoniteLiveSendRunStarterFactory(
@@ -27,12 +31,36 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
         ArgumentNullException.ThrowIfNull(options);
 
+        return Create(
+            workerLauncherFactory.Create(terrainTextureAssetHttpClient, options),
+            options);
+    }
+
+    public IResoniteLiveSendRunStarter Create(
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator,
+        ResoniteLiveSceneImportTargetOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
+        ArgumentNullException.ThrowIfNull(options);
+
+        return Create(
+            workerLauncherFactory.Create(terrainTextureAssetGenerator),
+            options);
+    }
+
+    private ResoniteLiveSendRunStarter Create(
+        IResoniteLiveSendWorkerLauncher workerLauncher,
+        ResoniteLiveSceneImportTargetOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(workerLauncher);
+        ArgumentNullException.ThrowIfNull(options);
+
         return new ResoniteLiveSendRunStarter(
             sceneSetupInterpreter,
             commonMaterialSetupPreparer,
             runPlanFactory,
             runStateFactory,
-            workerLauncherFactory.Create(terrainTextureAssetHttpClient, options),
+            workerLauncher,
             slotCreator);
     }
 }
@@ -42,6 +70,9 @@ internal interface IResoniteLiveSendWorkerLauncherFactory
     IResoniteLiveSendWorkerLauncher Create(
         HttpClient terrainTextureAssetHttpClient,
         ResoniteLiveSceneImportTargetOptions options);
+
+    IResoniteLiveSendWorkerLauncher Create(
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator);
 }
 
 internal sealed class ResoniteLiveSendWorkerLauncherFactory(
@@ -56,8 +87,16 @@ internal sealed class ResoniteLiveSendWorkerLauncherFactory(
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
         ArgumentNullException.ThrowIfNull(options);
 
+        return Create(terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options));
+    }
+
+    public IResoniteLiveSendWorkerLauncher Create(
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+    {
+        ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
+
         ResoniteQueuedTexturePreparer texturePreparer = new(
-            terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options),
+            terrainTextureAssetGenerator,
             datasetLicenseWriter);
         ResoniteQueuedCityObjectSender queuedCityObjectSender = new(
             texturePreparer,
