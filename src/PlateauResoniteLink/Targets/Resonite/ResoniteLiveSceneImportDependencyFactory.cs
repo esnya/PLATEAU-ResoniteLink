@@ -53,7 +53,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
         ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
 
-        IResoniteLiveSendRunStarter runStarter = runStarterFactory.Create(terrainTextureAssetGenerator, options);
+        IResoniteLiveSendRunStarter runStarter = runStarterFactory.Create(terrainTextureAssetGenerator);
         return Create(options, clientSession, diagnostics, runStarter);
     }
 
