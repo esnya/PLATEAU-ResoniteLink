@@ -33,10 +33,9 @@ internal sealed class ResoniteLiveSendResourceReleaser : IResoniteLiveSendResour
                 release.ClientSession.DisposeClients();
                 break;
             default:
-                throw new ArgumentOutOfRangeException(
-                    nameof(release),
-                    release.ClientRelease,
-                    "Unknown live-send client release action.");
+                throw new ArgumentException(
+                    $"Unknown live-send client release action '{release.ClientRelease}'.",
+                    nameof(release));
         }
     }
 }
