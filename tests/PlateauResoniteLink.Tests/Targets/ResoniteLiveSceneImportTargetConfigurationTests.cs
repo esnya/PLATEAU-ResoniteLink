@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -180,6 +182,38 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         Assert.NotNull(terrainTextureFactory.LastOptions);
         Assert.Equal("cache-root", terrainTextureFactory.LastOptions!.TerrainTileCacheRoot);
         Assert.True(terrainTextureFactory.LastOptions.DisableTerrainTileCache);
+    }
+
+    [Fact]
+    public async Task AddResoniteLiveSendTargetServicesRoutesCanonicalDumpThroughRegisteredLiveSceneImportFactory()
+    {
+        RecordingLiveSceneImportFactory importFactory = new(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()));
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteLiveSceneImportFactory>(_ => importFactory)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using TemporaryDirectory outputDirectory = new();
+        string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
+
+        await using ISceneSink _ = scope.ServiceProvider
+            .GetRequiredService<IResoniteCanonicalSceneDumpSinkFactory>()
+            .Create(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: true,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false,
+                    ProgressReporter: null),
+                outputPath);
+
+        Assert.Equal(1, importFactory.PreconfiguredCreateCallCount);
+        Assert.NotNull(importFactory.LastClientSession);
+        Assert.Same(ResoniteLinkSendDiagnostics.Disabled, importFactory.LastDiagnostics);
+        Assert.NotNull(importFactory.LastTerrainTextureAssetGenerator);
     }
 
     [Fact]
@@ -382,6 +416,50 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             _ = terrainTextureOverlay;
             cancellationToken.ThrowIfCancellationRequested();
             throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
+        }
+    }
+
+    private sealed class RecordingLiveSceneImportFactory(
+        IResoniteMaterialPlanning materialPlanning) : IResoniteLiveSceneImportFactory
+    {
+        public int PreconfiguredCreateCallCount { get; private set; }
+
+        public ILiveSendClientSession? LastClientSession { get; private set; }
+
+        public ResoniteLinkSendDiagnostics? LastDiagnostics { get; private set; }
+
+        public ITerrainTextureAssetGenerator? LastTerrainTextureAssetGenerator { get; private set; }
+
+        public ResoniteLiveSceneImportTarget CreateTarget(
+            ResoniteLiveSceneImportTargetOptions options,
+            HttpClient terrainTextureAssetHttpClient)
+        {
+            _ = terrainTextureAssetHttpClient;
+            return CreateTarget(
+                options,
+                new DelegatingClientSession(),
+                ResoniteLinkSendDiagnostics.Disabled,
+                new RecordingTerrainTextureAssetGenerator());
+        }
+
+        public ResoniteLiveSceneImportTarget CreateTarget(
+            ResoniteLiveSceneImportTargetOptions options,
+            ILiveSendClientSession clientSession,
+            ResoniteLinkSendDiagnostics diagnostics,
+            ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+        {
+            PreconfiguredCreateCallCount++;
+            LastClientSession = clientSession;
+            LastDiagnostics = diagnostics;
+            LastTerrainTextureAssetGenerator = terrainTextureAssetGenerator;
+            return new ResoniteLiveSceneImportTarget(
+                options,
+                ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
+                    clientSession,
+                    diagnostics,
+                    ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
+                        materialPlanning,
+                        terrainTextureAssetGenerator: terrainTextureAssetGenerator)));
         }
     }
 
