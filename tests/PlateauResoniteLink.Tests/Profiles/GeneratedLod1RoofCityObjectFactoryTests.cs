@@ -55,6 +55,28 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     }
 
     [Fact]
+    public void CreateDoesNotTreatOtherGeneratedSurfaceIdsAsGeneratedRoof()
+    {
+        ParsedCityObject cityObject = CreateCityObject(
+            [
+                CreateSurface("lod1-top", ParsedSurfaceSemantic.Roof, altitude: 10.0),
+                CreateSurface("lod1-bottom", ParsedSurfaceSemantic.Ground, altitude: 0.0),
+                CreateSurface("tran_generated_marking", ParsedSurfaceSemantic.Wall, altitude: 1.0),
+            ],
+            CoordinateReferenceSystem.Parse("EPSG:6697"),
+            BuildingAttributeContext.Empty with
+            {
+                RoofShape = new BuildingCodeValue<CityGmlRoofShape>(CityGmlRoofShape.Shed, "shed"),
+            });
+
+        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+
+        Assert.NotSame(cityObject, generated);
+        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "tran_generated_marking");
+        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId.Contains("_generated_shed-", System.StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void CreateSkipsNonGeographicObject()
     {
         ParsedCityObject cityObject = CreateCityObject(
