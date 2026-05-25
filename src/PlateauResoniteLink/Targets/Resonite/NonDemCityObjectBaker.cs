@@ -248,7 +248,8 @@ internal sealed class NonDemCityObjectBaker(
     {
         foreach (NonDemCityObjectBakePolicy policy in bakePolicies)
         {
-            if (policy.CanBuffer(cityObject) && CanBufferCityObjectMaterials(cityObject, policy))
+            if (policy.CanBuffer(cityObject)
+                && NonDemCityObjectBakeMaterialClassifier.CanBufferCityObjectMaterials(cityObject, policy))
             {
                 return policy;
             }
@@ -263,14 +264,14 @@ internal sealed class NonDemCityObjectBaker(
     {
         ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
         NonDemCityObjectBakePolicy policy = bufferedCityObject.Policy;
-        if (!TryCreateMaterialBySubmeshIndex(cityObject, out _))
+        if (!NonDemCityObjectBakeMaterialClassifier.TryCreateMaterialBySubmeshIndex(cityObject, out _))
         {
             throw new InvalidOperationException(
                 $"Non-DEM bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
         }
 
         ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-        if (!TryCreateMaterialBySubmeshIndex(normalizedCityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
+        if (!NonDemCityObjectBakeMaterialClassifier.TryCreateMaterialBySubmeshIndex(normalizedCityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
         {
             throw new InvalidOperationException(
                 $"Non-DEM bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
@@ -288,7 +289,7 @@ internal sealed class NonDemCityObjectBaker(
                     $"Non-DEM bake city object '{cityObject.DisplayName}' left submesh index {submesh.Index} without a material assignment.");
             }
 
-            NonDemMaterialBakeCategory category = ClassifyMaterial(material);
+            NonDemMaterialBakeCategory category = NonDemCityObjectBakeMaterialClassifier.Classify(material);
             switch (category)
             {
                 case NonDemMaterialBakeCategory.AtlasCandidate:
@@ -381,121 +382,6 @@ internal sealed class NonDemCityObjectBaker(
                     MultiplyPixel(detectedBackgroundColor, ToPixel(material.BaseColor))),
                 uvBounds),
             PreservedEntry: null);
-    }
-
-    private static bool CanBufferCityObjectMaterials(
-        ResoniteConstructionCityObject cityObject,
-        NonDemCityObjectBakePolicy policy)
-    {
-        if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex))
-        {
-            return false;
-        }
-
-        bool hasAtlasCandidateSubmesh = false;
-        foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes)
-        {
-            if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
-            {
-                return false;
-            }
-
-            NonDemMaterialBakeCategory category = ClassifyMaterial(material);
-            hasAtlasCandidateSubmesh |= category == NonDemMaterialBakeCategory.AtlasCandidate;
-            if (category == NonDemMaterialBakeCategory.PreservedCommonMaterial && !policy.PreserveCommonMaterials)
-            {
-                return false;
-            }
-
-            if (category == NonDemMaterialBakeCategory.PreservedVertexColor && !policy.PreserveVertexColorMaterials)
-            {
-                return false;
-            }
-
-            if (category == NonDemMaterialBakeCategory.PreservedTextureless && !policy.PreserveTexturelessMaterials)
-            {
-                return false;
-            }
-        }
-
-        return policy.RequireAtlasCandidateMaterial ? hasAtlasCandidateSubmesh : true;
-    }
-
-    private static bool TryCreateMaterialBySubmeshIndex(
-        ResoniteConstructionCityObject cityObject,
-        out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex)
-    {
-        materialBySubmeshIndex = [];
-        foreach (ResoniteMaterialBinding material in cityObject.Materials)
-        {
-            foreach (int submeshIndex in material.SubmeshIndices)
-            {
-                if (!materialBySubmeshIndex.TryAdd(submeshIndex, material))
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    private static bool IsAtlasBakeCandidate(ResoniteMaterialBinding material)
-    {
-        if (material.DepthOffset is not null
-            || material.Projection != ResoniteMaterialProjection.Uv
-            || material.AssetScope == ResoniteMaterialAssetScope.Common)
-        {
-            return false;
-        }
-
-        if (material.MaterialType != ResoniteMaterialType.Standard
-            || material.TexturePayload is null
-            || material.TextureSourceKind != ResoniteTextureSourceKind.Dataset)
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(material.Family))
-        {
-            return true;
-        }
-
-        return material.TerrainOverlay is null
-            && ResoniteMaterialSharing.CanUseSharedAlbedoOnlyMaterial(material);
-    }
-
-    private static NonDemMaterialBakeCategory ClassifyMaterial(ResoniteMaterialBinding material)
-    {
-        if (IsAtlasBakeCandidate(material))
-        {
-            return NonDemMaterialBakeCategory.AtlasCandidate;
-        }
-
-        if (material.MaterialType == ResoniteMaterialType.VertexColor)
-        {
-            return NonDemMaterialBakeCategory.PreservedVertexColor;
-        }
-
-        if (material.AssetScope == ResoniteMaterialAssetScope.Common
-            || !string.IsNullOrWhiteSpace(material.Family))
-        {
-            return CanPreserveAsCommonMaterial(material)
-                ? NonDemMaterialBakeCategory.PreservedCommonMaterial
-                : NonDemMaterialBakeCategory.PreservedOther;
-        }
-
-        if (material.TexturePayload is null)
-        {
-            return NonDemMaterialBakeCategory.PreservedTextureless;
-        }
-
-        return NonDemMaterialBakeCategory.PreservedOther;
-    }
-
-    private static bool CanPreserveAsCommonMaterial(ResoniteMaterialBinding material)
-    {
-        return material.CommonMaterial is not null;
     }
 
     private AtlasBatchPlan CreateAtlasCandidateBatches(
