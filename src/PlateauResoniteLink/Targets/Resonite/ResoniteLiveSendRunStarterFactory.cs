@@ -14,6 +14,7 @@ internal interface IResoniteLiveSendRunStarterFactory
 
 internal sealed class ResoniteLiveSendRunStarterFactory(
     ILiveSendRunPlanFactory runPlanFactory,
+    IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     ILiveSendRunStateFactory runStateFactory,
     IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory) : IResoniteLiveSendRunStarterFactory
@@ -41,6 +42,7 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
 
         return new ResoniteLiveSendRunStarter(
             runPlanFactory,
+            connectionInitializer,
             runSetupPreparer,
             runStateFactory,
             workerLauncher);
