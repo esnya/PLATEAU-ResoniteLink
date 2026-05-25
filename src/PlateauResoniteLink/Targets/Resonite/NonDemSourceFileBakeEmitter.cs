@@ -7,11 +7,17 @@ using System.Threading.Tasks;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemSourceFileBakeEmitter(
-    NonDemCityObjectBakeCandidateFactory candidateFactory,
-    NonDemCityObjectBakeAssembler assembler,
+    INonDemCityObjectBakeCandidateFactory candidateFactory,
+    INonDemCityObjectBakeAssembler assembler,
     NonDemAtlasBatchFitPolicy batchFitPolicy,
     INonDemBakeCandidateImageDisposer candidateImageDisposer) : INonDemSourceFileBakeEmitter
 {
+    private readonly INonDemCityObjectBakeCandidateFactory candidateFactory = candidateFactory
+        ?? throw new ArgumentNullException(nameof(candidateFactory));
+    private readonly INonDemCityObjectBakeAssembler assembler = assembler
+        ?? throw new ArgumentNullException(nameof(assembler));
+    private readonly NonDemAtlasBatchFitPolicy batchFitPolicy = batchFitPolicy
+        ?? throw new ArgumentNullException(nameof(batchFitPolicy));
     private readonly INonDemBakeCandidateImageDisposer candidateImageDisposer = candidateImageDisposer
         ?? throw new ArgumentNullException(nameof(candidateImageDisposer));
 

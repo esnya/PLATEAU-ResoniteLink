@@ -6,8 +6,15 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
+internal interface INonDemCityObjectBakeCandidateFactory
+{
+    Task<NonDemCityObjectBakeCandidate?> CreateAsync(
+        NonDemBufferedCityObject bufferedCityObject,
+        CancellationToken cancellationToken);
+}
+
 internal sealed class NonDemCityObjectBakeCandidateFactory(
-    NonDemAtlasOrPreservedEntryFactory entryFactory)
+    NonDemAtlasOrPreservedEntryFactory entryFactory) : INonDemCityObjectBakeCandidateFactory
 {
     private readonly NonDemAtlasOrPreservedEntryFactory entryFactory = entryFactory
         ?? throw new ArgumentNullException(nameof(entryFactory));

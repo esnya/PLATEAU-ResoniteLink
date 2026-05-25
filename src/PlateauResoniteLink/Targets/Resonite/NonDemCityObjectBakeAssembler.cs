@@ -9,10 +9,20 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
+internal interface INonDemCityObjectBakeAssembler
+{
+    Task<ResoniteConstructionCityObject> BakeBatchAsync(
+        NonDemSourceFileBatchKey sourceFileKey,
+        IReadOnlyList<NonDemCityObjectBakeCandidate> candidates,
+        int batchIndex,
+        bool preservePrimaryIdentity,
+        CancellationToken cancellationToken);
+}
+
 internal sealed class NonDemCityObjectBakeAssembler(
     NonDemAtlasLayoutFactory atlasLayoutFactory,
     NonDemAtlasImageRenderer atlasImageRenderer,
-    INonDemBakedGeometryComposer geometryComposer)
+    INonDemBakedGeometryComposer geometryComposer) : INonDemCityObjectBakeAssembler
 {
     private readonly NonDemAtlasLayoutFactory atlasLayoutFactory = atlasLayoutFactory
         ?? throw new ArgumentNullException(nameof(atlasLayoutFactory));
