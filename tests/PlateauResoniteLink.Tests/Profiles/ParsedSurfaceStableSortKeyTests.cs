@@ -9,11 +9,11 @@ public sealed class ParsedSurfaceStableSortKeyTests
     [Fact]
     public void CreateIsIndependentOfInteriorRingInputOrder()
     {
-        LocalCityGmlObjectProjection.ParsedRing ringA = CreateRing("a", 0.001);
-        LocalCityGmlObjectProjection.ParsedRing ringB = CreateRing("b", 0.002);
+        ParsedRing ringA = CreateRing("a", 0.001);
+        ParsedRing ringB = CreateRing("b", 0.002);
 
-        LocalCityGmlObjectProjection.ParsedSurface first = CreateSurface([ringB, ringA]);
-        LocalCityGmlObjectProjection.ParsedSurface second = CreateSurface([ringA, ringB]);
+        ParsedSurface first = CreateSurface([ringB, ringA]);
+        ParsedSurface second = CreateSurface([ringA, ringB]);
 
         Assert.Equal(ParsedSurfaceStableSortKey.Create(first), ParsedSurfaceStableSortKey.Create(second));
     }
@@ -21,8 +21,8 @@ public sealed class ParsedSurfaceStableSortKeyTests
     [Fact]
     public void CreateChangesWhenGeometryChanges()
     {
-        LocalCityGmlObjectProjection.ParsedSurface first = CreateSurface([]);
-        LocalCityGmlObjectProjection.ParsedSurface second = CreateSurface([], exteriorOffset: 0.001);
+        ParsedSurface first = CreateSurface([]);
+        ParsedSurface second = CreateSurface([], exteriorOffset: 0.001);
 
         Assert.NotEqual(ParsedSurfaceStableSortKey.Create(first), ParsedSurfaceStableSortKey.Create(second));
     }
@@ -30,38 +30,38 @@ public sealed class ParsedSurfaceStableSortKeyTests
     [Fact]
     public void CreateChangesWhenTextureCoordinatesChange()
     {
-        LocalCityGmlObjectProjection.ParsedSurface first = CreateSurface([]);
-        LocalCityGmlObjectProjection.ParsedSurface second = CreateSurface([], uvOffset: 0.125);
+        ParsedSurface first = CreateSurface([]);
+        ParsedSurface second = CreateSurface([], uvOffset: 0.125);
 
         Assert.NotEqual(ParsedSurfaceStableSortKey.Create(first), ParsedSurfaceStableSortKey.Create(second));
     }
 
-    private static LocalCityGmlObjectProjection.ParsedSurface CreateSurface(
-        LocalCityGmlObjectProjection.ParsedRing[] interiorRings,
+    private static ParsedSurface CreateSurface(
+        ParsedRing[] interiorRings,
         double exteriorOffset = 0.0,
         double uvOffset = 0.0)
     {
-        return new LocalCityGmlObjectProjection.ParsedSurface(
+        return new ParsedSurface(
             "polygon",
-            LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             CreateRing("exterior", exteriorOffset, uvOffset),
             interiorRings,
             new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null);
     }
 
-    private static LocalCityGmlObjectProjection.ParsedRing CreateRing(
+    private static ParsedRing CreateRing(
         string ringId,
         double coordinateOffset,
         double uvOffset = 0.0)
     {
-        return new LocalCityGmlObjectProjection.ParsedRing(
+        return new ParsedRing(
             ringId,
             [
-                new LocalCityGmlObjectProjection.GeodeticPoint(35.0 + coordinateOffset, 139.0, 8.0),
-                new LocalCityGmlObjectProjection.GeodeticPoint(35.0 + coordinateOffset, 139.001, 8.0),
-                new LocalCityGmlObjectProjection.GeodeticPoint(35.001 + coordinateOffset, 139.001, 8.0),
-                new LocalCityGmlObjectProjection.GeodeticPoint(35.001 + coordinateOffset, 139.0, 8.0),
+                new GeodeticPoint(35.0 + coordinateOffset, 139.0, 8.0),
+                new GeodeticPoint(35.0 + coordinateOffset, 139.001, 8.0),
+                new GeodeticPoint(35.001 + coordinateOffset, 139.001, 8.0),
+                new GeodeticPoint(35.001 + coordinateOffset, 139.0, 8.0),
             ],
             new List<Float2>
             {

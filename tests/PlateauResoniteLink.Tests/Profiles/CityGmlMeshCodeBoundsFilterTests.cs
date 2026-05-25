@@ -34,12 +34,12 @@ public sealed class CityGmlMeshCodeBoundsFilterTests
     [Fact]
     public void IntersectsRequestedMeshCodeBoundsUsesActualMeshCodeForSharedObjects()
     {
-        LocalCityGmlObjectProjection.ParsedSurface surfaceOutsideRequest = CreateSurfaceAtMeshCenter("53394600");
+        ParsedSurface surfaceOutsideRequest = CreateSurfaceAtMeshCenter("53394600");
 
         bool intersects = CityGmlMeshCodeBoundsFilter.IntersectsRequestedMeshCodeBounds(
             actualMeshCode: "53394525",
             sharedAcrossMeshCodes: true,
-            coordinateReferenceSystem: LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse("EPSG:4326"),
+            coordinateReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
             surfaces: [surfaceOutsideRequest]);
 
@@ -49,12 +49,12 @@ public sealed class CityGmlMeshCodeBoundsFilterTests
     [Fact]
     public void IntersectsRequestedMeshCodeBoundsUsesSurfaceBoundsForNonSharedObjects()
     {
-        LocalCityGmlObjectProjection.ParsedSurface surfaceOutsideRequest = CreateSurfaceAtMeshCenter("53394600");
+        ParsedSurface surfaceOutsideRequest = CreateSurfaceAtMeshCenter("53394600");
 
         bool intersects = CityGmlMeshCodeBoundsFilter.IntersectsRequestedMeshCodeBounds(
             actualMeshCode: "53394525",
             sharedAcrossMeshCodes: false,
-            coordinateReferenceSystem: LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse("EPSG:4326"),
+            coordinateReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
             surfaces: [surfaceOutsideRequest]);
 
@@ -64,19 +64,19 @@ public sealed class CityGmlMeshCodeBoundsFilterTests
     [Fact]
     public void IntersectsRequestedMeshCodeBoundsSkipsFilteringForLocalCartesianReferenceSystem()
     {
-        LocalCityGmlObjectProjection.ParsedSurface surfaceOutsideRequest = CreateSurfaceAtMeshCenter("53394600");
+        ParsedSurface surfaceOutsideRequest = CreateSurfaceAtMeshCenter("53394600");
 
         bool intersects = CityGmlMeshCodeBoundsFilter.IntersectsRequestedMeshCodeBounds(
             actualMeshCode: "53394525",
             sharedAcrossMeshCodes: false,
-            coordinateReferenceSystem: LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse((string?)null),
+            coordinateReferenceSystem: CoordinateReferenceSystem.Parse((string?)null),
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
             surfaces: [surfaceOutsideRequest]);
 
         Assert.True(intersects);
     }
 
-    private static LocalCityGmlObjectProjection.ParsedSurface CreateSurfaceAtMeshCenter(string meshCode)
+    private static ParsedSurface CreateSurfaceAtMeshCenter(string meshCode)
     {
         Assert.True(PlateauMeshCode.TryGetBounds(
             meshCode,
@@ -84,12 +84,12 @@ public sealed class CityGmlMeshCodeBoundsFilterTests
 
         double latitude = (bounds.SouthLatitude + bounds.NorthLatitude) / 2.0;
         double longitude = (bounds.WestLongitude + bounds.EastLongitude) / 2.0;
-        LocalCityGmlObjectProjection.GeodeticPoint point = new(latitude, longitude, 0.0);
+        GeodeticPoint point = new(latitude, longitude, 0.0);
 
-        return new LocalCityGmlObjectProjection.ParsedSurface(
+        return new ParsedSurface(
             "polygon",
-            LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
-            new LocalCityGmlObjectProjection.ParsedRing("ring", [point, point, point], UVs: null),
+            ParsedSurfaceSemantic.Ground,
+            new ParsedRing("ring", [point, point, point], UVs: null),
             InteriorRings: [],
             new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null);
