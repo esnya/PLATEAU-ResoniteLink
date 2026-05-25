@@ -72,6 +72,22 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
         Assert.Null(marking);
     }
 
+    [Fact]
+    public void CreateSkipsNonTransportationObject()
+    {
+        ParsedCityObject building = CreateRoadObject(
+            packageName: "bldg",
+            surface: CreateRoadSurface(
+                "building-ground",
+                width: 4.0,
+                length: 12.0,
+                texturePayload: null));
+
+        ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(building, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
+
+        Assert.Null(marking);
+    }
+
     private static ParsedCityObject CreateRoadObject(string packageName, ParsedSurface surface)
     {
         return new ParsedCityObject(
