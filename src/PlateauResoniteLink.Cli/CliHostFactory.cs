@@ -205,15 +205,15 @@ internal sealed class DefaultSceneSinkFactory(
 
         IServiceProvider serviceProvider = scope.ServiceProvider;
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
-        IResoniteMaterialPlanning materialPlanning = serviceProvider.GetRequiredService<IResoniteMaterialPlanning>();
         IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new ResoniteQueuedCityObjectEnqueuer();
         ResoniteLiveSendQueue queue = new(
             queuedCityObjectEnqueuer,
             new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
             new ResoniteQueuedCityObjectSender(
-                new DeterministicTerrainTextureAssetGenerator(),
-                serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>(),
+                new ResoniteQueuedTexturePreparer(
+                    new DeterministicTerrainTextureAssetGenerator(),
+                    serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>()),
                 serviceProvider.GetRequiredService<IResonitePreparedCityObjectImporter>()));
         return new ResoniteLiveSceneImportTarget(
             targetOptions,
@@ -223,7 +223,7 @@ internal sealed class DefaultSceneSinkFactory(
                 serviceProvider.GetRequiredService<IResoniteLiveSendStartRequestFactory>(),
                 new ResoniteLiveSendRunStarter(
                     serviceProvider.GetRequiredService<IResoniteSceneSetupInterpreter>(),
-                    new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
+                    serviceProvider.GetRequiredService<IResoniteCommonMaterialSetupPreparer>(),
                     serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
                     serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
                     new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
