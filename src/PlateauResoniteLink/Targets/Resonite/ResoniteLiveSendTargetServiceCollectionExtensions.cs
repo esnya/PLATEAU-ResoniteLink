@@ -27,6 +27,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteSceneMaterialPlanComposer, ResoniteSceneMaterialPlanComposer>();
         services.TryAddScoped<ILiveSendRunPlanFactory, LiveSendRunPlanFactory>();
         services.TryAddScoped<ILiveSendRunStateFactory, LiveSendRunStateFactory>();
+        services.TryAddScoped<IResoniteLiveSendStartRequestFactory, ResoniteLiveSendStartRequestFactory>();
         services.TryAddScoped<IResonitePreparedCityObjectImporter, ResonitePreparedCityObjectImporter>();
         services.TryAddScoped<IResoniteQueuedCityObjectEnqueuer, ResoniteQueuedCityObjectEnqueuer>();
         services.TryAddScoped<IResoniteLiveSendFinalizer, ResoniteLiveSendFinalizer>();
@@ -133,6 +134,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteMaterialPlanning materialPlanning,
     ILiveSendRunPlanFactory runPlanFactory,
     ILiveSendRunStateFactory runStateFactory,
+    IResoniteLiveSendStartRequestFactory startRequestFactory,
     IResonitePreparedCityObjectImporter preparedCityObjectImporter,
     IResoniteSlotCreator slotCreator,
     IResoniteLiveSendQueue queue)
@@ -164,6 +166,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
         return new ResoniteLiveSceneImportDependencies(
             clientSessionFactory.Create(options, diagnostics),
             diagnostics,
+            startRequestFactory,
             runStarter,
             queue);
     }

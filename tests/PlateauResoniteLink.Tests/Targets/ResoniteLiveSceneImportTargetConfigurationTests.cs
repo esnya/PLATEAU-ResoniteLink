@@ -115,6 +115,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new ResoniteLiveSceneImportDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
+                new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
                 CreateQueue()));
 
@@ -322,6 +323,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new ResoniteLiveSceneImportDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
+                new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
                 CreateQueue()));
     }
