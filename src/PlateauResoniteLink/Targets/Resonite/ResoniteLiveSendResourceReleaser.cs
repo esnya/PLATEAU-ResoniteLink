@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -17,11 +18,37 @@ internal sealed class ResoniteLiveSendResourceReleaser : IResoniteLiveSendResour
         ArgumentNullException.ThrowIfNull(release);
         ArgumentNullException.ThrowIfNull(release.ClientSession);
 
-        if (release.State is not null)
+        ExceptionDispatchInfo? runtimeDisposeFailure = null;
+        try
         {
-            await release.State.Runtime.DisposeAsync();
+            if (release.State is not null)
+            {
+                await release.State.Runtime.DisposeAsync();
+            }
         }
+#pragma warning disable CA1031
+        catch (Exception exception)
+        {
+            runtimeDisposeFailure = ExceptionDispatchInfo.Capture(exception);
+        }
+#pragma warning restore CA1031
 
+        try
+        {
+            await ReleaseClientAsync(release);
+        }
+#pragma warning disable CA1031
+        catch when (runtimeDisposeFailure is not null)
+        {
+            runtimeDisposeFailure.Throw();
+        }
+#pragma warning restore CA1031
+
+        runtimeDisposeFailure?.Throw();
+    }
+
+    private static async ValueTask ReleaseClientAsync(ResoniteLiveSendResourceRelease release)
+    {
         switch (release.ClientRelease)
         {
             case ResoniteLiveSendClientRelease.None:
@@ -34,7 +61,7 @@ internal sealed class ResoniteLiveSendResourceReleaser : IResoniteLiveSendResour
                 break;
             default:
                 throw new ArgumentException(
-                    $"Unknown live-send client release action '{release.ClientRelease}'.",
+                    $"Unknown {nameof(ResoniteLiveSendResourceRelease.ClientRelease)} value '{release.ClientRelease}'.",
                     nameof(release));
         }
     }
