@@ -217,8 +217,3 @@ internal sealed class ResoniteQueuedCityObjectEnqueuer : IResoniteQueuedCityObje
         context.ProgressReporter?.Invoke(message);
     }
 }
-
-internal sealed record LiveSendEnqueueContext(
-    int ConnectionCount,
-    Func<IResoniteLinkClient> GetRoutedClient,
-    Action<string>? ProgressReporter);

@@ -6,12 +6,6 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed record LiveSendWorkerLaunchRequest(
-    LiveSendRunState State,
-    LiveSendQueuePlan QueuePlan,
-    ResoniteImportBudgetProfile ResourceBudget,
-    int ConnectionCount);
-
 internal interface IResoniteLiveSendWorkerLauncher
 {
     void Launch(

@@ -9,12 +9,6 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed record LiveSendSetupInitialization(
-    ResoniteSceneSetupState SetupState,
-    LiveSendProgressSink Progress,
-    CommonMaterialAssetCache Materials,
-    ResoniteSharedSlotIndex Placement);
-
 internal interface IResoniteLiveSendSetupInitializer
 {
     Task<LiveSendSetupInitialization> InitializeAsync(

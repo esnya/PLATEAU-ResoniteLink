@@ -1,8 +1,6 @@
 using System;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface IResoniteQueuedCityObjectWorker
@@ -40,10 +38,3 @@ internal sealed class ResoniteQueuedCityObjectWorker(
         return tasks;
     }
 }
-
-internal sealed record LiveSendWorkerContext(
-    Uri Endpoint,
-    int ConnectionCount,
-    Func<IResoniteLinkClient> GetRoutedClient,
-    ResoniteLinkSendDiagnostics Diagnostics,
-    Action<string>? ProgressReporter);
