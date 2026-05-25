@@ -4,7 +4,6 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 
 using GeographicLib;
@@ -72,25 +71,6 @@ internal static class LocalCityGmlObjectProjection
             allPoints.Min(static point => point.Longitude),
             allPoints.Max(static point => point.Longitude),
             allPoints.Min(static point => point.Altitude));
-    }
-
-    internal static MeshCodeBounds? ResolveDemTerrainBounds(
-        IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
-        MeshCodeBounds? fallbackBounds)
-    {
-        DemTerrainBounds? bounds = DemSourceDiscoverySupport.ResolveDemTerrainBounds(
-            demParsedSourceFiles.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel),
-            fallbackBounds is null ? null : DemTerrainBounds.FromProjectionModel(fallbackBounds));
-        return bounds?.ToProjectionModel();
-    }
-
-    private static ProjectionTerrainHeightTriangle[] ExtractTerrainHeightTriangles(
-        IEnumerable<ParsedCityObject> cityObjects)
-    {
-        return DemSourceDiscoverySupport.CreateTerrainHeightTriangles(
-                cityObjects.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel))
-            .Select(static triangle => triangle.ToProjectionModel())
-            .ToArray();
     }
 
     private static List<ParsedSurface> SubdivideTransportationSurfaceForTerrainAlignment(
@@ -1389,54 +1369,6 @@ internal static class LocalCityGmlObjectProjection
         double? MeasuredHeightMeters = null,
         BuildingAttributeContext? BuildingAttributes = null,
         double? GeometryHeightMeters = null);
-
-    internal sealed record SourceFileDescriptor(
-        string RelativePath,
-        string PackageName,
-        string MatchedMeshCode,
-        bool RequiresMeshCodeBoundsFilter);
-
-    internal sealed record CachedSourceFileDescriptor(
-        SourceFileDescriptor SourceFile,
-        ParsedCityObject[] CityObjects)
-    {
-        public string RelativePath => SourceFile.RelativePath;
-
-        public string PackageName => SourceFile.PackageName;
-    }
-
-    internal sealed class SourceFilePipeline
-    {
-        private readonly object parseTaskGate = new();
-        private readonly Func<Task<ParsedSourceFileResult>> parseTaskFactory;
-        private Task<ParsedSourceFileResult>? parseTask;
-
-        public SourceFilePipeline(
-            SourceFileDescriptor sourceFile,
-            Func<Task<ParsedSourceFileResult>> parseTaskFactory)
-        {
-            SourceFile = sourceFile;
-            this.parseTaskFactory = parseTaskFactory;
-        }
-
-        public SourceFileDescriptor SourceFile { get; }
-
-        public Task<ParsedSourceFileResult> GetParseTask()
-        {
-            lock (parseTaskGate)
-            {
-                parseTask ??= parseTaskFactory();
-                return parseTask;
-            }
-        }
-    }
-
-    internal sealed record ParsedSourceFileResult(
-        SourceFileDescriptor SourceFile,
-        ParsedCityObject[] CityObjects,
-        CoordinateReferenceSystem? ReferenceSystem,
-        ProjectionTerrainHeightTriangle[] TerrainTriangles,
-        TimeSpan Elapsed);
 
     internal sealed record ParsedRing(
         string RingId,
