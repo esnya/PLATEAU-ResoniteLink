@@ -1,10 +1,8 @@
 using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -36,6 +34,7 @@ internal interface IResoniteLiveSendRunStarter
 
 internal sealed class ResoniteLiveSendRunStarter(
     ILiveSendRunPlanFactory runPlanFactory,
+    IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     ILiveSendRunStateFactory runStateFactory,
     IResoniteLiveSendWorkerLauncher workerLauncher) : IResoniteLiveSendRunStarter
@@ -62,31 +61,11 @@ internal sealed class ResoniteLiveSendRunStarter(
             request.MemoryProfile,
             request.ConnectionCount,
             request.MeshBakeEnabled);
-        ReportProgress(
+        await connectionInitializer.EnsureConnectedAsync(
+            request,
+            runPlan,
             context,
-            PlateauLog.Info(
-                "live",
-                $"Initializing scene state for dataset '{request.SetupInfo.Dataset}' "
-                + $"mesh '{request.SetupInfo.MeshCode}' at '{runPlan.ResolvedWorkRoot}'."));
-        Stopwatch connectionStopwatch = Stopwatch.StartNew();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Connecting ResoniteLink connection pool to {context.Endpoint} "
-                + $"with {request.ConnectionCount} available routed connection(s)."));
-        await context.ClientSession.EnsureConnectedAsync(
-            new LiveSendConnectionRequest(
-                request.NormalizedRequest.Dataset,
-                request.NormalizedRequest.MeshCode),
             cancellationToken);
-        connectionStopwatch.Stop();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"ResoniteLink connection pool ready in {connectionStopwatch.Elapsed.TotalSeconds:F2}s "
-                + $"(dataset='{request.SetupInfo.Dataset}', mesh='{request.SetupInfo.MeshCode}')."));
         LiveSendPreparedRunSetup preparedSetup = await runSetupPreparer.PrepareAsync(
             runPlan,
             request,
@@ -106,12 +85,5 @@ internal sealed class ResoniteLiveSendRunStarter(
                 preparedSetup.RunPlan.ResourceBudget),
             context);
         return state;
-    }
-
-    private static void ReportProgress(
-        LiveSendRunStartContext context,
-        string message)
-    {
-        context.ProgressReporter?.Invoke(message);
     }
 }

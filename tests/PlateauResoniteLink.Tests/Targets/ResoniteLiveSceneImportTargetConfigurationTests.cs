@@ -109,6 +109,18 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public void AddResoniteLiveSendTargetServicesRegistersConnectionInitializer()
+    {
+        using ServiceProvider provider = new ServiceCollection()
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.IsType<ResoniteLiveSendConnectionInitializer>(
+            scope.ServiceProvider.GetRequiredService<IResoniteLiveSendConnectionInitializer>());
+    }
+
+    [Fact]
     public void AddResoniteLiveSendTargetServicesRegistersWorkerPipelineFactory()
     {
         using ServiceProvider provider = new ServiceCollection()
