@@ -3608,28 +3608,21 @@ public sealed class LocalCityGmlObjectProjectionTests
         GeodeticPoint globalOriginPoint,
         PlateauImportRequest request)
     {
-        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
-                "ProjectTerrainMeshModeCityObject",
-                BindingFlags.NonPublic | BindingFlags.Static)
-            ?? throw new InvalidOperationException("Failed to resolve ProjectTerrainMeshModeCityObject.");
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds =
             MeshCodeBounds.TryParse(request.MeshCode) is { } parsedRequestedMeshCodeBounds
                 ? [parsedRequestedMeshCodeBounds]
                 : [];
 
-        return (ImportedCityObject)method.Invoke(
-            null,
-            [
-                cityObject,
-                globalOriginPoint,
-                null,
-                null,
-                request,
-                requestedMeshCodeBounds,
-                new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
-                null,
-                CancellationToken.None,
-            ])!;
+        return CityGmlParsedCityObjectProjection.ProjectTerrainMeshModeCityObject(
+            cityObject,
+            globalOriginPoint,
+            globalCartesian: null,
+            demTerrainTextureOverlay: null,
+            request,
+            requestedMeshCodeBounds,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
+            progressReporter: null,
+            CancellationToken.None);
     }
 
     private static void AssertGeneratedUpperFacadeTrianglesFaceOutward(
