@@ -10,14 +10,15 @@ internal interface IResoniteBufferedCityObjectBakerFactory
 }
 
 internal sealed class ResoniteBufferedCityObjectBakerFactory(
-    ResoniteTextureImageLoader textureImageLoader) : IResoniteBufferedCityObjectBakerFactory
+    INonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory) : IResoniteBufferedCityObjectBakerFactory
 {
+    private readonly INonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory = sourceFileBakeEmitterFactory
+        ?? throw new ArgumentNullException(nameof(sourceFileBakeEmitterFactory));
+
     public CompositeCityObjectBaker? Create(
         bool enableMeshBake,
         ResoniteImportBudgetProfile resourceBudget)
     {
-        ArgumentNullException.ThrowIfNull(textureImageLoader);
-
         _ = resourceBudget.Name switch
         {
             ResoniteImportMemoryProfile.Small or ResoniteImportMemoryProfile.Large => true,
@@ -27,9 +28,9 @@ internal sealed class ResoniteBufferedCityObjectBakerFactory(
         return enableMeshBake
             ? new CompositeCityObjectBaker(
                 new NonDemCityObjectBaker(
-                    textureImageLoader,
-                    bakePolicies: NonDemCityObjectBakePolicies.DefaultPolicies,
-                    resourceBudget: resourceBudget))
+                    bakePolicyResolver: new NonDemCityObjectBakePolicyResolver(NonDemCityObjectBakePolicies.DefaultPolicies),
+                    sourceFileBakeEmitter: sourceFileBakeEmitterFactory.Create(
+                        new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget))))
             : null;
     }
 }

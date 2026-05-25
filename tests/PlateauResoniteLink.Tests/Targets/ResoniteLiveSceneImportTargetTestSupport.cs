@@ -325,8 +325,9 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
             new ResoniteQueuedCityObjectSender(
-                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
-                new ResoniteDatasetLicenseWriter(),
+                new ResoniteQueuedTexturePreparer(
+                    terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
+                    new ResoniteDatasetLicenseWriter()),
                 new ResonitePreparedCityObjectImporter(
                     new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
                     new ResoniteSceneMaterialPlanComposer(materialPlanning),
@@ -350,9 +351,11 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     new ResoniteSceneSetupInterpreter(
                         new ResoniteSceneSlotLocator(),
                         new ResoniteSceneAnchorResolver()),
-                    new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter),
+                    new ResoniteCommonMaterialSetupPreparer(materialPlanning),
                     new LiveSendRunPlanFactory(),
-                    new LiveSendRunStateFactory(new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader())),
+                    new LiveSendRunStateFactory(
+                        new ResoniteBufferedCityObjectBakerFactory(
+                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
                     new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
                     new ResoniteSlotCreator()),
                 queue));
