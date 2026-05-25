@@ -1,7 +1,5 @@
 using System;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface IResoniteLiveSendContextFactory
@@ -47,10 +45,3 @@ internal sealed class ResoniteLiveSendContextFactory : IResoniteLiveSendContextF
             context.ProgressReporter);
     }
 }
-
-internal sealed record ResoniteLiveSendTargetContext(
-    Uri Endpoint,
-    int ConnectionCount,
-    ILiveSendClientSession ClientSession,
-    ResoniteLinkSendDiagnostics Diagnostics,
-    Action<string>? ProgressReporter);
