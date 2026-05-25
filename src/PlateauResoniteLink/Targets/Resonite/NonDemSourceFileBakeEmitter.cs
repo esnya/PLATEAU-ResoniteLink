@@ -12,7 +12,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed class NonDemSourceFileBakeEmitter(
     NonDemCityObjectBakeCandidateFactory candidateFactory,
     NonDemCityObjectBakeAssembler assembler,
-    NonDemAtlasBatchFitPolicy batchFitPolicy)
+    NonDemAtlasBatchFitPolicy batchFitPolicy) : INonDemSourceFileBakeEmitter
 {
     public async Task<int> EmitAsync(
         NonDemSourceFileBatchKey sourceFileKey,

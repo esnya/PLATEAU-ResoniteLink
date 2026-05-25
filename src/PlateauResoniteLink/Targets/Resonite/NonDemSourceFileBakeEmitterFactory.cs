@@ -4,7 +4,7 @@ internal sealed class NonDemSourceFileBakeEmitterFactory(
     ResoniteTextureImageLoader textureImageLoader,
     NonDemAtlasBakeBudget atlasBudget)
 {
-    public NonDemSourceFileBakeEmitter Create()
+    public INonDemSourceFileBakeEmitter Create()
     {
         NonDemAtlasLayoutFactory layoutFactory = new(
             atlasBudget.EffectiveMaxAtlasSize,

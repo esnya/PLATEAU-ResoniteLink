@@ -8,13 +8,13 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemCityObjectBaker(
     IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies,
-    NonDemSourceFileBakeEmitter sourceFileBakeEmitter) : IResoniteBufferedCityObjectBaker
+    INonDemSourceFileBakeEmitter sourceFileBakeEmitter) : IResoniteBufferedCityObjectBaker
 {
     private readonly Dictionary<NonDemSourceFileBatchKey, List<NonDemBufferedCityObject>> bufferedCityObjectsBySourceFile = [];
     private readonly Dictionary<NonDemSourceFileBatchKey, int> nextBatchIndexBySourceFile = [];
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? throw new ArgumentNullException(nameof(bakePolicies));
-    private readonly NonDemSourceFileBakeEmitter sourceFileBakeEmitter = sourceFileBakeEmitter
+    private readonly INonDemSourceFileBakeEmitter sourceFileBakeEmitter = sourceFileBakeEmitter
         ?? throw new ArgumentNullException(nameof(sourceFileBakeEmitter));
 
     public string Name => "AtlasBake";
