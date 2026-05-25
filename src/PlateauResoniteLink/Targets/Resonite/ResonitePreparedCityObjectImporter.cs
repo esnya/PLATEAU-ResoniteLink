@@ -96,7 +96,15 @@ internal sealed class ResonitePreparedCityObjectImporter(
         }
         catch
         {
-            await importStepCancellation.CancelAsync();
+            try
+            {
+                await importStepCancellation.CancelAsync();
+            }
+            catch (AggregateException)
+            {
+                // Cancellation callbacks may throw; preserve the primary import failure and continue cleanup.
+            }
+
             IEnumerable<Task> tasksToObserve = materialPlanningTask is null
                 ? [uploadedTextureAssetsTask, geometryPlanningTask]
                 : [uploadedTextureAssetsTask, materialPlanningTask, geometryPlanningTask];
