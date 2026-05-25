@@ -5,7 +5,6 @@ using System.Linq;
 using GeographicLib;
 
 using ProjectionGeodeticPoint = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.GeodeticPoint;
-using ProjectionParsedCityObject = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedCityObject;
 using ProjectionParsedRing = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedRing;
 using ProjectionParsedSurface = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedSurface;
 
@@ -28,28 +27,9 @@ internal static class GeneratedRoadMarkingCityObjectFactory
             return null;
         }
 
-        ProjectionParsedCityObject? markingCityObject = Create(
-            CityGmlProjectionModelAdapter.ToProjectionModel(cityObject),
-            cityObjectOrigin.ToProjectionModel(),
-            cityObjectCartesian);
-
-        return markingCityObject is null
-            ? null
-            : CityGmlProjectionModelAdapter.FromProjectionModel(markingCityObject);
-    }
-
-    private static ProjectionParsedCityObject? Create(
-        ProjectionParsedCityObject cityObject,
-        ProjectionGeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        if (!string.Equals(cityObject.PackageName, "tran", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        List<ProjectionParsedSurface> markingSurfaces = [];
-        foreach (ProjectionParsedSurface surface in cityObject.Surfaces)
+        ProjectionGeodeticPoint projectionOrigin = cityObjectOrigin.ToProjectionModel();
+        List<ParsedSurface> markingSurfaces = [];
+        foreach (ParsedSurface surface in cityObject.Surfaces)
         {
             if (surface.TexturePayload is not null)
             {
@@ -57,13 +37,16 @@ internal static class GeneratedRoadMarkingCityObjectFactory
             }
 
             List<ProjectionParsedSurface> generatedSurfaces =
-                CreateSurfaces(surface, cityObjectOrigin, cityObjectCartesian);
+                CreateSurfaces(
+                    CityGmlProjectionModelAdapter.ToProjectionModel(surface),
+                    projectionOrigin,
+                    cityObjectCartesian);
             if (generatedSurfaces.Count == 0)
             {
                 continue;
             }
 
-            markingSurfaces.AddRange(generatedSurfaces);
+            markingSurfaces.AddRange(generatedSurfaces.Select(CityGmlProjectionModelAdapter.FromProjectionModel));
         }
 
         return markingSurfaces.Count == 0
