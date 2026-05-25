@@ -38,6 +38,7 @@ internal interface IResoniteLiveSendRunStarter
 internal sealed class ResoniteLiveSendRunStarter(
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
     IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
+    IResoniteCommonMaterialSetupCachePrimer commonMaterialSetupCachePrimer,
     ILiveSendRunPlanFactory runPlanFactory,
     ILiveSendRunStateFactory runStateFactory,
     IResoniteLiveSendWorkerLauncher workerLauncher,
@@ -124,29 +125,11 @@ internal sealed class ResoniteLiveSendRunStarter(
                 + $"location_slot='{setupState.SceneAnchor.LocationSlot.Value}', "
                 + $"anchor_mesh='{setupState.SceneAnchor.MeshCode}', "
                 + $"anchor_source_file_root='{setupState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
-        foreach (CommonMaterialCatalogMember<ResoniteCommonMaterialAsset> materialAsset in setupState.CommonMaterialAssets.EnumerateMembers())
-        {
-            materials.CommonMaterialAssets.Set(materialAsset.Item);
-        }
-
-        foreach (string family in setupState.CommonMaterialFamilies)
-        {
-            materials.CommonMaterialFamilyWarmupTasks[family] = Task.CompletedTask;
-        }
-
-        if (setupState.CommonMaterialAssets.Count > 0)
-        {
-            progress.FirstCommonMaterialPrepLogged = setupState.CommonMaterialAssets.Count;
-            ReportProgress(
-                context,
-                PlateauLog.Info(
-                    "live",
-                    $"Setup batch prepared {setupState.CommonMaterialAssets.Count} textureless common materials."));
-        }
-        else
-        {
-            ReportProgress(context, PlateauLog.Info("live", "Setup created common material slots; no textureless common material components were needed in setup batch."));
-        }
+        commonMaterialSetupCachePrimer.Prime(
+            setupState,
+            materials,
+            progress,
+            context.ProgressReporter);
 
         await commonMaterialSetupPreparer.PrepareAsync(
             GetRoutedClient(context),

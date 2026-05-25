@@ -70,6 +70,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         return new ResoniteLiveSendRunStarter(
             sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
             CreateCommonMaterialSetupPreparer(materialPlanning),
+            new ResoniteCommonMaterialSetupCachePrimer(),
             new LiveSendRunPlanFactory(),
             CreateRunStateFactory(),
             new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)),

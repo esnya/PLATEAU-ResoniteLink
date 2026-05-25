@@ -68,6 +68,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         return new ResoniteLiveSendRunStarter(
             sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
             CreateCommonMaterialSetupPreparer(materialPlanning),
+            new ResoniteCommonMaterialSetupCachePrimer(),
             new LiveSendRunPlanFactory(),
             CreateRunStateFactory(),
             new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)),
@@ -320,6 +321,22 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             .GetRequiredService<IResoniteSharedSlotIndexFactory>();
 
         Assert.Same(sharedSlotIndexFactory, resolvedFactory);
+    }
+
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredCommonMaterialSetupCachePrimer()
+    {
+        RecordingCommonMaterialSetupCachePrimer cachePrimer = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteCommonMaterialSetupCachePrimer>(_ => cachePrimer)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        IResoniteCommonMaterialSetupCachePrimer resolvedPrimer = scope.ServiceProvider
+            .GetRequiredService<IResoniteCommonMaterialSetupCachePrimer>();
+
+        Assert.Same(cachePrimer, resolvedPrimer);
     }
 
     [Fact]
@@ -580,6 +597,22 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         {
             _ = setupState;
             _ = runPlan;
+            throw new NotSupportedException("This test only verifies DI override preservation.");
+        }
+    }
+
+    private sealed class RecordingCommonMaterialSetupCachePrimer : IResoniteCommonMaterialSetupCachePrimer
+    {
+        public void Prime(
+            ResoniteSceneSetupState setupState,
+            CommonMaterialAssetCache materials,
+            LiveSendProgressSink progress,
+            Action<string>? progressReporter)
+        {
+            _ = setupState;
+            _ = materials;
+            _ = progress;
+            _ = progressReporter;
             throw new NotSupportedException("This test only verifies DI override preservation.");
         }
     }
