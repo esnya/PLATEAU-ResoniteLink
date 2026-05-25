@@ -18,7 +18,7 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
     ILiveSendRunPlanFactory runPlanFactory,
     ILiveSendRunStateFactory runStateFactory,
     IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory,
-    IResoniteSlotCreator slotCreator) : IResoniteLiveSendRunStarterFactory
+    IResoniteSharedSlotIndexFactory sharedSlotIndexFactory) : IResoniteLiveSendRunStarterFactory
 {
     public IResoniteLiveSendRunStarter Create(
         HttpClient terrainTextureAssetHttpClient,
@@ -33,7 +33,7 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
             runPlanFactory,
             runStateFactory,
             workerLauncherFactory.Create(terrainTextureAssetHttpClient, options),
-            slotCreator);
+            sharedSlotIndexFactory);
     }
 }
 

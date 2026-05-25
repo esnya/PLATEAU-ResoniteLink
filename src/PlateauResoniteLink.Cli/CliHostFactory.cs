@@ -230,7 +230,7 @@ internal sealed class DefaultSceneSinkFactory(
                     serviceProvider.GetRequiredService<ILiveSendRunPlanFactory>(),
                     serviceProvider.GetRequiredService<ILiveSendRunStateFactory>(),
                     new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
-                    serviceProvider.GetRequiredService<IResoniteSlotCreator>()),
+                    serviceProvider.GetRequiredService<IResoniteSharedSlotIndexFactory>()),
                 queue));
     }
 }

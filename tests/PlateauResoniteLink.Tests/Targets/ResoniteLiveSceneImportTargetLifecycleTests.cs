@@ -72,7 +72,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new LiveSendRunPlanFactory(),
             CreateRunStateFactory(),
             new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)),
-            new ResoniteSlotCreator());
+            new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator()));
     }
 
     private static ResoniteLiveSendQueue CreateQueue()

@@ -69,7 +69,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new LiveSendRunPlanFactory(),
             CreateRunStateFactory(),
             new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)),
-            new ResoniteSlotCreator());
+            new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator()));
     }
 
     private static ResoniteLiveSendQueue CreateQueue()
@@ -272,6 +272,22 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         ResoniteImportBudgetProfile? resourceBudget = sourceFileBakeEmitterFactory.LastBudget.ResourceBudget;
         Assert.NotNull(resourceBudget);
         Assert.Equal(ResoniteImportMemoryProfile.Small, resourceBudget.Name);
+    }
+
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredSharedSlotIndexFactory()
+    {
+        RecordingSharedSlotIndexFactory sharedSlotIndexFactory = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteSharedSlotIndexFactory>(_ => sharedSlotIndexFactory)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        IResoniteSharedSlotIndexFactory resolvedFactory = scope.ServiceProvider
+            .GetRequiredService<IResoniteSharedSlotIndexFactory>();
+
+        Assert.Same(sharedSlotIndexFactory, resolvedFactory);
     }
 
     [Fact]
@@ -488,6 +504,18 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             _ = progressReporter;
             cancellationToken.ThrowIfCancellationRequested();
             throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
+        }
+    }
+
+    private sealed class RecordingSharedSlotIndexFactory : IResoniteSharedSlotIndexFactory
+    {
+        public ResoniteSharedSlotIndex Create(
+            ResoniteSceneSetupState setupState,
+            LiveSendRunPlan runPlan)
+        {
+            _ = setupState;
+            _ = runPlan;
+            throw new NotSupportedException("This test only verifies DI override preservation.");
         }
     }
 
