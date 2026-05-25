@@ -4,9 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemCityObjectBaker(
@@ -111,131 +108,19 @@ internal sealed class NonDemCityObjectBaker(
             return;
         }
 
-        int emittedCount = 0;
         int batchStartIndex = nextBatchIndexBySourceFile.GetValueOrDefault(sourceFileKey);
+        NonDemSourceFileBakeEmitter emitter = CreateSourceFileBakeEmitter();
 
-        await BakeSourceFileAsync(
+        int emittedCount = await emitter.EmitAsync(
             sourceFileKey,
             cityObjects,
             batchStartIndex,
-            (bakedCityObject, callbackCancellationToken) =>
-            {
-                emittedCount++;
-                return onBakedCityObject(bakedCityObject, callbackCancellationToken);
-            },
+            onBakedCityObject,
             cancellationToken);
 
+        BakedOutputCityObjectCount += emittedCount;
         nextBatchIndexBySourceFile[sourceFileKey] = batchStartIndex + emittedCount;
         cityObjects.Clear();
-    }
-
-    private async Task BakeSourceFileAsync(
-        NonDemSourceFileBatchKey sourceFileKey,
-        List<NonDemBufferedCityObject> cityObjects,
-        int batchStartIndex,
-        Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
-        CancellationToken cancellationToken)
-    {
-        List<NonDemCityObjectBakeCandidate> passThroughCandidates = [];
-        List<NonDemCityObjectBakeCandidate> currentAtlasBatch = [];
-        int batchIndex = batchStartIndex;
-        bool preservePrimaryIdentity = cityObjects.Count == 1;
-        NonDemCityObjectBakeCandidateFactory candidateFactory = CreateCandidateFactory();
-        NonDemAtlasBatchFitPolicy batchFitPolicy = CreateBatchFitPolicy();
-
-        foreach (NonDemBufferedCityObject bufferedCityObject in cityObjects.OrderBy(
-                     static bufferedCityObject => bufferedCityObject.CityObject.SlotKey,
-                     StringComparer.Ordinal))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            NonDemCityObjectBakeCandidate? candidate = await candidateFactory.CreateAsync(bufferedCityObject, cancellationToken);
-            if (candidate is null)
-            {
-                continue;
-            }
-
-            if (candidate.AtlasEntries.Count == 0 && !NonDemAtlasBatchFitPolicy.RequiresBakeEmission(candidate))
-            {
-                passThroughCandidates.Add(candidate);
-                continue;
-            }
-
-            if (currentAtlasBatch.Count == 0)
-            {
-                if (batchFitPolicy.CanFitSingleCandidate(candidate))
-                {
-                    currentAtlasBatch.Add(candidate);
-                }
-                else
-                {
-                    await EmitFallbackCandidateAsync(candidate, onBakedCityObject, cancellationToken);
-                }
-
-                continue;
-            }
-
-            if (batchFitPolicy.CanAppendToAtlasBatch(currentAtlasBatch, candidate))
-            {
-                currentAtlasBatch.Add(candidate);
-                continue;
-            }
-
-            await EmitAtlasBatchAsync(
-                sourceFileKey,
-                currentAtlasBatch,
-                batchIndex++,
-                preservePrimaryIdentity && passThroughCandidates.Count == 0,
-                onBakedCityObject,
-                cancellationToken);
-            currentAtlasBatch.Clear();
-
-            if (batchFitPolicy.CanFitSingleCandidate(candidate))
-            {
-                currentAtlasBatch.Add(candidate);
-            }
-            else
-            {
-                await EmitFallbackCandidateAsync(candidate, onBakedCityObject, cancellationToken);
-            }
-        }
-
-        if (currentAtlasBatch.Count > 0)
-        {
-            await EmitAtlasBatchAsync(
-                sourceFileKey,
-                currentAtlasBatch,
-                batchIndex++,
-                preservePrimaryIdentity && passThroughCandidates.Count == 0,
-                onBakedCityObject,
-                cancellationToken);
-            currentAtlasBatch.Clear();
-        }
-
-        if (passThroughCandidates.Count == 1)
-        {
-            NonDemCityObjectBakeCandidate passThroughCandidate = passThroughCandidates[0];
-            BakedOutputCityObjectCount++;
-            await onBakedCityObject(passThroughCandidate.CityObject, cancellationToken);
-            DisposeCandidateImages(passThroughCandidate);
-        }
-        else if (passThroughCandidates.Count > 1)
-        {
-            try
-            {
-                ResoniteConstructionCityObject mergedPassThroughCityObject = await BakeBatchAsync(
-                    sourceFileKey,
-                    passThroughCandidates,
-                    batchIndex,
-                    preservePrimaryIdentity: false,
-                    cancellationToken);
-                BakedOutputCityObjectCount++;
-                await onBakedCityObject(mergedPassThroughCityObject, cancellationToken);
-            }
-            finally
-            {
-                DisposeCandidateImages(passThroughCandidates);
-            }
-        }
     }
 
     private NonDemCityObjectBakePolicy? ResolvePolicy(ResoniteConstructionCityObject cityObject)
@@ -250,22 +135,6 @@ internal sealed class NonDemCityObjectBaker(
         }
 
         return null;
-    }
-
-    private async Task<ResoniteConstructionCityObject> BakeBatchAsync(
-        NonDemSourceFileBatchKey sourceFileKey,
-        IReadOnlyList<NonDemCityObjectBakeCandidate> candidates,
-        int batchIndex,
-        bool preservePrimaryIdentity,
-        CancellationToken cancellationToken)
-    {
-        NonDemCityObjectBakeAssembler assembler = new(CreateAtlasLayoutFactory(), new NonDemAtlasImageRenderer(tilePaddingPixels));
-        return await assembler.BakeBatchAsync(
-            sourceFileKey,
-            candidates,
-            batchIndex,
-            preservePrimaryIdentity,
-            cancellationToken);
     }
 
     private NonDemAtlasLayoutFactory CreateAtlasLayoutFactory()
@@ -283,60 +152,11 @@ internal sealed class NonDemCityObjectBaker(
         return new NonDemAtlasBatchFitPolicy(CreateAtlasLayoutFactory());
     }
 
-    private async Task EmitAtlasBatchAsync(
-        NonDemSourceFileBatchKey sourceFileKey,
-        IReadOnlyList<NonDemCityObjectBakeCandidate> batchCandidates,
-        int batchIndex,
-        bool preservePrimaryIdentity,
-        Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
-        CancellationToken cancellationToken)
+    private NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter()
     {
-        try
-        {
-            ResoniteConstructionCityObject bakedCityObject = await BakeBatchAsync(
-                sourceFileKey,
-                batchCandidates,
-                batchIndex,
-                preservePrimaryIdentity,
-                cancellationToken);
-            BakedOutputCityObjectCount++;
-            await onBakedCityObject(bakedCityObject, cancellationToken);
-        }
-        finally
-        {
-            DisposeCandidateImages(batchCandidates);
-        }
-    }
-
-    private async Task EmitFallbackCandidateAsync(
-        NonDemCityObjectBakeCandidate fallbackCandidate,
-        Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            BakedOutputCityObjectCount++;
-            await onBakedCityObject(fallbackCandidate.CityObject, cancellationToken);
-        }
-        finally
-        {
-            DisposeCandidateImages(fallbackCandidate);
-        }
-    }
-
-    private static void DisposeCandidateImages(NonDemCityObjectBakeCandidate candidate)
-    {
-        DisposeCandidateImages([candidate]);
-    }
-
-    private static void DisposeCandidateImages(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
-    {
-        foreach (Image<Rgba32> tileImage in candidates
-                     .SelectMany(static candidate => candidate.AtlasEntries)
-                     .Select(static entry => entry.Tile.Image)
-                     .Distinct())
-        {
-            tileImage.Dispose();
-        }
+        return new NonDemSourceFileBakeEmitter(
+            CreateCandidateFactory(),
+            new NonDemCityObjectBakeAssembler(CreateAtlasLayoutFactory(), new NonDemAtlasImageRenderer(tilePaddingPixels)),
+            CreateBatchFitPolicy());
     }
 }
