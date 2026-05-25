@@ -136,7 +136,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new ThrowingRunSetupPreparer(),
                     new LiveSendRunStateFactory(
                         new ResoniteBufferedCityObjectBakerFactory(
-                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
+                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader())),
+                        new LiveSendRunRuntimeComponentsFactory()),
                     workerLauncher)));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
