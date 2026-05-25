@@ -351,19 +351,20 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+        ResoniteConstructionCityObject cityObject = CreateMixedSharedMaterialAndPayloadCityObject(
+            "runtime-shared-texture",
+            terrainAlignedDepthOffset);
         SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
             request,
             request,
             metadata,
             request.CityGmlLocalSourcePath!,
             workDirectory.Path,
-            CommonMaterialCatalog.Create());
+            ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: false));
 
         _ = await importTarget.ExecuteAsync(
             plan,
-            CreateImportedObjectUnits(CreateMixedSharedMaterialAndPayloadCityObject(
-                "runtime-shared-texture",
-                terrainAlignedDepthOffset)));
+            CreateImportedObjectUnits(cityObject));
 
         int commonPrepIndex = progressMessages.FindIndex(static message =>
             message.Contains("Prepared ", StringComparison.Ordinal)
@@ -415,19 +416,20 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+        ResoniteConstructionCityObject cityObject = CreateVertexColorTriangleCityObject(
+            "terrain-aligned-vertex-common",
+            new ResoniteMaterialDepthOffset(-10.0, -10.0));
         SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
             request,
             request,
             metadata,
             request.CityGmlLocalSourcePath!,
             workDirectory.Path,
-            CommonMaterialCatalog.Create());
+            ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: true));
 
         _ = await importTarget.ExecuteAsync(
             plan,
-            CreateImportedObjectUnits(CreateVertexColorTriangleCityObject(
-                "terrain-aligned-vertex-common",
-                new ResoniteMaterialDepthOffset(-10.0, -10.0))));
+            CreateImportedObjectUnits(cityObject));
 
         Assert.Contains(
             routedClient.SlotsById.Values,
@@ -443,6 +445,21 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         Assert.True(
             materialSlotExistedWhenSendWorkersStarted,
             "Expected terrain-aligned vertex common material slot to exist before send workers start.");
+    }
+
+    [Fact]
+    public void ReferencedCommonMaterialsIncludesTerrainAlignedVertexColorWhenMeshBakeIsEnabled()
+    {
+        ResoniteConstructionCityObject cityObject = CreateVertexColorTriangleCityObject(
+            "terrain-aligned-vertex-common-default",
+            new ResoniteMaterialDepthOffset(-10.0, -10.0));
+
+        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
+            ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: true);
+
+        Assert.Contains(
+            commonMaterials.EnumerateItems(),
+            static member => member.Definition == CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv.Definition);
     }
 
     [Fact]
@@ -503,7 +520,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
                 metadata,
                 workDirectory.Path,
-                commonMaterials: CommonMaterialCatalog.Create()),
+                commonMaterials: ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials(
+                    [demObject],
+                    enableMeshBake: true)),
             CreateImportedObjectUnits(demObject));
 
         Assert.Equal(1, executionResult.ProcessedCityObjectCount);

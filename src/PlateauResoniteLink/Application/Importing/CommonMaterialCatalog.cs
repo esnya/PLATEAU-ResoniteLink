@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -7,10 +8,18 @@ namespace PlateauResoniteLink.Application.Importing;
 
 public sealed class CommonMaterialCatalog<TItem>
 {
+    private readonly CommonMaterialCatalogMember<TItem>[] allMembers;
     private readonly CommonMaterialCatalogMember<TItem>[] members;
     private readonly Dictionary<CommonMaterialDefinition, TItem> itemsByDefinition;
 
     internal CommonMaterialCatalog(Func<CommonMaterialDefinition, TItem> create)
+        : this(create, activeDefinitions: null)
+    {
+    }
+
+    private CommonMaterialCatalog(
+        Func<CommonMaterialDefinition, TItem> create,
+        IReadOnlySet<CommonMaterialDefinition>? activeDefinitions)
     {
         ArgumentNullException.ThrowIfNull(create);
 
@@ -94,7 +103,7 @@ public sealed class CommonMaterialCatalog<TItem>
         WallWoodRural = new CommonWallWoodRuralMaterialCatalog<TItem>(
             create(CommonMaterialDefinitions.WallWoodRuralLight));
 
-        members =
+        allMembers =
         [
             Member(CommonMaterialDefinitions.CityFurniturePlaster002, CityFurniture.Plaster002),
             Member(CommonMaterialDefinitions.CityFurniturePlaster001, CityFurniture.Plaster001),
@@ -155,8 +164,13 @@ public sealed class CommonMaterialCatalog<TItem>
             Member(CommonMaterialDefinitions.VertexColorUv, VertexColor.Uv),
             Member(CommonMaterialDefinitions.VertexColorTerrainAlignedUv, VertexColor.TerrainAlignedUv),
         ];
+        members = activeDefinitions is null
+            ? allMembers
+            : allMembers
+                .Where(member => activeDefinitions.Contains(member.Definition))
+                .ToArray();
         itemsByDefinition = new Dictionary<CommonMaterialDefinition, TItem>(ReferenceEqualityComparer.Instance);
-        foreach (CommonMaterialCatalogMember<TItem> member in members)
+        foreach (CommonMaterialCatalogMember<TItem> member in allMembers)
         {
             itemsByDefinition.Add(member.Definition, member.Item);
         }
@@ -208,12 +222,12 @@ public sealed class CommonMaterialCatalog<TItem>
     {
         ArgumentNullException.ThrowIfNull(map);
         Dictionary<CommonMaterialDefinition, TOut> mapped = new(ReferenceEqualityComparer.Instance);
-        foreach (CommonMaterialCatalogMember<TItem> member in members)
+        foreach (CommonMaterialCatalogMember<TItem> member in allMembers)
         {
             mapped.Add(member.Definition, map(member.Item));
         }
 
-        return new CommonMaterialCatalog<TOut>(definition => mapped[definition]);
+        return new CommonMaterialCatalog<TOut>(definition => mapped[definition], CreateActiveDefinitionSet());
     }
 
     internal async ValueTask<CommonMaterialCatalog<TOut>> MapAsync<TOut>(
@@ -222,13 +236,13 @@ public sealed class CommonMaterialCatalog<TItem>
     {
         ArgumentNullException.ThrowIfNull(map);
         Dictionary<CommonMaterialDefinition, TOut> mapped = new(ReferenceEqualityComparer.Instance);
-        foreach (CommonMaterialCatalogMember<TItem> member in members)
+        foreach (CommonMaterialCatalogMember<TItem> member in allMembers)
         {
             cancellationToken.ThrowIfCancellationRequested();
             mapped.Add(member.Definition, await map(member.Item, cancellationToken).ConfigureAwait(false));
         }
 
-        return new CommonMaterialCatalog<TOut>(definition => mapped[definition]);
+        return new CommonMaterialCatalog<TOut>(definition => mapped[definition], CreateActiveDefinitionSet());
     }
 
     internal IReadOnlyList<CommonMaterialCatalogMember<TItem>> EnumerateMembers() => members;
@@ -248,6 +262,35 @@ public sealed class CommonMaterialCatalog<TItem>
     {
         ArgumentNullException.ThrowIfNull(definition);
         return itemsByDefinition[definition];
+    }
+
+    internal CommonMaterialCatalog<TItem> FilterToDefinitions(IEnumerable<CommonMaterialDefinition> definitions)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        HashSet<CommonMaterialDefinition> activeDefinitions = new(ReferenceEqualityComparer.Instance);
+        foreach (CommonMaterialDefinition definition in definitions)
+        {
+            ArgumentNullException.ThrowIfNull(definition);
+            if (!itemsByDefinition.ContainsKey(definition))
+            {
+                throw new ArgumentException($"Unknown common material definition '{definition.MemberName}'.", nameof(definitions));
+            }
+
+            activeDefinitions.Add(definition);
+        }
+
+        return new CommonMaterialCatalog<TItem>(definition => itemsByDefinition[definition], activeDefinitions);
+    }
+
+    private HashSet<CommonMaterialDefinition> CreateActiveDefinitionSet()
+    {
+        HashSet<CommonMaterialDefinition> activeDefinitions = new(ReferenceEqualityComparer.Instance);
+        foreach (CommonMaterialCatalogMember<TItem> member in members)
+        {
+            activeDefinitions.Add(member.Definition);
+        }
+
+        return activeDefinitions;
     }
 
     private static CommonMaterialCatalogMember<TItem> Member(CommonMaterialDefinition definition, TItem item) => new(definition, item);

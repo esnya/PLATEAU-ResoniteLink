@@ -160,6 +160,7 @@ internal sealed class ResoniteLiveSendRunStarter(
             setupState,
             materials,
             request.CommonMaterials,
+            context.ProgressReporter,
             cancellationToken);
 
         ReportProgress(

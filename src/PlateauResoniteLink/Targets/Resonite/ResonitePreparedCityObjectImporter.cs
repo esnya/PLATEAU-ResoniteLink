@@ -50,7 +50,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
         ReportImportStep(progressReporter, cityObject, "Creating object slot hierarchy.");
         Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = await AwaitWithCancellationAsync(
+        ResoniteObjectSlotHierarchy objectSlots = await AwaitWithCancellationAsync(
             queuedCityObject.ObjectHierarchyTask,
             cancellationToken);
         slotHierarchyStopwatch.Stop();
