@@ -35,6 +35,10 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResonitePreparedTextureUploader, ResonitePreparedTextureUploader>();
         services.TryAddScoped<IResonitePreparedCityObjectAssetPlanner, ResonitePreparedCityObjectAssetPlanner>();
         services.TryAddScoped<IResonitePreparedCityObjectImporter, ResonitePreparedCityObjectImporter>();
+        services.TryAddScoped<IResoniteQueuedGeometryPreparer, ResoniteQueuedGeometryPreparer>();
+        services.TryAddScoped<IResoniteQueuedSendFailurePolicy, ResoniteQueuedSendFailurePolicy>();
+        services.TryAddScoped<IResoniteQueuedCityObjectPreparerFactory, ResoniteQueuedCityObjectPreparerFactory>();
+        services.TryAddScoped<IResoniteQueuedCityObjectSenderFactory, ResoniteQueuedCityObjectSenderFactory>();
         services.TryAddScoped<IResoniteQueuedCityObjectEnqueuer, ResoniteQueuedCityObjectEnqueuer>();
         services.TryAddScoped<IResoniteLiveSendFinalizer, ResoniteLiveSendFinalizer>();
         services.TryAddScoped<IResoniteLiveSendQueue, ResoniteLiveSendQueue>();
