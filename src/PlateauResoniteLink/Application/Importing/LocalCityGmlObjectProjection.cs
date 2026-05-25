@@ -39,9 +39,8 @@ internal static class LocalCityGmlObjectProjection
         W: Math.Sqrt(0.5));
     private static readonly ColorRgba DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
     private static readonly ColorRgba DefaultVegetationMaterialColor = new(0.32, 0.58, 0.24, 1.0);
-    private static readonly XNamespace App = "http://www.opengis.net/citygml/appearance/2.0";
-    private static readonly XNamespace Core = "http://www.opengis.net/citygml/2.0";
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
+
     internal static ParsedCityObject? ParseCityObject(
         XElement cityObjectElement,
         string packageName,
@@ -54,84 +53,17 @@ internal static class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         LodFilteringStrategy lodFilteringStrategy)
     {
-        string objectTypeName = cityObjectElement.Name.LocalName;
-        string objectId = GetAttribute(cityObjectElement, Gml + "id") ?? objectTypeName;
-        string? displayName = cityObjectElement.Elements(Gml + "name").FirstOrDefault()?.Value.Trim();
-        if (string.IsNullOrWhiteSpace(displayName))
-        {
-            displayName = objectId;
-        }
-
-        string resolvedActualMeshCode = CityGmlMeshCodeBoundsFilter.ResolveActualMeshCode(
-            packageName,
-            displayName!,
-            objectId,
-            actualMeshCode,
-            sharedAcrossMeshCodes);
-        BuildingAttributeContext buildingAttributes = BuildingAttributeParser.Parse(cityObjectElement);
-        int? floorsAboveGround = BuildingAttributeQueries.TryGetKnownPositiveInteger(buildingAttributes.StoreysAboveGround);
-        double? measuredHeightMeters = BuildingAttributeQueries.TryGetKnownPositiveMetric(buildingAttributes.MeasuredHeightMeters);
-
-        bool isMarking = displayName.Contains("Marking", StringComparison.OrdinalIgnoreCase)
-            || objectId.Contains("Marking", StringComparison.OrdinalIgnoreCase)
-            || objectId.Contains("_road_marking", StringComparison.Ordinal);
-
-        CityGmlLodSelection lodSelection = lodSelector.SelectPreferredSurfaceElements(
+        return CityGmlProjectionCityObjectParser.Parse(
             cityObjectElement,
             packageName,
-            isMarking,
-            lodFilteringStrategy);
-        XElement[] preferredSurfaceElements = lodSelection.SurfaceElements;
-        int? lodLevel = lodSelection.LodLevel;
-
-        if (!lodFilteringStrategy.ShouldIncludeByPattern(packageName, objectId, isMarking))
-        {
-            return null;
-        }
-
-        if (preferredSurfaceElements.Length == 0 && lodFilteringStrategy.ShouldExcludeLod(packageName, lodLevel, isMarking))
-        {
-            return null;
-        }
-
-        ParsedSurface[] surfaces = preferredSurfaceElements
-            .Select(surfaceElement => CityGmlParsedSurfaceReader.Parse(surfaceElement, appearanceStore))
-            .Where(static surface => surface is not null)
-            .Select(static surface => surface!)
-            .Select(surface => CityGmlParsedSurfaceReader.ApplyPackageDefaults(packageName, surface))
-            .OrderBy(static surface => ParsedSurfaceStableSortKey.Create(surface), StringComparer.Ordinal)
-            .ToArray();
-
-        if (surfaces.Length == 0)
-        {
-            return null;
-        }
-
-        if (!CityGmlMeshCodeBoundsFilter.IntersectsRequestedMeshCodeBounds(
-                resolvedActualMeshCode,
-                sharedAcrossMeshCodes,
-                coordinateReferenceSystem,
-                requestedMeshCodeBounds,
-                surfaces))
-        {
-            return null;
-        }
-
-        string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
-        string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
-        return new ParsedCityObject(
-            slotKey,
-            displayName!,
-            packageName,
-            resolvedActualMeshCode,
-            lodLevel,
-            surfaces,
-            coordinateReferenceSystem,
             relativeSourceFile,
-            SharedAcrossMeshCodes: sharedAcrossMeshCodes,
-            FloorsAboveGround: floorsAboveGround,
-            MeasuredHeightMeters: measuredHeightMeters,
-            BuildingAttributes: buildingAttributes);
+            actualMeshCode,
+            sharedAcrossMeshCodes,
+            appearanceStore,
+            lodSelector,
+            coordinateReferenceSystem,
+            requestedMeshCodeBounds,
+            lodFilteringStrategy);
     }
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
@@ -143,82 +75,6 @@ internal static class LocalCityGmlObjectProjection
                 requestedMeshCodes)
             .Select(static region => DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.GeographicBounds))
             .ToArray();
-    }
-
-    private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(
-        XElement cityObjectElement,
-        string packageName,
-        bool isMarking,
-        LodFilteringStrategy lodFilteringStrategy)
-    {
-        (XElement SurfaceElement, int? LodLevel)[] surfaces = cityObjectElement
-            .Descendants()
-            .Where(element => element.Name == Gml + "Polygon" || element.Name == Gml + "Triangle")
-            .Select(surfaceElement => (surfaceElement, GetSurfaceLodLevel(surfaceElement, cityObjectElement)))
-            .ToArray();
-
-        int[] explicitLodLevels = surfaces
-            .Where(static surface => surface.LodLevel.HasValue)
-            .Select(static surface => surface.LodLevel!.Value)
-            .ToArray();
-
-        // Filter out excluded LODs before finding the highest
-        int[] validLodLevels = explicitLodLevels
-            .Where(lod => !lodFilteringStrategy.ShouldExcludeLod(packageName, lod, isMarking))
-            .ToArray();
-
-        int? highestLod = validLodLevels.Length > 0
-            ? validLodLevels.Max()
-            : null;
-
-        XElement[] selectedSurfaces = highestLod.HasValue
-            ? surfaces
-                .Where(surface => surface.LodLevel == highestLod.Value)
-                .Select(static surface => surface.SurfaceElement)
-                .ToArray()
-            : surfaces
-                .Where(surface => !lodFilteringStrategy.ShouldExcludeLod(packageName, surface.LodLevel, isMarking))
-                .Select(static surface => surface.SurfaceElement)
-                .ToArray();
-
-        return (selectedSurfaces, highestLod);
-    }
-
-    private static int? GetSurfaceLodLevel(XElement surfaceElement, XElement cityObjectElement)
-    {
-        for (XElement? ancestor = surfaceElement.Parent; ancestor is not null && ancestor != cityObjectElement; ancestor = ancestor.Parent)
-        {
-            if (TryParseLodLevel(ancestor.Name.LocalName, out int lodLevel))
-            {
-                return lodLevel;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool TryParseLodLevel(string localName, out int lodLevel)
-    {
-        lodLevel = 0;
-        if (!localName.StartsWith("lod", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        int digitStart = 3;
-        int digitLength = 0;
-        while (digitStart + digitLength < localName.Length
-            && char.IsDigit(localName[digitStart + digitLength]))
-        {
-            digitLength++;
-        }
-
-        return digitLength > 0
-            && int.TryParse(
-                localName.AsSpan(digitStart, digitLength),
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out lodLevel);
     }
 
     private static bool TryCreateMeshCodeBounds(string meshCode, out MeshCodeBounds? meshCodeArea)
@@ -901,11 +757,6 @@ internal static class LocalCityGmlObjectProjection
         return path.Replace(Path.DirectorySeparatorChar, '/');
     }
 
-    private static string? GetAttribute(XElement element, XName attributeName)
-    {
-        return element.Attribute(attributeName)?.Value;
-    }
-
     private static bool AreSamePoint(GeodeticPoint left, GeodeticPoint right)
     {
         return Math.Abs(left.Latitude - right.Latitude) < 1e-8
@@ -919,12 +770,6 @@ internal static class LocalCityGmlObjectProjection
             || Math.Abs(color.G - DefaultMaterialColor.G) >= 1e-8
             || Math.Abs(color.B - DefaultMaterialColor.B) >= 1e-8
             || Math.Abs(color.A - DefaultMaterialColor.A) >= 1e-8;
-    }
-
-    private static string SanitizeIdentifier(string value)
-    {
-        return string.Concat(
-            value.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
     }
 
     internal static IEnumerable<ImportedCityObject> ProjectCityObjects(
