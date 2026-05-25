@@ -1,9 +1,7 @@
 using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -21,14 +19,14 @@ internal interface IResoniteQueuedCityObjectSender
 }
 
 internal sealed class ResoniteQueuedCityObjectSender(
-    IResoniteQueuedGeometryPreparer geometryPreparer,
-    IResoniteQueuedTexturePreparer texturePreparer,
+    IResoniteQueuedCityObjectPreparer cityObjectPreparer,
+    IResoniteQueuedSendFailurePolicy sendFailurePolicy,
     IResonitePreparedCityObjectImporter preparedCityObjectImporter) : IResoniteQueuedCityObjectSender
 {
-    private readonly IResoniteQueuedGeometryPreparer geometryPreparer =
-        geometryPreparer ?? throw new ArgumentNullException(nameof(geometryPreparer));
-    private readonly IResoniteQueuedTexturePreparer texturePreparer =
-        texturePreparer ?? throw new ArgumentNullException(nameof(texturePreparer));
+    private readonly IResoniteQueuedCityObjectPreparer cityObjectPreparer =
+        cityObjectPreparer ?? throw new ArgumentNullException(nameof(cityObjectPreparer));
+    private readonly IResoniteQueuedSendFailurePolicy sendFailurePolicy =
+        sendFailurePolicy ?? throw new ArgumentNullException(nameof(sendFailurePolicy));
     private readonly IResonitePreparedCityObjectImporter preparedCityObjectImporter =
         preparedCityObjectImporter ?? throw new ArgumentNullException(nameof(preparedCityObjectImporter));
 
@@ -53,7 +51,7 @@ internal sealed class ResoniteQueuedCityObjectSender(
         try
         {
             PreparedCityObject preparedCityObject = await AwaitWithSlowCityObjectWarningAsync(
-                CreatePreparationTask(
+                cityObjectPreparer.PrepareAsync(
                     state,
                     routedClient,
                     queuedCityObject.CityObject,
@@ -85,7 +83,7 @@ internal sealed class ResoniteQueuedCityObjectSender(
         }
         catch (Exception exception)
         {
-            if (!IsRecoverableCityObjectSendFailure(exception))
+            if (!sendFailurePolicy.IsRecoverable(exception))
             {
                 throw;
             }
@@ -106,125 +104,11 @@ internal sealed class ResoniteQueuedCityObjectSender(
         }
     }
 
-    private Task<PreparedCityObject> CreatePreparationTask(
-        LiveSendRunState state,
-        IResoniteLinkClient routedClient,
-        ResoniteConstructionCityObject cityObject,
-        ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter,
-        CancellationToken callerCancellationToken)
-    {
-        if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectPreparationStartedLogged, 1, 0) == 0)
-        {
-            ReportProgress(
-                progressReporter,
-                PlateauLog.Info(
-                    "live",
-                    $"City object preparation started after {state.Runtime.ElapsedTotalSeconds:F3}s: "
-                    + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey}) "
-                    + $"mesh='{cityObject.ActualMeshCode}'."));
-        }
-
-        CancellationToken processingCancellationToken = state.Runtime.ProcessingCancellationToken;
-        return PrepareCityObjectWithLinkedCancellationAsync(
-            state,
-            routedClient,
-            cityObject,
-            diagnostics,
-            progressReporter,
-            callerCancellationToken,
-            processingCancellationToken);
-    }
-
-    private async Task<PreparedCityObject> PrepareCityObjectWithLinkedCancellationAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient routedClient,
-        ResoniteConstructionCityObject cityObject,
-        ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter,
-        CancellationToken callerCancellationToken,
-        CancellationToken processingCancellationToken)
-    {
-        using CancellationTokenSource linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            callerCancellationToken,
-            processingCancellationToken);
-        return await PrepareCityObjectAsync(
-            state,
-            routedClient,
-            cityObject,
-            diagnostics,
-            progressReporter,
-            linkedCancellation.Token);
-    }
-
-    private async Task<PreparedCityObject> PrepareCityObjectAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient routedClient,
-        ResoniteConstructionCityObject cityObject,
-        ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter,
-        CancellationToken cancellationToken)
-    {
-        ResoniteQueuedGeometryPreparation geometryPreparation = geometryPreparer.Start(
-            cityObject,
-            cancellationToken);
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        PreparedTextureReference[] preparedTextures = await texturePreparer.PrepareAsync(
-            state,
-            routedClient,
-            geometryPreparation.CityObject,
-            progressReporter,
-            cancellationToken);
-        PreparedQueuedGeometry preparedQueuedGeometry = await geometryPreparer.CompleteAsync(
-            geometryPreparation,
-            preparedTextures);
-        cityObject = preparedQueuedGeometry.CityObject;
-        PreparedConstructionGeometry preparedGeometry = preparedQueuedGeometry.Geometry;
-        stopwatch.Stop();
-        diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
-
-        if (Interlocked.CompareExchange(ref state.Progress.FirstPreparedCityObjectLogged, 1, 0) == 0)
-        {
-            ReportProgress(
-                progressReporter,
-                PlateauLog.Info(
-                    "live",
-                    $"First city object prepared in {stopwatch.Elapsed.TotalSeconds:F3}s "
-                    + $"after scene start {state.Runtime.ElapsedTotalSeconds:F3}s: "
-                    + $"{cityObject.DisplayName} "
-                    + $"(textures={preparedTextures.Length}, geometry={PreparedConstructionGeometryFormatter.Describe(preparedGeometry)})."));
-        }
-
-        return new PreparedCityObject(
-            cityObject,
-            preparedGeometry,
-            preparedTextures);
-    }
-
-    private static bool IsRecoverableCityObjectSendFailure(Exception exception)
-    {
-        return exception is ContinuableImportException
-            || FindResoniteLinkOperationException(exception) is { OperationName: "ImportMesh" or "ImportTexture" or "GetSlot" or "GetComponent" };
-    }
-
     private static Task<T> AwaitWithSlowCityObjectWarningAsync<T>(
         Task<T> operationTask,
         CancellationToken cancellationToken)
     {
         return operationTask.WaitAsync(cancellationToken);
-    }
-
-    private static ResoniteLinkOperationException? FindResoniteLinkOperationException(Exception exception)
-    {
-        for (Exception? current = exception; current is not null; current = current.InnerException)
-        {
-            if (current is ResoniteLinkOperationException operationException)
-            {
-                return operationException;
-            }
-        }
-
-        return null;
     }
 
     private static void ReportProgress(Action<string>? progressReporter, string message)

@@ -211,10 +211,12 @@ internal sealed class DefaultSceneSinkFactory(
             new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
             new ResoniteQueuedCityObjectSender(
-                new ResoniteQueuedGeometryPreparer(),
-                new ResoniteQueuedTexturePreparer(
-                    new DeterministicTerrainTextureAssetGenerator(),
-                    serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>()),
+                new ResoniteQueuedCityObjectPreparer(
+                    new ResoniteQueuedGeometryPreparer(),
+                    new ResoniteQueuedTexturePreparer(
+                        new DeterministicTerrainTextureAssetGenerator(),
+                        serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>())),
+                new ResoniteQueuedSendFailurePolicy(),
                 serviceProvider.GetRequiredService<IResonitePreparedCityObjectImporter>()));
         return new ResoniteLiveSceneImportTarget(
             targetOptions,

@@ -60,8 +60,10 @@ internal sealed class ResoniteLiveSendWorkerLauncherFactory(
             terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options),
             datasetLicenseWriter);
         ResoniteQueuedCityObjectSender queuedCityObjectSender = new(
-            new ResoniteQueuedGeometryPreparer(),
-            texturePreparer,
+            new ResoniteQueuedCityObjectPreparer(
+                new ResoniteQueuedGeometryPreparer(),
+                texturePreparer),
+            new ResoniteQueuedSendFailurePolicy(),
             preparedCityObjectImporter);
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(queuedCityObjectSender);
         return new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker);
