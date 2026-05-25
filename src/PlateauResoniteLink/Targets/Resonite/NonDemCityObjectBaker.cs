@@ -141,6 +141,7 @@ internal sealed class NonDemCityObjectBaker(
         int batchIndex = batchStartIndex;
         bool preservePrimaryIdentity = cityObjects.Count == 1;
         NonDemCityObjectBakeCandidateFactory candidateFactory = CreateCandidateFactory();
+        NonDemAtlasBatchFitPolicy batchFitPolicy = CreateBatchFitPolicy();
 
         foreach (NonDemBufferedCityObject bufferedCityObject in cityObjects.OrderBy(
                      static bufferedCityObject => bufferedCityObject.CityObject.SlotKey,
@@ -153,7 +154,7 @@ internal sealed class NonDemCityObjectBaker(
                 continue;
             }
 
-            if (candidate.AtlasEntries.Count == 0 && !RequiresBakeEmission(candidate))
+            if (candidate.AtlasEntries.Count == 0 && !NonDemAtlasBatchFitPolicy.RequiresBakeEmission(candidate))
             {
                 passThroughCandidates.Add(candidate);
                 continue;
@@ -161,7 +162,7 @@ internal sealed class NonDemCityObjectBaker(
 
             if (currentAtlasBatch.Count == 0)
             {
-                if (CanFitSingleCandidate(candidate))
+                if (batchFitPolicy.CanFitSingleCandidate(candidate))
                 {
                     currentAtlasBatch.Add(candidate);
                 }
@@ -173,7 +174,7 @@ internal sealed class NonDemCityObjectBaker(
                 continue;
             }
 
-            if (CanAppendToAtlasBatch(currentAtlasBatch, candidate))
+            if (batchFitPolicy.CanAppendToAtlasBatch(currentAtlasBatch, candidate))
             {
                 currentAtlasBatch.Add(candidate);
                 continue;
@@ -188,7 +189,7 @@ internal sealed class NonDemCityObjectBaker(
                 cancellationToken);
             currentAtlasBatch.Clear();
 
-            if (CanFitSingleCandidate(candidate))
+            if (batchFitPolicy.CanFitSingleCandidate(candidate))
             {
                 currentAtlasBatch.Add(candidate);
             }
@@ -277,6 +278,11 @@ internal sealed class NonDemCityObjectBaker(
         return new NonDemCityObjectBakeCandidateFactory(textureImageLoader, EffectiveMaxAtlasTextureEdge);
     }
 
+    private NonDemAtlasBatchFitPolicy CreateBatchFitPolicy()
+    {
+        return new NonDemAtlasBatchFitPolicy(CreateAtlasLayoutFactory());
+    }
+
     private async Task EmitAtlasBatchAsync(
         NonDemSourceFileBatchKey sourceFileKey,
         IReadOnlyList<NonDemCityObjectBakeCandidate> batchCandidates,
@@ -318,19 +324,6 @@ internal sealed class NonDemCityObjectBaker(
         }
     }
 
-    private bool CanFitSingleCandidate(NonDemCityObjectBakeCandidate candidate)
-    {
-        return candidate.AtlasEntries.Count == 0 || CreateAtlasLayoutFactory().CanFit(candidate.AtlasEntries);
-    }
-
-    private bool CanAppendToAtlasBatch(
-        IReadOnlyList<NonDemCityObjectBakeCandidate> batchCandidates,
-        NonDemCityObjectBakeCandidate candidate)
-    {
-        List<NonDemAtlasBatchEntry> candidateEntries = [.. batchCandidates.SelectMany(static current => current.AtlasEntries), .. candidate.AtlasEntries];
-        return CreateAtlasLayoutFactory().CanFit(candidateEntries);
-    }
-
     private static void DisposeCandidateImages(NonDemCityObjectBakeCandidate candidate)
     {
         DisposeCandidateImages([candidate]);
@@ -346,10 +339,4 @@ internal sealed class NonDemCityObjectBaker(
             tileImage.Dispose();
         }
     }
-
-    private static bool RequiresBakeEmission(NonDemCityObjectBakeCandidate candidate)
-    {
-        return candidate.PreservedEntries.Any(static entry => entry.VertexColorOverride is not null);
-    }
-
 }
