@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -68,7 +67,7 @@ internal static class NonDemPreservedMaterialGrouping
 
             if (x.CommonMaterial is not null)
             {
-                return ReferenceEquals(x.TexturePayload, y.TexturePayload)
+                return ResoniteTexturePayloadReferenceComparer.Instance.Equals(x.TexturePayload, y.TexturePayload)
                     && x.TextureSourceKind == y.TextureSourceKind
                     && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
                     && string.Equals(x.TerrainMeshCode, y.TerrainMeshCode, StringComparison.Ordinal);
@@ -76,7 +75,7 @@ internal static class NonDemPreservedMaterialGrouping
 
             return x.BaseColor == y.BaseColor
                 && x.MaterialType == y.MaterialType
-                && ReferenceEquals(x.TexturePayload, y.TexturePayload)
+                && ResoniteTexturePayloadReferenceComparer.Instance.Equals(x.TexturePayload, y.TexturePayload)
                 && x.TextureSourceKind == y.TextureSourceKind
                 && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
                 && x.Projection == y.Projection
@@ -95,11 +94,7 @@ internal static class NonDemPreservedMaterialGrouping
             hash.Add(obj.CommonMaterial);
             if (obj.CommonMaterial is not null)
             {
-                if (obj.TexturePayload is not null)
-                {
-                    hash.Add(RuntimeHelpers.GetHashCode(obj.TexturePayload));
-                }
-
+                AddTexturePayloadHash(ref hash, obj.TexturePayload);
                 hash.Add(obj.TextureSourceKind);
                 hash.Add(obj.TerrainOverlay);
                 hash.Add(obj.TerrainMeshCode, StringComparer.Ordinal);
@@ -108,11 +103,7 @@ internal static class NonDemPreservedMaterialGrouping
 
             hash.Add(obj.BaseColor);
             hash.Add(obj.MaterialType);
-            if (obj.TexturePayload is not null)
-            {
-                hash.Add(RuntimeHelpers.GetHashCode(obj.TexturePayload));
-            }
-
+            AddTexturePayloadHash(ref hash, obj.TexturePayload);
             hash.Add(obj.TextureSourceKind);
             hash.Add(obj.TerrainOverlay);
             hash.Add(obj.Projection);
@@ -124,6 +115,13 @@ internal static class NonDemPreservedMaterialGrouping
             hash.Add(obj.BundledVariantIndex);
             hash.Add(obj.TerrainMeshCode, StringComparer.Ordinal);
             return hash.ToHashCode();
+        }
+
+        private static void AddTexturePayloadHash(ref HashCode hash, ResoniteTexturePayload? texturePayload)
+        {
+            hash.Add(texturePayload is null
+                ? 0
+                : ResoniteTexturePayloadReferenceComparer.Instance.GetHashCode(texturePayload));
         }
     }
 }

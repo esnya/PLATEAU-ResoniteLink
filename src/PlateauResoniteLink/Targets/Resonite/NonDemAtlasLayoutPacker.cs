@@ -42,7 +42,8 @@ internal sealed class NonDemAtlasLayoutPacker(int atlasMaxSize, int tilePaddingP
 
         foreach (TEntry entry in entries)
         {
-            NonDemAtlasEntrySize entrySize = GetEntrySize(getTileSize(entry));
+            NonDemAtlasTileSize tileSize = getTileSize(entry);
+            NonDemAtlasEntrySize entrySize = GetEntrySize(tileSize);
             if (entrySize.PaddedWidth > atlasWidth || entrySize.PaddedHeight > atlasHeight)
             {
                 layout = null;
@@ -55,7 +56,6 @@ internal sealed class NonDemAtlasLayoutPacker(int atlasMaxSize, int tilePaddingP
                 return false;
             }
 
-            NonDemAtlasTileSize tileSize = getTileSize(entry);
             NonDemAtlasRect outerRect = new(selectedRect.X, selectedRect.Y, entrySize.PaddedWidth, entrySize.PaddedHeight);
             NonDemAtlasRect innerRect = new(selectedRect.X + tilePaddingPixels, selectedRect.Y + tilePaddingPixels, tileSize.Width, tileSize.Height);
             placements.Add(new NonDemAtlasPlacement<TEntry>(entry, outerRect, innerRect));
