@@ -26,7 +26,14 @@ internal sealed class ResoniteLiveSendRunResourceReleaser : IResoniteLiveSendRun
 
         if (state is not null)
         {
-            await state.Runtime.DisposeAsync();
+            try
+            {
+                await state.Runtime.DisposeAsync();
+            }
+            finally
+            {
+                state.GsiFallbackLicenseGate.Dispose();
+            }
         }
 
         if (disposeClients)

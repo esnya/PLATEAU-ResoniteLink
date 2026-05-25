@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Threading;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -16,7 +15,8 @@ internal interface ILiveSendRunStateFactory
 }
 
 internal sealed class LiveSendRunStateFactory(
-    IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory) : ILiveSendRunStateFactory
+    IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory,
+    ILiveSendRunRuntimeComponentsFactory runtimeComponentsFactory) : ILiveSendRunStateFactory
 {
     public LiveSendRunState Create(
         LiveSendRunPlan runPlan,
@@ -31,10 +31,12 @@ internal sealed class LiveSendRunStateFactory(
         ArgumentNullException.ThrowIfNull(materials);
         ArgumentNullException.ThrowIfNull(placement);
 
-        LiveSendExecutionRuntime runtime = new(runPlan.Queue, cancellationToken);
         CompositeCityObjectBaker? cityObjectBaker = cityObjectBakerFactory.Create(
             runPlan.MeshBakeEnabled,
             runPlan.ResourceBudget);
+        LiveSendRunRuntimeComponents runtimeComponents = runtimeComponentsFactory.Create(
+            runPlan.Queue,
+            cancellationToken);
         LiveSendRunContext context = new(
             runPlan,
             setupState.DatasetRootSlot,
@@ -46,11 +48,11 @@ internal sealed class LiveSendRunStateFactory(
             Context = context,
             Progress = progress,
             Materials = materials,
-            TerrainTextures = new TerrainTextureAssetCache(),
+            TerrainTextures = runtimeComponents.TerrainTextures,
             Placement = placement,
-            Runtime = runtime,
-            GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
-            DemSourceUseCounts = new ConcurrentDictionary<string, int>(StringComparer.Ordinal),
+            Runtime = runtimeComponents.Runtime,
+            GsiFallbackLicenseGate = runtimeComponents.GsiFallbackLicenseGate,
+            DemSourceUseCounts = runtimeComponents.DemSourceUseCounts,
         };
     }
 }
