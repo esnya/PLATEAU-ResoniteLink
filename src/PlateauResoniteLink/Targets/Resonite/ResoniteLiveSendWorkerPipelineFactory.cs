@@ -20,8 +20,9 @@ internal sealed class ResoniteLiveSendWorkerPipelineFactory(
         ResoniteQueuedTexturePreparer texturePreparer = new(
             terrainTextureAssetGenerator,
             datasetLicenseWriter);
+        ResoniteQueuedCityObjectPreparation cityObjectPreparation = new(texturePreparer);
         ResoniteQueuedCityObjectSender queuedCityObjectSender = new(
-            texturePreparer,
+            cityObjectPreparation,
             preparedCityObjectImporter);
         return new ResoniteQueuedCityObjectWorker(queuedCityObjectSender);
     }
