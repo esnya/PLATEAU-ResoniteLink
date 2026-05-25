@@ -23,82 +23,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 {
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
 
-    private static ResoniteCommonMaterialSetupPreparer CreateCommonMaterialSetupPreparer(
-        IResoniteMaterialPlanning materialPlanning)
-    {
-        return new ResoniteCommonMaterialSetupPreparer(materialPlanning);
-    }
-
-    private static LiveSendRunStateFactory CreateRunStateFactory()
-    {
-        return new LiveSendRunStateFactory(
-            new ResoniteBufferedCityObjectBakerFactory(
-                new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader())));
-    }
-
-    private static ResonitePreparedCityObjectImporter CreatePreparedCityObjectImporter(
-        IResoniteMaterialPlanning materialPlanning)
-    {
-        return new ResonitePreparedCityObjectImporter(
-            new ResonitePreparedCityObjectAssetPlanner(
-                new ResonitePreparedTextureUploader(new ResoniteSharedTerrainTextureAssetWriter()),
-                new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
-                new ResoniteSceneMaterialPlanComposer(materialPlanning)),
-            new ResoniteBatchEmissionPlanner(),
-            new PlannedBatchEmissionInterpreter());
-    }
-
-    private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
-        IResoniteMaterialPlanning materialPlanning)
-    {
-        return new ResoniteQueuedCityObjectWorker(
-            new ResoniteQueuedCityObjectLaneProcessor(
-                new ResoniteQueuedCityObjectSender(
-                new ResoniteQueuedCityObjectPreparer(
-                    new ResoniteQueuedGeometryPreparer(),
-                    new ResoniteQueuedTexturePreparer(
-                        new TerrainTextureAssetGenerator(),
-                        new ResoniteDatasetLicenseWriter())),
-                new ResoniteQueuedSendFailurePolicy(),
-                    CreatePreparedCityObjectImporter(materialPlanning))));
-    }
-
-    private static ResoniteLiveSendRunStarter CreateRunStarter(
-        IResoniteMaterialPlanning materialPlanning,
-        IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
-    {
-        return new ResoniteLiveSendRunStarter(
-            new ResoniteLiveSendRunPlanInitializer(new LiveSendRunPlanFactory()),
-            new ResoniteLiveSendConnectionInitializer(),
-            new ResoniteLiveSendSetupInitializer(
-                sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-                CreateCommonMaterialSetupPreparer(materialPlanning),
-                new ResoniteCommonMaterialSetupCachePrimer(),
-                new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
-            new ResoniteLiveSendRunActivator(
-                CreateRunStateFactory(),
-                new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning))));
-    }
-
-    private static ResoniteLiveSendQueue CreateQueue()
-    {
-        ResoniteQueuedCityObjectEnqueuer enqueuer = new();
-        return new ResoniteLiveSendQueue(enqueuer, new ResoniteLiveSendFinalizer(enqueuer));
-    }
-
-    private static ResoniteLiveSceneImportExecutor CreateExecutor(
-        IResoniteMaterialPlanning materialPlanning,
-        IResoniteLiveSendResourceReleaser resourceReleaser,
-        IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
-    {
-        return new ResoniteLiveSceneImportExecutor(
-            new ResoniteLiveSendStartRequestFactory(),
-            CreateRunStarter(materialPlanning, sceneSetupInterpreter),
-            new ResoniteLiveSendContextFactory(),
-            resourceReleaser,
-            CreateQueue());
-    }
-
     [Fact]
     public async Task ExecuteAsync_DelegatesNormalizedRequestsToInjectedSession()
     {
@@ -123,7 +47,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 diagnostics,
-                CreateExecutor(materialPlanning, resourceReleaser),
+                ResoniteLiveSceneImportTargetTestSupport.CreateExecutor(materialPlanning, resourceReleaser),
                 resourceReleaser));
 
         PlateauImportRequest normalizedRequest = new(
@@ -179,7 +103,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 diagnostics,
-                CreateExecutor(materialPlanning, resourceReleaser),
+                ResoniteLiveSceneImportTargetTestSupport.CreateExecutor(materialPlanning, resourceReleaser),
                 resourceReleaser));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
@@ -226,7 +150,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 diagnostics,
-                CreateExecutor(materialPlanning, resourceReleaser),
+                ResoniteLiveSceneImportTargetTestSupport.CreateExecutor(materialPlanning, resourceReleaser),
                 resourceReleaser));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -310,7 +234,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                CreateExecutor(materialPlanning, resourceReleaser, new MissingCommonMaterialSetupInterpreter()),
+                ResoniteLiveSceneImportTargetTestSupport.CreateExecutor(materialPlanning, resourceReleaser, new MissingCommonMaterialSetupInterpreter()),
                 resourceReleaser));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -354,7 +278,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                CreateExecutor(materialPlanning, resourceReleaser, new MissingCommonMaterialSetupInterpreter()),
+                ResoniteLiveSceneImportTargetTestSupport.CreateExecutor(materialPlanning, resourceReleaser, new MissingCommonMaterialSetupInterpreter()),
                 resourceReleaser));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -421,7 +345,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                CreateExecutor(materialPlanning, resourceReleaser),
+                ResoniteLiveSceneImportTargetTestSupport.CreateExecutor(materialPlanning, resourceReleaser),
                 resourceReleaser));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(

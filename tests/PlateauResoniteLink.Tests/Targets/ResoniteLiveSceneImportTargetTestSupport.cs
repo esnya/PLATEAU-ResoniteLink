@@ -376,6 +376,76 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 resourceReleaser));
     }
 
+    public static ResoniteLiveSceneImportExecutor CreateExecutor(
+        IResoniteMaterialPlanning materialPlanning,
+        IResoniteLiveSendResourceReleaser resourceReleaser,
+        IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
+    {
+        return new ResoniteLiveSceneImportExecutor(
+            new ResoniteLiveSendStartRequestFactory(),
+            CreateRunStarter(materialPlanning, sceneSetupInterpreter),
+            new ResoniteLiveSendContextFactory(),
+            resourceReleaser,
+            CreateQueue());
+    }
+
+    private static ResoniteLiveSendRunStarter CreateRunStarter(
+        IResoniteMaterialPlanning materialPlanning,
+        IResoniteSceneSetupInterpreter? sceneSetupInterpreter)
+    {
+        return new ResoniteLiveSendRunStarter(
+            new ResoniteLiveSendRunPlanInitializer(new LiveSendRunPlanFactory()),
+            new ResoniteLiveSendConnectionInitializer(),
+            new ResoniteLiveSendSetupInitializer(
+                sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
+                new ResoniteCommonMaterialSetupPreparer(materialPlanning),
+                new ResoniteCommonMaterialSetupCachePrimer(),
+                new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
+            new ResoniteLiveSendRunActivator(
+                CreateRunStateFactory(),
+                new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning))));
+    }
+
+    private static LiveSendRunStateFactory CreateRunStateFactory()
+    {
+        return new LiveSendRunStateFactory(
+            new ResoniteBufferedCityObjectBakerFactory(
+                new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader())));
+    }
+
+    private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
+        IResoniteMaterialPlanning materialPlanning)
+    {
+        return new ResoniteQueuedCityObjectWorker(
+            new ResoniteQueuedCityObjectLaneProcessor(
+                new ResoniteQueuedCityObjectSender(
+                    new ResoniteQueuedCityObjectPreparer(
+                        new ResoniteQueuedGeometryPreparer(),
+                        new ResoniteQueuedTexturePreparer(
+                            new TerrainTextureAssetGenerator(),
+                            new ResoniteDatasetLicenseWriter())),
+                    new ResoniteQueuedSendFailurePolicy(),
+                    CreatePreparedCityObjectImporter(materialPlanning))));
+    }
+
+    private static ResonitePreparedCityObjectImporter CreatePreparedCityObjectImporter(
+        IResoniteMaterialPlanning materialPlanning)
+    {
+        return new ResonitePreparedCityObjectImporter(
+            new ResonitePreparedCityObjectAssetPlanner(
+                new ResonitePreparedTextureUploader(new ResoniteSharedTerrainTextureAssetWriter()),
+                new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
+                new ResoniteSceneMaterialPlanComposer(materialPlanning)),
+            new ResoniteBatchEmissionPlanner(),
+            new PlannedBatchEmissionInterpreter());
+    }
+
+    private static ResoniteLiveSendQueue CreateQueue()
+    {
+        ResoniteQueuedCityObjectEnqueuer enqueuer = new();
+        return new ResoniteLiveSendQueue(enqueuer, new ResoniteLiveSendFinalizer(enqueuer));
+    }
+
     private static async IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsAsync(
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)

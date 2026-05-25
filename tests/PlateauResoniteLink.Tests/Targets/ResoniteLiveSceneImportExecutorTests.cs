@@ -27,10 +27,12 @@ public sealed class ResoniteLiveSceneImportExecutorTests
             new ThrowingRunStarter(primaryFailure),
             resourceReleaser,
             new CompletingQueue());
+        using TemporaryDirectory datasetRoot = new();
+        using TemporaryDirectory workDirectory = new();
 
         InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException>(
             () => executor.ExecuteAsync(
-                CreatePlan(),
+                CreatePlan(datasetRoot.Path, workDirectory.Path),
                 EmptyImportedObjectUnits(),
                 CreateContext(),
                 CancellationToken.None));
@@ -52,10 +54,12 @@ public sealed class ResoniteLiveSceneImportExecutorTests
             new CompletingRunStarter(),
             resourceReleaser,
             new CompletingQueue());
+        using TemporaryDirectory datasetRoot = new();
+        using TemporaryDirectory workDirectory = new();
 
         InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException>(
             () => executor.ExecuteAsync(
-                CreatePlan(),
+                CreatePlan(datasetRoot.Path, workDirectory.Path),
                 EmptyImportedObjectUnits(),
                 CreateContext(),
                 CancellationToken.None));
@@ -78,17 +82,17 @@ public sealed class ResoniteLiveSceneImportExecutorTests
             queue);
     }
 
-    private static SceneImportExecutionPlan CreatePlan()
+    private static SceneImportExecutionPlan CreatePlan(
+        string datasetRoot,
+        string workDirectory)
     {
-        using TemporaryDirectory datasetRoot = new();
-        using TemporaryDirectory workDirectory = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             "tokyo23ku",
             "53394525",
-            datasetRoot.Path,
+            datasetRoot,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0));
 
-        return ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path);
+        return ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory);
     }
 
     private static ResoniteLiveSceneImportExecutionContext CreateContext()
