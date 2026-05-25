@@ -185,6 +185,7 @@ internal sealed class DefaultCanonicalSceneDumpSinkFactory(
     {
         ArgumentNullException.ThrowIfNull(options);
 
+        string canonicalSceneDumpPath = GetRequiredCanonicalSceneDumpPath(options.CanonicalSceneDumpPath);
         SceneSinkRecordingClient recordingClient = new();
         try
         {
@@ -194,13 +195,23 @@ internal sealed class DefaultCanonicalSceneDumpSinkFactory(
                 progressReporter);
             return new ScopedSceneSink(
                 scope,
-                new CanonicalSceneDumpSink(dumpTarget, recordingClient, options.CanonicalSceneDumpPath!));
+                new CanonicalSceneDumpSink(dumpTarget, recordingClient, canonicalSceneDumpPath));
         }
         catch
         {
             recordingClient.Dispose();
             throw;
         }
+    }
+
+    private static string GetRequiredCanonicalSceneDumpPath(string? canonicalSceneDumpPath)
+    {
+        if (string.IsNullOrWhiteSpace(canonicalSceneDumpPath))
+        {
+            throw new ArgumentException("Canonical scene dump path must be provided.", nameof(canonicalSceneDumpPath));
+        }
+
+        return canonicalSceneDumpPath;
     }
 }
 
