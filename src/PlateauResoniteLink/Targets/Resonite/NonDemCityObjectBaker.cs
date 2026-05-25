@@ -23,8 +23,6 @@ internal sealed class NonDemCityObjectBaker(
 {
     internal const int DefaultMaxAtlasSize = 4096;
     internal const int DefaultTilePaddingPixels = 2;
-    private const byte BackgroundDetectionAlphaThreshold = 16;
-
     private readonly Dictionary<SourceFileBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceFile = [];
     private readonly Dictionary<SourceFileBatchKey, int> nextBatchIndexBySourceFile = [];
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
@@ -350,27 +348,34 @@ internal sealed class NonDemCityObjectBaker(
         using Image<Rgba32> sourceImage = await textureImageLoader.LoadAsync(
             ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
             cancellationToken);
-        Rgba32 detectedBackgroundColor = DetectRepresentativeBackgroundColor(sourceImage);
+        Rgba32 detectedBackgroundColor = NonDemTextureImageProcessing.DetectRepresentativeBackgroundColor(sourceImage);
         using Image<Rgba32> preparedSourceImage = sourceImage.Clone();
-        FillTransparentRgb(preparedSourceImage, detectedBackgroundColor);
-        if (TryGetUniformPixelColor(preparedSourceImage, out Rgba32 uniformDatasetColor))
+        NonDemTextureImageProcessing.FillTransparentRgb(preparedSourceImage, detectedBackgroundColor);
+        if (NonDemTextureImageProcessing.TryGetUniformPixelColor(preparedSourceImage, out Rgba32 uniformDatasetColor))
         {
+            Rgba32 tintedUniformColor = NonDemTextureImageProcessing.MultiplyPixel(
+                uniformDatasetColor,
+                NonDemTextureImageProcessing.ToPixel(material.BaseColor));
             return new AtlasOrPreservedEntry(
                 AtlasEntry: null,
                 PreservedEntry: new PreservedSubmeshEntry(
                     cityObject,
                     submesh,
                     CreateVertexColorMaterial(material, submesh.Index),
-                    ToColor(MultiplyPixel(uniformDatasetColor, ToPixel(material.BaseColor)))));
+                    NonDemTextureImageProcessing.ToColor(tintedUniformColor)));
         }
 
         int maxTileWidth = EffectiveMaxAtlasTextureEdge;
         int maxTileHeight = EffectiveMaxAtlasTextureEdge;
         int targetWidth = Math.Max(1, Math.Min(maxTileWidth, (int)Math.Ceiling(sourceImage.Width * uvBounds.Width)));
         int targetHeight = Math.Max(1, Math.Min(maxTileHeight, (int)Math.Ceiling(sourceImage.Height * uvBounds.Height)));
-        using Image<Rgba32> bakedImage = BakeUsedUvRegion(preparedSourceImage, uvBounds, targetWidth, targetHeight);
+        using Image<Rgba32> bakedImage = NonDemTextureImageProcessing.BakeUsedUvRegion(
+            preparedSourceImage,
+            uvBounds,
+            targetWidth,
+            targetHeight);
 
-        ApplyBaseColor(bakedImage, material.BaseColor);
+        NonDemTextureImageProcessing.ApplyBaseColor(bakedImage, material.BaseColor);
         return new AtlasOrPreservedEntry(
             AtlasEntry: new AtlasBatchEntry(
                 cityObject,
@@ -378,7 +383,9 @@ internal sealed class NonDemCityObjectBaker(
                 material,
                 new MaterialAtlasTile(
                     bakedImage.Clone(),
-                    MultiplyPixel(detectedBackgroundColor, ToPixel(material.BaseColor))),
+                    NonDemTextureImageProcessing.MultiplyPixel(
+                        detectedBackgroundColor,
+                        NonDemTextureImageProcessing.ToPixel(material.BaseColor))),
                 uvBounds),
             PreservedEntry: null);
     }
@@ -710,55 +717,6 @@ internal sealed class NonDemCityObjectBaker(
             out layout);
     }
 
-    private static void ApplyBaseColor(Image<Rgba32> image, ResoniteColor color)
-    {
-        Rgba32 tint = ToPixel(color);
-        for (int y = 0; y < image.Height; y++)
-        {
-            for (int x = 0; x < image.Width; x++)
-            {
-                Rgba32 pixel = image[x, y];
-                image[x, y] = new Rgba32(
-                    MultiplyChannel(pixel.R, tint.R),
-                    MultiplyChannel(pixel.G, tint.G),
-                    MultiplyChannel(pixel.B, tint.B),
-                    MultiplyChannel(pixel.A, tint.A));
-            }
-        }
-    }
-
-    private static byte MultiplyChannel(byte left, byte right)
-    {
-        return (byte)Math.Clamp((left * right + 127) / 255, 0, 255);
-    }
-
-    private static Rgba32 MultiplyPixel(Rgba32 left, Rgba32 right)
-    {
-        return new Rgba32(
-            MultiplyChannel(left.R, right.R),
-            MultiplyChannel(left.G, right.G),
-            MultiplyChannel(left.B, right.B),
-            MultiplyChannel(left.A, right.A));
-    }
-
-    private static Rgba32 ToPixel(ResoniteColor color)
-    {
-        return new Rgba32(
-            (byte)Math.Round(Math.Clamp(color.R, 0.0, 1.0) * 255.0),
-            (byte)Math.Round(Math.Clamp(color.G, 0.0, 1.0) * 255.0),
-            (byte)Math.Round(Math.Clamp(color.B, 0.0, 1.0) * 255.0),
-            (byte)Math.Round(Math.Clamp(color.A, 0.0, 1.0) * 255.0));
-    }
-
-    private static ResoniteColor ToColor(Rgba32 color)
-    {
-        return new ResoniteColor(
-            color.R / 255.0,
-            color.G / 255.0,
-            color.B / 255.0,
-            color.A / 255.0);
-    }
-
     private static ResoniteMaterialBinding CreateVertexColorMaterial(ResoniteMaterialBinding material, int submeshIndex)
     {
         return material with
@@ -862,193 +820,6 @@ internal sealed class NonDemCityObjectBaker(
         return new TextureUvRect(minU, minV, width, height);
     }
 
-    private static Image<Rgba32> BakeUsedUvRegion(
-        Image<Rgba32> sourceImage,
-        TextureUvRect uvBounds,
-        int targetWidth,
-        int targetHeight)
-    {
-        Image<Rgba32> bakedImage = new(targetWidth, targetHeight);
-        for (int y = 0; y < targetHeight; y++)
-        {
-            double normalizedV = 1.0 - ((y + 0.5) / targetHeight);
-            for (int x = 0; x < targetWidth; x++)
-            {
-                double normalizedU = (x + 0.5) / targetWidth;
-                ScalarPair sourceUv = uvBounds.DenormalizeValue(normalizedU, normalizedV);
-                bakedImage[x, y] = SampleWrappedPixelBilinear(sourceImage, sourceUv.X, sourceUv.Y);
-            }
-        }
-
-        return bakedImage;
-    }
-
-    private static Rgba32 DetectRepresentativeBackgroundColor(Image<Rgba32> image)
-    {
-        if (TryAverageBoundaryOpaquePixels(image, out Rgba32 boundaryAverage))
-        {
-            return boundaryAverage;
-        }
-
-        if (TryAverageOpaquePixels(image, out Rgba32 opaqueAverage))
-        {
-            return opaqueAverage;
-        }
-
-        if (TryAverageAllPixels(image, out Rgba32 allPixelAverage))
-        {
-            return new Rgba32(allPixelAverage.R, allPixelAverage.G, allPixelAverage.B, byte.MaxValue);
-        }
-
-        return new Rgba32(255, 255, 255, 255);
-    }
-
-    private static void FillTransparentRgb(Image<Rgba32> image, Rgba32 backgroundColor)
-    {
-        for (int y = 0; y < image.Height; y++)
-        {
-            for (int x = 0; x < image.Width; x++)
-            {
-                Rgba32 pixel = image[x, y];
-                if (pixel.A == byte.MaxValue)
-                {
-                    continue;
-                }
-
-                double alpha = pixel.A / 255.0;
-                image[x, y] = new Rgba32(
-                    BlendBackgroundChannel(pixel.R, backgroundColor.R, alpha),
-                    BlendBackgroundChannel(pixel.G, backgroundColor.G, alpha),
-                    BlendBackgroundChannel(pixel.B, backgroundColor.B, alpha),
-                    pixel.A);
-            }
-        }
-    }
-
-    private static bool TryGetUniformPixelColor(Image<Rgba32> image, out Rgba32 color)
-    {
-        color = default;
-        if (image.Width <= 0 || image.Height <= 0)
-        {
-            return false;
-        }
-
-        Rgba32 firstPixel = image[0, 0];
-        for (int y = 0; y < image.Height; y++)
-        {
-            for (int x = 0; x < image.Width; x++)
-            {
-                if (!image[x, y].Equals(firstPixel))
-                {
-                    return false;
-                }
-            }
-        }
-
-        color = firstPixel;
-        return true;
-    }
-
-    private static bool TryAverageBoundaryOpaquePixels(Image<Rgba32> image, out Rgba32 color)
-    {
-        long sumR = 0;
-        long sumG = 0;
-        long sumB = 0;
-        long count = 0;
-        for (int y = 0; y < image.Height; y++)
-        {
-            for (int x = 0; x < image.Width; x++)
-            {
-                Rgba32 pixel = image[x, y];
-                if (pixel.A <= BackgroundDetectionAlphaThreshold || !TouchesTransparentNeighbor(image, x, y))
-                {
-                    continue;
-                }
-
-                sumR += pixel.R;
-                sumG += pixel.G;
-                sumB += pixel.B;
-                count++;
-            }
-        }
-
-        color = count == 0
-            ? default
-            : new Rgba32(
-                (byte)Math.Clamp(Math.Round(sumR / (double)count), 0.0, 255.0),
-                (byte)Math.Clamp(Math.Round(sumG / (double)count), 0.0, 255.0),
-                (byte)Math.Clamp(Math.Round(sumB / (double)count), 0.0, 255.0),
-                byte.MaxValue);
-        return count > 0;
-    }
-
-    private static bool TouchesTransparentNeighbor(Image<Rgba32> image, int x, int y)
-    {
-        return IsTransparentOrOutOfBounds(image, x - 1, y)
-            || IsTransparentOrOutOfBounds(image, x + 1, y)
-            || IsTransparentOrOutOfBounds(image, x, y - 1)
-            || IsTransparentOrOutOfBounds(image, x, y + 1);
-    }
-
-    private static bool IsTransparentOrOutOfBounds(Image<Rgba32> image, int x, int y)
-    {
-        if (x < 0 || y < 0 || x >= image.Width || y >= image.Height)
-        {
-            return true;
-        }
-
-        return image[x, y].A <= BackgroundDetectionAlphaThreshold;
-    }
-
-    private static bool TryAverageOpaquePixels(Image<Rgba32> image, out Rgba32 color)
-    {
-        return TryAveragePixels(image, static pixel => pixel.A > BackgroundDetectionAlphaThreshold, out color);
-    }
-
-    private static bool TryAverageAllPixels(Image<Rgba32> image, out Rgba32 color)
-    {
-        return TryAveragePixels(image, static _ => true, out color);
-    }
-
-    private static bool TryAveragePixels(Image<Rgba32> image, Func<Rgba32, bool> predicate, out Rgba32 color)
-    {
-        long sumR = 0;
-        long sumG = 0;
-        long sumB = 0;
-        long count = 0;
-        for (int y = 0; y < image.Height; y++)
-        {
-            for (int x = 0; x < image.Width; x++)
-            {
-                Rgba32 pixel = image[x, y];
-                if (!predicate(pixel))
-                {
-                    continue;
-                }
-
-                sumR += pixel.R;
-                sumG += pixel.G;
-                sumB += pixel.B;
-                count++;
-            }
-        }
-
-        color = count == 0
-            ? default
-            : new Rgba32(
-                (byte)Math.Clamp(Math.Round(sumR / (double)count), 0.0, 255.0),
-                (byte)Math.Clamp(Math.Round(sumG / (double)count), 0.0, 255.0),
-                (byte)Math.Clamp(Math.Round(sumB / (double)count), 0.0, 255.0),
-                byte.MaxValue);
-        return count > 0;
-    }
-
-    private static byte BlendBackgroundChannel(byte foreground, byte background, double alpha)
-    {
-        double blended = (foreground * alpha) + (background * (1.0 - alpha));
-        return (byte)Math.Clamp(Math.Round(blended), 0.0, 255.0);
-    }
-
     private static Rgba32 ComputeAtlasBackgroundColor(IReadOnlyList<NonDemAtlasPlacement<AtlasBatchEntry>> placements)
     {
         long sumR = 0;
@@ -1097,67 +868,6 @@ internal sealed class NonDemCityObjectBaker(
     {
         atlasImage[x, y] = pixel;
         atlasCoverage[(y * atlasWidth) + x] = true;
-    }
-
-    private static Rgba32 SampleWrappedPixelBilinear(Image<Rgba32> sourceImage, double u, double v)
-    {
-        double wrappedU = WrapUvCoordinate(u);
-        double wrappedV = WrapUvCoordinate(v);
-        double sourceX = (wrappedU * sourceImage.Width) - 0.5;
-        double sourceY = ((1.0 - wrappedV) * sourceImage.Height) - 0.5;
-        int x0 = (int)Math.Floor(sourceX);
-        int y0 = (int)Math.Floor(sourceY);
-        int x1 = x0 + 1;
-        int y1 = y0 + 1;
-        double tx = sourceX - x0;
-        double ty = sourceY - y0;
-
-        Rgba32 topLeft = sourceImage[WrapPixelCoordinate(x0, sourceImage.Width), WrapPixelCoordinate(y0, sourceImage.Height)];
-        Rgba32 topRight = sourceImage[WrapPixelCoordinate(x1, sourceImage.Width), WrapPixelCoordinate(y0, sourceImage.Height)];
-        Rgba32 bottomLeft = sourceImage[WrapPixelCoordinate(x0, sourceImage.Width), WrapPixelCoordinate(y1, sourceImage.Height)];
-        Rgba32 bottomRight = sourceImage[WrapPixelCoordinate(x1, sourceImage.Width), WrapPixelCoordinate(y1, sourceImage.Height)];
-        return LerpPixels(topLeft, topRight, bottomLeft, bottomRight, tx, ty);
-    }
-
-    private static double WrapUvCoordinate(double value)
-    {
-        double wrapped = value - Math.Floor(value);
-        return wrapped >= 1.0 ? 0.0 : wrapped;
-    }
-
-    private static int WrapPixelCoordinate(int value, int length)
-    {
-        int wrapped = value % length;
-        return wrapped < 0 ? wrapped + length : wrapped;
-    }
-
-    private static Rgba32 LerpPixels(
-        Rgba32 topLeft,
-        Rgba32 topRight,
-        Rgba32 bottomLeft,
-        Rgba32 bottomRight,
-        double tx,
-        double ty)
-    {
-        return new Rgba32(
-            LerpChannel(topLeft.R, topRight.R, bottomLeft.R, bottomRight.R, tx, ty),
-            LerpChannel(topLeft.G, topRight.G, bottomLeft.G, bottomRight.G, tx, ty),
-            LerpChannel(topLeft.B, topRight.B, bottomLeft.B, bottomRight.B, tx, ty),
-            LerpChannel(topLeft.A, topRight.A, bottomLeft.A, bottomRight.A, tx, ty));
-    }
-
-    private static byte LerpChannel(
-        byte topLeft,
-        byte topRight,
-        byte bottomLeft,
-        byte bottomRight,
-        double tx,
-        double ty)
-    {
-        double top = topLeft + ((topRight - topLeft) * tx);
-        double bottom = bottomLeft + ((bottomRight - bottomLeft) * tx);
-        double value = top + ((bottom - top) * ty);
-        return (byte)Math.Clamp(Math.Round(value), 0.0, 255.0);
     }
 
     private async Task EmitAtlasBatchAsync(
