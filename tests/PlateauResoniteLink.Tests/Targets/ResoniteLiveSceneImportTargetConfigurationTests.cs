@@ -48,8 +48,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     {
         return new ResoniteQueuedCityObjectWorker(
             new ResoniteQueuedCityObjectSender(
-                new TerrainTextureAssetGenerator(),
-                new ResoniteDatasetLicenseWriter(),
+                new ResoniteQueuedTexturePreparer(
+                    new TerrainTextureAssetGenerator(),
+                    new ResoniteDatasetLicenseWriter()),
                 CreatePreparedCityObjectImporter(materialPlanning)));
     }
 

@@ -325,8 +325,9 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
             new ResoniteQueuedCityObjectSender(
-                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
-                new ResoniteDatasetLicenseWriter(),
+                new ResoniteQueuedTexturePreparer(
+                    terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
+                    new ResoniteDatasetLicenseWriter()),
                 new ResonitePreparedCityObjectImporter(
                     new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
                     new ResoniteSceneMaterialPlanComposer(materialPlanning),
