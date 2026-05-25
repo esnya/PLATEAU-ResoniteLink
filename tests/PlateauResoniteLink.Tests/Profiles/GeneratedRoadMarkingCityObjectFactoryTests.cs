@@ -73,6 +73,31 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
     }
 
     [Fact]
+    public void CreateGeneratesMarkingsOnlyForEligibleTransportationSurfaces()
+    {
+        ParsedCityObject road = CreateRoadObject(
+            packageName: "tran",
+            surfaces:
+            [
+                CreateRoadSurface(
+                    "textured-road",
+                    width: 4.0,
+                    length: 12.0,
+                    texturePayload: new TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], "road-texture")),
+                CreateRoadSurface(
+                    "plain-road",
+                    width: 4.0,
+                    length: 12.0,
+                    texturePayload: null),
+            ]);
+
+        ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(road, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
+
+        Assert.NotNull(marking);
+        Assert.All(marking.Surfaces, surface => Assert.StartsWith("plain-road_generated_marking_", surface.PolygonId, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void CreateSkipsNonTransportationObject()
     {
         ParsedCityObject building = CreateRoadObject(
@@ -90,13 +115,18 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
 
     private static ParsedCityObject CreateRoadObject(string packageName, ParsedSurface surface)
     {
+        return CreateRoadObject(packageName, [surface]);
+    }
+
+    private static ParsedCityObject CreateRoadObject(string packageName, ParsedSurface[] surfaces)
+    {
         return new ParsedCityObject(
             "road-slot",
             "Road",
             packageName,
             "53394525",
             LodLevel: 2,
-            [surface],
+            surfaces,
             new CoordinateReferenceSystem("local", Geocentric: null, CompatibilityKey: "local"),
             "udx/tran/road.gml",
             SharedAcrossMeshCodes: false,
