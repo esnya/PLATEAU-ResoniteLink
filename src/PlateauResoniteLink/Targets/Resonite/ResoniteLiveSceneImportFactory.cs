@@ -13,7 +13,6 @@ internal interface IResoniteLiveSceneImportFactory
     ResoniteLiveSceneImportTarget CreateTarget(
         ResoniteLiveSceneImportTargetOptions options,
         ILiveSendClientSession clientSession,
-        ResoniteLinkSendDiagnostics diagnostics,
         ITerrainTextureAssetGenerator terrainTextureAssetGenerator);
 }
 
@@ -33,13 +32,11 @@ internal sealed class ResoniteLiveSceneImportFactory(
     public ResoniteLiveSceneImportTarget CreateTarget(
         ResoniteLiveSceneImportTargetOptions options,
         ILiveSendClientSession clientSession,
-        ResoniteLinkSendDiagnostics diagnostics,
         ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
     {
         ResoniteLiveSceneImportDependencies dependencies = dependencyFactory.Create(
             options,
             clientSession,
-            diagnostics,
             terrainTextureAssetGenerator);
         return new ResoniteLiveSceneImportTarget(options, dependencies);
     }

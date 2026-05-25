@@ -38,7 +38,6 @@ internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
             ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
                 options,
                 new SingleRecordingClientSession(recordingClient),
-                ResoniteLinkSendDiagnostics.Disabled,
                 new DeterministicTerrainTextureAssetGenerator());
             return new CanonicalSceneDumpSink(target, recordingClient, outputPath);
         }

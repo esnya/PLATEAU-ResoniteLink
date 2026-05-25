@@ -330,14 +330,12 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 DisableTerrainTileCache: false,
                 ProgressReporter: progressReporter),
             CreateDependencies(
-                session ?? new DelegatingClientSession(routedClient),
-                diagnostics,
+                session ?? new DelegatingClientSession(routedClient, diagnostics: diagnostics),
                 CreateRunStarter(materialPlanning, terrainTextureAssetGenerator: terrainTextureAssetGenerator, progressReporter: progressReporter)));
     }
 
     public static ResoniteLiveSceneImportDependencies CreateDependencies(
         ILiveSendClientSession session,
-        ResoniteLinkSendDiagnostics diagnostics,
         IResoniteLiveSendRunStarter runStarter,
         IResoniteLiveSendQueue? queue = null,
         IResoniteLiveSendRunResourceReleaser? resourceReleaser = null)
@@ -347,7 +345,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             resourceReleaser ?? new ResoniteLiveSendRunResourceReleaser();
         return new ResoniteLiveSceneImportDependencies(
             session,
-            diagnostics,
             new ResoniteLiveSendStartRequestFactory(),
             new ResoniteLiveSendRunExecutor(
                 runStarter,
@@ -564,13 +561,14 @@ internal sealed class SceneSinkRecordingClient : PlateauResoniteLink.Targets.Res
 
 internal sealed class DelegatingClientSession(
     IResoniteLinkClient? routedClient = null,
-    Func<LiveSendConnectionRequest, CancellationToken, Task>? ensureConnectedAsync = null) : ILiveSendClientSession
+    Func<LiveSendConnectionRequest, CancellationToken, Task>? ensureConnectedAsync = null,
+    ResoniteLinkSendDiagnostics? diagnostics = null) : ILiveSendClientSession
 {
     private readonly IResoniteLinkClient? defaultRoutedClient = routedClient;
 
     public IResoniteLinkClient? ConnectedClient { get; set; } = routedClient;
 
-    public ResoniteLinkSendDiagnostics Diagnostics { get; } = ResoniteLinkSendDiagnostics.Disabled;
+    public ResoniteLinkSendDiagnostics Diagnostics { get; } = diagnostics ?? ResoniteLinkSendDiagnostics.Disabled;
 
     public IResoniteLinkClient GetRequiredClient()
     {

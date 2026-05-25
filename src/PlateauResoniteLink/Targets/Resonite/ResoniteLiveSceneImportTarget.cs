@@ -36,7 +36,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         endpoint = options.Endpoint;
         connectionCount = options.ConnectionCount;
         MemoryProfile = options.MemoryProfile;
-        Diagnostics = dependencies.Diagnostics;
+        Diagnostics = dependencies.ClientSession.Diagnostics;
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
         startRequestFactory = dependencies.StartRequestFactory;

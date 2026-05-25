@@ -62,8 +62,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                new DelegatingClientSession(),
-                diagnostics,
+                new DelegatingClientSession(diagnostics: diagnostics),
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
 
         Assert.Same(diagnostics, importTarget.Diagnostics);
@@ -392,8 +391,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                new DelegatingClientSession(),
-                diagnostics,
+                new DelegatingClientSession(diagnostics: diagnostics),
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
     }
 
@@ -450,25 +448,22 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             return CreateTarget(
                 options,
                 new DelegatingClientSession(),
-                ResoniteLinkSendDiagnostics.Disabled,
                 new RecordingTerrainTextureAssetGenerator());
         }
 
         public ResoniteLiveSceneImportTarget CreateTarget(
             ResoniteLiveSceneImportTargetOptions options,
             ILiveSendClientSession clientSession,
-            ResoniteLinkSendDiagnostics diagnostics,
             ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
         {
             PreconfiguredCreateCallCount++;
             LastClientSession = clientSession;
-            LastDiagnostics = diagnostics;
+            LastDiagnostics = clientSession.Diagnostics;
             LastTerrainTextureAssetGenerator = terrainTextureAssetGenerator;
             return new ResoniteLiveSceneImportTarget(
                 options,
                 ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                     clientSession,
-                    diagnostics,
                     ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                         materialPlanning,
                         terrainTextureAssetGenerator: terrainTextureAssetGenerator)));
