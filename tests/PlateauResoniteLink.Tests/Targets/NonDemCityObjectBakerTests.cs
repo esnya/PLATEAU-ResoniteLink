@@ -938,6 +938,42 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(512, atlasPayload.Height);
     }
 
+    [Fact]
+    public async Task FlushAllAsyncCountsOutputsAcceptedBeforeCallbackFailure()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 10, tilePaddingPixels: 0);
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-a",
+                CreateCheckerPayload("textures/a.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 9, 3),
+                0,
+                "unit-a"));
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-b",
+                CreateCheckerPayload("textures/b.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 255, 255, 255), 9, 3),
+                2,
+                "unit-a"));
+
+        int callbackCount = 0;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => baker.FlushAllAsync(
+            (_, _) =>
+            {
+                callbackCount++;
+                if (callbackCount == 2)
+                {
+                    throw new InvalidOperationException("stop after first accepted output");
+                }
+
+                return Task.CompletedTask;
+            }));
+
+        Assert.Equal(2, callbackCount);
+        Assert.Equal(1, baker.BakedOutputCityObjectCount);
+    }
+
     private static NonDemCityObjectBaker CreateBaker(
         int maxAtlasSize = NonDemAtlasBakeBudget.DefaultMaxAtlasSize,
         int tilePaddingPixels = NonDemAtlasBakeBudget.DefaultTilePaddingPixels,
