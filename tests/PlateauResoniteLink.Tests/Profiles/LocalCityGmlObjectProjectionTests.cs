@@ -3284,11 +3284,11 @@ public sealed class LocalCityGmlObjectProjectionTests
             ReuseScope: MaterialReuseScope.PerObject);
         return CityGmlSurfaceMeshTessellator.Tessellate(new SurfaceMeshTessellationRequest(
             packageName,
-            surface,
+            CityGmlProjectionModelAdapter.FromProjectionModel(surface),
             material,
-            cityObjectOrigin,
+            GeodeticPoint.FromProjectionModel(cityObjectOrigin),
             cartesian,
-            cityObjectOrigin,
+            GeodeticPoint.FromProjectionModel(cityObjectOrigin),
             cartesian,
             context,
             DemUvProjection: null));

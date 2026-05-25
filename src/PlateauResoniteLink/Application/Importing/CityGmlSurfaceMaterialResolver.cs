@@ -6,10 +6,6 @@ using GeographicLib;
 
 using PlateauResoniteLink.Domain.Importing;
 
-using ProjectionPoint = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.GeodeticPoint;
-using ProjectionSurface = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedSurface;
-using ProjectionSurfaceSemantic = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedSurfaceSemantic;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class CityGmlSurfaceMaterialResolver
@@ -32,16 +28,13 @@ internal static class CityGmlSurfaceMaterialResolver
         ArgumentNullException.ThrowIfNull(cityObjectOrigin);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
-        ProjectionSurface[] projectionSurfaces = cityObject.Surfaces
-            .Select(CityGmlProjectionModelAdapter.ToProjectionModel)
-            .ToArray();
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
             cityObject.PackageName,
-            projectionSurfaces,
-            cityObjectOrigin.ToProjectionModel(),
+            cityObject.Surfaces,
+            cityObjectOrigin,
             cityObjectCartesian);
         double cityObjectMinAltitude = CityObjectAltitudeMetricsResolver.GetMinimumAltitude(
-            projectionSurfaces.SelectMany(static surface => surface.Vertices),
+            cityObject.Surfaces.SelectMany(static surface => surface.Vertices),
             static point => point.Altitude);
 
         return
@@ -188,11 +181,10 @@ internal static class CityGmlSurfaceMaterialResolver
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        ProjectionSurface projectionSurface = CityGmlProjectionModelAdapter.ToProjectionModel(surface);
-        if (projectionSurface.UsesGeneratedDemTexture)
+        if (surface.UsesGeneratedDemTexture)
         {
             return new ResolvedSurfaceMaterial(
-                projectionSurface,
+                surface,
                 new ResolvedMaterial(
                     MaterialType.Standard,
                     TexturePayload: null,
@@ -208,26 +200,26 @@ internal static class CityGmlSurfaceMaterialResolver
         ResolvedMaterial? roofTerrainTextureMaterial = TryCreateRoofTerrainTextureMaterial(
             cityObject.ActualMeshCode,
             cityObject.PackageName,
-            projectionSurface,
+            surface,
             cityObjectMinAltitude,
             demTerrainTextureOverlay,
-            cityObjectOrigin.ToProjectionModel(),
+            cityObjectOrigin,
             cityObjectCartesian);
         if (roofTerrainTextureMaterial is not null)
         {
             return new ResolvedSurfaceMaterial(
-                projectionSurface with { BaseColor = DefaultMaterialColor },
+                surface with { BaseColor = DefaultMaterialColor },
                 roofTerrainTextureMaterial,
                 DepthOffset: null);
         }
 
         if (string.Equals(cityObject.PackageName, "veg", StringComparison.OrdinalIgnoreCase)
-            && projectionSurface.TexturePayload is null)
+            && surface.TexturePayload is null)
         {
-            if (HasExplicitMaterialColor(projectionSurface.BaseColor))
+            if (HasExplicitMaterialColor(surface.BaseColor))
             {
                 return new ResolvedSurfaceMaterial(
-                    projectionSurface,
+                    surface,
                     new ResolvedMaterial(
                         MaterialType.VertexColor,
                         TexturePayload: null,
@@ -240,7 +232,7 @@ internal static class CityGmlSurfaceMaterialResolver
             }
 
             return new ResolvedSurfaceMaterial(
-                projectionSurface with { BaseColor = DefaultVegetationMaterialColor },
+                surface with { BaseColor = DefaultVegetationMaterialColor },
                 new ResolvedMaterial(
                     MaterialType.Standard,
                     TexturePayload: null,
@@ -252,10 +244,10 @@ internal static class CityGmlSurfaceMaterialResolver
                 DepthOffset: null);
         }
 
-        if (IsGeneratedRoadMarkingSurface(projectionSurface))
+        if (IsGeneratedRoadMarkingSurface(surface))
         {
             return new ResolvedSurfaceMaterial(
-                projectionSurface,
+                surface,
                 new ResolvedMaterial(
                     MaterialType.VertexColor,
                     TexturePayload: null,
@@ -269,12 +261,12 @@ internal static class CityGmlSurfaceMaterialResolver
 
         bool preferUvProjection = ShouldPreferUvProjection(
             cityObject.PackageName,
-            projectionSurface,
-            cityObjectOrigin.ToProjectionModel(),
+            surface,
+            cityObjectOrigin,
             cityObjectCartesian);
         ResolvedMaterial resolvedMaterial = materialResolver.ResolveMaterial(new DefaultMaterialRequest(
             cityObject.PackageName,
-            projectionSurface.TexturePayload,
+            surface.TexturePayload,
             preferUvProjection,
             FamilyOverride: null,
             VariantSelectionKey: $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}",
@@ -285,20 +277,20 @@ internal static class CityGmlSurfaceMaterialResolver
             FootprintAreaSquareMeters: cityObject.BuildingAttributes is null
                 ? null
                 : BuildingAttributeQueries.TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
-            SurfaceRole: ToDefaultMaterialSurfaceRole(projectionSurface.Semantic)));
+            SurfaceRole: ToDefaultMaterialSurfaceRole(surface.Semantic)));
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? TerrainAlignedDepthOffset
             : null;
-        return new ResolvedSurfaceMaterial(projectionSurface, resolvedMaterial, depthOffset);
+        return new ResolvedSurfaceMaterial(surface, resolvedMaterial, depthOffset);
     }
 
     private static ResolvedMaterial? TryCreateRoofTerrainTextureMaterial(
         string actualMeshCode,
         string packageName,
-        ProjectionSurface surface,
+        ParsedSurface surface,
         double cityObjectMinAltitude,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        ProjectionPoint cityObjectOrigin,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
         if (demTerrainTextureOverlay is null
@@ -323,8 +315,8 @@ internal static class CityGmlSurfaceMaterialResolver
 
     private static bool ShouldPreferUvProjection(
         string packageName,
-        ProjectionSurface surface,
-        ProjectionPoint cityObjectOrigin,
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
         if (surface.TexturePayload is not null)
@@ -343,15 +335,15 @@ internal static class CityGmlSurfaceMaterialResolver
                 && IsNearHorizontalSurface(surface, cityObjectOrigin, cityObjectCartesian);
         }
 
-        if (surface.Semantic is ProjectionSurfaceSemantic.Wall)
+        if (surface.Semantic is ParsedSurfaceSemantic.Wall)
         {
             return true;
         }
 
-        if (surface.Semantic is ProjectionSurfaceSemantic.Roof
-            or ProjectionSurfaceSemantic.Ground
-            or ProjectionSurfaceSemantic.OuterCeiling
-            or ProjectionSurfaceSemantic.OuterFloor)
+        if (surface.Semantic is ParsedSurfaceSemantic.Roof
+            or ParsedSurfaceSemantic.Ground
+            or ParsedSurfaceSemantic.OuterCeiling
+            or ParsedSurfaceSemantic.OuterFloor)
         {
             return false;
         }
@@ -359,35 +351,35 @@ internal static class CityGmlSurfaceMaterialResolver
         return IsFacadeSurface(surface, cityObjectOrigin, cityObjectCartesian);
     }
 
-    private static DefaultMaterialSurfaceRole ToDefaultMaterialSurfaceRole(ProjectionSurfaceSemantic semantic)
+    private static DefaultMaterialSurfaceRole ToDefaultMaterialSurfaceRole(ParsedSurfaceSemantic semantic)
     {
         return semantic switch
         {
-            ProjectionSurfaceSemantic.Wall => DefaultMaterialSurfaceRole.Wall,
-            ProjectionSurfaceSemantic.Roof => DefaultMaterialSurfaceRole.Roof,
-            ProjectionSurfaceSemantic.Ground => DefaultMaterialSurfaceRole.Ground,
-            ProjectionSurfaceSemantic.Closure => DefaultMaterialSurfaceRole.Closure,
-            ProjectionSurfaceSemantic.OuterCeiling => DefaultMaterialSurfaceRole.OuterCeiling,
-            ProjectionSurfaceSemantic.OuterFloor => DefaultMaterialSurfaceRole.OuterFloor,
+            ParsedSurfaceSemantic.Wall => DefaultMaterialSurfaceRole.Wall,
+            ParsedSurfaceSemantic.Roof => DefaultMaterialSurfaceRole.Roof,
+            ParsedSurfaceSemantic.Ground => DefaultMaterialSurfaceRole.Ground,
+            ParsedSurfaceSemantic.Closure => DefaultMaterialSurfaceRole.Closure,
+            ParsedSurfaceSemantic.OuterCeiling => DefaultMaterialSurfaceRole.OuterCeiling,
+            ParsedSurfaceSemantic.OuterFloor => DefaultMaterialSurfaceRole.OuterFloor,
             _ => DefaultMaterialSurfaceRole.Unknown,
         };
     }
 
     private static bool IsRoofTerrainTextureSurface(
-        ProjectionSurface surface,
+        ParsedSurface surface,
         double cityObjectMinAltitude,
-        ProjectionPoint cityObjectOrigin,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
-        if (surface.Semantic == ProjectionSurfaceSemantic.Roof)
+        if (surface.Semantic == ParsedSurfaceSemantic.Roof)
         {
             return true;
         }
 
-        if (surface.Semantic is not (ProjectionSurfaceSemantic.Unknown
-            or ProjectionSurfaceSemantic.Ground
-            or ProjectionSurfaceSemantic.OuterCeiling
-            or ProjectionSurfaceSemantic.OuterFloor))
+        if (surface.Semantic is not (ParsedSurfaceSemantic.Unknown
+            or ParsedSurfaceSemantic.Ground
+            or ParsedSurfaceSemantic.OuterCeiling
+            or ParsedSurfaceSemantic.OuterFloor))
         {
             return false;
         }
@@ -398,7 +390,7 @@ internal static class CityGmlSurfaceMaterialResolver
             && surface.Vertices.Min(static vertex => vertex.Altitude) > cityObjectMinAltitude + UnknownRoofBottomAltitudeToleranceMeters;
     }
 
-    private static bool IsGeneratedRoadMarkingSurface(ProjectionSurface surface)
+    private static bool IsGeneratedRoadMarkingSurface(ParsedSurface surface)
     {
         return surface.PolygonId.Contains("_generated_marking", StringComparison.Ordinal);
     }
@@ -414,8 +406,8 @@ internal static class CityGmlSurfaceMaterialResolver
 
     private static HashSet<string> GetCulledSurfaceIdsBeforeProjection(
         string packageName,
-        IEnumerable<ProjectionSurface> surfaces,
-        ProjectionPoint cityObjectOrigin,
+        IEnumerable<ParsedSurface> surfaces,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
         if (!PlateauPackageCatalog.IsBuildingPackage(packageName))
@@ -445,8 +437,8 @@ internal static class CityGmlSurfaceMaterialResolver
     }
 
     private static bool IsFacadeSurface(
-        ProjectionSurface surface,
-        ProjectionPoint cityObjectOrigin,
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
         if (ComputeSurfaceNormal(surface, cityObjectOrigin, cityObjectCartesian) is not Float3 normal)
@@ -458,8 +450,8 @@ internal static class CityGmlSurfaceMaterialResolver
     }
 
     private static bool IsNearHorizontalSurface(
-        ProjectionSurface surface,
-        ProjectionPoint cityObjectOrigin,
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
         Float3? normal = ComputeSurfaceNormal(surface, cityObjectOrigin, cityObjectCartesian);
@@ -467,8 +459,8 @@ internal static class CityGmlSurfaceMaterialResolver
     }
 
     private static SurfaceProjectionInfo CreateSurfaceProjectionInfo(
-        ProjectionSurface surface,
-        ProjectionPoint cityObjectOrigin,
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
         Float3[] positions = surface.Vertices
@@ -490,8 +482,8 @@ internal static class CityGmlSurfaceMaterialResolver
     }
 
     private static Float3? ComputeSurfaceNormal(
-        ProjectionSurface surface,
-        ProjectionPoint cityObjectOrigin,
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
         Float3[] positions = surface.Vertices
@@ -501,8 +493,8 @@ internal static class CityGmlSurfaceMaterialResolver
     }
 
     private static Float3 CreateScenePosition(
-        ProjectionPoint point,
-        ProjectionPoint origin,
+        GeodeticPoint point,
+        GeodeticPoint origin,
         LocalCartesian? cartesian)
     {
         return SceneAxisMapper.CreatePosition(
@@ -548,7 +540,7 @@ internal static class CityGmlSurfaceMaterialResolver
     private static ColorRgba ToContractColor(ColorRgba value) => new(value.R, value.G, value.B, value.A);
 
     private readonly record struct SurfaceProjectionInfo(
-        ProjectionSurface Surface,
+        ParsedSurface Surface,
         double? MinimumY,
         double? MaximumY,
         bool IsNearHorizontal);

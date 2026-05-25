@@ -4,11 +4,6 @@ using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
 
-using ProjectionGeodeticPoint = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.GeodeticPoint;
-using ProjectionParsedRing = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedRing;
-using ProjectionParsedSurface = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedSurface;
-using ProjectionParsedSurfaceSemantic = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedSurfaceSemantic;
-
 namespace PlateauResoniteLink.Tests.Profiles;
 
 public sealed class TerrainAlignedTransportationSurfaceSplitterTests
@@ -16,7 +11,7 @@ public sealed class TerrainAlignedTransportationSurfaceSplitterTests
     [Fact]
     public void SplitDividesLongQuadAndInterpolatesUvs()
     {
-        ProjectionParsedSurface surface = CreateRoadSurface(
+        ParsedSurface surface = CreateRoadSurface(
             "road",
             [
                 new Float2(0.0, 0.0),
@@ -33,7 +28,7 @@ public sealed class TerrainAlignedTransportationSurfaceSplitterTests
         ];
         EdgePairSelection edgePair = CreateEdgePair(surface, positions, length: 12.0, width: 4.0);
 
-        List<ProjectionParsedSurface> strips = TerrainAlignedTransportationSurfaceSplitter.Split(surface, positions, edgePair);
+        List<ParsedSurface> strips = TerrainAlignedTransportationSurfaceSplitter.Split(surface, positions, edgePair);
 
         Assert.Equal(4, strips.Count);
         Assert.All(strips, strip =>
@@ -51,7 +46,7 @@ public sealed class TerrainAlignedTransportationSurfaceSplitterTests
     [Fact]
     public void SplitKeepsShortQuadUnchanged()
     {
-        ProjectionParsedSurface surface = CreateRoadSurface("short-road", uvs: null);
+        ParsedSurface surface = CreateRoadSurface("short-road", uvs: null);
         Float3[] positions =
         [
             new(0.0, 0.0, 0.0),
@@ -61,15 +56,15 @@ public sealed class TerrainAlignedTransportationSurfaceSplitterTests
         ];
         EdgePairSelection edgePair = CreateEdgePair(surface, positions, length: 2.0, width: 4.0);
 
-        List<ProjectionParsedSurface> strips = TerrainAlignedTransportationSurfaceSplitter.Split(surface, positions, edgePair);
+        List<ParsedSurface> strips = TerrainAlignedTransportationSurfaceSplitter.Split(surface, positions, edgePair);
 
-        ProjectionParsedSurface unchanged = Assert.Single(strips);
+        ParsedSurface unchanged = Assert.Single(strips);
         Assert.Same(surface, unchanged);
     }
 
-    private static ProjectionParsedSurface CreateRoadSurface(string polygonId, Float2[]? uvs)
+    private static ParsedSurface CreateRoadSurface(string polygonId, Float2[]? uvs)
     {
-        ProjectionGeodeticPoint[] vertices =
+        GeodeticPoint[] vertices =
         [
             new(35.0, 139.0, 0.0),
             new(35.0, 139.0012, 0.0),
@@ -77,22 +72,22 @@ public sealed class TerrainAlignedTransportationSurfaceSplitterTests
             new(35.0004, 139.0, 0.0),
         ];
 
-        return new ProjectionParsedSurface(
+        return new ParsedSurface(
             polygonId,
-            ProjectionParsedSurfaceSemantic.Ground,
-            new ProjectionParsedRing($"{polygonId}-ring", vertices, uvs),
+            ParsedSurfaceSemantic.Ground,
+            new ParsedRing($"{polygonId}-ring", vertices, uvs),
             InteriorRings: [],
             new ColorRgba(0.2, 0.2, 0.2, 1.0),
             TexturePayload: null);
     }
 
     private static EdgePairSelection CreateEdgePair(
-        ProjectionParsedSurface surface,
+        ParsedSurface surface,
         Float3[] positions,
         double length,
         double width)
     {
-        ProjectionGeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
+        GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
         Float2[]? uvs = surface.ExteriorRing.UVs?.ToArray();
         return new EdgePairSelection(
             [vertices[0], vertices[1]],
