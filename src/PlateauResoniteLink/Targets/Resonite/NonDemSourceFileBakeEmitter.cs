@@ -4,16 +4,17 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemSourceFileBakeEmitter(
     NonDemCityObjectBakeCandidateFactory candidateFactory,
     NonDemCityObjectBakeAssembler assembler,
-    NonDemAtlasBatchFitPolicy batchFitPolicy) : INonDemSourceFileBakeEmitter
+    NonDemAtlasBatchFitPolicy batchFitPolicy,
+    INonDemBakeCandidateImageDisposer candidateImageDisposer) : INonDemSourceFileBakeEmitter
 {
+    private readonly INonDemBakeCandidateImageDisposer candidateImageDisposer = candidateImageDisposer
+        ?? throw new ArgumentNullException(nameof(candidateImageDisposer));
+
     public async Task<int> EmitAsync(
         NonDemSourceFileBatchKey sourceFileKey,
         IReadOnlyList<NonDemBufferedCityObject> cityObjects,
@@ -99,7 +100,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
         {
             NonDemCityObjectBakeCandidate passThroughCandidate = passThroughCandidates[0];
             await onBakedCityObject(passThroughCandidate.CityObject, cancellationToken);
-            DisposeCandidateImages(passThroughCandidate);
+            candidateImageDisposer.Dispose(passThroughCandidate);
             emittedCount++;
         }
         else if (passThroughCandidates.Count > 1)
@@ -117,7 +118,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
             }
             finally
             {
-                DisposeCandidateImages(passThroughCandidates);
+                candidateImageDisposer.Dispose(passThroughCandidates);
             }
         }
 
@@ -145,11 +146,11 @@ internal sealed class NonDemSourceFileBakeEmitter(
         }
         finally
         {
-            DisposeCandidateImages(batchCandidates);
+            candidateImageDisposer.Dispose(batchCandidates);
         }
     }
 
-    private static async Task<int> EmitFallbackCandidateAsync(
+    private async Task<int> EmitFallbackCandidateAsync(
         NonDemCityObjectBakeCandidate fallbackCandidate,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
@@ -161,23 +162,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
         }
         finally
         {
-            DisposeCandidateImages(fallbackCandidate);
-        }
-    }
-
-    private static void DisposeCandidateImages(NonDemCityObjectBakeCandidate candidate)
-    {
-        DisposeCandidateImages([candidate]);
-    }
-
-    private static void DisposeCandidateImages(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
-    {
-        foreach (Image<Rgba32> tileImage in candidates
-                     .SelectMany(static candidate => candidate.AtlasEntries)
-                     .Select(static entry => entry.Tile.Image)
-                     .Distinct())
-        {
-            tileImage.Dispose();
+            candidateImageDisposer.Dispose(fallbackCandidate);
         }
     }
 }
