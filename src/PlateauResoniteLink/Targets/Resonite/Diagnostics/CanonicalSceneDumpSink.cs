@@ -19,7 +19,7 @@ internal interface IResoniteCanonicalSceneDumpSinkFactory
 }
 
 internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
-    IResoniteLiveSceneImportDependencyFactory dependencyFactory) : IResoniteCanonicalSceneDumpSinkFactory
+    IResoniteLiveSceneImportFactory targetFactory) : IResoniteCanonicalSceneDumpSinkFactory
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
@@ -35,34 +35,18 @@ internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
         SceneSinkRecordingClient recordingClient = new();
         try
         {
-            ResoniteLiveSceneImportDependencies dependencies = dependencyFactory.Create(
+            ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
                 options,
                 new SingleRecordingClientSession(recordingClient),
                 ResoniteLinkSendDiagnostics.Disabled,
                 new DeterministicTerrainTextureAssetGenerator());
-            return CreateOwnedDumpSink(options, dependencies, recordingClient, outputPath);
+            return new CanonicalSceneDumpSink(target, recordingClient, outputPath);
         }
         catch
         {
             recordingClient.Dispose();
             throw;
         }
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Reliability",
-        "CA2000:Dispose objects before losing scope",
-        Justification = "CanonicalSceneDumpSink owns the created target and disposes it with the recording client.")]
-    private static CanonicalSceneDumpSink CreateOwnedDumpSink(
-        ResoniteLiveSceneImportTargetOptions options,
-        ResoniteLiveSceneImportDependencies dependencies,
-        SceneSinkRecordingClient recordingClient,
-        string outputPath)
-    {
-        return new CanonicalSceneDumpSink(
-            new ResoniteLiveSceneImportTarget(options, dependencies),
-            recordingClient,
-            outputPath);
     }
 }
 
