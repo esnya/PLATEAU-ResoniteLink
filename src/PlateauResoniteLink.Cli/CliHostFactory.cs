@@ -51,6 +51,7 @@ internal static class CliServiceCollectionExtensions
         services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
         services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();
+        services.AddSingleton<ICanonicalSceneDumpSinkFactory, DefaultCanonicalSceneDumpSinkFactory>();
         services.AddSingleton<ISceneSinkFactory, DefaultSceneSinkFactory>();
         services.AddSingleton<CliApplication>(_ => new CliApplication(
             standardOutput,
@@ -75,6 +76,14 @@ internal interface IPlateauDatasetSourceResolverFactory
 internal interface ISceneSinkFactory
 {
     ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter);
+}
+
+internal interface ICanonicalSceneDumpSinkFactory
+{
+    ISceneSink Create(
+        AsyncServiceScope scope,
+        ImportCommandOptions options,
+        Action<string>? progressReporter);
 }
 
 internal sealed class DefaultImportServiceFactory(
@@ -135,23 +144,9 @@ internal sealed class DefaultSceneSinkFactory(
         {
             if (!string.IsNullOrWhiteSpace(options.CanonicalSceneDumpPath))
             {
-                SceneSinkRecordingClient recordingClient = new();
-                try
-                {
-                    ResoniteLiveSceneImportTarget dumpTarget = CreateCanonicalDumpTarget(
-                        scope,
-                        recordingClient,
-                        options,
-                        progressReporter);
-                    return new ScopedSceneSink(
-                        scope,
-                        new CanonicalSceneDumpSink(dumpTarget, recordingClient, options.CanonicalSceneDumpPath));
-                }
-                catch
-                {
-                    recordingClient.Dispose();
-                    throw;
-                }
+                return scope.ServiceProvider
+                    .GetRequiredService<ICanonicalSceneDumpSinkFactory>()
+                    .Create(scope, options, progressReporter);
             }
 
             ResoniteLiveSceneImportTargetOptions targetOptions = new(
@@ -181,9 +176,42 @@ internal sealed class DefaultSceneSinkFactory(
             throw;
         }
     }
+}
+
+internal sealed class DefaultCanonicalSceneDumpSinkFactory : ICanonicalSceneDumpSinkFactory
+{
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "The returned ScopedSceneSink owns the canonical dump sink, target, recording client, and associated service scope.")]
+    public ISceneSink Create(
+        AsyncServiceScope scope,
+        ImportCommandOptions options,
+        Action<string>? progressReporter)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        SceneSinkRecordingClient recordingClient = new();
+        try
+        {
+            ResoniteLiveSceneImportTarget dumpTarget = CreateCanonicalDumpTarget(
+                scope.ServiceProvider,
+                recordingClient,
+                options,
+                progressReporter);
+            return new ScopedSceneSink(
+                scope,
+                new CanonicalSceneDumpSink(dumpTarget, recordingClient, options.CanonicalSceneDumpPath!));
+        }
+        catch
+        {
+            recordingClient.Dispose();
+            throw;
+        }
+    }
 
     private static ResoniteLiveSceneImportTarget CreateCanonicalDumpTarget(
-        AsyncServiceScope scope,
+        IServiceProvider serviceProvider,
         SceneSinkRecordingClient recordingClient,
         ImportCommandOptions options,
         Action<string>? progressReporter)
@@ -203,7 +231,6 @@ internal sealed class DefaultSceneSinkFactory(
             DisableTerrainTileCache: true,
             progressReporter);
 
-        IServiceProvider serviceProvider = scope.ServiceProvider;
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer = new ResoniteQueuedCityObjectEnqueuer();
         ResoniteLiveSendQueue queue = new(
