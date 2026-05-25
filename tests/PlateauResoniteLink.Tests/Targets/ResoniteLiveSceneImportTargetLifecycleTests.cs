@@ -68,13 +68,16 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
     {
         return new ResoniteLiveSendRunStarter(
-            sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-            CreateCommonMaterialSetupPreparer(materialPlanning),
-            new ResoniteCommonMaterialSetupCachePrimer(),
-            new LiveSendRunPlanFactory(),
-            CreateRunStateFactory(),
-            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)),
-            new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator()));
+            new ResoniteLiveSendRunPlanInitializer(new LiveSendRunPlanFactory()),
+            new ResoniteLiveSendConnectionInitializer(),
+            new ResoniteLiveSendSetupInitializer(
+                sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
+                CreateCommonMaterialSetupPreparer(materialPlanning),
+                new ResoniteCommonMaterialSetupCachePrimer(),
+                new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
+            new ResoniteLiveSendRunActivator(
+                CreateRunStateFactory(),
+                new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning))));
     }
 
     private static ResoniteLiveSendQueue CreateQueue()
@@ -108,6 +111,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
 
         PlateauImportRequest normalizedRequest = new(
@@ -164,6 +168,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
@@ -211,6 +216,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -295,6 +301,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 ResoniteLinkSendDiagnostics.Disabled,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning, new MissingCommonMaterialSetupInterpreter()),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -339,6 +346,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 ResoniteLinkSendDiagnostics.Disabled,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning, new MissingCommonMaterialSetupInterpreter()),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -406,6 +414,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 ResoniteLinkSendDiagnostics.Disabled,
                 new ResoniteLiveSendStartRequestFactory(),
                 CreateRunStarter(materialPlanning),
+                new ResoniteLiveSendContextFactory(),
                 CreateQueue()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(

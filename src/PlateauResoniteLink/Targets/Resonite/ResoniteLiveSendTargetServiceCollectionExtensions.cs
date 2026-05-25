@@ -25,10 +25,15 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteGeometryAssetPlanner, ResoniteGeometryAssetPlanner>();
         services.TryAddScoped<IResoniteMaterialPlanning, ResoniteMaterialPlanning>();
         services.TryAddScoped<IResoniteSceneMaterialPlanComposer, ResoniteSceneMaterialPlanComposer>();
+        services.TryAddScoped<IResoniteLiveSendConnectionInitializer, ResoniteLiveSendConnectionInitializer>();
+        services.TryAddScoped<IResoniteLiveSendSetupInitializer, ResoniteLiveSendSetupInitializer>();
         services.TryAddScoped<IResoniteCommonMaterialSetupPreparer, ResoniteCommonMaterialSetupPreparer>();
         services.TryAddScoped<IResoniteCommonMaterialSetupCachePrimer, ResoniteCommonMaterialSetupCachePrimer>();
         services.TryAddScoped<ILiveSendRunPlanFactory, LiveSendRunPlanFactory>();
+        services.TryAddScoped<IResoniteLiveSendRunPlanInitializer, ResoniteLiveSendRunPlanInitializer>();
         services.TryAddScoped<ILiveSendRunStateFactory, LiveSendRunStateFactory>();
+        services.TryAddScoped<IResoniteLiveSendRunActivatorFactory, ResoniteLiveSendRunActivatorFactory>();
+        services.TryAddScoped<IResoniteLiveSendContextFactory, ResoniteLiveSendContextFactory>();
         services.TryAddScoped<IResoniteSharedSlotIndexFactory, ResoniteSharedSlotIndexFactory>();
         services.TryAddScoped<IResoniteLiveSendRunStarterFactory, ResoniteLiveSendRunStarterFactory>();
         services.TryAddScoped<IResoniteLiveSendWorkerLauncherFactory, ResoniteLiveSendWorkerLauncherFactory>();

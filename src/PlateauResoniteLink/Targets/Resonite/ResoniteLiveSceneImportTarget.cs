@@ -14,6 +14,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private readonly int connectionCount;
     private readonly IResoniteLiveSendStartRequestFactory startRequestFactory;
     private readonly IResoniteLiveSendRunStarter runStarter;
+    private readonly IResoniteLiveSendContextFactory contextFactory;
     private readonly IResoniteLiveSendQueue queue;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
@@ -31,6 +32,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
         ArgumentNullException.ThrowIfNull(dependencies.StartRequestFactory);
         ArgumentNullException.ThrowIfNull(dependencies.RunStarter);
+        ArgumentNullException.ThrowIfNull(dependencies.ContextFactory);
         ArgumentNullException.ThrowIfNull(dependencies.Queue);
 
         endpoint = options.Endpoint;
@@ -41,6 +43,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         progressReporter = options.ProgressReporter;
         startRequestFactory = dependencies.StartRequestFactory;
         runStarter = dependencies.RunStarter;
+        contextFactory = dependencies.ContextFactory;
         queue = dependencies.Queue;
         ClientSessionInternal = dependencies.ClientSession;
     }
@@ -69,13 +72,14 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
         try
         {
+            ResoniteLiveSendTargetContext liveSendContext = CreateLiveSendContext();
             state = await runStarter.StartAsync(
                 startRequestFactory.Create(
                     plan,
                     MemoryProfile,
                     connectionCount,
                     MeshBakeEnabled),
-                CreateRunStartContext(),
+                contextFactory.CreateRunStart(liveSendContext),
                 cancellationToken);
 
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
@@ -83,13 +87,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 await queue.QueueUnitAsync(
                     state,
                     objectUnit,
-                    CreateEnqueueContext(),
+                    contextFactory.CreateEnqueue(liveSendContext),
                     cancellationToken);
             }
 
             SceneImportExecutionResult result = await queue.CompleteAsync(
                 state,
-                CreateFinalizationContext(),
+                contextFactory.CreateFinalization(liveSendContext),
                 cancellationToken);
             completedSuccessfully = true;
             return result;
@@ -138,35 +142,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         }
     }
 
-    private IResoniteLinkClient GetRoutedClient()
+    private ResoniteLiveSendTargetContext CreateLiveSendContext()
     {
-        return ClientSessionInternal.GetRequiredClient();
-    }
-
-    private LiveSendEnqueueContext CreateEnqueueContext()
-    {
-        return new LiveSendEnqueueContext(
+        return new ResoniteLiveSendTargetContext(
+            endpoint,
             connectionCount,
-            GetRoutedClient,
-            progressReporter);
-    }
-
-    private LiveSendFinalizationContext CreateFinalizationContext()
-    {
-        return new LiveSendFinalizationContext(
-            endpoint,
-            CreateEnqueueContext(),
-            Diagnostics,
-            progressReporter);
-    }
-
-    private LiveSendRunStartContext CreateRunStartContext()
-    {
-        return new LiveSendRunStartContext(
-            endpoint,
             ClientSessionInternal,
             Diagnostics,
             progressReporter);
     }
-
 }

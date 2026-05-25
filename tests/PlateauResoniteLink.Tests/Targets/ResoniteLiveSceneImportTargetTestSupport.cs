@@ -354,17 +354,21 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 diagnostics,
                 new ResoniteLiveSendStartRequestFactory(),
                 new ResoniteLiveSendRunStarter(
-                    new ResoniteSceneSetupInterpreter(
-                        new ResoniteSceneSlotLocator(),
-                        new ResoniteSceneAnchorResolver()),
-                    new ResoniteCommonMaterialSetupPreparer(materialPlanning),
-                    new ResoniteCommonMaterialSetupCachePrimer(),
-                    new LiveSendRunPlanFactory(),
-                    new LiveSendRunStateFactory(
-                        new ResoniteBufferedCityObjectBakerFactory(
-                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
-                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker),
-                    new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
+                    new ResoniteLiveSendRunPlanInitializer(new LiveSendRunPlanFactory()),
+                    new ResoniteLiveSendConnectionInitializer(),
+                    new ResoniteLiveSendSetupInitializer(
+                        new ResoniteSceneSetupInterpreter(
+                            new ResoniteSceneSlotLocator(),
+                            new ResoniteSceneAnchorResolver()),
+                        new ResoniteCommonMaterialSetupPreparer(materialPlanning),
+                        new ResoniteCommonMaterialSetupCachePrimer(),
+                        new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
+                    new ResoniteLiveSendRunActivator(
+                        new LiveSendRunStateFactory(
+                            new ResoniteBufferedCityObjectBakerFactory(
+                                new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
+                        new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker))),
+                new ResoniteLiveSendContextFactory(),
                 queue));
     }
 
