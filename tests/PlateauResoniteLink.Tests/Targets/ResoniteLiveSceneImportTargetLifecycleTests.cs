@@ -86,6 +86,19 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         return new ResoniteLiveSendQueue(enqueuer, new ResoniteLiveSendFinalizer(enqueuer));
     }
 
+    private static ResoniteLiveSceneImportExecutor CreateExecutor(
+        IResoniteMaterialPlanning materialPlanning,
+        IResoniteLiveSendResourceReleaser resourceReleaser,
+        IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
+    {
+        return new ResoniteLiveSceneImportExecutor(
+            new ResoniteLiveSendStartRequestFactory(),
+            CreateRunStarter(materialPlanning, sceneSetupInterpreter),
+            new ResoniteLiveSendContextFactory(),
+            resourceReleaser,
+            CreateQueue());
+    }
+
     [Fact]
     public async Task ExecuteAsync_DelegatesNormalizedRequestsToInjectedSession()
     {
@@ -96,6 +109,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        ResoniteLiveSendResourceReleaser resourceReleaser = new();
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -109,11 +123,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 diagnostics,
-                new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning),
-                new ResoniteLiveSendContextFactory(),
-                new ResoniteLiveSendResourceReleaser(),
-                CreateQueue()));
+                CreateExecutor(materialPlanning, resourceReleaser),
+                resourceReleaser));
 
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
@@ -154,6 +165,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ensureConnectedAsync: static (_, _) => Task.FromException(new InvalidOperationException("connect failed")));
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        ResoniteLiveSendResourceReleaser resourceReleaser = new();
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -167,11 +179,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 diagnostics,
-                new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning),
-                new ResoniteLiveSendContextFactory(),
-                new ResoniteLiveSendResourceReleaser(),
-                CreateQueue()));
+                CreateExecutor(materialPlanning, resourceReleaser),
+                resourceReleaser));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -203,6 +212,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             });
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        ResoniteLiveSendResourceReleaser resourceReleaser = new();
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -216,11 +226,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 diagnostics,
-                new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning),
-                new ResoniteLiveSendContextFactory(),
-                new ResoniteLiveSendResourceReleaser(),
-                CreateQueue()));
+                CreateExecutor(materialPlanning, resourceReleaser),
+                resourceReleaser));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -289,6 +296,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        ResoniteLiveSendResourceReleaser resourceReleaser = new();
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -302,11 +310,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning, new MissingCommonMaterialSetupInterpreter()),
-                new ResoniteLiveSendContextFactory(),
-                new ResoniteLiveSendResourceReleaser(),
-                CreateQueue()));
+                CreateExecutor(materialPlanning, resourceReleaser, new MissingCommonMaterialSetupInterpreter()),
+                resourceReleaser));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -335,6 +340,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        ResoniteLiveSendResourceReleaser resourceReleaser = new();
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -348,11 +354,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning, new MissingCommonMaterialSetupInterpreter()),
-                new ResoniteLiveSendContextFactory(),
-                new ResoniteLiveSendResourceReleaser(),
-                CreateQueue()));
+                CreateExecutor(materialPlanning, resourceReleaser, new MissingCommonMaterialSetupInterpreter()),
+                resourceReleaser));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -395,6 +398,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             useCommonMaterialAssets: true);
         bool terrainAlignedGenericSlotExistedWhenSendWorkersStarted = false;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        ResoniteLiveSendResourceReleaser resourceReleaser = new();
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -417,11 +421,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning),
-                new ResoniteLiveSendContextFactory(),
-                new ResoniteLiveSendResourceReleaser(),
-                CreateQueue()));
+                CreateExecutor(materialPlanning, resourceReleaser),
+                resourceReleaser));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,

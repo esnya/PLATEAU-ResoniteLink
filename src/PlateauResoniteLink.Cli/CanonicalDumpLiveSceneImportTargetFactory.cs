@@ -44,20 +44,23 @@ internal sealed class DefaultCanonicalDumpLiveSceneImportTargetFactory(
 
         ResoniteLiveSendQueue queue = CreateQueue();
         ResoniteLiveSendWorkerLauncher workerLauncher = CreateWorkerLauncher();
+        ResoniteLiveSendResourceReleaser resourceReleaser = new();
         return new ResoniteLiveSceneImportTarget(
             targetOptions,
             new ResoniteLiveSceneImportDependencies(
                 new SingleRecordingClientSession(recordingClient),
                 ResoniteLinkSendDiagnostics.Disabled,
-                startRequestFactory,
-                new ResoniteLiveSendRunStarter(
-                    runPlanInitializer,
-                    connectionInitializer,
-                    setupInitializer,
-                    runActivatorFactory.Create(workerLauncher)),
-                new ResoniteLiveSendContextFactory(),
-                new ResoniteLiveSendResourceReleaser(),
-                queue));
+                new ResoniteLiveSceneImportExecutor(
+                    startRequestFactory,
+                    new ResoniteLiveSendRunStarter(
+                        runPlanInitializer,
+                        connectionInitializer,
+                        setupInitializer,
+                        runActivatorFactory.Create(workerLauncher)),
+                    new ResoniteLiveSendContextFactory(),
+                    resourceReleaser,
+                    queue),
+                resourceReleaser));
     }
 
     private static ResoniteLiveSendQueue CreateQueue()

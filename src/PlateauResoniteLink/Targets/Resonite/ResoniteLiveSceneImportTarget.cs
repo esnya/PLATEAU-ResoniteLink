@@ -12,11 +12,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 {
     private readonly Uri endpoint;
     private readonly int connectionCount;
-    private readonly IResoniteLiveSendStartRequestFactory startRequestFactory;
-    private readonly IResoniteLiveSendRunStarter runStarter;
-    private readonly IResoniteLiveSendContextFactory contextFactory;
+    private readonly IResoniteLiveSceneImportExecutor executor;
     private readonly IResoniteLiveSendResourceReleaser resourceReleaser;
-    private readonly IResoniteLiveSendQueue queue;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
@@ -31,11 +28,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
-        ArgumentNullException.ThrowIfNull(dependencies.StartRequestFactory);
-        ArgumentNullException.ThrowIfNull(dependencies.RunStarter);
-        ArgumentNullException.ThrowIfNull(dependencies.ContextFactory);
+        ArgumentNullException.ThrowIfNull(dependencies.Executor);
         ArgumentNullException.ThrowIfNull(dependencies.ResourceReleaser);
-        ArgumentNullException.ThrowIfNull(dependencies.Queue);
 
         endpoint = options.Endpoint;
         connectionCount = options.ConnectionCount;
@@ -43,11 +37,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Diagnostics = dependencies.Diagnostics;
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
-        startRequestFactory = dependencies.StartRequestFactory;
-        runStarter = dependencies.RunStarter;
-        contextFactory = dependencies.ContextFactory;
+        executor = dependencies.Executor;
         resourceReleaser = dependencies.ResourceReleaser;
-        queue = dependencies.Queue;
         ClientSessionInternal = dependencies.ClientSession;
     }
 
@@ -70,52 +61,17 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             throw new InvalidOperationException("A live scene import run is already active on this live scene import target instance.");
         }
-        bool completedSuccessfully = false;
-        LiveSendRunState? state = null;
-
         try
         {
-            ResoniteLiveSendTargetContext liveSendContext = CreateLiveSendContext();
-            state = await runStarter.StartAsync(
-                startRequestFactory.Create(
-                    plan,
-                    MemoryProfile,
-                    connectionCount,
-                    MeshBakeEnabled),
-                contextFactory.CreateRunStart(liveSendContext),
+            return await executor.ExecuteAsync(
+                plan,
+                objectUnits,
+                CreateExecutionContext(),
                 cancellationToken);
-
-            await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
-            {
-                await queue.QueueUnitAsync(
-                    state,
-                    objectUnit,
-                    contextFactory.CreateEnqueue(liveSendContext),
-                    cancellationToken);
-            }
-
-            SceneImportExecutionResult result = await queue.CompleteAsync(
-                state,
-                contextFactory.CreateFinalization(liveSendContext),
-                cancellationToken);
-            completedSuccessfully = true;
-            return result;
         }
         finally
         {
-            try
-            {
-                await resourceReleaser.ReleaseAsync(
-                    CreateResourceRelease(
-                        state,
-                        completedSuccessfully
-                            ? ResoniteLiveSendClientRelease.None
-                            : ResoniteLiveSendClientRelease.Reset));
-            }
-            finally
-            {
-                Volatile.Write(ref executionClaimed, 0);
-            }
+            Volatile.Write(ref executionClaimed, 0);
         }
     }
 
@@ -135,6 +91,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             state,
             ClientSessionInternal,
             clientRelease);
+    }
+
+    private ResoniteLiveSceneImportExecutionContext CreateExecutionContext()
+    {
+        return new ResoniteLiveSceneImportExecutionContext(
+            MemoryProfile,
+            connectionCount,
+            MeshBakeEnabled,
+            CreateLiveSendContext());
     }
 
     private ResoniteLiveSendTargetContext CreateLiveSendContext()

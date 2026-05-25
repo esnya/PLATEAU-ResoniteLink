@@ -14,11 +14,8 @@ internal interface IResoniteLiveSceneImportDependencyFactory
 
 internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteClientSessionFactory clientSessionFactory,
-    IResoniteLiveSendRunStarterFactory runStarterFactory,
-    IResoniteLiveSendStartRequestFactory startRequestFactory,
-    IResoniteLiveSendContextFactory contextFactory,
-    IResoniteLiveSendResourceReleaser resourceReleaser,
-    IResoniteLiveSendQueue queue)
+    IResoniteLiveSceneImportExecutorFactory executorFactory,
+    IResoniteLiveSendResourceReleaser resourceReleaser)
     : IResoniteLiveSceneImportDependencyFactory
 {
     public ResoniteLiveSceneImportDependencies Create(
@@ -34,10 +31,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
         return new ResoniteLiveSceneImportDependencies(
             clientSessionFactory.Create(options, diagnostics),
             diagnostics,
-            startRequestFactory,
-            runStarterFactory.Create(terrainTextureAssetHttpClient, options),
-            contextFactory,
-            resourceReleaser,
-            queue);
+            executorFactory.Create(options, terrainTextureAssetHttpClient),
+            resourceReleaser);
     }
 }

@@ -323,6 +323,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ResoniteLiveSendQueue queue = new(
             queuedCityObjectEnqueuer,
             new ResoniteLiveSendFinalizer(queuedCityObjectEnqueuer));
+        ResoniteLiveSendResourceReleaser resourceReleaser = new();
         ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
             new ResoniteQueuedCityObjectLaneProcessor(
                 new ResoniteQueuedCityObjectSender(
@@ -352,25 +353,27 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,
-                new ResoniteLiveSendStartRequestFactory(),
-                new ResoniteLiveSendRunStarter(
-                    new ResoniteLiveSendRunPlanInitializer(new LiveSendRunPlanFactory()),
-                    new ResoniteLiveSendConnectionInitializer(),
-                    new ResoniteLiveSendSetupInitializer(
-                        new ResoniteSceneSetupInterpreter(
-                            new ResoniteSceneSlotLocator(),
-                            new ResoniteSceneAnchorResolver()),
-                        new ResoniteCommonMaterialSetupPreparer(materialPlanning),
-                        new ResoniteCommonMaterialSetupCachePrimer(),
-                        new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
-                    new ResoniteLiveSendRunActivator(
-                        new LiveSendRunStateFactory(
-                            new ResoniteBufferedCityObjectBakerFactory(
-                                new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
-                        new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker))),
-                new ResoniteLiveSendContextFactory(),
-                new ResoniteLiveSendResourceReleaser(),
-                queue));
+                new ResoniteLiveSceneImportExecutor(
+                    new ResoniteLiveSendStartRequestFactory(),
+                    new ResoniteLiveSendRunStarter(
+                        new ResoniteLiveSendRunPlanInitializer(new LiveSendRunPlanFactory()),
+                        new ResoniteLiveSendConnectionInitializer(),
+                        new ResoniteLiveSendSetupInitializer(
+                            new ResoniteSceneSetupInterpreter(
+                                new ResoniteSceneSlotLocator(),
+                                new ResoniteSceneAnchorResolver()),
+                            new ResoniteCommonMaterialSetupPreparer(materialPlanning),
+                            new ResoniteCommonMaterialSetupCachePrimer(),
+                            new ResoniteSharedSlotIndexFactory(new ResoniteSlotCreator())),
+                        new ResoniteLiveSendRunActivator(
+                            new LiveSendRunStateFactory(
+                                new ResoniteBufferedCityObjectBakerFactory(
+                                    new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
+                            new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker))),
+                    new ResoniteLiveSendContextFactory(),
+                    resourceReleaser,
+                    queue),
+                resourceReleaser));
     }
 
     private static async IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsAsync(

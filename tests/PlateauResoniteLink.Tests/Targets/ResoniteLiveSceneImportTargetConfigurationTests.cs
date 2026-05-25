@@ -84,6 +84,19 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         return new ResoniteLiveSendQueue(enqueuer, new ResoniteLiveSendFinalizer(enqueuer));
     }
 
+    private static ResoniteLiveSceneImportExecutor CreateExecutor(
+        IResoniteMaterialPlanning materialPlanning,
+        IResoniteLiveSendResourceReleaser resourceReleaser,
+        IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
+    {
+        return new ResoniteLiveSceneImportExecutor(
+            new ResoniteLiveSendStartRequestFactory(),
+            CreateRunStarter(materialPlanning, sceneSetupInterpreter),
+            new ResoniteLiveSendContextFactory(),
+            resourceReleaser,
+            CreateQueue());
+    }
+
     [Fact]
     public async Task OptionsConstructorEnablesMeshBakeByDefault()
     {
@@ -113,6 +126,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.CreateEnabled();
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        ResoniteLiveSendResourceReleaser resourceReleaser = new();
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -126,11 +140,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new ResoniteLiveSceneImportDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
-                new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning),
-                new ResoniteLiveSendContextFactory(),
-                new ResoniteLiveSendResourceReleaser(),
-                CreateQueue()));
+                CreateExecutor(materialPlanning, resourceReleaser),
+                resourceReleaser));
 
         Assert.Same(diagnostics, importTarget.Diagnostics);
     }
@@ -441,6 +452,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        ResoniteLiveSendResourceReleaser resourceReleaser = new();
         return new ResoniteLiveSceneImportTarget(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -454,11 +466,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new ResoniteLiveSceneImportDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
-                new ResoniteLiveSendStartRequestFactory(),
-                CreateRunStarter(materialPlanning),
-                new ResoniteLiveSendContextFactory(),
-                new ResoniteLiveSendResourceReleaser(),
-                CreateQueue()));
+                CreateExecutor(materialPlanning, resourceReleaser),
+                resourceReleaser));
     }
 
     private sealed class RecordingTerrainTextureAssetGeneratorFactory : ITerrainTextureAssetGeneratorFactory
