@@ -184,8 +184,7 @@ internal sealed class ResoniteLiveSendRunStarter(
             new LiveSendWorkerLaunchRequest(
                 state,
                 runPlan.Queue,
-                runPlan.ResourceBudget,
-                request.ConnectionCount),
+                runPlan.ResourceBudget),
             context);
         return state;
     }
