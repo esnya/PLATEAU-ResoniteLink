@@ -9,8 +9,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed record LiveSendWorkerLaunchRequest(
     LiveSendRunState State,
     LiveSendQueuePlan QueuePlan,
-    ResoniteImportBudgetProfile ResourceBudget,
-    int ConnectionCount);
+    ResoniteImportBudgetProfile ResourceBudget);
 
 internal interface IResoniteLiveSendWorkerLauncher
 {
@@ -22,6 +21,9 @@ internal interface IResoniteLiveSendWorkerLauncher
 internal sealed class ResoniteLiveSendWorkerLauncher(
     IResoniteQueuedCityObjectWorker queuedCityObjectWorker) : IResoniteLiveSendWorkerLauncher
 {
+    private readonly IResoniteQueuedCityObjectWorker queuedCityObjectWorker =
+        queuedCityObjectWorker ?? throw new ArgumentNullException(nameof(queuedCityObjectWorker));
+
     public void Launch(
         LiveSendWorkerLaunchRequest request,
         LiveSendRunStartContext context)
@@ -34,21 +36,22 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
         ArgumentNullException.ThrowIfNull(context.Endpoint);
         ArgumentNullException.ThrowIfNull(context.ClientSession);
         ArgumentNullException.ThrowIfNull(context.Diagnostics);
-        ArgumentOutOfRangeException.ThrowIfLessThan(request.ConnectionCount, 1);
+        int connectionCount = request.QueuePlan.ConnectionCount;
+        ArgumentOutOfRangeException.ThrowIfLessThan(connectionCount, 1);
 
         ReportProgress(
             context,
             PlateauLog.Info(
                 "live",
-                $"Starting routed send workers (connection_pool={request.ConnectionCount})."));
+                $"Starting routed send workers (connection_pool={connectionCount})."));
         request.State.Progress.Reset();
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
-        context.Diagnostics.StartSendWindow(request.ConnectionCount);
+        context.Diagnostics.StartSendWindow(connectionCount);
         request.State.Runtime.Start(queuedCityObjectWorker.CreateProcessingTasks(
             request.State,
             new LiveSendWorkerContext(
                 context.Endpoint,
-                request.ConnectionCount,
+                connectionCount,
                 () => GetRoutedClient(context),
                 context.Diagnostics,
                 context.ProgressReporter)));
@@ -56,7 +59,7 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
             context,
             PlateauLog.Info(
                 "live",
-                $"Send lane tasks launched (connection budget={request.ConnectionCount}, "
+                $"Send lane tasks launched (connection budget={connectionCount}, "
                 + $"queue_capacity_total={request.QueuePlan.QueueCapacity}, "
                 + $"memory_budget_bytes={request.QueuePlan.MemoryBudgetBytes}, "
                 + $"memory_profile={request.ResourceBudget.Name.ToString().ToLowerInvariant()}, "
@@ -66,7 +69,7 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
             context,
             PlateauLog.Info(
                 "live",
-                $"Send workers ready against connection pool={request.ConnectionCount}."));
+                $"Send workers ready against connection pool={connectionCount}."));
         ReportProgress(
             context,
             PlateauLog.Info(

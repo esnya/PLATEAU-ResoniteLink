@@ -52,7 +52,7 @@ internal sealed class ResoniteQueuedCityObjectSender(
         Interlocked.Increment(ref state.Progress.AttemptedCityObjectCount);
         try
         {
-            PreparedCityObject preparedCityObject = await AwaitWithSlowCityObjectWarningAsync(
+            PreparedCityObject preparedCityObject = await AwaitWithCancellationAsync(
                 CreatePreparationTask(
                     state,
                     routedClient,
@@ -250,7 +250,7 @@ internal sealed class ResoniteQueuedCityObjectSender(
             || FindResoniteLinkOperationException(exception) is { OperationName: "ImportMesh" or "ImportTexture" or "GetSlot" or "GetComponent" };
     }
 
-    private static Task<T> AwaitWithSlowCityObjectWarningAsync<T>(
+    private static Task<T> AwaitWithCancellationAsync<T>(
         Task<T> operationTask,
         CancellationToken cancellationToken)
     {

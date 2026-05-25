@@ -50,7 +50,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
         ReportImportStep(progressReporter, cityObject, "Creating object slot hierarchy.");
         Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
-        ResoniteObjectSlotHierarchy objectSlots = await AwaitWithSlowCityObjectWarningAsync(
+        ResoniteObjectSlotHierarchy objectSlots = await AwaitWithCancellationAsync(
             queuedCityObject.ObjectHierarchyTask,
             cancellationToken);
         slotHierarchyStopwatch.Stop();
@@ -96,7 +96,15 @@ internal sealed class ResonitePreparedCityObjectImporter(
         }
         catch
         {
-            await importStepCancellation.CancelAsync();
+            try
+            {
+                await importStepCancellation.CancelAsync();
+            }
+            catch (AggregateException)
+            {
+                // Cancellation callbacks may throw; preserve the primary import failure and continue cleanup.
+            }
+
             IEnumerable<Task> tasksToObserve = materialPlanningTask is null
                 ? [uploadedTextureAssetsTask, geometryPlanningTask]
                 : [uploadedTextureAssetsTask, materialPlanningTask, geometryPlanningTask];
@@ -182,7 +190,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
         return Task.WhenAll(tasks.Select(ObserveTaskFailureAsync));
     }
 
-    private static Task<T> AwaitWithSlowCityObjectWarningAsync<T>(
+    private static Task<T> AwaitWithCancellationAsync<T>(
         Task<T> operationTask,
         CancellationToken cancellationToken)
     {

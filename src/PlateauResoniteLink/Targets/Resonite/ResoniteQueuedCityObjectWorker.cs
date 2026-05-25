@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Channels;
@@ -130,7 +129,6 @@ internal sealed class ResoniteQueuedCityObjectWorker(
         int laneIndex,
         CancellationToken cancellationToken)
     {
-        Stopwatch laneClientStopwatch = Stopwatch.StartNew();
         ResoniteSceneSetupInfo setupInfo = state.Context.Plan.SetupInfo;
         if (laneIndex == 0)
         {
@@ -150,23 +148,7 @@ internal sealed class ResoniteQueuedCityObjectWorker(
                     + $"against routed connections to {context.Endpoint} for dataset '{setupInfo.Dataset}' mesh '{setupInfo.MeshCode}'."));
         }
 
-        laneClientStopwatch.Stop();
-        try
-        {
-            ReportProgress(
-                context,
-                PlateauLog.Info(
-                    "live",
-                    $"Send worker {laneIndex + 1}/{context.ConnectionCount} ready against routed connections "
-                    + $"in {laneClientStopwatch.Elapsed.TotalSeconds:F2}s."));
-            await ProcessQueuedCityObjectsAsync(state, context, reader, laneIndex, cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            TryMarkProcessingFailure(state, exception);
-            CancelProcessing(state);
-            throw;
-        }
+        await ProcessQueuedCityObjectsAsync(state, context, reader, laneIndex, cancellationToken);
     }
 
     private static void ReportProgress(LiveSendWorkerContext context, string message)

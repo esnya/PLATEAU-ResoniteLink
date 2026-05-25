@@ -78,12 +78,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 CreateRunStartContext(),
                 cancellationToken);
 
+            LiveSendEnqueueContext enqueueContext = CreateEnqueueContext();
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
                 await queue.QueueUnitAsync(
                     state,
                     objectUnit,
-                    CreateEnqueueContext(),
+                    enqueueContext,
                     cancellationToken);
             }
 
