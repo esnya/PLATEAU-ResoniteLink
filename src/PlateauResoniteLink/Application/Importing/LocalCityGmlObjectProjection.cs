@@ -41,31 +41,6 @@ internal static class LocalCityGmlObjectProjection
     private static readonly ColorRgba DefaultVegetationMaterialColor = new(0.32, 0.58, 0.24, 1.0);
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
 
-    internal static ParsedCityObject? ParseCityObject(
-        XElement cityObjectElement,
-        string packageName,
-        string relativeSourceFile,
-        string actualMeshCode,
-        bool sharedAcrossMeshCodes,
-        ICityGmlAppearanceStore appearanceStore,
-        ICityGmlLodSelector lodSelector,
-        CoordinateReferenceSystem coordinateReferenceSystem,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
-        LodFilteringStrategy lodFilteringStrategy)
-    {
-        return CityGmlProjectionCityObjectParser.Parse(
-            cityObjectElement,
-            packageName,
-            relativeSourceFile,
-            actualMeshCode,
-            sharedAcrossMeshCodes,
-            appearanceStore,
-            lodSelector,
-            coordinateReferenceSystem,
-            requestedMeshCodeBounds,
-            lodFilteringStrategy);
-    }
-
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
         MeshCodeBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
