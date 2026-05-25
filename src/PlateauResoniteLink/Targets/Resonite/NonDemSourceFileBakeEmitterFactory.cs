@@ -1,10 +1,14 @@
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed class NonDemSourceFileBakeEmitterFactory(
-    ResoniteTextureImageLoader textureImageLoader,
-    NonDemAtlasBakeBudget atlasBudget)
+internal interface INonDemSourceFileBakeEmitterFactory
 {
-    public INonDemSourceFileBakeEmitter Create()
+    INonDemSourceFileBakeEmitter Create(NonDemAtlasBakeBudget atlasBudget);
+}
+
+internal sealed class NonDemSourceFileBakeEmitterFactory(
+    ResoniteTextureImageLoader textureImageLoader) : INonDemSourceFileBakeEmitterFactory
+{
+    public INonDemSourceFileBakeEmitter Create(NonDemAtlasBakeBudget atlasBudget)
     {
         NonDemAtlasLayoutFactory layoutFactory = new(
             atlasBudget.EffectiveMaxAtlasSize,

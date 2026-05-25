@@ -33,7 +33,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     private static LiveSendRunStateFactory CreateRunStateFactory()
     {
         return new LiveSendRunStateFactory(
-            new ResoniteBufferedCityObjectBakerFactory(new ResoniteTextureImageLoader()));
+            new ResoniteBufferedCityObjectBakerFactory(
+                new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader())));
     }
 
     private static ResonitePreparedCityObjectImporter CreatePreparedCityObjectImporter(

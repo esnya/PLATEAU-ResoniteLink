@@ -981,8 +981,8 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteImportBudgetProfile? resourceBudget = null)
     {
         INonDemSourceFileBakeEmitter sourceFileBakeEmitter = new NonDemSourceFileBakeEmitterFactory(
-            new ResoniteTextureImageLoader(),
-            new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget)).Create();
+            new ResoniteTextureImageLoader()).Create(
+            new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget));
         return new NonDemCityObjectBaker(
             new NonDemCityObjectBakePolicyResolver(bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies),
             sourceFileBakeEmitter);
