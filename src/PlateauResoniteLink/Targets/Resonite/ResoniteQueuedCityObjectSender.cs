@@ -1,13 +1,10 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -24,9 +21,12 @@ internal interface IResoniteQueuedCityObjectSender
 }
 
 internal sealed class ResoniteQueuedCityObjectSender(
+    IResoniteQueuedGeometryPreparer geometryPreparer,
     IResoniteQueuedTexturePreparer texturePreparer,
     IResonitePreparedCityObjectImporter preparedCityObjectImporter) : IResoniteQueuedCityObjectSender
 {
+    private readonly IResoniteQueuedGeometryPreparer geometryPreparer =
+        geometryPreparer ?? throw new ArgumentNullException(nameof(geometryPreparer));
     private readonly IResoniteQueuedTexturePreparer texturePreparer =
         texturePreparer ?? throw new ArgumentNullException(nameof(texturePreparer));
     private readonly IResonitePreparedCityObjectImporter preparedCityObjectImporter =
@@ -165,64 +165,21 @@ internal sealed class ResoniteQueuedCityObjectSender(
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
-        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-
-        if (cityObject.Geometry is ResoniteTriangleMeshGeometry triangleGeometry)
-        {
-            ResoniteCityObjectPreparation.ValidateTriangleMeshBindingsForImport(cityObject, triangleGeometry.Mesh);
-        }
-        else if (cityObject.Geometry is ResoniteDynamicTerrainGeometry dynamicTerrain)
-        {
-            ResoniteCityObjectPreparation.ValidateTriangleMeshBindingsForImport(cityObject, dynamicTerrain.StaticMesh.Mesh);
-        }
-
-        Task<PreparedConstructionGeometry> geometryPreparationTask = cityObject.Geometry switch
-        {
-            ResoniteTriangleMeshGeometry triangleMesh => Task.Run<PreparedConstructionGeometry>(
-                () => ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, triangleMesh.Mesh),
-                cancellationToken),
-            ResoniteTerrainGridGeometry heightMap => Task.Run<PreparedConstructionGeometry>(
-                () => new PreparedTerrainGridGeometry(heightMap, ResoniteCityObjectPreparation.PrepareTerrainGridDisplacementTexture(heightMap)),
-                cancellationToken),
-            ResoniteDynamicTerrainGeometry dynamicTerrain => Task.Run<PreparedConstructionGeometry>(
-                () => new PreparedDynamicTerrainGeometry(
-                    ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, dynamicTerrain.StaticMesh.Mesh),
-                    new PreparedTerrainGridGeometry(
-                        dynamicTerrain.GridMesh,
-                        ResoniteCityObjectPreparation.PrepareTerrainGridDisplacementTexture(dynamicTerrain.GridMesh))),
-                cancellationToken),
-            _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
-        };
+        ResoniteQueuedGeometryPreparation geometryPreparation = geometryPreparer.Start(
+            cityObject,
+            cancellationToken);
         Stopwatch stopwatch = Stopwatch.StartNew();
         PreparedTextureReference[] preparedTextures = await texturePreparer.PrepareAsync(
             state,
             routedClient,
-            cityObject,
+            geometryPreparation.CityObject,
             progressReporter,
             cancellationToken);
-        PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask;
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay = preparedTextures
-            .Where(static texture => texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
-            .ToDictionary(
-                static texture => texture.TerrainOverlay!,
-                static texture => texture.GeneratedTerrainTexture!);
-        cityObject = ResoniteCityObjectPreparation.ApplyTerrainTextureCanvasUv(
-            cityObject,
-            preparedTerrainTextureDataByOverlay,
-            clampCanvasUv: ResonitePackageSemantics.IsDemPackage(cityObject.PackageName));
-        if (cityObject.Geometry is ResoniteTriangleMeshGeometry resolvedTriangleMesh
-            && preparedGeometry is PreparedTriangleMeshGeometry)
-        {
-            preparedGeometry = ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, resolvedTriangleMesh.Mesh);
-        }
-        else if (cityObject.Geometry is ResoniteDynamicTerrainGeometry resolvedDynamicTerrain
-            && preparedGeometry is PreparedDynamicTerrainGeometry preparedDynamicTerrain)
-        {
-            preparedGeometry = preparedDynamicTerrain with
-            {
-                StaticMesh = ResoniteCityObjectPreparation.PrepareTriangleMeshGeometry(cityObject, resolvedDynamicTerrain.StaticMesh.Mesh),
-            };
-        }
+        PreparedQueuedGeometry preparedQueuedGeometry = await geometryPreparer.CompleteAsync(
+            geometryPreparation,
+            preparedTextures);
+        cityObject = preparedQueuedGeometry.CityObject;
+        PreparedConstructionGeometry preparedGeometry = preparedQueuedGeometry.Geometry;
         stopwatch.Stop();
         diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
 
