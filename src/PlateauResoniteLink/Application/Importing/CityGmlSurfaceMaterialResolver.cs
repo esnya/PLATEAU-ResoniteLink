@@ -12,7 +12,6 @@ internal static class CityGmlSurfaceMaterialResolver
 {
     internal static readonly MaterialDepthOffset TerrainAlignedDepthOffset = new(-10.0, -10.0);
 
-    private const double BuildingBottomCullBandMeters = 0.1;
     private const double UnknownRoofBottomAltitudeToleranceMeters = 0.1;
     private static readonly ColorRgba DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
     private static readonly ColorRgba DefaultVegetationMaterialColor = new(0.32, 0.58, 0.24, 1.0);
@@ -45,7 +44,7 @@ internal static class CityGmlSurfaceMaterialResolver
         ArgumentNullException.ThrowIfNull(materialResolver);
 
         HashSet<string> culledSurfaceIds = PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName)
-            ? GetCulledSurfaceIdsBeforeProjection(
+            ? CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
                 cityObject.PackageName,
                 cityObject.Surfaces,
                 cityObjectOrigin,
@@ -348,7 +347,7 @@ internal static class CityGmlSurfaceMaterialResolver
         if (!PlateauPackageCatalog.IsBuildingPackage(packageName))
         {
             return PlateauPackageCatalog.IsPathLikePackage(packageName)
-                && IsNearHorizontalSurface(surface, cityObjectOrigin, cityObjectCartesian);
+                && CityGmlSurfaceProjectionPolicy.IsNearHorizontalSurface(surface, cityObjectOrigin, cityObjectCartesian);
         }
 
         if (surface.Semantic is ParsedSurfaceSemantic.Wall)
@@ -364,7 +363,7 @@ internal static class CityGmlSurfaceMaterialResolver
             return false;
         }
 
-        return IsFacadeSurface(surface, cityObjectOrigin, cityObjectCartesian);
+        return CityGmlSurfaceProjectionPolicy.IsFacadeSurface(surface, cityObjectOrigin, cityObjectCartesian);
     }
 
     private static DefaultMaterialSurfaceRole ToDefaultMaterialSurfaceRole(ParsedSurfaceSemantic semantic)
@@ -400,7 +399,7 @@ internal static class CityGmlSurfaceMaterialResolver
             return false;
         }
 
-        Float3? normal = ComputeSurfaceNormal(surface, cityObjectOrigin, cityObjectCartesian);
+        Float3? normal = CityGmlSurfaceProjectionPolicy.ComputeSurfaceNormal(surface, cityObjectOrigin, cityObjectCartesian);
         return normal is not null
             && Math.Abs(normal.Y) >= 0.98
             && surface.Vertices.Min(static vertex => vertex.Altitude) > cityObjectMinAltitude + UnknownRoofBottomAltitudeToleranceMeters;
@@ -420,144 +419,5 @@ internal static class CityGmlSurfaceMaterialResolver
                 || Math.Abs(color.A - 1.0) > 1e-6);
     }
 
-    private static HashSet<string> GetCulledSurfaceIdsBeforeProjection(
-        string packageName,
-        IEnumerable<ParsedSurface> surfaces,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        if (!PlateauPackageCatalog.IsBuildingPackage(packageName))
-        {
-            return [];
-        }
-
-        SurfaceProjectionInfo[] candidates = surfaces
-            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
-            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
-            .ToArray();
-
-        if (candidates.Length == 0)
-        {
-            return [];
-        }
-
-        double objectMinimumY = candidates.Min(static info => info.MinimumY!.Value);
-        double objectMaximumY = candidates.Max(static info => info.MaximumY!.Value);
-
-        return candidates
-            .Where(static info => info.IsNearHorizontal)
-            .Where(info => info.MaximumY!.Value <= objectMinimumY + BuildingBottomCullBandMeters)
-            .Where(info => objectMaximumY > info.MaximumY!.Value + BuildingBottomCullBandMeters)
-            .Select(static info => info.Surface.PolygonId)
-            .ToHashSet(StringComparer.Ordinal);
-    }
-
-    private static bool IsFacadeSurface(
-        ParsedSurface surface,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        if (ComputeSurfaceNormal(surface, cityObjectOrigin, cityObjectCartesian) is not Float3 normal)
-        {
-            return false;
-        }
-
-        return Math.Abs(normal.Y) < 0.45;
-    }
-
-    private static bool IsNearHorizontalSurface(
-        ParsedSurface surface,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        Float3? normal = ComputeSurfaceNormal(surface, cityObjectOrigin, cityObjectCartesian);
-        return normal is not null && Math.Abs(normal.Y) >= 0.98;
-    }
-
-    private static SurfaceProjectionInfo CreateSurfaceProjectionInfo(
-        ParsedSurface surface,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        Float3[] positions = surface.Vertices
-            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
-            .ToArray();
-        if (positions.Length == 0)
-        {
-            return new SurfaceProjectionInfo(surface, null, null, false);
-        }
-
-        Float3? normal = ComputePolygonNormal(positions);
-        bool isNearHorizontal = normal is not null && Math.Abs(normal.Y) >= 0.98;
-
-        return new SurfaceProjectionInfo(
-            surface,
-            positions.Min(static position => position.Y),
-            positions.Max(static position => position.Y),
-            isNearHorizontal);
-    }
-
-    private static Float3? ComputeSurfaceNormal(
-        ParsedSurface surface,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        Float3[] positions = surface.Vertices
-            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
-            .ToArray();
-        return ComputePolygonNormal(positions);
-    }
-
-    private static Float3 CreateScenePosition(
-        GeodeticPoint point,
-        GeodeticPoint origin,
-        LocalCartesian? cartesian)
-    {
-        return SceneAxisMapper.CreatePosition(
-            point.Latitude,
-            point.Longitude,
-            point.Altitude,
-            origin.Latitude,
-            origin.Longitude,
-            origin.Altitude,
-            cartesian);
-    }
-
-    private static Float3? ComputePolygonNormal(IEnumerable<Float3> positions)
-    {
-        Float3[] points = positions.ToArray();
-        if (points.Length < 3)
-        {
-            return null;
-        }
-
-        double normalX = 0.0;
-        double normalY = 0.0;
-        double normalZ = 0.0;
-
-        for (int index = 0; index < points.Length; index++)
-        {
-            Float3 current = points[index];
-            Float3 next = points[(index + 1) % points.Length];
-            normalX += (current.Y - next.Y) * (current.Z + next.Z);
-            normalY += (current.Z - next.Z) * (current.X + next.X);
-            normalZ += (current.X - next.X) * (current.Y + next.Y);
-        }
-
-        double magnitude = Math.Sqrt((normalX * normalX) + (normalY * normalY) + (normalZ * normalZ));
-        if (magnitude < 1e-8)
-        {
-            return null;
-        }
-
-        return new Float3(normalX / magnitude, normalY / magnitude, normalZ / magnitude);
-    }
-
     private static ColorRgba ToContractColor(ColorRgba value) => new(value.R, value.G, value.B, value.A);
-
-    private readonly record struct SurfaceProjectionInfo(
-        ParsedSurface Surface,
-        double? MinimumY,
-        double? MaximumY,
-        bool IsNearHorizontal);
 }

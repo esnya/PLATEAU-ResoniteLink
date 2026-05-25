@@ -5,7 +5,6 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -108,7 +107,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void GeneratedFacadeUvProjection_UsesFloorUnitsForBuildingWalls()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -116,16 +115,16 @@ public sealed class LocalCityGmlObjectProjectionTests
             referenceSystem.Geocentric);
         double longitudeDelta = FacadeFloorMetrics.DefaultFloorUnitMeters
             / (111320.0 * Math.Cos(origin.Latitude * (Math.PI / 180.0)));
-        LocalCityGmlObjectProjection.GeodeticPoint[] wallVertices =
+        GeodeticPoint[] wallVertices =
         [
             origin,
             new(origin.Latitude, origin.Longitude + longitudeDelta, 0.0),
             new(origin.Latitude, origin.Longitude + longitudeDelta, FacadeFloorMetrics.DefaultFloorUnitMeters),
             new(origin.Latitude, origin.Longitude, FacadeFloorMetrics.DefaultFloorUnitMeters),
         ];
-        LocalCityGmlObjectProjection.ParsedSurface wallSurface = CreateParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "wall",
-            LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             [.. wallVertices, wallVertices[0]]);
 
         MeshVertex[] vertices = TessellateSurfaceForTest(wallSurface, "bldg", origin, cartesian).Vertices;
@@ -158,23 +157,23 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void GeneratedFacadeUvProjection_AlignsVerticalPhaseToBuildingBottomAndTop()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 2.0);
+        GeodeticPoint origin = new(35.0, 139.0, 2.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
         double longitudeDelta = 7.0 / (111320.0 * Math.Cos(origin.Latitude * (Math.PI / 180.0)));
-        LocalCityGmlObjectProjection.GeodeticPoint[] wallVertices =
+        GeodeticPoint[] wallVertices =
         [
             origin,
             new(origin.Latitude, origin.Longitude + longitudeDelta, 2.0),
             new(origin.Latitude, origin.Longitude + longitudeDelta, 9.0),
             new(origin.Latitude, origin.Longitude, 9.0),
         ];
-        LocalCityGmlObjectProjection.ParsedSurface wallSurface = CreateParsedSurface(
+        ParsedSurface wallSurface = CreateParsedSurface(
             "wall",
-            LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Wall,
+            ParsedSurfaceSemantic.Wall,
             [.. wallVertices, wallVertices[0]]);
 
         MeshVertex[] vertices = TessellateSurfaceForTest(
@@ -1947,14 +1946,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [
-                CityGmlProjectionModelAdapter.ToProjectionModel(wallSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(roofSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(groundSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(reversedGroundSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(outerFloorSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(highOuterFloorSurface),
-            ],
+            [wallSurface, roofSurface, groundSurface, reversedGroundSurface, outerFloorSurface, highOuterFloorSurface],
             origin,
             cartesian);
 
@@ -2001,7 +1993,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "tran",
-            [CityGmlProjectionModelAdapter.ToProjectionModel(groundSurface)],
+            [groundSurface],
             origin,
             cartesian);
 
@@ -2059,12 +2051,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [
-                CityGmlProjectionModelAdapter.ToProjectionModel(wallSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(bottomSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(reversedBottomSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(roofSurface),
-            ],
+            [wallSurface, bottomSurface, reversedBottomSurface, roofSurface],
             origin,
             cartesian);
 
@@ -2109,10 +2096,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [
-                CityGmlProjectionModelAdapter.ToProjectionModel(bottomSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(highDownwardRoofSurface),
-            ],
+            [bottomSurface, highDownwardRoofSurface],
             origin,
             cartesian);
 
@@ -2138,7 +2122,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [CityGmlProjectionModelAdapter.ToProjectionModel(onlySurface)],
+            [onlySurface],
             origin,
             cartesian);
 
@@ -2194,12 +2178,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [
-                CityGmlProjectionModelAdapter.ToProjectionModel(wallSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(exactBoundaryBottomSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(aboveBoundaryBottomSurface),
-                CityGmlProjectionModelAdapter.ToProjectionModel(roofSurface),
-            ],
+            [wallSurface, exactBoundaryBottomSurface, aboveBoundaryBottomSurface, roofSurface],
             origin,
             cartesian);
 
@@ -3261,9 +3240,9 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     private static SurfaceMeshTessellation TessellateSurfaceForTest(
-        LocalCityGmlObjectProjection.ParsedSurface surface,
+        ParsedSurface surface,
         string packageName,
-        LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
+        GeodeticPoint cityObjectOrigin,
         GeographicLib.LocalCartesian cartesian,
         double minimumY = 0.0,
         double? maximumY = null,
@@ -3288,9 +3267,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             ReuseScope: MaterialReuseScope.PerObject);
         return CityGmlSurfaceMeshTessellator.Tessellate(new SurfaceMeshTessellationRequest(
             packageName,
-            CityGmlProjectionModelAdapter.FromProjectionModel(surface),
+            surface,
             material,
-            GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            cityObjectOrigin,
             cartesian,
             context,
             DemUvProjection: null));
@@ -3318,21 +3297,6 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.All(selectedVertices, vertex => Assert.InRange(Math.Abs(vertex.UV0.Y - average), 0.0, 1e-5));
         return average;
     }
-
-    private static LocalCityGmlObjectProjection.ParsedSurface CreateParsedSurface(
-        string polygonId,
-        LocalCityGmlObjectProjection.ParsedSurfaceSemantic semantic,
-        IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices)
-    {
-        return new LocalCityGmlObjectProjection.ParsedSurface(
-            polygonId,
-            semantic,
-            new LocalCityGmlObjectProjection.ParsedRing($"{polygonId}-ring", vertices.ToArray(), null),
-            [],
-            new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null);
-    }
-
     private static ParsedCityObject CreateParsedCityObject(
         string packageName,
         ParsedSurface[] surfaces,
@@ -3436,6 +3400,23 @@ public sealed class LocalCityGmlObjectProjectionTests
             PolygonId: polygonId,
             Semantic: semantic,
             ExteriorRing: new ParsedRing($"{polygonId}-ring", vertices.Select(GeodeticPoint.FromProjectionModel).ToArray(), UVs: uvs),
+            InteriorRings: [],
+            BaseColor: baseColor ?? new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: texturePayload);
+    }
+
+    private static ParsedSurface CreateParsedSurface(
+        string polygonId,
+        ParsedSurfaceSemantic semantic,
+        IReadOnlyList<GeodeticPoint> vertices,
+        TexturePayload? texturePayload = null,
+        ColorRgba? baseColor = null,
+        IReadOnlyList<Float2>? uvs = null)
+    {
+        return new ParsedSurface(
+            PolygonId: polygonId,
+            Semantic: semantic,
+            ExteriorRing: new ParsedRing($"{polygonId}-ring", vertices.ToArray(), UVs: uvs),
             InteriorRings: [],
             BaseColor: baseColor ?? new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: texturePayload);
@@ -3598,15 +3579,15 @@ public sealed class LocalCityGmlObjectProjectionTests
 
     private static HashSet<string> GetCulledSurfaceIdsBeforeProjectionForTest(
         string packageName,
-        IEnumerable<LocalCityGmlObjectProjection.ParsedSurface> surfaces,
+        IEnumerable<ParsedSurface> surfaces,
         LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
         GeographicLib.LocalCartesian cartesian)
     {
-        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
-                "GetCulledSurfaceIdsBeforeProjection",
-                BindingFlags.NonPublic | BindingFlags.Static)
-            ?? throw new InvalidOperationException("Failed to resolve GetCulledSurfaceIdsBeforeProjection.");
-        return (HashSet<string>)method.Invoke(null, [packageName, surfaces, cityObjectOrigin, cartesian])!;
+        return CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
+            packageName,
+            surfaces,
+            GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            cartesian);
     }
 
     private static MaterialBinding[] CreateCommonMaterialBindingsForTest(
