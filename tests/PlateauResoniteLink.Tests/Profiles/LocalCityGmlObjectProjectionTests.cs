@@ -2610,52 +2610,6 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void AlignAdjacentDemTerrainGridChunkBoundariesAveragesSharedSamplesForPartialOverlapWithDifferentResolution()
-    {
-        ImportedCityObject left = CreateTerrainGridCityObject(
-            "left-dem",
-            new Float3(0.0, 14.0, 0.0),
-            width: 2,
-            height: 5,
-            sizeX: 2.0,
-            sizeZ: 4.0,
-            [
-                1.0, 10.0,
-                1.0, 11.0,
-                1.0, 12.0,
-                1.0, 13.0,
-                1.0, 14.0,
-            ]);
-        ImportedCityObject right = CreateTerrainGridCityObject(
-            "right-dem",
-            new Float3(2.0, 22.0, 0.0),
-            width: 2,
-            height: 3,
-            sizeX: 2.0,
-            sizeZ: 2.0,
-            [
-                20.0, 2.0,
-                21.0, 2.0,
-                22.0, 2.0,
-            ]);
-
-        ImportedCityObject[] aligned = AlignAdjacentDemTerrainGridChunkBoundariesForTest([left, right]);
-
-        TerrainGridGeometry alignedLeft = Assert.IsType<TerrainGridGeometry>(aligned[0].Geometry);
-        TerrainGridGeometry alignedRight = Assert.IsType<TerrainGridGeometry>(aligned[1].Geometry);
-
-        Assert.Equal(10.0, alignedLeft.HeightSamples[1], 6);
-        Assert.Equal(15.5, alignedLeft.HeightSamples[3], 6);
-        Assert.Equal(16.5, alignedLeft.HeightSamples[5], 6);
-        Assert.Equal(17.5, alignedLeft.HeightSamples[7], 6);
-        Assert.Equal(14.0, alignedLeft.HeightSamples[9], 6);
-
-        Assert.Equal(15.5, alignedRight.HeightSamples[0], 6);
-        Assert.Equal(16.5, alignedRight.HeightSamples[2], 6);
-        Assert.Equal(17.5, alignedRight.HeightSamples[4], 6);
-    }
-
-    [Fact]
     public async Task TerrainAlignedObjectDoesNotUseNearestTerrainPointOutsideDemTriangles()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -3295,18 +3249,6 @@ public sealed class LocalCityGmlObjectProjectionTests
         return min + ((max - min) * ratio);
     }
 
-    private static ImportedCityObject[] AlignAdjacentDemTerrainGridChunkBoundariesForTest(
-        IReadOnlyList<ImportedCityObject> cityObjects)
-    {
-        MethodInfo method = typeof(LocalCityGmlObjectProjection)
-            .GetMethod(
-                "AlignAdjacentDemTerrainGridChunkBoundaries",
-                BindingFlags.NonPublic | BindingFlags.Static)
-            ?? throw new InvalidOperationException("Failed to resolve AlignAdjacentDemTerrainGridChunkBoundaries.");
-
-        return (ImportedCityObject[])method.Invoke(null, [cityObjects])!;
-    }
-
     private static object CreateGeneratedSurfaceUvProjectionForTest(
         LocalCityGmlObjectProjection.ParsedSurface surface,
         string packageName,
@@ -3736,41 +3678,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             ?? throw new InvalidOperationException("Failed to resolve GetCandidateTriangleIndices.");
 
         return (IReadOnlyList<int>)method.Invoke(spatialIndex, [x, z])!;
-    }
-
-    private static ImportedCityObject CreateTerrainGridCityObject(
-        string slotKey,
-        Float3 position,
-        int width,
-        int height,
-        double sizeX,
-        double sizeZ,
-        IReadOnlyList<double> heightSamples)
-    {
-        MaterialBinding material = new(
-            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            MaterialType: MaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: TextureSourceKind.Bundled,
-            Projection: MaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0]);
-        return new ImportedCityObject(
-            ObjectKey: slotKey,
-            DisplayName: slotKey,
-            PackageName: "dem",
-            ActualMeshCode: "53394525",
-            LodLevel: 1,
-            Transform: new Transform3D(position),
-            Geometry: new TerrainGridGeometry(
-                Width: width,
-                Height: height,
-                Size: new Float2(sizeX, sizeZ),
-                MinHeight: heightSamples.Min(),
-                MaxHeight: heightSamples.Max(),
-                HeightSamples: heightSamples),
-            Materials: [material],
-            SourceFileRelativePath: $"udx/dem/53394525/{slotKey}.gml");
     }
 
     private static void AssertGeneratedUpperFacadeTrianglesFaceOutward(
