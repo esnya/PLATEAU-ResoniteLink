@@ -21,10 +21,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
 
     private static ResoniteCommonMaterialSetupPreparer CreateCommonMaterialSetupPreparer(
-        IResoniteMaterialPlanning materialPlanning,
-        Action<string>? progressReporter = null)
+        IResoniteMaterialPlanning materialPlanning)
     {
-        return new ResoniteCommonMaterialSetupPreparer(materialPlanning, progressReporter);
+        return new ResoniteCommonMaterialSetupPreparer(materialPlanning);
     }
 
     private static LiveSendRunStateFactory CreateRunStateFactory()
@@ -56,12 +55,11 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
     private static ResoniteLiveSendRunStarter CreateRunStarter(
         IResoniteMaterialPlanning materialPlanning,
-        IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null,
-        Action<string>? progressReporter = null)
+        IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null)
     {
         return new ResoniteLiveSendRunStarter(
             sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
-            CreateCommonMaterialSetupPreparer(materialPlanning, progressReporter),
+            CreateCommonMaterialSetupPreparer(materialPlanning),
             new LiveSendRunPlanFactory(),
             CreateRunStateFactory(),
             new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning)),
