@@ -8,4 +8,5 @@ internal sealed record ResoniteLiveSceneImportDependencies(
     IResoniteLiveSendStartRequestFactory StartRequestFactory,
     IResoniteLiveSendRunStarter RunStarter,
     IResoniteLiveSendContextFactory ContextFactory,
+    IResoniteLiveSendResourceReleaser ResourceReleaser,
     IResoniteLiveSendQueue Queue);

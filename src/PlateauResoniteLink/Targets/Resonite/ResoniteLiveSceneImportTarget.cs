@@ -15,6 +15,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private readonly IResoniteLiveSendStartRequestFactory startRequestFactory;
     private readonly IResoniteLiveSendRunStarter runStarter;
     private readonly IResoniteLiveSendContextFactory contextFactory;
+    private readonly IResoniteLiveSendResourceReleaser resourceReleaser;
     private readonly IResoniteLiveSendQueue queue;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
@@ -33,6 +34,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(dependencies.StartRequestFactory);
         ArgumentNullException.ThrowIfNull(dependencies.RunStarter);
         ArgumentNullException.ThrowIfNull(dependencies.ContextFactory);
+        ArgumentNullException.ThrowIfNull(dependencies.ResourceReleaser);
         ArgumentNullException.ThrowIfNull(dependencies.Queue);
 
         endpoint = options.Endpoint;
@@ -44,6 +46,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         startRequestFactory = dependencies.StartRequestFactory;
         runStarter = dependencies.RunStarter;
         contextFactory = dependencies.ContextFactory;
+        resourceReleaser = dependencies.ResourceReleaser;
         queue = dependencies.Queue;
         ClientSessionInternal = dependencies.ClientSession;
     }
@@ -102,10 +105,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             try
             {
-                await ReleaseRunResourcesAsync(
-                    state,
-                    disposeClients: false,
-                    resetClients: !completedSuccessfully);
+                await resourceReleaser.ReleaseAsync(
+                    CreateResourceRelease(
+                        state,
+                        completedSuccessfully
+                            ? ResoniteLiveSendClientRelease.None
+                            : ResoniteLiveSendClientRelease.Reset));
             }
             finally
             {
@@ -116,30 +121,20 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     public async ValueTask DisposeAsync()
     {
-        await ReleaseRunResourcesAsync(
-            state: null,
-            disposeClients: true,
-            resetClients: false);
+        await resourceReleaser.ReleaseAsync(
+            CreateResourceRelease(
+                state: null,
+                clientRelease: ResoniteLiveSendClientRelease.Dispose));
     }
 
-    private async ValueTask ReleaseRunResourcesAsync(
+    private ResoniteLiveSendResourceRelease CreateResourceRelease(
         LiveSendRunState? state,
-        bool disposeClients,
-        bool resetClients)
+        ResoniteLiveSendClientRelease clientRelease)
     {
-        if (state is not null)
-        {
-            await state.Runtime.DisposeAsync();
-        }
-
-        if (disposeClients)
-        {
-            ClientSessionInternal.DisposeClients();
-        }
-        else if (resetClients)
-        {
-            await ClientSessionInternal.ResetClientsAsync();
-        }
+        return new ResoniteLiveSendResourceRelease(
+            state,
+            ClientSessionInternal,
+            clientRelease);
     }
 
     private ResoniteLiveSendTargetContext CreateLiveSendContext()

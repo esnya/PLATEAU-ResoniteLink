@@ -369,6 +369,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                                 new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
                         new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker))),
                 new ResoniteLiveSendContextFactory(),
+                new ResoniteLiveSendResourceReleaser(),
                 queue));
     }
 
