@@ -305,6 +305,49 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
+    public void Map_MapsOnlyFilteredActiveDefinitions()
+    {
+        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
+        CommonMaterialDefinition activeDefinition = catalog.Generic.Uv.Definition;
+        CommonMaterialCatalog<DefaultCommonMaterialMember> filtered = catalog.FilterToDefinitions([activeDefinition]);
+        List<CommonMaterialDefinition> mappedDefinitions = [];
+
+        CommonMaterialCatalog<string> mapped = filtered.Map(member =>
+        {
+            mappedDefinitions.Add(member.Definition);
+            return member.Definition.MemberName;
+        });
+
+        CommonMaterialCatalogMember<string> mappedMember = Assert.Single(mapped.EnumerateMembers());
+        Assert.Same(activeDefinition, mappedMember.Definition);
+        Assert.Equal(activeDefinition.MemberName, mappedMember.Item);
+        Assert.Equal([activeDefinition], mappedDefinitions);
+    }
+
+    [Fact]
+    public async Task MapAsync_MapsOnlyFilteredActiveDefinitions()
+    {
+        CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
+        CommonMaterialDefinition activeDefinition = catalog.Generic.Uv.Definition;
+        CommonMaterialCatalog<DefaultCommonMaterialMember> filtered = catalog.FilterToDefinitions([activeDefinition]);
+        List<CommonMaterialDefinition> mappedDefinitions = [];
+
+        CommonMaterialCatalog<string> mapped = await filtered.MapAsync(
+            (member, cancellationToken) =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                mappedDefinitions.Add(member.Definition);
+                return ValueTask.FromResult(member.Definition.MemberName);
+            },
+            CancellationToken.None);
+
+        CommonMaterialCatalogMember<string> mappedMember = Assert.Single(mapped.EnumerateMembers());
+        Assert.Same(activeDefinition, mappedMember.Definition);
+        Assert.Equal(activeDefinition.MemberName, mappedMember.Item);
+        Assert.Equal([activeDefinition], mappedDefinitions);
+    }
+
+    [Fact]
     public void Create_IncludesOnlyResolverReachableRoadAndGenericVariants()
     {
         IReadOnlyList<MaterialBinding> materials = CreateMaterialCatalog();

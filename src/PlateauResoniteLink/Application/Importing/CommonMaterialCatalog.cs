@@ -11,6 +11,7 @@ public sealed class CommonMaterialCatalog<TItem>
     private readonly CommonMaterialCatalogMember<TItem>[] allMembers;
     private readonly CommonMaterialCatalogMember<TItem>[] members;
     private readonly Dictionary<CommonMaterialDefinition, TItem> itemsByDefinition;
+    private readonly HashSet<CommonMaterialDefinition> knownDefinitions;
 
     internal CommonMaterialCatalog(Func<CommonMaterialDefinition, TItem> create)
         : this(create, activeDefinitions: null)
@@ -169,8 +170,14 @@ public sealed class CommonMaterialCatalog<TItem>
             : allMembers
                 .Where(member => activeDefinitions.Contains(member.Definition))
                 .ToArray();
-        itemsByDefinition = new Dictionary<CommonMaterialDefinition, TItem>(ReferenceEqualityComparer.Instance);
+        knownDefinitions = new HashSet<CommonMaterialDefinition>(ReferenceEqualityComparer.Instance);
         foreach (CommonMaterialCatalogMember<TItem> member in allMembers)
+        {
+            knownDefinitions.Add(member.Definition);
+        }
+
+        itemsByDefinition = new Dictionary<CommonMaterialDefinition, TItem>(ReferenceEqualityComparer.Instance);
+        foreach (CommonMaterialCatalogMember<TItem> member in members)
         {
             itemsByDefinition.Add(member.Definition, member.Item);
         }
@@ -222,12 +229,14 @@ public sealed class CommonMaterialCatalog<TItem>
     {
         ArgumentNullException.ThrowIfNull(map);
         Dictionary<CommonMaterialDefinition, TOut> mapped = new(ReferenceEqualityComparer.Instance);
-        foreach (CommonMaterialCatalogMember<TItem> member in allMembers)
+        foreach (CommonMaterialCatalogMember<TItem> member in members)
         {
             mapped.Add(member.Definition, map(member.Item));
         }
 
-        return new CommonMaterialCatalog<TOut>(definition => mapped[definition], CreateActiveDefinitionSet());
+        return new CommonMaterialCatalog<TOut>(
+            definition => mapped.TryGetValue(definition, out TOut? value) ? value : default!,
+            CreateActiveDefinitionSet());
     }
 
     internal async ValueTask<CommonMaterialCatalog<TOut>> MapAsync<TOut>(
@@ -236,13 +245,15 @@ public sealed class CommonMaterialCatalog<TItem>
     {
         ArgumentNullException.ThrowIfNull(map);
         Dictionary<CommonMaterialDefinition, TOut> mapped = new(ReferenceEqualityComparer.Instance);
-        foreach (CommonMaterialCatalogMember<TItem> member in allMembers)
+        foreach (CommonMaterialCatalogMember<TItem> member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();
             mapped.Add(member.Definition, await map(member.Item, cancellationToken).ConfigureAwait(false));
         }
 
-        return new CommonMaterialCatalog<TOut>(definition => mapped[definition], CreateActiveDefinitionSet());
+        return new CommonMaterialCatalog<TOut>(
+            definition => mapped.TryGetValue(definition, out TOut? value) ? value : default!,
+            CreateActiveDefinitionSet());
     }
 
     internal IReadOnlyList<CommonMaterialCatalogMember<TItem>> EnumerateMembers() => members;
@@ -271,7 +282,7 @@ public sealed class CommonMaterialCatalog<TItem>
         foreach (CommonMaterialDefinition definition in definitions)
         {
             ArgumentNullException.ThrowIfNull(definition);
-            if (!itemsByDefinition.ContainsKey(definition))
+            if (!knownDefinitions.Contains(definition))
             {
                 throw new ArgumentException($"Unknown common material definition '{definition.MemberName}'.", nameof(definitions));
             }
@@ -279,7 +290,9 @@ public sealed class CommonMaterialCatalog<TItem>
             activeDefinitions.Add(definition);
         }
 
-        return new CommonMaterialCatalog<TItem>(definition => itemsByDefinition[definition], activeDefinitions);
+        return new CommonMaterialCatalog<TItem>(
+            definition => itemsByDefinition.TryGetValue(definition, out TItem? value) ? value : default!,
+            activeDefinitions);
     }
 
     private HashSet<CommonMaterialDefinition> CreateActiveDefinitionSet()
