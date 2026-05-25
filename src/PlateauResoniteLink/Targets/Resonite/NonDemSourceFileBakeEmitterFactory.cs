@@ -14,7 +14,8 @@ internal sealed class NonDemSourceFileBakeEmitterFactory(
                 new NonDemAtlasOrPreservedEntryFactory(textureImageLoader, atlasBudget.EffectiveMaxAtlasTextureEdge)),
             new NonDemCityObjectBakeAssembler(
                 layoutFactory,
-                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels)),
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                new NonDemBakedGeometryComposer()),
             new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 }
