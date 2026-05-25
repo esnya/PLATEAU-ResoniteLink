@@ -31,7 +31,8 @@ internal interface IResoniteLiveSendRunExecutorFactory
 
 internal sealed class ResoniteLiveSendRunExecutorFactory(
     IResoniteLiveSendQueue queue,
-    IResoniteLiveSendRunResourceReleaser resourceReleaser) : IResoniteLiveSendRunExecutorFactory
+    IResoniteLiveSendRunResourceReleaser resourceReleaser,
+    IResoniteLiveSendPhaseContextFactory phaseContextFactory) : IResoniteLiveSendRunExecutorFactory
 {
     public IResoniteLiveSendRunExecutor Create(IResoniteLiveSendRunStarter runStarter)
     {
@@ -40,14 +41,16 @@ internal sealed class ResoniteLiveSendRunExecutorFactory(
         return new ResoniteLiveSendRunExecutor(
             runStarter,
             queue,
-            resourceReleaser);
+            resourceReleaser,
+            phaseContextFactory);
     }
 }
 
 internal sealed class ResoniteLiveSendRunExecutor(
     IResoniteLiveSendRunStarter runStarter,
     IResoniteLiveSendQueue queue,
-    IResoniteLiveSendRunResourceReleaser resourceReleaser) : IResoniteLiveSendRunExecutor
+    IResoniteLiveSendRunResourceReleaser resourceReleaser,
+    IResoniteLiveSendPhaseContextFactory phaseContextFactory) : IResoniteLiveSendRunExecutor
 {
     private readonly IResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));
@@ -55,6 +58,8 @@ internal sealed class ResoniteLiveSendRunExecutor(
         queue ?? throw new ArgumentNullException(nameof(queue));
     private readonly IResoniteLiveSendRunResourceReleaser resourceReleaser =
         resourceReleaser ?? throw new ArgumentNullException(nameof(resourceReleaser));
+    private readonly IResoniteLiveSendPhaseContextFactory phaseContextFactory =
+        phaseContextFactory ?? throw new ArgumentNullException(nameof(phaseContextFactory));
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         LiveSendRunStartRequest request,
@@ -77,10 +82,10 @@ internal sealed class ResoniteLiveSendRunExecutor(
         {
             state = await runStarter.StartAsync(
                 request,
-                CreateRunStartContext(context),
+                phaseContextFactory.CreateRunStartContext(context),
                 cancellationToken);
 
-            LiveSendEnqueueContext enqueueContext = CreateEnqueueContext(context);
+            LiveSendEnqueueContext enqueueContext = phaseContextFactory.CreateEnqueueContext(context);
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
                 await queue.QueueUnitAsync(
@@ -92,7 +97,7 @@ internal sealed class ResoniteLiveSendRunExecutor(
 
             SceneImportExecutionResult result = await queue.CompleteAsync(
                 state,
-                CreateFinalizationContext(context, enqueueContext),
+                phaseContextFactory.CreateFinalizationContext(context, enqueueContext),
                 cancellationToken);
             completedSuccessfully = true;
             return result;
@@ -105,33 +110,5 @@ internal sealed class ResoniteLiveSendRunExecutor(
                 disposeClients: false,
                 resetClients: !completedSuccessfully);
         }
-    }
-
-    private static LiveSendRunStartContext CreateRunStartContext(LiveSendRunExecutionContext context)
-    {
-        return new LiveSendRunStartContext(
-            context.Endpoint,
-            context.ClientSession,
-            context.Diagnostics,
-            context.ProgressReporter);
-    }
-
-    private static LiveSendEnqueueContext CreateEnqueueContext(LiveSendRunExecutionContext context)
-    {
-        return new LiveSendEnqueueContext(
-            context.ConnectionCount,
-            context.ClientSession.GetRequiredClient,
-            context.ProgressReporter);
-    }
-
-    private static LiveSendFinalizationContext CreateFinalizationContext(
-        LiveSendRunExecutionContext context,
-        LiveSendEnqueueContext enqueueContext)
-    {
-        return new LiveSendFinalizationContext(
-            context.Endpoint,
-            enqueueContext,
-            context.Diagnostics,
-            context.ProgressReporter);
     }
 }
