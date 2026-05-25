@@ -31,9 +31,9 @@ internal static class LocalCityGmlObjectProjection
     public const int DefaultDemTerrainTextureMaxSize = DemTerrainTextureDefaults.MaxTextureSize;
     public const double DefaultGeneratedRoadMarkingWidthMeters = 0.15;
     public const double DefaultGeneratedRoadMarkingSegmentLengthMeters = 5.0;
-    public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = 5.0;
-    public const double MinTerrainAlignedTransportationSegmentLengthMeters = 2.0;
-    public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = 0.8;
+    public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = TerrainAlignedTransportationSurfaceSplitter.DefaultSegmentLengthMeters;
+    public const double MinTerrainAlignedTransportationSegmentLengthMeters = TerrainAlignedTransportationSurfaceSplitter.MinSegmentLengthMeters;
+    public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = TerrainAlignedTransportationSurfaceSplitter.SegmentLengthByWidthRatio;
     public static readonly MaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = CityGmlSurfaceMaterialResolver.TerrainAlignedDepthOffset;
 
     private static readonly Quaternion GridMeshTerrainRotation = new(
@@ -294,14 +294,7 @@ internal static class LocalCityGmlObjectProjection
         }
 
         EdgePairSelection edgePair = SelectPrimaryRoadEdgePair(surface.ExteriorRing, positions);
-        double segmentLength = ComputeTerrainAlignedSegmentLength(edgePair.Width);
-        if (edgePair.Length <= segmentLength + 1e-6)
-        {
-            return [surface];
-        }
-
-        List<ParsedSurface> strips = CreateTerrainAlignedTransportationStrips(surface, positions, edgePair, segmentLength);
-        return strips.Count > 0 ? strips : [surface];
+        return TerrainAlignedTransportationSurfaceSplitter.Split(surface, positions, edgePair);
     }
 
     private static List<global::PlateauResoniteLink.Application.Importing.ParsedSurface> SubdivideTransportationSurfaceForTerrainAlignment(
@@ -333,227 +326,11 @@ internal static class LocalCityGmlObjectProjection
         EdgePairSelection edgePair = SelectPrimaryRoadEdgePair(
             global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface.ExteriorRing),
             positions);
-        double segmentLength = ComputeTerrainAlignedSegmentLength(edgePair.Width);
-        if (edgePair.Length <= segmentLength + 1e-6)
-        {
-            return [surface];
-        }
-
-        List<ParsedSurface> strips = CreateTerrainAlignedTransportationStrips(
+        List<ParsedSurface> strips = TerrainAlignedTransportationSurfaceSplitter.Split(
             global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface),
             positions,
-            edgePair,
-            segmentLength);
-        return strips.Count > 0
-            ? strips.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel).ToList()
-            : [surface];
-    }
-
-    private static double ComputeTerrainAlignedSegmentLength(double roadWidth)
-    {
-        double preferredLength = roadWidth * TerrainAlignedTransportationSegmentLengthByWidthRatio;
-        return Math.Clamp(
-            preferredLength,
-            MinTerrainAlignedTransportationSegmentLengthMeters,
-            DefaultTerrainAlignedTransportationSegmentLengthMeters);
-    }
-
-    private static List<ParsedSurface> CreateTerrainAlignedTransportationStrips(
-        ParsedSurface surface,
-        Float3[] positions,
-        EdgePairSelection edgePair,
-        double segmentLength)
-    {
-        Float3 axis = CreateTransportationSurfaceAxis(edgePair);
-        if (LengthSquared(axis) < 1e-8)
-        {
-            return [];
-        }
-
-        double minStation = positions.Min(position => DotHorizontal(position, axis));
-        double maxStation = positions.Max(position => DotHorizontal(position, axis));
-        if (maxStation - minStation <= 1e-6)
-        {
-            return [];
-        }
-
-        SortedSet<double> stations = [minStation, maxStation];
-        foreach (Float3 position in positions)
-        {
-            stations.Add(DotHorizontal(position, axis));
-        }
-
-        for (double station = minStation + segmentLength; station < maxStation - 1e-6; station += segmentLength)
-        {
-            stations.Add(station);
-        }
-
-        List<(double Station, SurfaceSliceSample[] Samples)> slices = new(stations.Count);
-        foreach (double station in stations)
-        {
-            SurfaceSliceSample[] samples = IntersectTransportationSurfaceAtStation(surface.ExteriorRing, positions, axis, station);
-            if (samples.Length > 0)
-            {
-                slices.Add((station, samples));
-            }
-        }
-
-        List<ParsedSurface> strips = [];
-        for (int index = 1; index < slices.Count; index++)
-        {
-            SurfaceSliceSample[] previousSamples = slices[index - 1].Samples;
-            SurfaceSliceSample[] currentSamples = slices[index].Samples;
-            if (previousSamples.Length == 2 && currentSamples.Length == 2)
-            {
-                strips.Add(CreateTransportationStripSurface(
-                    surface,
-                    $"terrain_strip_{index - 1:D2}",
-                    previousSamples[0],
-                    previousSamples[1],
-                    currentSamples[1],
-                    currentSamples[0]));
-            }
-            else if (previousSamples.Length == 1 && currentSamples.Length == 2)
-            {
-                strips.Add(CreateTransportationStripSurface(
-                    surface,
-                    $"terrain_fan_start_{index - 1:D2}",
-                    previousSamples[0],
-                    currentSamples[1],
-                    currentSamples[0]));
-            }
-            else if (previousSamples.Length == 2 && currentSamples.Length == 1)
-            {
-                strips.Add(CreateTransportationStripSurface(
-                    surface,
-                    $"terrain_fan_end_{index - 1:D2}",
-                    previousSamples[0],
-                    previousSamples[1],
-                    currentSamples[0]));
-            }
-        }
-
-        return strips;
-    }
-
-    private static ParsedSurface CreateTransportationStripSurface(
-        ParsedSurface sourceSurface,
-        string suffix,
-        params SurfaceSliceSample[] samples)
-    {
-        Float2[]? uvs = null;
-        if (samples.All(static sample => sample.UV is not null))
-        {
-            List<Float2> uvList = new(samples.Length);
-            for (int index = 0; index < samples.Length; index++)
-            {
-                if (samples[index].UV is Float2 uv)
-                {
-                    uvList.Add(uv);
-                }
-            }
-
-            uvs = [.. uvList];
-        }
-
-        return sourceSurface with
-        {
-            PolygonId = $"{sourceSurface.PolygonId}_{suffix}",
-            ExteriorRing = new ParsedRing(
-                $"{sourceSurface.ExteriorRing.RingId}_{suffix}",
-                [.. samples.Select(static sample => sample.Point)],
-                uvs),
-        };
-    }
-
-    private static SurfaceSliceSample[] IntersectTransportationSurfaceAtStation(
-        ParsedRing ring,
-        Float3[] positions,
-        Float3 axis,
-        double station)
-    {
-        Float3 lateralAxis = new(-axis.Z, 0.0, axis.X);
-        List<SurfaceSliceSample> intersections = [];
-        for (int index = 0; index < ring.Vertices.Length; index++)
-        {
-            int nextIndex = (index + 1) % ring.Vertices.Length;
-            double startStation = DotHorizontal(positions[index], axis);
-            double endStation = DotHorizontal(positions[nextIndex], axis);
-            double deltaStation = endStation - startStation;
-            if (Math.Abs(deltaStation) < 1e-8)
-            {
-                if (Math.Abs(station - startStation) > 1e-8)
-                {
-                    continue;
-                }
-
-                TryAddSurfaceSliceSample(intersections, ring, positions, lateralAxis, index, ring.Vertices[index], 0.0);
-                TryAddSurfaceSliceSample(intersections, ring, positions, lateralAxis, nextIndex, ring.Vertices[nextIndex], 0.0);
-                continue;
-            }
-
-            double ratio = (station - startStation) / deltaStation;
-            if (ratio < -1e-8 || ratio > 1.0 + 1e-8)
-            {
-                continue;
-            }
-
-            ratio = Math.Clamp(ratio, 0.0, 1.0);
-            GeodeticPoint point = InterpolateAlongEdge(ring.Vertices[index], ring.Vertices[nextIndex], ratio);
-            TryAddSurfaceSliceSample(intersections, ring, positions, lateralAxis, index, point, ratio);
-        }
-
-        intersections.Sort(static (left, right) => left.LateralPosition.CompareTo(right.LateralPosition));
-        return [.. intersections];
-    }
-
-    private static void TryAddSurfaceSliceSample(
-        List<SurfaceSliceSample> intersections,
-        ParsedRing ring,
-        Float3[] positions,
-        Float3 lateralAxis,
-        int edgeStartIndex,
-        GeodeticPoint point,
-        double ratio)
-    {
-        if (intersections.Any(existing => AreSamePoint(existing.Point, point)))
-        {
-            return;
-        }
-
-        int edgeEndIndex = (edgeStartIndex + 1) % ring.Vertices.Length;
-        Float3 position = Lerp(positions[edgeStartIndex], positions[edgeEndIndex], ratio);
-        Float2? uv = ring.UVs is not null && ring.UVs.Count == ring.Vertices.Length
-            ? Lerp(ring.UVs[edgeStartIndex], ring.UVs[edgeEndIndex], ratio)
-            : null;
-        intersections.Add(new SurfaceSliceSample(point, uv, DotHorizontal(position, lateralAxis)));
-    }
-
-    private static Float3 CreateTransportationSurfaceAxis(EdgePairSelection edgePair)
-    {
-        Float3 side0Vector = NormalizeHorizontal(Subtract(edgePair.Side0Positions[1], edgePair.Side0Positions[0]));
-        Float3 side1Vector = NormalizeHorizontal(Subtract(edgePair.Side1Positions[1], edgePair.Side1Positions[0]));
-        if (LengthSquared(side0Vector) < 1e-8)
-        {
-            return side1Vector;
-        }
-
-        if (LengthSquared(side1Vector) < 1e-8)
-        {
-            return side0Vector;
-        }
-
-        if (DotHorizontal(side0Vector, side1Vector) < 0.0)
-        {
-            side1Vector = new Float3(-side1Vector.X, 0.0, -side1Vector.Z);
-        }
-
-        return NormalizeHorizontal(Add(side0Vector, side1Vector));
-    }
-
-    private static Float3 Add(Float3 left, Float3 right)
-    {
-        return new Float3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
+            edgePair);
+        return strips.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel).ToList();
     }
 
     private static Float3 NormalizeHorizontal(Float3 value)
@@ -2312,6 +2089,14 @@ internal static class LocalCityGmlObjectProjection
             left.X - right.X,
             left.Y - right.Y,
             left.Z - right.Z);
+    }
+
+    private static Float3 Add(Float3 left, Float3 right)
+    {
+        return new Float3(
+            left.X + right.X,
+            left.Y + right.Y,
+            left.Z + right.Z);
     }
 
     private static Float3 Multiply(Float3 vector, double scalar)
@@ -4701,23 +4486,6 @@ internal static class LocalCityGmlObjectProjection
         double Latitude,
         double Longitude,
         double Altitude);
-
-    private sealed record EdgePairSelection(
-        GeodeticPoint[] Side0,
-        GeodeticPoint[] Side1,
-        Float3[] Side0Positions,
-        Float3[] Side1Positions,
-        Float2[]? Side0Uvs,
-        Float2[]? Side1Uvs,
-        double Length,
-        double Width,
-        double Side0EdgeLength,
-        double Side1EdgeLength);
-
-    private readonly record struct SurfaceSliceSample(
-        GeodeticPoint Point,
-        Float2? UV,
-        double LateralPosition);
 
     internal sealed record ParsedSurface(
         string PolygonId,
