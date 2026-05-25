@@ -14,7 +14,7 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
     IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendSetupInitializer setupInitializer,
     ILiveSendRunPlanFactory runPlanFactory,
-    ILiveSendRunStateFactory runStateFactory,
+    IResoniteLiveSendRunActivatorFactory runActivatorFactory,
     IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory) : IResoniteLiveSendRunStarterFactory
 {
     public IResoniteLiveSendRunStarter Create(
@@ -24,38 +24,12 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
         ArgumentNullException.ThrowIfNull(options);
 
+        IResoniteLiveSendWorkerLauncher workerLauncher =
+            workerLauncherFactory.Create(terrainTextureAssetHttpClient, options);
         return new ResoniteLiveSendRunStarter(
             connectionInitializer,
             setupInitializer,
             runPlanFactory,
-            new ResoniteLiveSendRunActivator(
-                runStateFactory,
-                workerLauncherFactory.Create(terrainTextureAssetHttpClient, options)));
-    }
-}
-
-internal interface IResoniteLiveSendWorkerLauncherFactory
-{
-    IResoniteLiveSendWorkerLauncher Create(
-        HttpClient terrainTextureAssetHttpClient,
-        ResoniteLiveSceneImportTargetOptions options);
-}
-
-internal sealed class ResoniteLiveSendWorkerLauncherFactory(
-    IResoniteQueuedCityObjectSenderFactory queuedCityObjectSenderFactory,
-    IResoniteQueuedCityObjectLaneProcessorFactory laneProcessorFactory) : IResoniteLiveSendWorkerLauncherFactory
-{
-    public IResoniteLiveSendWorkerLauncher Create(
-        HttpClient terrainTextureAssetHttpClient,
-        ResoniteLiveSceneImportTargetOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
-        ArgumentNullException.ThrowIfNull(options);
-
-        IResoniteQueuedCityObjectSender queuedCityObjectSender =
-            queuedCityObjectSenderFactory.Create(terrainTextureAssetHttpClient, options);
-        ResoniteQueuedCityObjectWorker queuedCityObjectWorker = new(
-            laneProcessorFactory.Create(queuedCityObjectSender));
-        return new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker);
+            runActivatorFactory.Create(workerLauncher));
     }
 }

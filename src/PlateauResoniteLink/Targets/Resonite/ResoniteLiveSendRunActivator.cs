@@ -13,6 +13,21 @@ internal interface IResoniteLiveSendRunActivator
         CancellationToken cancellationToken);
 }
 
+internal interface IResoniteLiveSendRunActivatorFactory
+{
+    IResoniteLiveSendRunActivator Create(IResoniteLiveSendWorkerLauncher workerLauncher);
+}
+
+internal sealed class ResoniteLiveSendRunActivatorFactory(
+    ILiveSendRunStateFactory runStateFactory) : IResoniteLiveSendRunActivatorFactory
+{
+    public IResoniteLiveSendRunActivator Create(IResoniteLiveSendWorkerLauncher workerLauncher)
+    {
+        ArgumentNullException.ThrowIfNull(workerLauncher);
+        return new ResoniteLiveSendRunActivator(runStateFactory, workerLauncher);
+    }
+}
+
 internal sealed class ResoniteLiveSendRunActivator(
     ILiveSendRunStateFactory runStateFactory,
     IResoniteLiveSendWorkerLauncher workerLauncher) : IResoniteLiveSendRunActivator
