@@ -14,9 +14,9 @@ internal interface INonDemCityObjectBakeCandidateFactory
 }
 
 internal sealed class NonDemCityObjectBakeCandidateFactory(
-    NonDemAtlasOrPreservedEntryFactory entryFactory) : INonDemCityObjectBakeCandidateFactory
+    INonDemAtlasOrPreservedEntryFactory entryFactory) : INonDemCityObjectBakeCandidateFactory
 {
-    private readonly NonDemAtlasOrPreservedEntryFactory entryFactory = entryFactory
+    private readonly INonDemAtlasOrPreservedEntryFactory entryFactory = entryFactory
         ?? throw new ArgumentNullException(nameof(entryFactory));
 
     public async Task<NonDemCityObjectBakeCandidate?> CreateAsync(

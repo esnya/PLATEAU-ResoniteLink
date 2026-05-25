@@ -20,13 +20,13 @@ internal interface INonDemCityObjectBakeAssembler
 }
 
 internal sealed class NonDemCityObjectBakeAssembler(
-    NonDemAtlasLayoutFactory atlasLayoutFactory,
-    NonDemAtlasImageRenderer atlasImageRenderer,
+    INonDemAtlasLayoutFactory atlasLayoutFactory,
+    INonDemAtlasImageRenderer atlasImageRenderer,
     INonDemBakedGeometryComposer geometryComposer) : INonDemCityObjectBakeAssembler
 {
-    private readonly NonDemAtlasLayoutFactory atlasLayoutFactory = atlasLayoutFactory
+    private readonly INonDemAtlasLayoutFactory atlasLayoutFactory = atlasLayoutFactory
         ?? throw new ArgumentNullException(nameof(atlasLayoutFactory));
-    private readonly NonDemAtlasImageRenderer atlasImageRenderer = atlasImageRenderer
+    private readonly INonDemAtlasImageRenderer atlasImageRenderer = atlasImageRenderer
         ?? throw new ArgumentNullException(nameof(atlasImageRenderer));
     private readonly INonDemBakedGeometryComposer geometryComposer = geometryComposer
         ?? throw new ArgumentNullException(nameof(geometryComposer));

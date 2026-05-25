@@ -9,14 +9,14 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed class NonDemSourceFileBakeEmitter(
     INonDemCityObjectBakeCandidateFactory candidateFactory,
     INonDemCityObjectBakeAssembler assembler,
-    NonDemAtlasBatchFitPolicy batchFitPolicy,
+    INonDemAtlasBatchFitPolicy batchFitPolicy,
     INonDemBakeCandidateImageDisposer candidateImageDisposer) : INonDemSourceFileBakeEmitter
 {
     private readonly INonDemCityObjectBakeCandidateFactory candidateFactory = candidateFactory
         ?? throw new ArgumentNullException(nameof(candidateFactory));
     private readonly INonDemCityObjectBakeAssembler assembler = assembler
         ?? throw new ArgumentNullException(nameof(assembler));
-    private readonly NonDemAtlasBatchFitPolicy batchFitPolicy = batchFitPolicy
+    private readonly INonDemAtlasBatchFitPolicy batchFitPolicy = batchFitPolicy
         ?? throw new ArgumentNullException(nameof(batchFitPolicy));
     private readonly INonDemBakeCandidateImageDisposer candidateImageDisposer = candidateImageDisposer
         ?? throw new ArgumentNullException(nameof(candidateImageDisposer));
@@ -45,7 +45,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
                 continue;
             }
 
-            if (candidate.AtlasEntries.Count == 0 && !NonDemAtlasBatchFitPolicy.RequiresBakeEmission(candidate))
+            if (candidate.AtlasEntries.Count == 0 && !batchFitPolicy.RequiresBakeEmission(candidate))
             {
                 passThroughCandidates.Add(candidate);
                 continue;

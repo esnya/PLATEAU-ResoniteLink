@@ -11,9 +11,18 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
+internal interface INonDemAtlasOrPreservedEntryFactory
+{
+    Task<NonDemAtlasOrPreservedEntry> CreateAsync(
+        ResoniteConstructionCityObject cityObject,
+        ResoniteMeshSubmesh submesh,
+        ResoniteMaterialBinding material,
+        CancellationToken cancellationToken);
+}
+
 internal sealed class NonDemAtlasOrPreservedEntryFactory(
     ResoniteTextureImageLoader textureImageLoader,
-    int maxAtlasTextureEdge)
+    int maxAtlasTextureEdge) : INonDemAtlasOrPreservedEntryFactory
 {
     private readonly ResoniteTextureImageLoader textureImageLoader = textureImageLoader
         ?? throw new ArgumentNullException(nameof(textureImageLoader));

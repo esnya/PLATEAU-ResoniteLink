@@ -3,7 +3,18 @@ using System.Linq;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed class NonDemAtlasBatchFitPolicy(NonDemAtlasLayoutFactory atlasLayoutFactory)
+internal interface INonDemAtlasBatchFitPolicy
+{
+    bool CanFitSingleCandidate(NonDemCityObjectBakeCandidate candidate);
+
+    bool CanAppendToAtlasBatch(
+        IReadOnlyList<NonDemCityObjectBakeCandidate> batchCandidates,
+        NonDemCityObjectBakeCandidate candidate);
+
+    bool RequiresBakeEmission(NonDemCityObjectBakeCandidate candidate);
+}
+
+internal sealed class NonDemAtlasBatchFitPolicy(INonDemAtlasLayoutFactory atlasLayoutFactory) : INonDemAtlasBatchFitPolicy
 {
     public bool CanFitSingleCandidate(NonDemCityObjectBakeCandidate candidate)
     {
@@ -18,7 +29,7 @@ internal sealed class NonDemAtlasBatchFitPolicy(NonDemAtlasLayoutFactory atlasLa
         return atlasLayoutFactory.CanFit(candidateEntries);
     }
 
-    public static bool RequiresBakeEmission(NonDemCityObjectBakeCandidate candidate)
+    public bool RequiresBakeEmission(NonDemCityObjectBakeCandidate candidate)
     {
         return candidate.PreservedEntries.Any(static entry => entry.VertexColorOverride is not null);
     }
