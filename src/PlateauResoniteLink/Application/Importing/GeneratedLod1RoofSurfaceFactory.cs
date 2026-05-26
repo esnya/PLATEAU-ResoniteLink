@@ -268,21 +268,22 @@ internal static class GeneratedLod1RoofSurfaceFactory
             return null;
         }
 
-        Float3 normal = new(0.0, 0.0, 0.0);
+        double normalX = 0.0;
+        double normalY = 0.0;
+        double normalZ = 0.0;
         for (int index = 0; index < vertices.Length; index++)
         {
             Float3 current = vertices[index];
             Float3 next = vertices[(index + 1) % vertices.Length];
-            normal = new Float3(
-                normal.X + ((current.Y - next.Y) * (current.Z + next.Z)),
-                normal.Y + ((current.Z - next.Z) * (current.X + next.X)),
-                normal.Z + ((current.X - next.X) * (current.Y + next.Y)));
+            normalX += (current.Y - next.Y) * (current.Z + next.Z);
+            normalY += (current.Z - next.Z) * (current.X + next.X);
+            normalZ += (current.X - next.X) * (current.Y + next.Y);
         }
 
-        double length = Math.Sqrt((normal.X * normal.X) + (normal.Y * normal.Y) + (normal.Z * normal.Z));
+        double length = Math.Sqrt((normalX * normalX) + (normalY * normalY) + (normalZ * normalZ));
         return length < 1e-8
             ? null
-            : new Float3(normal.X / length, normal.Y / length, normal.Z / length);
+            : new Float3(normalX / length, normalY / length, normalZ / length);
     }
 
     private static double Dot(Float3 left, Float3 right)
