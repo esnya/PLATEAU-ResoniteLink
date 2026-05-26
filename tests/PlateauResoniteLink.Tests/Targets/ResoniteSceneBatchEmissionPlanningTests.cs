@@ -37,7 +37,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_CreatesTerrainGridPlanWithPlannedTextureReference()
     {
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+        ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Terrain Grid Object",
@@ -135,7 +135,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_CreatesDynamicTerrainPlanWithGridAsFalseFallback()
     {
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+        ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Dynamic Terrain Object",
@@ -219,7 +219,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_CarriesTerrainGridUvMembers()
     {
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+        ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Terrain Grid Object",
@@ -265,7 +265,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_UsesReusableTargetsAndPlansDedicatedMaterialComponents()
     {
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+        ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
@@ -333,7 +333,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_UsesMeshAssetContainerWhenDedicatedMaterialSlotIsNotPreserved()
     {
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+        ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
@@ -420,7 +420,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_UsesMainTexturePropertyBlockForRendererOverride()
     {
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+        ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
@@ -477,7 +477,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_ClampsTerrainMainTextureOverride()
     {
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+        ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
@@ -516,7 +516,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_UsesSharedTerrainPropertyBlockWhenProvided()
     {
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+        ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
@@ -562,7 +562,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_UsesDistinctOverrideComponentIdsForSharedMaterialOverrides()
     {
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+        ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",

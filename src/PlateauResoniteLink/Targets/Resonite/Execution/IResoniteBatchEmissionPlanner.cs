@@ -9,7 +9,7 @@ namespace PlateauResoniteLink.Targets.Resonite.Execution;
 internal interface IResoniteBatchEmissionPlanner
 {
     PlannedBatchEmission Create(
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots,
+        ResoniteObjectSlotHierarchy objectSlots,
         PlannedSceneObjectEmission emissionPlan);
 }
 
@@ -29,7 +29,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         "[FrooxEngine]FrooxEngine.BooleanAssetDriver<[FrooxEngine]FrooxEngine.Mesh>";
 
     public PlannedBatchEmission Create(
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots,
+        ResoniteObjectSlotHierarchy objectSlots,
         PlannedSceneObjectEmission emissionPlan)
     {
         ArgumentNullException.ThrowIfNull(objectSlots);
@@ -252,7 +252,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         List<PlannedBatchSlotEmission> slotEmissions,
         List<PlannedBatchComponentEmission> componentEmissions,
         List<BatchPlanSlotLocator> slotResolutionTargets,
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots,
+        ResoniteObjectSlotHierarchy objectSlots,
         string terrainGridAssetSlotName,
         ResoniteTerrainGridGeometry geometry,
         Uri heightTextureUri,

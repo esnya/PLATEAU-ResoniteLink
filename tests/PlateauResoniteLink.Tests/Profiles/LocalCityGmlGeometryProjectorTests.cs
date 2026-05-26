@@ -10,6 +10,27 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class LocalCityGmlGeometryProjectorTests
 {
     [Fact]
+    public void CoordinateReferenceSystemParseTreatsWgs84IdentifiersAsCompatible()
+    {
+        CoordinateReferenceSystem epsg4326 = CoordinateReferenceSystem.Parse("EPSG:4326");
+        CoordinateReferenceSystem uri4326 = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/4326");
+        CoordinateReferenceSystem epsg4979 = CoordinateReferenceSystem.Parse("EPSG:4979");
+
+        Assert.NotNull(epsg4326.Geocentric);
+        Assert.True(epsg4326.IsCompatibleWith(uri4326));
+        Assert.True(epsg4326.IsCompatibleWith(epsg4979));
+    }
+
+    [Fact]
+    public void CoordinateReferenceSystemParseRejectsUnsupportedGeographicIdentifier()
+    {
+        PlateauImportValidationException exception = Assert.Throws<PlateauImportValidationException>(
+            () => CoordinateReferenceSystem.Parse("EPSG:999999"));
+
+        Assert.Contains("Unsupported CityGML coordinate reference system", exception.Errors.Single());
+    }
+
+    [Fact]
     public void ProjectCityObjectsValidatesReferenceSystemBeforeProjectingCanonicalObjects()
     {
         LocalCityGmlGeometryProjector projector = new(new DefaultMaterialResolver(CommonMaterialCatalog.Create()));

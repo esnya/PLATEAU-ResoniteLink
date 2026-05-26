@@ -61,24 +61,15 @@ internal static class DemTerrainOverlayAssignment
                 }
 
                 GeographicRectangle surfaceBounds = GetSurfaceGeographicBounds(requestedMeshClippedSurface);
-                bool hasContainingOverlay = demTerrainTextureOverlays.Any(overlay =>
-                    surfaceBounds.MinLatitude >= overlay.GeographicBounds.MinLatitude
-                    && surfaceBounds.MaxLatitude <= overlay.GeographicBounds.MaxLatitude
-                    && surfaceBounds.MinLongitude >= overlay.GeographicBounds.MinLongitude
-                    && surfaceBounds.MaxLongitude <= overlay.GeographicBounds.MaxLongitude);
-                if (hasContainingOverlay)
+                TerrainOverlayCoverage coverage = ResolveTerrainOverlayCoverage(
+                    surfaceBounds,
+                    demTerrainTextureOverlays);
+                if (coverage.Kind == TerrainOverlayCoverageKind.Contained)
                 {
                     continue;
                 }
 
-                TerrainTextureOverlay[] candidateOverlays = demTerrainTextureOverlays
-                    .Where(overlay =>
-                        surfaceBounds.MaxLatitude >= overlay.GeographicBounds.MinLatitude
-                        && surfaceBounds.MinLatitude <= overlay.GeographicBounds.MaxLatitude
-                        && surfaceBounds.MaxLongitude >= overlay.GeographicBounds.MinLongitude
-                        && surfaceBounds.MinLongitude <= overlay.GeographicBounds.MaxLongitude)
-                    .ToArray();
-                if (candidateOverlays.Length == 0)
+                if (coverage.Kind == TerrainOverlayCoverageKind.None)
                 {
                     return false;
                 }
@@ -86,7 +77,7 @@ internal static class DemTerrainOverlayAssignment
                 IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
                     DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
                         requestedMeshClippedSurface,
-                        candidateOverlays);
+                        coverage.IntersectingOverlays);
                 if (clippedSurfaces.Count == 0)
                 {
                     return false;
@@ -190,25 +181,16 @@ internal static class DemTerrainOverlayAssignment
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 GeographicRectangle surfaceBounds = GetSurfaceGeographicBounds(requestedMeshClippedSurface);
-                TerrainTextureOverlay? containingOverlay = demTerrainTextureOverlays.FirstOrDefault(overlay =>
-                    surfaceBounds.MinLatitude >= overlay.GeographicBounds.MinLatitude
-                    && surfaceBounds.MaxLatitude <= overlay.GeographicBounds.MaxLatitude
-                    && surfaceBounds.MinLongitude >= overlay.GeographicBounds.MinLongitude
-                    && surfaceBounds.MaxLongitude <= overlay.GeographicBounds.MaxLongitude);
-                if (containingOverlay is not null)
+                TerrainOverlayCoverage coverage = ResolveTerrainOverlayCoverage(
+                    surfaceBounds,
+                    demTerrainTextureOverlays);
+                if (coverage.Kind == TerrainOverlayCoverageKind.Contained)
                 {
-                    splitGeneratedSurfaces.Add((requestedMeshClippedSurface, containingOverlay));
+                    splitGeneratedSurfaces.Add((requestedMeshClippedSurface, coverage.ContainingOverlay!));
                     continue;
                 }
 
-                TerrainTextureOverlay[] candidateOverlays = demTerrainTextureOverlays
-                    .Where(overlay =>
-                        surfaceBounds.MaxLatitude >= overlay.GeographicBounds.MinLatitude
-                        && surfaceBounds.MinLatitude <= overlay.GeographicBounds.MaxLatitude
-                        && surfaceBounds.MaxLongitude >= overlay.GeographicBounds.MinLongitude
-                        && surfaceBounds.MinLongitude <= overlay.GeographicBounds.MaxLongitude)
-                    .ToArray();
-                if (candidateOverlays.Length == 0)
+                if (coverage.Kind == TerrainOverlayCoverageKind.None)
                 {
                     throw new InvalidOperationException(
                         $"Mesh-code-bounds-clipped DEM surface '{requestedMeshClippedSurface.PolygonId}' has no matching terrain overlay coverage.");
@@ -217,7 +199,7 @@ internal static class DemTerrainOverlayAssignment
                 IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
                     DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
                         requestedMeshClippedSurface,
-                        candidateOverlays,
+                        coverage.IntersectingOverlays,
                         progressReporter,
                         cancellationToken);
                 if (clippedSurfaces.Count == 0)
@@ -336,73 +318,43 @@ internal static class DemTerrainOverlayAssignment
             requestedMeshBounds).ToArray();
     }
 
-    public static (Float2? TextureScale, Float2? TextureOffset) TryCreateTerrainGridTextureTransform(
-        ParsedCityObject cityObject,
-        LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
-        TerrainTextureOverlay? demTerrainTextureOverlay,
-        GeographicRectangle? cityObjectGeographicBounds = null)
+    private static TerrainOverlayCoverage ResolveTerrainOverlayCoverage(
+        GeographicRectangle surfaceBounds,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
     {
-        TextureUvRect? occupiedUvRect = TryCreateTerrainGridOccupiedUvRect(
-            cityObject,
-            materializedSurface,
-            demTerrainTextureOverlay,
-            cityObjectGeographicBounds);
-        return occupiedUvRect is null
-            ? (null, null)
-            : (
-                new Float2(occupiedUvRect.Value.ScaleValue.X, occupiedUvRect.Value.ScaleValue.Y),
-                new Float2(occupiedUvRect.Value.OffsetValue.X, occupiedUvRect.Value.OffsetValue.Y));
+        TerrainTextureOverlay? containingOverlay = demTerrainTextureOverlays.FirstOrDefault(overlay =>
+            Contains(overlay.GeographicBounds, surfaceBounds));
+        if (containingOverlay is not null)
+        {
+            return TerrainOverlayCoverage.Contained(containingOverlay);
+        }
+
+        TerrainTextureOverlay[] intersectingOverlays = demTerrainTextureOverlays
+            .Where(overlay => Intersects(overlay.GeographicBounds, surfaceBounds))
+            .ToArray();
+        return intersectingOverlays.Length == 0
+            ? TerrainOverlayCoverage.None
+            : TerrainOverlayCoverage.Intersecting(intersectingOverlays);
     }
 
-    public static TextureUvRect? TryCreateTerrainGridOccupiedUvRect(
-        ParsedCityObject cityObject,
-        LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
-        TerrainTextureOverlay? demTerrainTextureOverlay,
-        GeographicRectangle? cityObjectGeographicBounds = null)
+    private static bool Contains(
+        GeographicRectangle container,
+        GeographicRectangle subject)
     {
-        if (demTerrainTextureOverlay is null
-            || !string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            || !materializedSurface.Surface.UsesGeneratedDemTexture)
-        {
-            return null;
-        }
+        return subject.MinLatitude >= container.MinLatitude
+            && subject.MaxLatitude <= container.MaxLatitude
+            && subject.MinLongitude >= container.MinLongitude
+            && subject.MaxLongitude <= container.MaxLongitude;
+    }
 
-        GeographicRectangle overlayBounds = demTerrainTextureOverlay.GeographicBounds;
-        GeographicRectangle objectBounds = IntersectGeographicBounds(
-            cityObjectGeographicBounds ?? GetCityObjectGeographicBounds(cityObject),
-            overlayBounds);
-        if (objectBounds.MaxLongitude <= objectBounds.MinLongitude
-            || objectBounds.MaxLatitude <= objectBounds.MinLatitude)
-        {
-            return null;
-        }
-
-        double overlayWest = WebMercatorTileMath.LongitudeToNormalizedX(overlayBounds.MinLongitude);
-        double overlayEast = WebMercatorTileMath.LongitudeToNormalizedX(overlayBounds.MaxLongitude);
-        double overlayNorth = WebMercatorTileMath.LatitudeToNormalizedY(overlayBounds.MaxLatitude);
-        double overlaySouth = WebMercatorTileMath.LatitudeToNormalizedY(overlayBounds.MinLatitude);
-        double overlayWidth = overlayEast - overlayWest;
-        double overlayHeight = overlaySouth - overlayNorth;
-        if (overlayWidth <= 1e-12 || overlayHeight <= 1e-12)
-        {
-            return null;
-        }
-
-        double objectWest = WebMercatorTileMath.LongitudeToNormalizedX(objectBounds.MinLongitude);
-        double objectEast = WebMercatorTileMath.LongitudeToNormalizedX(objectBounds.MaxLongitude);
-        double objectNorth = WebMercatorTileMath.LatitudeToNormalizedY(objectBounds.MaxLatitude);
-        double objectSouth = WebMercatorTileMath.LatitudeToNormalizedY(objectBounds.MinLatitude);
-
-        double uMin = Math.Clamp((objectWest - overlayWest) / overlayWidth, 0.0, 1.0);
-        double uMax = Math.Clamp((objectEast - overlayWest) / overlayWidth, 0.0, 1.0);
-        double vMin = Math.Clamp((overlaySouth - objectSouth) / overlayHeight, 0.0, 1.0);
-        double vMax = Math.Clamp((overlaySouth - objectNorth) / overlayHeight, 0.0, 1.0);
-
-        return new TextureUvRect(
-            uMin,
-            vMin,
-            Math.Max(uMax - uMin, 1e-6),
-            Math.Max(vMax - vMin, 1e-6));
+    private static bool Intersects(
+        GeographicRectangle left,
+        GeographicRectangle right)
+    {
+        return right.MaxLatitude >= left.MinLatitude
+            && right.MinLatitude <= left.MaxLatitude
+            && right.MaxLongitude >= left.MinLongitude
+            && right.MinLongitude <= left.MaxLongitude;
     }
 
     private static bool TryPruneBoundarySliverSplit(
@@ -589,45 +541,6 @@ internal static class DemTerrainOverlayAssignment
         return origin!;
     }
 
-    private static GeographicRectangle GetCityObjectGeographicBounds(
-        ParsedCityObject cityObject)
-    {
-        bool hasPoint = false;
-        double minLatitude = 0.0;
-        double maxLatitude = 0.0;
-        double minLongitude = 0.0;
-        double maxLongitude = 0.0;
-        foreach (ParsedSurface surface in cityObject.Surfaces)
-        {
-            foreach (GeodeticPoint point in surface.Vertices)
-            {
-                if (!hasPoint)
-                {
-                    minLatitude = maxLatitude = point.Latitude;
-                    minLongitude = maxLongitude = point.Longitude;
-                    hasPoint = true;
-                    continue;
-                }
-
-                minLatitude = Math.Min(minLatitude, point.Latitude);
-                maxLatitude = Math.Max(maxLatitude, point.Latitude);
-                minLongitude = Math.Min(minLongitude, point.Longitude);
-                maxLongitude = Math.Max(maxLongitude, point.Longitude);
-            }
-        }
-
-        if (!hasPoint)
-        {
-            throw new InvalidOperationException("DEM city object has no vertices.");
-        }
-
-        return new GeographicRectangle(
-            MinLatitude: minLatitude,
-            MaxLatitude: maxLatitude,
-            MinLongitude: minLongitude,
-            MaxLongitude: maxLongitude);
-    }
-
     private static GeographicRectangle GetSurfaceGeographicBounds(
         ParsedSurface surface)
     {
@@ -636,17 +549,6 @@ internal static class DemTerrainOverlayAssignment
             MaxLatitude: surface.Vertices.Max(static point => point.Latitude),
             MinLongitude: surface.Vertices.Min(static point => point.Longitude),
             MaxLongitude: surface.Vertices.Max(static point => point.Longitude));
-    }
-
-    private static GeographicRectangle IntersectGeographicBounds(
-        GeographicRectangle left,
-        GeographicRectangle right)
-    {
-        return new GeographicRectangle(
-            MinLatitude: Math.Max(left.MinLatitude, right.MinLatitude),
-            MaxLatitude: Math.Min(left.MaxLatitude, right.MaxLatitude),
-            MinLongitude: Math.Max(left.MinLongitude, right.MinLongitude),
-            MaxLongitude: Math.Min(left.MaxLongitude, right.MaxLongitude));
     }
 
     private static SurfaceMetrics ComputeSurfaceMetrics(ParsedSurface surface)
@@ -702,6 +604,40 @@ internal static class DemTerrainOverlayAssignment
     private readonly record struct ProjectedPoint(double X, double Y);
 
     private readonly record struct SurfaceMetrics(double AreaSquareMeters, double EstimatedThicknessMeters);
+
+    private readonly record struct TerrainOverlayCoverage(
+        TerrainOverlayCoverageKind Kind,
+        TerrainTextureOverlay? ContainingOverlay,
+        IReadOnlyList<TerrainTextureOverlay> IntersectingOverlays)
+    {
+        public static TerrainOverlayCoverage None { get; } = new(
+            TerrainOverlayCoverageKind.None,
+            ContainingOverlay: null,
+            IntersectingOverlays: []);
+
+        public static TerrainOverlayCoverage Contained(TerrainTextureOverlay containingOverlay)
+        {
+            return new TerrainOverlayCoverage(
+                TerrainOverlayCoverageKind.Contained,
+                containingOverlay,
+                IntersectingOverlays: []);
+        }
+
+        public static TerrainOverlayCoverage Intersecting(IReadOnlyList<TerrainTextureOverlay> intersectingOverlays)
+        {
+            return new TerrainOverlayCoverage(
+                TerrainOverlayCoverageKind.Intersecting,
+                ContainingOverlay: null,
+                intersectingOverlays);
+        }
+    }
+
+    private enum TerrainOverlayCoverageKind
+    {
+        None,
+        Contained,
+        Intersecting,
+    }
 
     private readonly record struct GroupMetrics(
         TerrainTextureOverlay Overlay,

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -10,8 +11,47 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
 
+internal interface IResoniteCanonicalSceneDumpSinkFactory
+{
+    ISceneSink Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        string outputPath);
+}
+
+internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
+    IResoniteLiveSceneImportFactory targetFactory) : IResoniteCanonicalSceneDumpSinkFactory
+{
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "CanonicalSceneDumpSink owns the recording client after successful construction; failures dispose it here.")]
+    public ISceneSink Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        string outputPath)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        SceneSinkRecordingClient recordingClient = new();
+        try
+        {
+            ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
+                options,
+                new SingleRecordingClientSession(recordingClient),
+                ResoniteLinkSendDiagnostics.Disabled,
+                new DeterministicTerrainTextureAssetGenerator());
+            return new CanonicalSceneDumpSink(target, recordingClient, outputPath);
+        }
+        catch
+        {
+            recordingClient.Dispose();
+            throw;
+        }
+    }
+}
+
 internal sealed class CanonicalSceneDumpSink(
-    ResoniteLiveSceneImportTarget inner,
+    ISceneSink inner,
     SceneSinkRecordingClient recordingClient,
     string outputPath) : ISceneSink
 {

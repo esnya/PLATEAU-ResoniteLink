@@ -9,7 +9,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class ParsedSurfaceStableSortKey
 {
-    internal static string Create(LocalCityGmlObjectProjection.ParsedSurface surface)
+    internal static string Create(ParsedSurface surface)
     {
         using MemoryStream stream = new();
         using (BinaryWriter writer = new(stream, Encoding.UTF8, leaveOpen: true))
@@ -18,7 +18,7 @@ internal static class ParsedSurfaceStableSortKey
             writer.Write((int)surface.Semantic);
             WriteRing(writer, surface.ExteriorRing);
             writer.Write(surface.InteriorRings.Length);
-            foreach (LocalCityGmlObjectProjection.ParsedRing ring in surface.InteriorRings.OrderBy(static ring => ring.RingId, StringComparer.Ordinal))
+            foreach (ParsedRing ring in surface.InteriorRings.OrderBy(static ring => ring.RingId, StringComparer.Ordinal))
             {
                 WriteRing(writer, ring);
             }
@@ -28,15 +28,13 @@ internal static class ParsedSurfaceStableSortKey
         return Convert.ToHexString(hash.AsSpan(0, 16)).ToLowerInvariant();
     }
 
-    private static void WriteRing(BinaryWriter writer, LocalCityGmlObjectProjection.ParsedRing ring)
+    private static void WriteRing(BinaryWriter writer, ParsedRing ring)
     {
         writer.Write(ring.RingId);
         writer.Write(ring.Vertices.Length);
-        foreach (LocalCityGmlObjectProjection.GeodeticPoint vertex in ring.Vertices)
+        foreach (GeodeticPoint vertex in ring.Vertices)
         {
-            writer.Write(vertex.Latitude);
-            writer.Write(vertex.Longitude);
-            writer.Write(vertex.Altitude);
+            WritePoint(writer, vertex);
         }
 
         IReadOnlyList<Float2>? uvs = ring.UVs;
@@ -52,4 +50,12 @@ internal static class ParsedSurfaceStableSortKey
             writer.Write(uv.Y);
         }
     }
+
+    private static void WritePoint(BinaryWriter writer, GeodeticPoint vertex)
+    {
+        writer.Write(vertex.Latitude);
+        writer.Write(vertex.Longitude);
+        writer.Write(vertex.Altitude);
+    }
+
 }

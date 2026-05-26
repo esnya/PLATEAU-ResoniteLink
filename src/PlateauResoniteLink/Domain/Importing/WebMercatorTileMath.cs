@@ -7,6 +7,7 @@ namespace PlateauResoniteLink.Domain.Importing;
 public static class WebMercatorTileMath
 {
     public const int TileSizePixels = 256;
+    public const int MaxZoomLevel = 30;
     public const double MaxLatitude = 85.05112878;
     private const double DegreesToRadians = Math.PI / 180.0;
     private const double RadiansToDegrees = 180.0 / Math.PI;

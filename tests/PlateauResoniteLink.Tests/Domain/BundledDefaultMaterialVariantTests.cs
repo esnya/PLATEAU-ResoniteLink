@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
@@ -193,6 +194,39 @@ public sealed class BundledDefaultMaterialVariantTests
             .ToArray();
 
         Assert.All(constructorParameterTypes, static type => Assert.NotEqual(typeof(string), Nullable.GetUnderlyingType(type) ?? type));
+    }
+
+    [Fact]
+    public void BundledDefaultMaterialAssetStoreRepairsTruncatedExtractedFile()
+    {
+        string logicalPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.CityFurniture, 0);
+        using TemporaryDirectory extractionRoot = new();
+        BundledDefaultMaterialAssetStore assetStore = new();
+        using IDisposable _ = assetStore.PushExtractionRootOverride(extractionRoot.Path);
+        string extractedPath = Path.Combine(
+            extractionRoot.Path,
+            logicalPath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(extractedPath)!);
+        File.WriteAllBytes(extractedPath, [1, 2, 3]);
+
+        string repairedPath = assetStore.GetAbsolutePath(logicalPath);
+
+        Assert.Equal(extractedPath, repairedPath);
+        Assert.True(new FileInfo(repairedPath).Length > 3);
+        using Image image = Image.Load(repairedPath);
+        Assert.True(image.Width > 0);
+        Assert.True(image.Height > 0);
+    }
+
+    [Fact]
+    public void BundledDefaultMaterialAssetStoreTreatsMissingCachedFileLengthAsCacheMiss()
+    {
+        string missingPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "missing.png");
+
+        bool resolved = BundledDefaultMaterialAssetStore.TryGetExistingFileLength(missingPath, out long length);
+
+        Assert.False(resolved);
+        Assert.Equal(0, length);
     }
 
     [Theory]

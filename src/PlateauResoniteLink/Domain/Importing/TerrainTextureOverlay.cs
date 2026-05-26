@@ -16,7 +16,7 @@ public sealed record TerrainTextureTileSource(string UrlTemplate, int ZoomLevel)
         ? throw new ArgumentException("Terrain texture tile URL template must be provided.", nameof(UrlTemplate))
         : UrlTemplate;
 
-    public int ZoomLevel { get; init; } = ZoomLevel > 0
+    public int ZoomLevel { get; init; } = ZoomLevel is > 0 and <= WebMercatorTileMath.MaxZoomLevel
         ? ZoomLevel
         : throw new ArgumentOutOfRangeException(nameof(ZoomLevel));
 

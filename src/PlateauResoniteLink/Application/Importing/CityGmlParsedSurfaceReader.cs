@@ -5,18 +5,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 
-using ProjectionParsedRing = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedRing;
-using ProjectionParsedSurface = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedSurface;
-using ProjectionParsedSurfaceSemantic = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.ParsedSurfaceSemantic;
-using ProjectionGeodeticPoint = PlateauResoniteLink.Application.Importing.LocalCityGmlObjectProjection.GeodeticPoint;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class CityGmlParsedSurfaceReader
 {
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
 
-    internal static ProjectionParsedSurface? Parse(XElement polygonElement, ICityGmlAppearanceStore appearanceStore)
+    internal static ParsedSurface? Parse(XElement polygonElement, ICityGmlAppearanceStore appearanceStore)
     {
         ArgumentNullException.ThrowIfNull(polygonElement);
         ArgumentNullException.ThrowIfNull(appearanceStore);
@@ -31,7 +26,7 @@ internal static class CityGmlParsedSurfaceReader
 
         string polygonId = GetAttribute(polygonElement, Gml + "id") ?? CreateStableElementId("polygon", polygonElement);
         CityGmlResolvedAppearance appearance = appearanceStore.Resolve(polygonId);
-        ProjectionParsedRing? exteriorParsedRing = ParseRing(
+        ParsedRing? exteriorParsedRing = ParseRing(
             exteriorRing,
             appearance.RingUvsByRingId,
             fallbackRingId: polygonId);
@@ -40,7 +35,7 @@ internal static class CityGmlParsedSurfaceReader
             return null;
         }
 
-        ProjectionParsedRing[] interiorRings = polygonElement
+        ParsedRing[] interiorRings = polygonElement
             .Elements(Gml + "interior")
             .Select(interiorElement => ParseRing(
                 interiorElement.Element(Gml + "LinearRing"),
@@ -50,7 +45,7 @@ internal static class CityGmlParsedSurfaceReader
             .Select(static ring => ring!)
             .ToArray();
 
-        return new ProjectionParsedSurface(
+        return new ParsedSurface(
             PolygonId: polygonId,
             Semantic: ParseSurfaceSemantic(polygonElement),
             ExteriorRing: exteriorParsedRing,
@@ -60,7 +55,7 @@ internal static class CityGmlParsedSurfaceReader
             OpticalProperties: CreateMaterialOpticalProperties(appearance.MaterialAttributes));
     }
 
-    internal static ProjectionParsedSurface ApplyPackageDefaults(string packageName, ProjectionParsedSurface surface)
+    internal static ParsedSurface ApplyPackageDefaults(string packageName, ParsedSurface surface)
     {
         ArgumentNullException.ThrowIfNull(surface);
 
@@ -70,7 +65,7 @@ internal static class CityGmlParsedSurfaceReader
             : surface;
     }
 
-    private static ProjectionParsedRing? ParseRing(
+    private static ParsedRing? ParseRing(
         XElement? ringElement,
         IReadOnlyDictionary<string, IReadOnlyList<Float2>>? ringUvsByRingId,
         string? fallbackRingId)
@@ -83,7 +78,7 @@ internal static class CityGmlParsedSurfaceReader
         string ringId = GetAttribute(ringElement, Gml + "id")
             ?? fallbackRingId
             ?? CreateStableElementId("ring", ringElement);
-        ProjectionGeodeticPoint[] vertices = ParseRingPoints(ringElement);
+        GeodeticPoint[] vertices = ParseRingPoints(ringElement);
         if (vertices.Length < 3)
         {
             return null;
@@ -97,10 +92,10 @@ internal static class CityGmlParsedSurfaceReader
             uvs = ringUvs;
         }
 
-        return new ProjectionParsedRing(ringId, vertices, uvs);
+        return new ParsedRing(ringId, vertices, uvs);
     }
 
-    private static ProjectionGeodeticPoint[] ParseRingPoints(XElement ringElement)
+    private static GeodeticPoint[] ParseRingPoints(XElement ringElement)
     {
         List<double> ordinates = [];
         XElement? posListElement = ringElement.Element(Gml + "posList");
@@ -116,10 +111,10 @@ internal static class CityGmlParsedSurfaceReader
             }
         }
 
-        List<ProjectionGeodeticPoint> points = [];
+        List<GeodeticPoint> points = [];
         for (int index = 0; index + 2 < ordinates.Count; index += 3)
         {
-            points.Add(new ProjectionGeodeticPoint(ordinates[index], ordinates[index + 1], ordinates[index + 2]));
+            points.Add(new GeodeticPoint(ordinates[index], ordinates[index + 1], ordinates[index + 2]));
         }
 
         if (points.Count > 1 && AreSamePoint(points[0], points[^1]))
@@ -130,28 +125,28 @@ internal static class CityGmlParsedSurfaceReader
         return points.ToArray();
     }
 
-    private static ProjectionParsedSurfaceSemantic ParseSurfaceSemantic(XElement polygonElement)
+    private static ParsedSurfaceSemantic ParseSurfaceSemantic(XElement polygonElement)
     {
         for (XElement? ancestor = polygonElement.Parent; ancestor is not null; ancestor = ancestor.Parent)
         {
-            ProjectionParsedSurfaceSemantic semantic = ancestor.Name.LocalName switch
+            ParsedSurfaceSemantic semantic = ancestor.Name.LocalName switch
             {
-                "WallSurface" or "InteriorWallSurface" => ProjectionParsedSurfaceSemantic.Wall,
-                "RoofSurface" => ProjectionParsedSurfaceSemantic.Roof,
-                "GroundSurface" => ProjectionParsedSurfaceSemantic.Ground,
-                "ClosureSurface" => ProjectionParsedSurfaceSemantic.Closure,
-                "OuterCeilingSurface" => ProjectionParsedSurfaceSemantic.OuterCeiling,
-                "OuterFloorSurface" => ProjectionParsedSurfaceSemantic.OuterFloor,
-                _ => ProjectionParsedSurfaceSemantic.Unknown,
+                "WallSurface" or "InteriorWallSurface" => ParsedSurfaceSemantic.Wall,
+                "RoofSurface" => ParsedSurfaceSemantic.Roof,
+                "GroundSurface" => ParsedSurfaceSemantic.Ground,
+                "ClosureSurface" => ParsedSurfaceSemantic.Closure,
+                "OuterCeilingSurface" => ParsedSurfaceSemantic.OuterCeiling,
+                "OuterFloorSurface" => ParsedSurfaceSemantic.OuterFloor,
+                _ => ParsedSurfaceSemantic.Unknown,
             };
 
-            if (semantic != ProjectionParsedSurfaceSemantic.Unknown)
+            if (semantic != ParsedSurfaceSemantic.Unknown)
             {
                 return semantic;
             }
         }
 
-        return ProjectionParsedSurfaceSemantic.Unknown;
+        return ParsedSurfaceSemantic.Unknown;
     }
 
     private static string CreateStableElementId(string prefix, XElement element)
@@ -184,7 +179,7 @@ internal static class CityGmlParsedSurfaceReader
         return element.Attribute(attributeName)?.Value;
     }
 
-    private static bool AreSamePoint(ProjectionGeodeticPoint left, ProjectionGeodeticPoint right)
+    private static bool AreSamePoint(GeodeticPoint left, GeodeticPoint right)
     {
         return Math.Abs(left.Latitude - right.Latitude) < 1e-8
             && Math.Abs(left.Longitude - right.Longitude) < 1e-8
