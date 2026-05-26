@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 
 using System.Xml.Linq;
@@ -11,18 +10,7 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed record GeodeticPoint(
     double Latitude,
     double Longitude,
-    double Altitude)
-{
-    internal LocalCityGmlObjectProjection.GeodeticPoint ToProjectionModel()
-    {
-        return new LocalCityGmlObjectProjection.GeodeticPoint(Latitude, Longitude, Altitude);
-    }
-
-    internal static GeodeticPoint FromProjectionModel(LocalCityGmlObjectProjection.GeodeticPoint point)
-    {
-        return new GeodeticPoint(point.Latitude, point.Longitude, point.Altitude);
-    }
-}
+    double Altitude);
 
 internal static class SceneAxisMapper
 {
@@ -61,24 +49,7 @@ internal static class SceneAxisMapper
 internal sealed record TerrainHeightTriangle(
     GeodeticPoint Vertex0,
     GeodeticPoint Vertex1,
-    GeodeticPoint Vertex2)
-{
-    internal ProjectionTerrainHeightTriangle ToProjectionModel()
-    {
-        return new ProjectionTerrainHeightTriangle(
-            Vertex0,
-            Vertex1,
-            Vertex2);
-    }
-
-    internal static TerrainHeightTriangle FromProjectionModel(ProjectionTerrainHeightTriangle triangle)
-    {
-        return new TerrainHeightTriangle(
-            triangle.Vertex0,
-            triangle.Vertex1,
-            triangle.Vertex2);
-    }
-}
+    GeodeticPoint Vertex2);
 
 internal sealed record DemTerrainBounds(
     double SouthLatitude,
@@ -86,22 +57,13 @@ internal sealed record DemTerrainBounds(
     double WestLongitude,
     double EastLongitude)
 {
-    internal static DemTerrainBounds FromProjectionModel(MeshCodeBounds bounds)
+    internal static DemTerrainBounds FromMeshCodeBounds(MeshCodeBounds bounds)
     {
         return new DemTerrainBounds(
             bounds.SouthLatitude,
             bounds.NorthLatitude,
             bounds.WestLongitude,
             bounds.EastLongitude);
-    }
-
-    internal MeshCodeBounds ToProjectionModel()
-    {
-        return new MeshCodeBounds(
-            SouthLatitude,
-            NorthLatitude,
-            WestLongitude,
-            EastLongitude);
     }
 }
 
@@ -145,19 +107,6 @@ internal sealed record CoordinateReferenceSystem(
         return new CoordinateReferenceSystem(srsName, geocentric, compatibilityKey);
     }
 
-    internal static CoordinateReferenceSystem FromProjectionModel(LocalCityGmlObjectProjection.CoordinateReferenceSystem referenceSystem)
-    {
-        return new CoordinateReferenceSystem(referenceSystem.SrsName, referenceSystem.Geocentric, referenceSystem.CompatibilityKey);
-    }
-
-    internal LocalCityGmlObjectProjection.CoordinateReferenceSystem ToProjectionModel()
-    {
-        return new LocalCityGmlObjectProjection.CoordinateReferenceSystem(
-            SrsName,
-            Geocentric,
-            CompatibilityKey);
-    }
-
     private static (Geocentric Geocentric, string CompatibilityKey) ResolveGeocentric(string srsName)
     {
         if (srsName.EndsWith("/6697", StringComparison.Ordinal)
@@ -175,37 +124,5 @@ internal sealed record CoordinateReferenceSystem(
         }
 
         return (new Geocentric(Ellipsoid.GRS80), srsName.Trim());
-    }
-}
-
-internal sealed class TerrainHeightSampler
-{
-    private readonly ProjectionTerrainHeightSampler projectionSampler;
-
-    internal TerrainHeightSampler(ProjectionTerrainHeightSampler projectionSampler)
-    {
-        this.projectionSampler = projectionSampler;
-    }
-
-    internal static TerrainHeightSampler? FromProjectionModel(ProjectionTerrainHeightSampler? terrainHeightSampler)
-    {
-        return terrainHeightSampler is null ? null : new TerrainHeightSampler(terrainHeightSampler);
-    }
-
-    internal ProjectionTerrainHeightSampler ToProjectionModel()
-    {
-        return projectionSampler;
-    }
-
-    internal static TerrainHeightSampler Create(
-        IReadOnlyCollection<TerrainHeightTriangle> terrainTriangles,
-        GeodeticPoint globalOriginPoint,
-        Geocentric geocentric)
-    {
-        return new TerrainHeightSampler(
-            ProjectionTerrainHeightSampler.Create(
-                terrainTriangles.Select(static triangle => triangle.ToProjectionModel()).ToArray(),
-                globalOriginPoint,
-                geocentric));
     }
 }

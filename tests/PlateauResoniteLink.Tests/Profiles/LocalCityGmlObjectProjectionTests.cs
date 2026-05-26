@@ -196,7 +196,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObject_CreatesFacadeUvFromProjectOwnedDefaultFloorUnit()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 2.0);
+        GeodeticPoint origin = new(35.0, 139.0, 2.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -216,7 +216,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -232,7 +232,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObject_IgnoresFloorMetadataWhenGeneratingProjectOwnedFacadeUv()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 2.0);
+        GeodeticPoint origin = new(35.0, 139.0, 2.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -252,7 +252,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -268,7 +268,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObject_IgnoresUnknownStoreySentinelForFacadeFloorUv()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 2.0);
+        GeodeticPoint origin = new(35.0, 139.0, 2.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -288,7 +288,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -304,7 +304,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObjectPreservesSourceTextureCoordinatesForTexturedBuildingWall()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -335,7 +335,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -358,7 +358,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObjectPreservesDatasetTextureForTexturedBuildingRoof()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -388,7 +388,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: CreateThirdMeshOverlay("53394525"),
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -413,7 +413,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         Float2[] sourceUvs = [new(0.01, 0.02), new(0.03, 0.04), new(0.05, 0.06), new(0.07, 0.08), new(0.01, 0.02)];
         ParsedSurface roofSurface = CreateParsedSurface(
@@ -426,7 +426,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -449,7 +449,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         ParsedSurface topSurface = CreateParsedSurface(
             "lod1-top",
             ParsedSurfaceSemantic.Roof,
@@ -468,7 +468,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -487,7 +487,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         ParsedSurface topSurface = CreateParsedSurface(
             "roof-type-other-lod1-top",
             ParsedSurfaceSemantic.Roof,
@@ -509,7 +509,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -528,7 +528,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         PlateauBuildingStructure structure = (PlateauBuildingStructure)structureValue;
         ParsedSurface topSurface = CreateParsedSurface(
             "function-code-lod1-top",
@@ -554,7 +554,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -573,7 +573,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         PlateauBuildingStructure structure = (PlateauBuildingStructure)structureValue;
         ParsedSurface topSurface = CreateParsedSurface(
             "general-non-wood-lod1-top",
@@ -613,7 +613,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -628,7 +628,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
         ParsedSurface topSurface = CreateParsedSurface(
             "shed-lod1-top",
             ParsedSurfaceSemantic.Roof,
@@ -652,7 +652,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -679,7 +679,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
         ParsedSurface topSurface = CreateParsedSurface(
             "shed-generated-only-lod1-top",
             ParsedSurfaceSemantic.Roof,
@@ -698,7 +698,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -720,7 +720,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         CityGmlRoofShape roofShape = (CityGmlRoofShape)roofShapeValue;
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
         ParsedSurface topSurface = CreateParsedSurface(
             "roof-wall-facing-lod1-top",
             ParsedSurfaceSemantic.Roof,
@@ -739,7 +739,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -759,7 +759,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         CityGmlRoofShape roofShape = (CityGmlRoofShape)roofShapeValue;
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
         ParsedSurface topSurface = CreateParsedSurface(
             "roof-facing-lod1-top",
             ParsedSurfaceSemantic.Roof,
@@ -778,7 +778,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -793,7 +793,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         ParsedSurface topSurface = CreateParsedSurface(
             "lod2-top",
             ParsedSurfaceSemantic.Roof,
@@ -813,7 +813,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -831,7 +831,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         ParsedSurfaceSemantic topSemantic = (ParsedSurfaceSemantic)topSemanticValue;
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         ParsedSurface topSurface = CreateParsedSurface(
             "flat-top",
             topSemantic,
@@ -850,7 +850,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -866,7 +866,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
         ParsedSurface topSurface = CreateParsedSurface(
             "flat-lod1-top",
             ParsedSurfaceSemantic.OuterCeiling,
@@ -894,7 +894,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlays: [overlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
@@ -912,7 +912,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
         ParsedSurface topSurface = CreateParsedSurface(
             "parsed-shed-lod1-top",
             ParsedSurfaceSemantic.Roof,
@@ -940,7 +940,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlays: [overlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
@@ -961,7 +961,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         ParsedSurface roofSurface = CreateParsedSurface(
             "textureless-roof",
             ParsedSurfaceSemantic.Roof,
@@ -975,7 +975,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: null,
             demTerrainTextureOverlays: [overlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
@@ -995,7 +995,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay unrelatedFirstOverlay = CreateThirdMeshOverlay("53394525");
         TerrainTextureOverlay expectedOverlay = CreateThirdMeshOverlay("53394526");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
         ParsedSurface roofSurface = CreateParsedSurface(
             "textureless-parent-roof",
             ParsedSurfaceSemantic.Roof,
@@ -1012,7 +1012,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: null,
             demTerrainTextureOverlays: [unrelatedFirstOverlay, expectedOverlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("533945")!],
@@ -1031,7 +1031,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay firstOverlay = CreateThirdMeshOverlay("53394525");
         TerrainTextureOverlay secondOverlay = CreateThirdMeshOverlay("53394526");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         ParsedSurface firstRoofSurface = CreateParsedSurface(
             "textureless-parent-roof-first",
             ParsedSurfaceSemantic.Roof,
@@ -1053,7 +1053,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: null,
             demTerrainTextureOverlays: [firstOverlay, secondOverlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("533945")!],
@@ -1084,7 +1084,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay selectedRequestOverlay = CreateThirdMeshOverlay("53394525");
         TerrainTextureOverlay selectedAdjacentOverlay = CreateThirdMeshOverlay("53394526");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
         ParsedSurface demSurface = CreateParsedSurface(
             "selected-adjacent-dem",
             ParsedSurfaceSemantic.Roof,
@@ -1106,7 +1106,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: null,
             demTerrainTextureOverlays: [selectedRequestOverlay, selectedAdjacentOverlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
@@ -1124,7 +1124,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay selectedOverlay = CreateThirdMeshOverlay("53394600");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394600", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394600", altitudeMeters: 8.0);
         ParsedSurface demSurface = CreateParsedSurface(
             "regex-selected-dem",
             ParsedSurfaceSemantic.Roof,
@@ -1146,7 +1146,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: null,
             demTerrainTextureOverlays: [selectedOverlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394600")!],
@@ -1165,7 +1165,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay selectedRequestOverlay = CreateThirdMeshOverlay("53394525");
         TerrainTextureOverlay selectedAdjacentOverlay = CreateThirdMeshOverlay("53394526");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
         ParsedSurface roofSurface = CreateParsedSurface(
             "selected-adjacent-textureless-roof",
             ParsedSurfaceSemantic.Roof,
@@ -1183,7 +1183,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: null,
             demTerrainTextureOverlays: [selectedRequestOverlay, selectedAdjacentOverlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
@@ -1201,7 +1201,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay unrequestedOverlay = CreateThirdMeshOverlay("53394526");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
         ParsedSurface roofSurface = CreateParsedSurface(
             "unrequested-textureless-roof",
             ParsedSurfaceSemantic.Roof,
@@ -1220,7 +1220,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
             LocalCityGmlObjectProjection.ProjectParsedCityObject(
                 cityObject,
-                GeodeticPoint.FromProjectionModel(origin),
+                origin,
                 globalCartesian: null,
                 demTerrainTextureOverlays: [unrequestedOverlay],
                 requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
@@ -1262,7 +1262,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding[] materialBindings = LocalCityGmlObjectProjection.EnumerateCommonMaterialsForParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
+            CreateMeshCenterPoint("53394525", altitudeMeters: 8.0),
             globalCartesian: null,
             demTerrainTextureOverlays: [firstOverlay, secondOverlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("533945")!],
@@ -1277,7 +1277,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectParsedCityObjectFailsExplicitlyForNonThirdMeshDemOverlay()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices =
+        IReadOnlyList<GeodeticPoint> vertices =
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true);
         GeographicRectangle nonThirdMeshBounds = new(
             vertices.Min(static vertex => vertex.Latitude),
@@ -1293,7 +1293,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         ParsedSurface demSurface = new(
             PolygonId: "non-third-dem",
             Semantic: ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new ParsedRing("non-third-dem-ring", vertices.Select(GeodeticPoint.FromProjectionModel).ToArray(), UVs: null),
+            ExteriorRing: new ParsedRing("non-third-dem-ring", vertices.ToArray(), UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
@@ -1307,7 +1307,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
             LocalCityGmlObjectProjection.ProjectParsedCityObject(
                 cityObject,
-                GeodeticPoint.FromProjectionModel(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
+                CreateMeshCenterPoint("53394525", altitudeMeters: 8.0),
                 globalCartesian: null,
                 demTerrainTextureOverlays: [overlay],
                 requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
@@ -1322,7 +1322,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectParsedCityObjectFailsExplicitlyForNonThirdMeshBuildingOverlay()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices =
+        IReadOnlyList<GeodeticPoint> vertices =
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true);
         GeographicRectangle nonThirdMeshBounds = new(
             vertices.Min(static vertex => vertex.Latitude),
@@ -1349,7 +1349,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
             LocalCityGmlObjectProjection.ProjectParsedCityObject(
                 cityObject,
-                GeodeticPoint.FromProjectionModel(CreateMeshCenterPoint("53394525", altitudeMeters: 8.0)),
+                CreateMeshCenterPoint("53394525", altitudeMeters: 8.0),
                 globalCartesian: null,
                 demTerrainTextureOverlays: [overlay],
                 requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
@@ -1365,7 +1365,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         ParsedSurface redRoofSurface = CreateParsedSurface(
             "red-textureless-roof",
@@ -1383,7 +1383,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -1401,7 +1401,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay mismatchedOverlay = CreateThirdMeshOverlay("53394526");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         ParsedSurface roofSurface = CreateParsedSurface(
             "mismatched-overlay-roof",
@@ -1412,7 +1412,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: mismatchedOverlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -1428,7 +1428,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         ParsedSurface unknownSurface = CreateParsedSurface(
             "unknown-upward-roof",
@@ -1444,7 +1444,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -1462,7 +1462,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         ParsedSurface unknownSurface = CreateParsedSurface(
             "unknown-horizontal-roof-source-winding",
@@ -1478,7 +1478,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -1496,7 +1496,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         ParsedSurface lowerHorizontalSurface = CreateParsedSurface(
             "unknown-horizontal-lower-surface",
@@ -1512,7 +1512,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -1525,7 +1525,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 0.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         ParsedSurface mainRoofSurface = CreateParsedSurface(
             "unknown-horizontal-main-roof",
@@ -1544,7 +1544,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -1560,7 +1560,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("54372778");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(36.23163715441054, 137.97501759714283, 590.343);
+        GeodeticPoint origin = new(36.23163715441054, 137.97501759714283, 590.343);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         ParsedSurface bottomSurface = CreateParsedSurface(
             "matsumoto-lod1-solid-bottom",
@@ -1583,7 +1583,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -1602,7 +1602,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("54372778");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(36.23163715441054, 137.97501759714283, 590.343);
+        GeodeticPoint origin = new(36.23163715441054, 137.97501759714283, 590.343);
         ParsedSurface bottomSurface = CreateParsedSurface(
             "matsumoto-parsed-lod1-solid-bottom",
             ParsedSurfaceSemantic.Unknown,
@@ -1628,7 +1628,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: null,
             demTerrainTextureOverlays: [overlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("54372778")!],
@@ -1652,7 +1652,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         ParsedSurface roofSurface = CreateParsedSurface(
             "textured-roof",
@@ -1663,7 +1663,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -1679,7 +1679,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
         ParsedSurface roofSurface = CreateParsedSurface(
             "outside-roof",
@@ -1690,7 +1690,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -1706,7 +1706,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", altitudeMeters: 8.0);
         ParsedSurface roofSurface = CreateParsedSurface(
             "outside-parsed-roof",
             ParsedSurfaceSemantic.Roof,
@@ -1720,7 +1720,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: null,
             demTerrainTextureOverlays: [overlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
@@ -1825,7 +1825,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         ParsedSurfaceSemantic semantic = (ParsedSurfaceSemantic)semanticValue;
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -1871,13 +1871,13 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         ParsedSurfaceSemantic semantic = (ParsedSurfaceSemantic)semanticValue;
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> surfaceVertices =
+        IReadOnlyList<GeodeticPoint> surfaceVertices =
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: true);
         ParsedSurface surface = CreateParsedSurface(
             $"non-facade-{semantic}",
@@ -1907,7 +1907,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObjectCullsBottomBandBuildingSurfacesBySemanticOrDownwardLod1Face()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -1963,7 +1963,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -1979,7 +1979,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObjectKeepsNonBuildingDownwardHorizontalGroundSurface()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -2003,7 +2003,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -2017,7 +2017,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObjectCullsBuildingLod1UnknownBottomBandSurfaces()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -2061,7 +2061,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -2077,7 +2077,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObjectKeepsHighDownwardHorizontalBuildingSurfaceOutsideBottomBand()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -2108,7 +2108,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObjectKeepsSingleDownwardHorizontalBuildingSurfaceWhenNoHigherGeometryExists()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -2136,7 +2136,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
@@ -2149,7 +2149,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void ProjectCityObjectAppliesBottomBandThresholdNearBoundary()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -2191,7 +2191,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void CreateCommonMaterialBindingsExcludesCulledBottomBandBuildingSurface()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
         GeographicLib.LocalCartesian cartesian = new(
             origin.Latitude,
             origin.Longitude,
@@ -2470,7 +2470,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     public void DemTerrainDynamicModeKeepsMaterialBindingsCompatibleWithStaticMesh()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 10.0);
+        GeodeticPoint origin = new(35.0, 139.0, 10.0);
         ParsedSurface validSurface = CreateParsedSurface(
             "valid-dem",
             ParsedSurfaceSemantic.Ground,
@@ -2490,7 +2490,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject projected = ProjectTerrainMeshModeCityObjectForTest(
             cityObject,
-            GeodeticPoint.FromProjectionModel(origin),
+            origin,
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -3391,23 +3391,6 @@ public sealed class LocalCityGmlObjectProjectionTests
     private static ParsedSurface CreateParsedSurface(
         string polygonId,
         ParsedSurfaceSemantic semantic,
-        IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices,
-        TexturePayload? texturePayload,
-        ColorRgba? baseColor = null,
-        IReadOnlyList<Float2>? uvs = null)
-    {
-        return new ParsedSurface(
-            PolygonId: polygonId,
-            Semantic: semantic,
-            ExteriorRing: new ParsedRing($"{polygonId}-ring", vertices.Select(GeodeticPoint.FromProjectionModel).ToArray(), UVs: uvs),
-            InteriorRings: [],
-            BaseColor: baseColor ?? new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: texturePayload);
-    }
-
-    private static ParsedSurface CreateParsedSurface(
-        string polygonId,
-        ParsedSurfaceSemantic semantic,
         IReadOnlyList<GeodeticPoint> vertices,
         TexturePayload? texturePayload = null,
         ColorRgba? baseColor = null,
@@ -3427,15 +3410,15 @@ public sealed class LocalCityGmlObjectProjectionTests
         return Math.Abs(left.X - right.X) <= tolerance && Math.Abs(left.Y - right.Y) <= tolerance;
     }
 
-    private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateHorizontalQuadVertices(
-        LocalCityGmlObjectProjection.GeodeticPoint origin,
+    private static IReadOnlyList<GeodeticPoint> CreateHorizontalQuadVertices(
+        GeodeticPoint origin,
         double altitudeMeters,
         double sizeMeters,
         bool reverseWinding)
     {
         double latitudeDelta = sizeMeters / 111320.0;
         double longitudeDelta = sizeMeters / (111320.0 * Math.Cos(origin.Latitude * (Math.PI / 180.0)));
-        List<LocalCityGmlObjectProjection.GeodeticPoint> vertices =
+        List<GeodeticPoint> vertices =
         [
             new(origin.Latitude, origin.Longitude, altitudeMeters),
             new(origin.Latitude, origin.Longitude + longitudeDelta, altitudeMeters),
@@ -3452,7 +3435,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         return vertices;
     }
 
-    private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateMeshRelativeQuadVertices(
+    private static IReadOnlyList<GeodeticPoint> CreateMeshRelativeQuadVertices(
         string meshCode,
         double altitudeMeters,
         double minRatio,
@@ -3460,7 +3443,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         bool reverseWinding)
     {
         (double south, double north, double west, double east) = GetMeshBounds(meshCode);
-        List<LocalCityGmlObjectProjection.GeodeticPoint> vertices =
+        List<GeodeticPoint> vertices =
         [
             new(south + ((north - south) * minRatio), west + ((east - west) * minRatio), altitudeMeters),
             new(south + ((north - south) * minRatio), west + ((east - west) * maxRatio), altitudeMeters),
@@ -3477,7 +3460,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         return vertices;
     }
 
-    private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateMeshRelativeRectangleVertices(
+    private static IReadOnlyList<GeodeticPoint> CreateMeshRelativeRectangleVertices(
         string meshCode,
         double altitudeMeters,
         double minLatitudeRatio,
@@ -3487,7 +3470,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         bool reverseWinding)
     {
         (double south, double north, double west, double east) = GetMeshBounds(meshCode);
-        List<LocalCityGmlObjectProjection.GeodeticPoint> vertices =
+        List<GeodeticPoint> vertices =
         [
             new(south + ((north - south) * minLatitudeRatio), west + ((east - west) * minLongitudeRatio), altitudeMeters),
             new(south + ((north - south) * minLatitudeRatio), west + ((east - west) * maxLongitudeRatio), altitudeMeters),
@@ -3504,7 +3487,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         return vertices;
     }
 
-    private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateMeshEdgeWallVertices(
+    private static IReadOnlyList<GeodeticPoint> CreateMeshEdgeWallVertices(
         string meshCode,
         double altitudeMeters,
         double heightMeters,
@@ -3512,14 +3495,14 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         (double south, double north, double west, double east) = GetMeshBounds(meshCode);
         double latitude = south + ((north - south) * ratio);
-        LocalCityGmlObjectProjection.GeodeticPoint bottom0 = new(latitude, west + ((east - west) * 0.45), altitudeMeters);
-        LocalCityGmlObjectProjection.GeodeticPoint bottom1 = new(latitude, west + ((east - west) * 0.55), altitudeMeters);
-        LocalCityGmlObjectProjection.GeodeticPoint top1 = bottom1 with { Altitude = altitudeMeters + heightMeters };
-        LocalCityGmlObjectProjection.GeodeticPoint top0 = bottom0 with { Altitude = altitudeMeters + heightMeters };
+        GeodeticPoint bottom0 = new(latitude, west + ((east - west) * 0.45), altitudeMeters);
+        GeodeticPoint bottom1 = new(latitude, west + ((east - west) * 0.55), altitudeMeters);
+        GeodeticPoint top1 = bottom1 with { Altitude = altitudeMeters + heightMeters };
+        GeodeticPoint top0 = bottom0 with { Altitude = altitudeMeters + heightMeters };
         return [bottom0, bottom1, top1, top0, bottom0];
     }
 
-    private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateMatsumotoLod1SolidHorizontalRing(
+    private static IReadOnlyList<GeodeticPoint> CreateMatsumotoLod1SolidHorizontalRing(
         double altitudeMeters)
     {
         return
@@ -3537,12 +3520,12 @@ public sealed class LocalCityGmlObjectProjectionTests
         ];
     }
 
-    private static LocalCityGmlObjectProjection.GeodeticPoint CreateMeshCenterPoint(
+    private static GeodeticPoint CreateMeshCenterPoint(
         string meshCode,
         double altitudeMeters)
     {
         (double south, double north, double west, double east) = GetMeshBounds(meshCode);
-        return new LocalCityGmlObjectProjection.GeodeticPoint((south + north) / 2.0, (west + east) / 2.0, altitudeMeters);
+        return new GeodeticPoint((south + north) / 2.0, (west + east) / 2.0, altitudeMeters);
     }
 
     private static TerrainTextureOverlay CreateThirdMeshOverlay(string meshCode)
@@ -3556,8 +3539,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             MaxTextureSize: 512);
     }
 
-    private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateVerticalQuadVertices(
-        LocalCityGmlObjectProjection.GeodeticPoint origin,
+    private static IReadOnlyList<GeodeticPoint> CreateVerticalQuadVertices(
+        GeodeticPoint origin,
         double widthMeters,
         double heightMeters)
     {
@@ -3580,24 +3563,24 @@ public sealed class LocalCityGmlObjectProjectionTests
     private static HashSet<string> GetCulledSurfaceIdsBeforeProjectionForTest(
         string packageName,
         IEnumerable<ParsedSurface> surfaces,
-        LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
+        GeodeticPoint cityObjectOrigin,
         GeographicLib.LocalCartesian cartesian)
     {
         return CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
             packageName,
             surfaces,
-            GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            cityObjectOrigin,
             cartesian);
     }
 
     private static MaterialBinding[] CreateCommonMaterialBindingsForTest(
         ParsedCityObject cityObject,
-        LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
+        GeodeticPoint cityObjectOrigin,
         GeographicLib.LocalCartesian cartesian)
     {
         return CityGmlSurfaceMaterialResolver.CreateSharedCommonMaterialBindings(
             cityObject,
-            GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            cityObjectOrigin,
             cartesian,
             demTerrainTextureOverlay: null,
             new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
