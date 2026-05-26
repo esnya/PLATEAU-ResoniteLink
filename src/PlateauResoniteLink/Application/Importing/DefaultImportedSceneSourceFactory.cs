@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,19 +10,16 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
 {
     private readonly ICityGmlDocumentReader documentReader;
     private readonly IImportedSceneSourceComposer constructionComposer;
-    private readonly IDemTextureSourcePolicy demTextureSourcePolicy;
     private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
 
     internal DefaultImportedSceneSourceFactory(
         ICityGmlDocumentReader documentReader,
         IImportedSceneSourceComposer constructionComposer,
-        IDemTextureSourcePolicy demTextureSourcePolicy,
         IImportedObjectUnitOptimizer objectUnitOptimizer)
     {
         ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
         this.documentReader = documentReader;
         this.constructionComposer = constructionComposer;
-        this.demTextureSourcePolicy = demTextureSourcePolicy;
         this.objectUnitOptimizer = objectUnitOptimizer;
     }
 
@@ -46,34 +41,6 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
             request,
             progressReporter,
             cancellationToken);
-        await ValidateDemTextureSourceAsync(request, readResult, cancellationToken);
         return await Task.FromResult(constructionComposer.Compose(request, readResult, objectUnitOptimizer, progressReporter));
-    }
-
-    private async Task ValidateDemTextureSourceAsync(
-        PlateauImportRequest request,
-        ImportedSceneSourceSnapshot readResult,
-        CancellationToken cancellationToken)
-    {
-        if (request.DemTextureSource is null
-            || !readResult.DocumentSet.PackageNames.Contains("dem", StringComparer.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = await DemOverlayRegionResolver.ResolveAsync(
-            readResult.DiscoveryContext,
-            readResult.DocumentSet.SelectedMeshCodes,
-            cancellationToken);
-
-        if (overlayRegions.Count == 0)
-        {
-            return;
-        }
-
-        _ = await demTextureSourcePolicy.ResolveAsync(
-            request,
-            overlayRegions,
-            cancellationToken);
     }
 }

@@ -288,6 +288,33 @@ public sealed class StreamingImportedSceneSourceTests
     }
 
     [Fact]
+    public async Task ReadCityObjectsAsyncPropagatesExplicitDemTextureSourceValidationFailureDuringStreaming()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
+            PackageNames: ["dem"],
+            DemTextureSource: DatasetLocation.Local("C:\\ortho\\missing.tif"));
+        PlateauImportValidationException expectedException = new(["invalid GeoTIFF source"]);
+        StreamingImportedSceneSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateReadResult(
+                [
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
+                ]),
+            new TrackingGeometryProjector(),
+            new ThrowingDemTextureSourcePolicy(expectedException),
+            new PassthroughImportedObjectUnitOptimizer());
+
+        PlateauImportValidationException actualException = await Assert.ThrowsAsync<PlateauImportValidationException>(
+            () => source.ReadCityObjectsAsync().ToListAsync().AsTask());
+
+        Assert.Same(expectedException, actualException);
+    }
+
+    [Fact]
     public async Task ReadCityObjectsAsyncCancelsWhileResolvingDemFallbackOverlays()
     {
         PlateauImportRequest request = new(
@@ -677,6 +704,27 @@ public sealed class StreamingImportedSceneSourceTests
             }
 
             return new ResolvedDemTextureSources(fallbackOverlays);
+        }
+    }
+
+    private sealed class ThrowingDemTextureSourcePolicy(PlateauImportValidationException exception) : IDemTextureSourcePolicy
+    {
+        public Task<ResolvedDemTextureSources> ResolveAsync(
+            PlateauImportRequest request,
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+            CancellationToken cancellationToken = default)
+        {
+            _ = request;
+            _ = overlayRegions;
+            _ = cancellationToken;
+            throw exception;
+        }
+
+        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
+        {
+            _ = overlayRegions;
+            throw exception;
         }
     }
 
