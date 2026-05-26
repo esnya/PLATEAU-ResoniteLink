@@ -383,7 +383,7 @@ public sealed class DemTerrainOverlayAssignmentTests
                 TerrainOverlay: overlay),
             DepthOffset: null);
 
-        (Float2? textureScale, Float2? textureOffset) = DemTerrainOverlayAssignment.TryCreateTerrainGridTextureTransform(
+        (Float2? textureScale, Float2? textureOffset) = DemTerrainOverlayUvMapper.TryCreateTerrainGridTextureTransform(
             cityObject,
             material,
             overlay);
