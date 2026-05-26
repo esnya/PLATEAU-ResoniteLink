@@ -73,7 +73,7 @@ internal static class GeneratedRoadMarkingCityObjectFactory
             return [];
         }
 
-        RoadMarkingEdgePair edgePair = SelectEdgePair(vertices, positions);
+        ParsedEdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(vertices, positions);
         if (edgePair.Length < 1.0 || edgePair.Width < 0.3)
         {
             return [];
@@ -166,39 +166,6 @@ internal static class GeneratedRoadMarkingCityObjectFactory
         return new Float3(normalX / magnitude, normalY / magnitude, normalZ / magnitude);
     }
 
-    private static RoadMarkingEdgePair SelectEdgePair(
-        GeodeticPoint[] vertices,
-        Float3[] positions)
-    {
-        double edge01 = Distance(positions[0], positions[1]);
-        double edge12 = Distance(positions[1], positions[2]);
-        double edge23 = Distance(positions[2], positions[3]);
-        double edge30 = Distance(positions[3], positions[0]);
-
-        double pair01Length = (edge01 + edge23) * 0.5;
-        double pair12Length = (edge12 + edge30) * 0.5;
-
-        return pair01Length >= pair12Length
-            ? new RoadMarkingEdgePair(
-                [vertices[0], vertices[1]],
-                [vertices[3], vertices[2]],
-                pair01Length,
-                (Distance(positions[0], positions[3]) + Distance(positions[1], positions[2])) * 0.5)
-            : new RoadMarkingEdgePair(
-                [vertices[1], vertices[2]],
-                [vertices[0], vertices[3]],
-                pair12Length,
-                (Distance(positions[1], positions[0]) + Distance(positions[2], positions[3])) * 0.5);
-    }
-
-    private static double Distance(Float3 left, Float3 right)
-    {
-        double deltaX = left.X - right.X;
-        double deltaY = left.Y - right.Y;
-        double deltaZ = left.Z - right.Z;
-        return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
-    }
-
     private static Float3 CreateScenePosition(
         GeodeticPoint point,
         GeodeticPoint origin,
@@ -285,10 +252,4 @@ internal static class GeneratedRoadMarkingCityObjectFactory
 
         return moved;
     }
-
-    private sealed record RoadMarkingEdgePair(
-        GeodeticPoint[] Side0,
-        GeodeticPoint[] Side1,
-        double Length,
-        double Width);
 }
