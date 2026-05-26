@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Tests.Targets;
 
 using CanonicalSceneDumpSink = PlateauResoniteLink.Targets.Resonite.Diagnostics.CanonicalSceneDumpSink;
@@ -34,6 +35,8 @@ public sealed class ResoniteSemanticGateTests
             PackageNames: ["bldg", "dem", "tran", "luse"]);
         IImportedSceneSource source = await CreateImportedSceneSourceFactory().CreateAsync(request);
         using TemporaryDirectory workDirectory = new();
+        using IDisposable bundledMaterialExtractionRoot = new BundledDefaultMaterialAssetStore()
+            .PushExtractionRootOverride(Path.Combine(workDirectory.Path, "bundled-default-materials"));
         string actualPath = Path.Combine(workDirectory.Path, "canonical-scene.json");
         SceneSinkRecordingClient client = new();
         await using CanonicalSceneDumpSink dumpSink = new(
