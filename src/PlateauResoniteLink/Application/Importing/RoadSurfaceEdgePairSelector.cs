@@ -11,6 +11,8 @@ internal static class RoadSurfaceEdgePairSelector
         ProjectionGeodeticPoint[] vertices,
         Float3[] positions)
     {
+        ValidateQuadInputs(vertices, positions);
+
         double edge01 = Distance(positions[0], positions[1]);
         double edge12 = Distance(positions[1], positions[2]);
         double edge23 = Distance(positions[2], positions[3]);
@@ -42,6 +44,33 @@ internal static class RoadSurfaceEdgePairSelector
                 (Distance(positions[1], positions[0]) + Distance(positions[2], positions[3])) * 0.5,
                 edge12,
                 edge30);
+    }
+
+    internal static ParsedEdgePairSelection Select(
+        GeodeticPoint[] vertices,
+        Float3[] positions)
+    {
+        ValidateQuadInputs(vertices, positions);
+
+        double edge01 = Distance(positions[0], positions[1]);
+        double edge12 = Distance(positions[1], positions[2]);
+        double edge23 = Distance(positions[2], positions[3]);
+        double edge30 = Distance(positions[3], positions[0]);
+
+        double pair01Length = (edge01 + edge23) * 0.5;
+        double pair12Length = (edge12 + edge30) * 0.5;
+
+        return pair01Length >= pair12Length
+            ? new ParsedEdgePairSelection(
+                [vertices[0], vertices[1]],
+                [vertices[3], vertices[2]],
+                pair01Length,
+                (Distance(positions[0], positions[3]) + Distance(positions[1], positions[2])) * 0.5)
+            : new ParsedEdgePairSelection(
+                [vertices[1], vertices[2]],
+                [vertices[0], vertices[3]],
+                pair12Length,
+                (Distance(positions[1], positions[0]) + Distance(positions[2], positions[3])) * 0.5);
     }
 
     internal static EdgePairSelection Select(
@@ -78,6 +107,21 @@ internal static class RoadSurfaceEdgePairSelector
         return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
     }
 
+    private static void ValidateQuadInputs<TPoint>(TPoint[] vertices, Float3[] positions)
+    {
+        ArgumentNullException.ThrowIfNull(vertices);
+        ArgumentNullException.ThrowIfNull(positions);
+        if (vertices.Length != 4)
+        {
+            throw new ArgumentException("Road surface edge-pair selection requires exactly four vertices.", nameof(vertices));
+        }
+
+        if (positions.Length != 4)
+        {
+            throw new ArgumentException("Road surface edge-pair selection requires exactly four positions.", nameof(positions));
+        }
+    }
+
     private static bool AreSamePoint(ProjectionGeodeticPoint left, ProjectionGeodeticPoint right)
     {
         return Math.Abs(left.Latitude - right.Latitude) < 1e-8
@@ -97,3 +141,9 @@ internal sealed record EdgePairSelection(
     double Width,
     double Side0EdgeLength,
     double Side1EdgeLength);
+
+internal sealed record ParsedEdgePairSelection(
+    GeodeticPoint[] Side0,
+    GeodeticPoint[] Side1,
+    double Length,
+    double Width);
