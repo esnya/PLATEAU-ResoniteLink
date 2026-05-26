@@ -384,7 +384,7 @@ internal sealed class ProjectionTerrainHeightSampler
             yield break;
         }
 
-        HashSet<ProjectedTerrainHeightTriangle> seen = [];
+        HashSet<ProjectedTerrainHeightTriangle> seen = new(ProjectedTerrainHeightTriangleReferenceComparer.Instance);
         foreach (TerrainGridCell cell in EnumerateCells(centerCell, radius))
         {
             if (!trianglesByCell.TryGetValue(cell, out ProjectedTerrainHeightTriangle[]? localTriangles))
@@ -442,7 +442,8 @@ internal sealed class ProjectionTerrainHeightSampler
     {
         const int MaxNearestPoints = 4;
         TerrainHeightPoint[] nearestPoints = new TerrainHeightPoint[Math.Min(MaxNearestPoints, candidates.Count)];
-        double[] nearestDistances = Enumerable.Repeat(double.PositiveInfinity, nearestPoints.Length).ToArray();
+        double[] nearestDistances = new double[nearestPoints.Length];
+        Array.Fill(nearestDistances, double.PositiveInfinity);
         int count = 0;
 
         foreach (TerrainHeightPoint candidate in candidates)
@@ -526,6 +527,25 @@ internal sealed class ProjectionTerrainHeightSampler
         double MaxX,
         double MinZ,
         double MaxZ);
+
+    private sealed class ProjectedTerrainHeightTriangleReferenceComparer : IEqualityComparer<ProjectedTerrainHeightTriangle>
+    {
+        internal static readonly ProjectedTerrainHeightTriangleReferenceComparer Instance = new();
+
+        private ProjectedTerrainHeightTriangleReferenceComparer()
+        {
+        }
+
+        public bool Equals(ProjectedTerrainHeightTriangle? x, ProjectedTerrainHeightTriangle? y)
+        {
+            return ReferenceEquals(x, y);
+        }
+
+        public int GetHashCode(ProjectedTerrainHeightTriangle obj)
+        {
+            return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
+        }
+    }
 
     private readonly record struct TerrainGridCell(int X, int Z);
 }
