@@ -19,12 +19,27 @@ internal sealed class AsyncInFlightResultCache<TKey, TValue>
     {
         ArgumentNullException.ThrowIfNull(factory);
 
+        return await GetOrCreateAsync(
+            key,
+            _ => factory(),
+            factoryCancellationToken: CancellationToken.None,
+            cancellationToken);
+    }
+
+    public async Task<TValue> GetOrCreateAsync(
+        TKey key,
+        Func<CancellationToken, Task<TValue>> factory,
+        CancellationToken factoryCancellationToken,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+
         if (completedValues.TryGetValue(key, out TValue? existingValue))
         {
             return existingValue;
         }
 
-        Task<TValue> task = await GetOrCreateTaskAsync(key, factory, cancellationToken);
+        Task<TValue> task = await GetOrCreateTaskAsync(key, factory, factoryCancellationToken, cancellationToken);
         return await task.WaitAsync(cancellationToken);
     }
 
@@ -59,7 +74,8 @@ internal sealed class AsyncInFlightResultCache<TKey, TValue>
 
     private async Task<Task<TValue>> GetOrCreateTaskAsync(
         TKey key,
-        Func<Task<TValue>> factory,
+        Func<CancellationToken, Task<TValue>> factory,
+        CancellationToken factoryCancellationToken,
         CancellationToken cancellationToken)
     {
         SemaphoreSlim gate = gates.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
@@ -76,7 +92,7 @@ internal sealed class AsyncInFlightResultCache<TKey, TValue>
                 return existingTask;
             }
 
-            Task<TValue> createdTask = factory();
+            Task<TValue> createdTask = factory(factoryCancellationToken);
             inFlightTasks[key] = createdTask;
             ObserveCompletion(key, createdTask);
             return createdTask;

@@ -68,4 +68,28 @@ public sealed class AsyncInFlightResultCacheTests
         Assert.Equal(1, Volatile.Read(ref invocationCount));
         Assert.Equal(42, result);
     }
+
+    [Fact]
+    public async Task GetOrCreateAsyncPassesFactoryCancellationTokenToCreatedTask()
+    {
+        PlateauResoniteLink.Targets.Resonite.AsyncInFlightResultCache<string, int> cache = new();
+        using CancellationTokenSource factoryCancellation = new();
+        TaskCompletionSource factoryStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Task<int> request = cache.GetOrCreateAsync(
+            "shared",
+            async cancellationToken =>
+            {
+                factoryStarted.SetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return 42;
+            },
+            factoryCancellation.Token,
+            CancellationToken.None);
+
+        await factoryStarted.Task;
+        await factoryCancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await request);
+    }
 }

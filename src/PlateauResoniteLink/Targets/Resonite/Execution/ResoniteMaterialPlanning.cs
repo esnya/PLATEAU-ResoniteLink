@@ -431,7 +431,12 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         BundledTextureImportKey importKey = new(asset, colorProfile);
         return await bundledTextureImportTasks.GetOrCreateAsync(
             importKey,
-            () => ImportBundledTextureCoreAsync(importClient, asset, colorProfile, CancellationToken.None),
+            factoryCancellationToken => ImportBundledTextureCoreAsync(
+                importClient,
+                asset,
+                colorProfile,
+                factoryCancellationToken),
+            factoryCancellationToken: cancellationToken,
             cancellationToken);
     }
 

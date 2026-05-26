@@ -18,6 +18,19 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class ResoniteMaterialPlanningTests
 {
     [Fact]
+    public void BundledTextureImportKeySeparatesSameTextureAssetByColorProfile()
+    {
+        BundledTextureImportKey srgbKey = new(
+            BundledDefaultTextureAssets.Facade.Facade001.Albedo,
+            ResoniteTextureColorProfiles.Srgb);
+        BundledTextureImportKey linearKey = new(
+            BundledDefaultTextureAssets.Facade.Facade001.Albedo,
+            ResoniteTextureColorProfiles.Linear);
+
+        Assert.NotEqual(srgbKey, linearKey);
+    }
+
+    [Fact]
     public async Task PlanCommonMaterialAssetAsyncImportsMetallicCompanionTextureWithLinearProfile()
     {
         using SceneSinkRecordingClient client = new();
