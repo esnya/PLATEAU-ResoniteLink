@@ -218,6 +218,17 @@ public sealed class BundledDefaultMaterialVariantTests
         Assert.True(image.Height > 0);
     }
 
+    [Fact]
+    public void BundledDefaultMaterialAssetStoreTreatsMissingCachedFileLengthAsCacheMiss()
+    {
+        string missingPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "missing.png");
+
+        bool resolved = BundledDefaultMaterialAssetStore.TryGetExistingFileLength(missingPath, out long length);
+
+        Assert.False(resolved);
+        Assert.Equal(0, length);
+    }
+
     [Theory]
     [InlineData("default-materials/ambientcg/facade/Facade018A_2K-JPG_Emission.jpg")]
     [InlineData("default-materials/ambientcg/facade/Facade019A_2K-JPG_Emission.jpg")]

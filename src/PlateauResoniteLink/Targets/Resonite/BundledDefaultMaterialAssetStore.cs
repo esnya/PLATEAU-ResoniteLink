@@ -50,9 +50,9 @@ internal sealed class BundledDefaultMaterialAssetStore
 
         lock (SyncRoot)
         {
-            if (File.Exists(absolutePath)
-                && ResourceLengths.TryGetValue(resourceName, out long expectedLength)
-                && new FileInfo(absolutePath).Length == expectedLength)
+            if (ResourceLengths.TryGetValue(resourceName, out long expectedLength)
+                && TryGetExistingFileLength(absolutePath, out long existingLength)
+                && existingLength == expectedLength)
             {
                 return absolutePath;
             }
@@ -60,13 +60,10 @@ internal sealed class BundledDefaultMaterialAssetStore
             using Stream resourceStream = Assembly.GetManifestResourceStream(resourceName)
                 ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' was not found.");
             ResourceLengths[resourceName] = resourceStream.Length;
-            if (File.Exists(absolutePath))
+            if (TryGetExistingFileLength(absolutePath, out existingLength)
+                && existingLength == resourceStream.Length)
             {
-                FileInfo existingFile = new(absolutePath);
-                if (existingFile.Length == resourceStream.Length)
-                {
-                    return absolutePath;
-                }
+                return absolutePath;
             }
 
             Directory.CreateDirectory(directory);
@@ -150,6 +147,31 @@ internal sealed class BundledDefaultMaterialAssetStore
         }
 
         return false;
+    }
+
+    internal static bool TryGetExistingFileLength(string path, out long length)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                length = 0;
+                return false;
+            }
+
+            length = new FileInfo(path).Length;
+            return true;
+        }
+        catch (IOException)
+        {
+            length = 0;
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            length = 0;
+            return false;
+        }
     }
 
     private static string CreateNormalizedResourceSuffix(string relativePath)
