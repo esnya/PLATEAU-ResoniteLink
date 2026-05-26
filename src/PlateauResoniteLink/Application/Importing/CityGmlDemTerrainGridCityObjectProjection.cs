@@ -199,7 +199,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             return null;
         }
 
-        TextureUvRect? occupiedUvRect = DemTerrainOverlayAssignment.TryCreateTerrainGridOccupiedUvRect(
+        TextureUvRect? occupiedUvRect = DemTerrainOverlayUvMapper.TryCreateTerrainGridOccupiedUvRect(
             cityObject,
             representativeSurface,
             demTerrainTextureOverlay,
