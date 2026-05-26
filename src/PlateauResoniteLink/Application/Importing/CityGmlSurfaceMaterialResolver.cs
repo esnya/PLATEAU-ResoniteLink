@@ -48,16 +48,15 @@ internal static class CityGmlSurfaceMaterialResolver
         ArgumentNullException.ThrowIfNull(cityObjectOrigin);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
-        ProjectionSurface[] projectionSurfaces = cityObject.Surfaces
-            .Select(CityGmlProjectionModelAdapter.ToProjectionModel)
-            .ToArray();
-        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
-            cityObject.PackageName,
-            projectionSurfaces,
-            cityObjectOrigin.ToProjectionModel(),
-            cityObjectCartesian);
+        HashSet<string> culledSurfaceIds = PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName)
+            ? GetCulledSurfaceIdsBeforeProjection(
+                cityObject.PackageName,
+                cityObject.Surfaces.Select(CityGmlProjectionModelAdapter.ToProjectionModel),
+                cityObjectOrigin.ToProjectionModel(),
+                cityObjectCartesian)
+            : [];
         double cityObjectMinAltitude = CityObjectAltitudeMetricsResolver.GetMinimumAltitude(
-            projectionSurfaces.SelectMany(static surface => surface.Vertices),
+            cityObject.Surfaces.SelectMany(static surface => surface.Vertices),
             static point => point.Altitude);
 
         foreach (ParsedSurface surface in cityObject.Surfaces.Where(surface => !culledSurfaceIds.Contains(surface.PolygonId)))
