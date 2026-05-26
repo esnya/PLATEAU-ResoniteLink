@@ -39,8 +39,6 @@ internal static class CityGmlSurfaceMeshTessellator
             request.Surface,
             request.CityObjectOrigin,
             request.CityObjectCartesian,
-            request.GlobalOriginPoint,
-            request.GlobalCartesian,
             generatedDemUvProjection,
             generatedSurfaceUvProjection,
             useVertexColors ? request.Surface.BaseColor : null);
@@ -226,8 +224,6 @@ internal static class CityGmlSurfaceMeshTessellator
         ProjectionSurface surface,
         ProjectionPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
-        ProjectionPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
         DemUvProjection? generatedDemUvProjection,
         SurfaceUvProjection? generatedSurfaceUvProjection,
         ColorRgba? vertexColor)
@@ -238,8 +234,6 @@ internal static class CityGmlSurfaceMeshTessellator
                 surface.ExteriorRing,
                 cityObjectOrigin,
                 cityObjectCartesian,
-                globalOriginPoint,
-                globalCartesian,
                 generatedDemUvProjection,
                 generatedSurfaceUvProjection,
                 vertexColor),
@@ -248,8 +242,6 @@ internal static class CityGmlSurfaceMeshTessellator
             ring,
             cityObjectOrigin,
             cityObjectCartesian,
-            globalOriginPoint,
-            globalCartesian,
             generatedDemUvProjection,
             generatedSurfaceUvProjection,
             vertexColor)));
@@ -260,8 +252,6 @@ internal static class CityGmlSurfaceMeshTessellator
         ProjectionRing ring,
         ProjectionPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
-        ProjectionPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
         DemUvProjection? generatedDemUvProjection,
         SurfaceUvProjection? generatedSurfaceUvProjection,
         ColorRgba? vertexColor)
@@ -677,8 +667,6 @@ internal sealed record SurfaceMeshTessellationRequest(
     ResolvedMaterial Material,
     ProjectionPoint CityObjectOrigin,
     LocalCartesian? CityObjectCartesian,
-    ProjectionPoint GlobalOriginPoint,
-    LocalCartesian? GlobalCartesian,
     FacadeUvProjectionContext? FacadeUvProjectionContext,
     DemUvProjection? DemUvProjection);
 

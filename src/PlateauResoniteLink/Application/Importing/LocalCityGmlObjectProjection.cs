@@ -726,16 +726,16 @@ internal static class LocalCityGmlObjectProjection
                     resolvedSurface.Material.TextureOffset))
             .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
             .ToArray();
+        FacadeUvProjectionContext? facadeUvProjectionContext = TryCreateFacadeUvProjectionContext(
+            cityObject.PackageName,
+            cityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel),
+            cityObjectOrigin.ToProjectionModel(),
+            cityObjectCartesian);
 
         for (int materialIndex = 0; materialIndex < materialGroups.Length; materialIndex++)
         {
             IGrouping<MaterialGroupingKey, ResolvedSurfaceMaterial> materialGroup = materialGroups[materialIndex];
             List<int> indices = [];
-            FacadeUvProjectionContext? facadeUvProjectionContext = TryCreateFacadeUvProjectionContext(
-                cityObject.PackageName,
-                cityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel),
-                cityObjectOrigin.ToProjectionModel(),
-                cityObjectCartesian);
 
             foreach (ResolvedSurfaceMaterial resolvedSurface in materialGroup
                          .OrderBy(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface), StringComparer.Ordinal))
@@ -747,13 +747,14 @@ internal static class LocalCityGmlObjectProjection
                         resolvedSurface.Material,
                         cityObjectOrigin.ToProjectionModel(),
                         cityObjectCartesian,
-                        globalOriginPoint.ToProjectionModel(),
-                        globalCartesian,
                         facadeUvProjectionContext,
                         demUvProjection));
                 int baseIndex = vertices.Count;
                 vertices.AddRange(tessellation.Vertices);
-                indices.AddRange(tessellation.Indices.Select(index => baseIndex + index));
+                foreach (int index in tessellation.Indices)
+                {
+                    indices.Add(baseIndex + index);
+                }
             }
 
             if (indices.Count == 0)

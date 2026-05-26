@@ -129,15 +129,27 @@ public sealed class LocalCityGmlObjectProjectionTests
             [.. wallVertices, wallVertices[0]]);
 
         MeshVertex[] vertices = TessellateSurfaceForTest(wallSurface, "bldg", origin, cartesian).Vertices;
-        double uSpan = vertices.Max(static vertex => vertex.UV0.X) - vertices.Min(static vertex => vertex.UV0.X);
-        double vSpan = vertices.Max(static vertex => vertex.UV0.Y) - vertices.Min(static vertex => vertex.UV0.Y);
+        MeshVertex[] bottomVertices = SelectVerticesByY(vertices, vertices.Min(static vertex => vertex.Position.Y));
+        MeshVertex[] leftVertices = SelectVerticesByX(vertices, vertices.Min(static vertex => vertex.Position.X));
+        double bottomUSpan = bottomVertices.Max(static vertex => vertex.UV0.X) - bottomVertices.Min(static vertex => vertex.UV0.X);
+        double bottomVSpan = bottomVertices.Max(static vertex => vertex.UV0.Y) - bottomVertices.Min(static vertex => vertex.UV0.Y);
+        double leftUSpan = leftVertices.Max(static vertex => vertex.UV0.X) - leftVertices.Min(static vertex => vertex.UV0.X);
+        double leftVSpan = leftVertices.Max(static vertex => vertex.UV0.Y) - leftVertices.Min(static vertex => vertex.UV0.Y);
 
         Assert.InRange(
-            Math.Abs(uSpan),
+            Math.Abs(bottomUSpan),
             0.95,
             1.05);
         Assert.InRange(
-            Math.Abs(vSpan),
+            Math.Abs(bottomVSpan),
+            0.0,
+            1e-6);
+        Assert.InRange(
+            Math.Abs(leftUSpan),
+            0.0,
+            1e-6);
+        Assert.InRange(
+            Math.Abs(leftVSpan),
             0.95,
             1.05);
     }
@@ -174,19 +186,11 @@ public sealed class LocalCityGmlObjectProjectionTests
             maximumY: 7.0,
             floorHeightMeters: 3.5,
             floorCount: 2).Vertices;
-        double uvBottomY = vertices
-            .Where(static vertex => Math.Abs(vertex.Position.Y) < 1e-6)
-            .Select(static vertex => vertex.UV0.Y)
-            .Distinct()
-            .Single();
-        double uvTopY = vertices
-            .Where(static vertex => Math.Abs(vertex.Position.Y - 7.0) < 1e-6)
-            .Select(static vertex => vertex.UV0.Y)
-            .Distinct()
-            .Single();
+        double uvBottomY = AverageUvYAtY(vertices, vertices.Min(static vertex => vertex.Position.Y));
+        double uvTopY = AverageUvYAtY(vertices, vertices.Max(static vertex => vertex.Position.Y));
 
-        Assert.Equal(0.0, uvBottomY, 6);
-        Assert.Equal(2.0, uvTopY, 6);
+        Assert.InRange(Math.Abs(uvBottomY), 0.0, 1e-5);
+        Assert.InRange(Math.Abs(uvTopY - 2.0), 0.0, 1e-5);
     }
 
     [Fact]
@@ -3288,10 +3292,31 @@ public sealed class LocalCityGmlObjectProjectionTests
             material,
             cityObjectOrigin,
             cartesian,
-            cityObjectOrigin,
-            cartesian,
             context,
             DemUvProjection: null));
+    }
+
+    private static MeshVertex[] SelectVerticesByX(MeshVertex[] vertices, double x)
+    {
+        return vertices
+            .Where(vertex => Math.Abs(vertex.Position.X - x) < 1e-5)
+            .ToArray();
+    }
+
+    private static MeshVertex[] SelectVerticesByY(MeshVertex[] vertices, double y)
+    {
+        return vertices
+            .Where(vertex => Math.Abs(vertex.Position.Y - y) < 1e-5)
+            .ToArray();
+    }
+
+    private static double AverageUvYAtY(MeshVertex[] vertices, double y)
+    {
+        MeshVertex[] selectedVertices = SelectVerticesByY(vertices, y);
+        Assert.NotEmpty(selectedVertices);
+        double average = selectedVertices.Average(static vertex => vertex.UV0.Y);
+        Assert.All(selectedVertices, vertex => Assert.InRange(Math.Abs(vertex.UV0.Y - average), 0.0, 1e-5));
+        return average;
     }
 
     private static LocalCityGmlObjectProjection.ParsedSurface CreateParsedSurface(
