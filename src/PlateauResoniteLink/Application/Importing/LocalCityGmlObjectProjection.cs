@@ -941,16 +941,10 @@ internal static class LocalCityGmlObjectProjection
             cityObjectOrigin.ToProjectionModel(),
             globalOriginPoint.ToProjectionModel(),
             globalCartesian);
-        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
-            cityObject.PackageName,
-            cityObject.Surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel),
-            cityObjectOrigin.ToProjectionModel(),
-            cityObjectCartesian);
         List<MeshVertex> vertices = [];
         List<MeshSubmesh> submeshes = [];
         List<MaterialBinding> materials = [];
         DemUvProjection? demUvProjection = TryCreateDemUvProjection(cityObject.ActualMeshCode, demTerrainTextureOverlay);
-        double cityObjectMinAltitude = ResolveParsedMinimumAltitude(cityObject.Surfaces);
 
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
