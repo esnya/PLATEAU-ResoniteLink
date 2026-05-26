@@ -935,8 +935,8 @@ internal static class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         return CityGmlSurfaceProjectionPolicy.IsFacadeSurface(
-            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel(surface),
-            global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            surface,
+            cityObjectOrigin,
             cityObjectCartesian);
     }
 
@@ -946,8 +946,8 @@ internal static class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         return CityGmlSurfaceProjectionPolicy.IsNearHorizontalSurface(
-            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel(surface),
-            global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            surface,
+            cityObjectOrigin,
             cityObjectCartesian);
     }
 
@@ -959,8 +959,8 @@ internal static class LocalCityGmlObjectProjection
     {
         return CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
             packageName,
-            surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel),
-            global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            surfaces,
+            cityObjectOrigin,
             cityObjectCartesian);
     }
 
@@ -970,8 +970,8 @@ internal static class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         return CityGmlSurfaceProjectionPolicy.ComputeSurfaceNormal(
-            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel(surface),
-            global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            surface,
+            cityObjectOrigin,
             cityObjectCartesian);
     }
 
@@ -983,8 +983,8 @@ internal static class LocalCityGmlObjectProjection
     {
         return CityGmlSurfaceProjectionPolicy.TryCreateFacadeUvProjectionContext(
             packageName,
-            surfaces.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel),
-            global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromProjectionModel(cityObjectOrigin),
+            surfaces,
+            cityObjectOrigin,
             cityObjectCartesian);
     }
 
