@@ -123,6 +123,14 @@ internal sealed record CoordinateReferenceSystem(
             return (new Geocentric(Ellipsoid.GRS80), "jgd2000");
         }
 
-        return (new Geocentric(Ellipsoid.GRS80), srsName.Trim());
+        if (srsName.EndsWith("/4326", StringComparison.Ordinal)
+            || srsName.EndsWith("EPSG:4326", StringComparison.OrdinalIgnoreCase)
+            || srsName.EndsWith("/4979", StringComparison.Ordinal)
+            || srsName.EndsWith("EPSG:4979", StringComparison.OrdinalIgnoreCase))
+        {
+            return (Geocentric.WGS84, "wgs84");
+        }
+
+        throw new PlateauImportValidationException([$"Unsupported CityGML coordinate reference system '{srsName.Trim()}'."]);
     }
 }
