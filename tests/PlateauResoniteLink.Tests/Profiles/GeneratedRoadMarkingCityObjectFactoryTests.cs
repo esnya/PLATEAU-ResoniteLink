@@ -113,6 +113,29 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
         Assert.Null(marking);
     }
 
+    [Fact]
+    public void RoadSurfaceEdgePairSelectorRejectsNonQuadInputsWithClearPrecondition()
+    {
+        GeodeticPoint[] vertices =
+        [
+            new(0.0, 0.0, 0.0),
+            new(1.0, 0.0, 0.0),
+            new(1.0, 1.0, 0.0),
+        ];
+        Float3[] positions =
+        [
+            new(0.0, 0.0, 0.0),
+            new(1.0, 0.0, 0.0),
+            new(1.0, 0.0, 1.0),
+        ];
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(
+            () => RoadSurfaceEdgePairSelector.Select(vertices, positions));
+
+        Assert.Equal("vertices", exception.ParamName);
+        Assert.Contains("exactly four vertices", exception.Message, StringComparison.Ordinal);
+    }
+
     private static ParsedCityObject CreateRoadObject(string packageName, ParsedSurface surface)
     {
         return CreateRoadObject(packageName, [surface]);
