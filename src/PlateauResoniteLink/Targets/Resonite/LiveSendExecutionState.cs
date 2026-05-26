@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class LiveSendProgressSink
@@ -24,8 +22,6 @@ internal sealed class LiveSendProgressSink
 
     public int FirstCityObjectPreparationStartedLogged;
 
-    public int FirstCommonMaterialPrepLogged;
-
     public int FirstCityObjectStreamingStartedLogged;
 
     public int FirstCityObjectDequeuedLogged;
@@ -39,7 +35,6 @@ internal sealed class LiveSendProgressSink
         FirstPreparedCityObjectLogged = 0;
         FirstImportedCityObjectLogged = 0;
         FirstCityObjectPreparationStartedLogged = 0;
-        FirstCommonMaterialPrepLogged = 0;
         FirstCityObjectStreamingStartedLogged = 0;
         FirstCityObjectDequeuedLogged = 0;
     }
@@ -51,7 +46,7 @@ internal sealed class CommonMaterialAssetCache
 
     public ResoniteCommonMaterialAssetAccumulator CommonMaterialAssets { get; } = new();
 
-    public AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> BundledTextureImportTasks { get; } = new();
+    public AsyncInFlightResultCache<BundledTextureImportKey, Uri> BundledTextureImportTasks { get; } = new();
 }
 
 internal sealed class TerrainTextureAssetCache

@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 
@@ -5,8 +6,13 @@ using System.Text.RegularExpressions;
 
 namespace PlateauResoniteLink.Tests.Docs;
 
-public sealed partial class LiveSendDocumentationContractTests
+public sealed class LiveSendDocumentationContractTests
 {
+    private static readonly Regex HeadingRegex = new(
+        "^## .+$",
+        RegexOptions.Multiline,
+        TimeSpan.FromSeconds(1));
+
     [Fact]
     public void EnglishAndJapaneseMirrorsKeepMatchingMajorHeadings()
     {
@@ -21,12 +27,9 @@ public sealed partial class LiveSendDocumentationContractTests
 
     private static string[] GetHeadings(string markdown)
     {
-        return HeadingRegex()
+        return HeadingRegex
             .Matches(markdown)
             .Select(match => match.Value)
             .ToArray();
     }
-
-    [GeneratedRegex("^## .+$", RegexOptions.Multiline)]
-    private static partial Regex HeadingRegex();
 }

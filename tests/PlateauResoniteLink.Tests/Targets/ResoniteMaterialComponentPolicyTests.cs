@@ -16,7 +16,7 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class ResoniteMaterialComponentPolicyTests
 {
     [Fact]
-    public void CreateMembersBuildsUvStandardMaterialFields()
+    public void CreateMembersEmitsNonDefaultCommonBundledFamilyUvTransformMembers()
     {
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(0.1, 0.2, 0.3, 0.4),
@@ -53,6 +53,29 @@ public sealed class ResoniteMaterialComponentPolicyTests
         Assert.Equal(0.75f, textureOffset.Value.y, 6);
         Assert.Equal(2.0f, offsetFactor.Value, 6);
         Assert.Equal(3.0f, offsetUnits.Value, 6);
+    }
+
+    [Fact]
+    public void CreateMembersOmitsOnlyComponentDefaultUvTransformMembers()
+    {
+        ResoniteMaterialBinding material = new(
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(1.0, 1.0),
+            TextureOffset: new ResoniteFloat2(0.0, 0.0),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            AssetScope: ResoniteMaterialAssetScope.Common,
+            BundledVariantIndex: 0);
+
+        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
+
+        Assert.DoesNotContain("TextureScale", members.Keys);
+        Assert.DoesNotContain("TextureOffset", members.Keys);
     }
 
     [Fact]

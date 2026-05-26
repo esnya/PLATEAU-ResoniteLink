@@ -75,6 +75,20 @@ internal static class ResoniteCityObjectPreparation
         }
     }
 
+    public static void ValidateTriangleMeshBindingsForImport(
+        ResoniteConstructionCityObject cityObject,
+        ResoniteImportedMesh mesh)
+    {
+        try
+        {
+            ValidateTriangleMeshBindings(cityObject, mesh);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException && exception is not ResoniteMeshValidationException)
+        {
+            throw CreateTriangleMeshValidationException(cityObject, mesh, exception);
+        }
+    }
+
     public static PreparedTriangleMeshGeometry PrepareTriangleMeshGeometry(
         ResoniteConstructionCityObject cityObject,
         ResoniteImportedMesh mesh)
@@ -85,11 +99,7 @@ internal static class ResoniteCityObjectPreparation
         }
         catch (Exception exception) when (exception is InvalidOperationException && exception is not ResoniteMeshValidationException)
         {
-            throw new ResoniteMeshValidationException(
-                $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
-                + $"{CreateTriangleMeshDiagnosticSummary(cityObject, mesh)} "
-                + $"Reason: {exception.Message}",
-                exception);
+            throw CreateTriangleMeshValidationException(cityObject, mesh, exception);
         }
     }
 
@@ -244,6 +254,18 @@ internal static class ResoniteCityObjectPreparation
             $"mesh_code={cityObject.ActualMeshCode}, vertices={mesh.Vertices.Count}, submeshes={mesh.Submeshes.Count}, "
             + $"submesh_indices=[{string.Join(", ", submeshIndices)}], materials={cityObject.Materials.Count}, "
             + $"material_bindings=[{materialSummary}]");
+    }
+
+    private static ResoniteMeshValidationException CreateTriangleMeshValidationException(
+        ResoniteConstructionCityObject cityObject,
+        ResoniteImportedMesh mesh,
+        Exception exception)
+    {
+        return new ResoniteMeshValidationException(
+            $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
+            + $"{CreateTriangleMeshDiagnosticSummary(cityObject, mesh)} "
+            + $"Reason: {exception.Message}",
+            exception);
     }
 
     private static ResoniteFloat2 CreateResoniteFloat2(ScalarPair value) => new(value.X, value.Y);

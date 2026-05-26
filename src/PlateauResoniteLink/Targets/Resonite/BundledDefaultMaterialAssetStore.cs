@@ -21,6 +21,7 @@ internal sealed class BundledDefaultMaterialAssetStore
     private static readonly HashSet<string> ResourceNames = Assembly
         .GetManifestResourceNames()
         .ToHashSet(StringComparer.Ordinal);
+    private static readonly Dictionary<string, long> ResourceLengths = new(StringComparer.Ordinal);
     private static readonly AsyncLocal<string?> ExtractionRootOverride = new();
     private static readonly string DefaultExtractionRoot = Path.Combine(
         Path.GetTempPath(),
@@ -49,20 +50,24 @@ internal sealed class BundledDefaultMaterialAssetStore
 
         lock (SyncRoot)
         {
-            if (File.Exists(absolutePath))
+            if (ResourceLengths.TryGetValue(resourceName, out long expectedLength)
+                && TryGetExistingFileLength(absolutePath, out long existingLength)
+                && existingLength == expectedLength)
+            {
+                return absolutePath;
+            }
+
+            using Stream resourceStream = Assembly.GetManifestResourceStream(resourceName)
+                ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' was not found.");
+            ResourceLengths[resourceName] = resourceStream.Length;
+            if (TryGetExistingFileLength(absolutePath, out existingLength)
+                && existingLength == resourceStream.Length)
             {
                 return absolutePath;
             }
 
             Directory.CreateDirectory(directory);
-            using Stream resourceStream = Assembly.GetManifestResourceStream(resourceName)
-                ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' was not found.");
-            using FileStream fileStream = new(
-                absolutePath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.Read);
-            resourceStream.CopyTo(fileStream);
+            WriteResourceAtomically(absolutePath, resourceStream);
         }
 
         return absolutePath;
@@ -144,6 +149,31 @@ internal sealed class BundledDefaultMaterialAssetStore
         return false;
     }
 
+    internal static bool TryGetExistingFileLength(string path, out long length)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                length = 0;
+                return false;
+            }
+
+            length = new FileInfo(path).Length;
+            return true;
+        }
+        catch (IOException)
+        {
+            length = 0;
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            length = 0;
+            return false;
+        }
+    }
+
     private static string CreateNormalizedResourceSuffix(string relativePath)
     {
         string[] segments = relativePath.Split('/');
@@ -163,6 +193,31 @@ internal sealed class BundledDefaultMaterialAssetStore
     private static string GetExtractionRoot()
     {
         return ExtractionRootOverride.Value ?? DefaultExtractionRoot;
+    }
+
+    private static void WriteResourceAtomically(string absolutePath, Stream resourceStream)
+    {
+        string temporaryPath = $"{absolutePath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            using (FileStream fileStream = new(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None))
+            {
+                resourceStream.CopyTo(fileStream);
+            }
+
+            File.Move(temporaryPath, absolutePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
     }
 
     private sealed class ExtractionRootOverrideScope(string? previousRoot) : IDisposable

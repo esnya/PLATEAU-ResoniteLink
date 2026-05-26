@@ -18,6 +18,19 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class ResoniteMaterialPlanningTests
 {
     [Fact]
+    public void BundledTextureImportKeySeparatesSameTextureAssetByColorProfile()
+    {
+        BundledTextureImportKey srgbKey = new(
+            BundledDefaultTextureAssets.Facade.Facade001.Albedo,
+            ResoniteTextureColorProfiles.Srgb);
+        BundledTextureImportKey linearKey = new(
+            BundledDefaultTextureAssets.Facade.Facade001.Albedo,
+            ResoniteTextureColorProfiles.Linear);
+
+        Assert.NotEqual(srgbKey, linearKey);
+    }
+
+    [Fact]
     public async Task PlanCommonMaterialAssetAsyncImportsMetallicCompanionTextureWithLinearProfile()
     {
         using SceneSinkRecordingClient client = new();
@@ -42,7 +55,7 @@ public sealed class ResoniteMaterialPlanningTests
         PlannedDedicatedMaterialAsset plannedAsset = await planning.PlanCommonMaterialAssetAsync(
             client,
             material,
-            new AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri>(),
+            new AsyncInFlightResultCache<BundledTextureImportKey, Uri>(),
             CancellationToken.None);
 
         PlannedTextureAsset metallicAsset = Assert.Single(
@@ -63,7 +76,7 @@ public sealed class ResoniteMaterialPlanningTests
     {
         using SceneSinkRecordingClient client = new();
         ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
-        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> bundledTextureImportTasks = new();
+        AsyncInFlightResultCache<BundledTextureImportKey, Uri> bundledTextureImportTasks = new();
         ResoniteMaterialBinding uvMaterial = CreateRoadMaterial(ResoniteMaterialProjection.Uv);
         ResoniteMaterialBinding triplanarMaterial = CreateRoadMaterial(ResoniteMaterialProjection.Triplanar);
 
@@ -88,7 +101,7 @@ public sealed class ResoniteMaterialPlanningTests
     {
         using SceneSinkRecordingClient client = new();
         ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
-        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> bundledTextureImportTasks = new();
+        AsyncInFlightResultCache<BundledTextureImportKey, Uri> bundledTextureImportTasks = new();
         ResoniteMaterialBinding baseMaterial = CreateBundledMaterial(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 0);
         ResoniteMaterialBinding colorVariantMaterial = CreateBundledMaterial(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 1);
 
@@ -128,7 +141,7 @@ public sealed class ResoniteMaterialPlanningTests
     {
         using SceneSinkRecordingClient client = new();
         ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
-        AsyncInFlightResultCache<BundledDefaultTextureAsset, Uri> bundledTextureImportTasks = new();
+        AsyncInFlightResultCache<BundledTextureImportKey, Uri> bundledTextureImportTasks = new();
         ResoniteMaterialBinding baseMaterial = CreateBundledMaterial(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0);
         ResoniteMaterialBinding colorVariantMaterial = CreateBundledMaterial(BundledDefaultMaterialFamilies.FacadeHighriseNightLow, 0);
 
@@ -164,6 +177,46 @@ public sealed class ResoniteMaterialPlanningTests
         Assert.NotNull(ResoniteMaterialPlanning.TryGetPlannedTextureUri(
             colorVariantPlannedAsset.Textures,
             ResoniteSceneMaterialConventions.TextureMemberRole.Emission));
+    }
+
+    [Fact]
+    public async Task PlanDedicatedMaterialAssetAsyncUsesPreserveDedicatedMaterialSlotContract()
+    {
+        using SceneSinkRecordingClient client = new();
+        ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
+        ResoniteMaterialBinding material = new(
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0]);
+
+        PlannedDedicatedMaterialAsset preserved = await planning.PlanDedicatedMaterialAssetAsync(
+            client,
+            material,
+            materialIndex: 2,
+            new Dictionary<ResoniteTexturePayload, Uri>(),
+            new Dictionary<TerrainTextureOverlay, Uri>(),
+            preserveDedicatedMaterialSlot: true,
+            CancellationToken.None);
+        PlannedDedicatedMaterialAsset notPreserved = await planning.PlanDedicatedMaterialAssetAsync(
+            client,
+            material,
+            materialIndex: 2,
+            new Dictionary<ResoniteTexturePayload, Uri>(),
+            new Dictionary<TerrainTextureOverlay, Uri>(),
+            preserveDedicatedMaterialSlot: false,
+            CancellationToken.None);
+        string expectedDedicatedSlotName = ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(
+            material,
+            materialIndex: 2);
+
+        Assert.True(preserved.PreserveDedicatedMaterialSlot);
+        Assert.Equal(expectedDedicatedSlotName, preserved.DedicatedMaterialSlotName);
+        Assert.False(notPreserved.PreserveDedicatedMaterialSlot);
+        Assert.Null(notPreserved.DedicatedMaterialSlotName);
     }
 
     [Fact]
@@ -289,7 +342,7 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
-    public async Task PlanMainTextureOverrideAsync_UsesPreparedUriWithRoleIdentity()
+    public void PlanMainTextureOverrideUsesPreparedUriWithRoleIdentity()
     {
         ResoniteMaterialBinding firstMaterial = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -311,19 +364,19 @@ public sealed class ResoniteMaterialPlanningTests
             [secondMaterial.TexturePayload!] = new Uri("resdb:///texture/second", UriKind.Absolute),
         };
 
-        PlannedTextureAsset? firstOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+        PlannedTextureAsset? firstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? repeatedFirstOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+        PlannedTextureAsset? repeatedFirstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? secondOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+        PlannedTextureAsset? secondOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             secondMaterial,
             secondPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? thirdOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+        PlannedTextureAsset? thirdOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());

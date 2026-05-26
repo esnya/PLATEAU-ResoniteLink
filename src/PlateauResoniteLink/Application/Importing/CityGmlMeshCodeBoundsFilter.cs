@@ -28,9 +28,9 @@ internal static class CityGmlMeshCodeBoundsFilter
     internal static bool IntersectsRequestedMeshCodeBounds(
         string actualMeshCode,
         bool sharedAcrossMeshCodes,
-        LocalCityGmlObjectProjection.CoordinateReferenceSystem coordinateReferenceSystem,
+        CoordinateReferenceSystem coordinateReferenceSystem,
         IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
-        IEnumerable<LocalCityGmlObjectProjection.ParsedSurface> surfaces)
+        IEnumerable<ParsedSurface> surfaces)
     {
         if (requestedMeshCodeBounds is not { Count: > 0 }
             || !coordinateReferenceSystem.IsGeographic)
@@ -48,10 +48,10 @@ internal static class CityGmlMeshCodeBoundsFilter
     }
 
     private static bool IntersectsMeshCodeBounds(
-        IEnumerable<LocalCityGmlObjectProjection.ParsedSurface> surfaces,
+        IEnumerable<ParsedSurface> surfaces,
         IReadOnlyList<MeshCodeBounds> meshCodeAreas)
     {
-        List<LocalCityGmlObjectProjection.GeodeticPoint> vertices = surfaces
+        List<GeodeticPoint> vertices = surfaces
             .SelectMany(static surface => surface.Vertices)
             .ToList();
 

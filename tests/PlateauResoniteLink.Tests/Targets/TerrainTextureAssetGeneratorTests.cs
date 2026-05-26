@@ -21,6 +21,26 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class TerrainTextureAssetGeneratorTests
 {
     [Fact]
+    public void TexturePowerOfTwoRoundUpRejectsValuesAboveRepresentablePositivePower()
+    {
+        Assert.Equal(1 << 30, TexturePowerOfTwo.RoundUp((1 << 30) - 1));
+        Assert.Equal(1 << 30, TexturePowerOfTwo.RoundUp(1 << 30));
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            static () => TexturePowerOfTwo.RoundUp((1 << 30) + 1));
+    }
+
+    [Fact]
+    public void TerrainTextureTileSourceRejectsZoomLevelsThatOverflowIntTileIndexes()
+    {
+        TerrainTextureTileSource source = new("https://tiles.example/{z}/{x}/{y}.png", WebMercatorTileMath.MaxZoomLevel);
+
+        Assert.Equal(WebMercatorTileMath.MaxZoomLevel, source.ZoomLevel);
+        Assert.Throws<ArgumentOutOfRangeException>(
+            static () => new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", WebMercatorTileMath.MaxZoomLevel + 1));
+    }
+
+    [Fact]
     public async Task EnsureTextureAsyncStitchesTilesAndCachesOutput()
     {
         using FakeMapTileHandler handler = new();

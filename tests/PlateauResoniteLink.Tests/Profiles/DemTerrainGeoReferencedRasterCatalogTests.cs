@@ -143,17 +143,34 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         datasetSource.ReleaseEnsureLocalFile.TrySetResult();
         await datasetSource.BackgroundCompletion.Task.WaitAsync(CancellationToken.None);
 
-        for (int attempt = 0; attempt < 10 && datasetSource.EnsureLocalFileCallCount < 2; attempt++)
+        await AssertEventuallyRetriesFaultedBackgroundTaskAsync(catalog, datasetSource, bounds);
+        Assert.Equal(2, datasetSource.EnsureLocalFileCallCount);
+    }
+
+    private static async Task AssertEventuallyRetriesFaultedBackgroundTaskAsync(
+        DemTerrainGeoReferencedRasterCatalog catalog,
+        FaultingGateableDatasetContentSource datasetSource,
+        GeographicRectangle bounds)
+    {
+        for (int attempt = 0; attempt < 50; attempt++)
         {
             await Assert.ThrowsAnyAsync<IOException>(async () => await catalog.TryResolveRasterSourceAsync(
                 new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
                 "dem-fallback",
                 bounds,
                 CancellationToken.None));
-            await Task.Yield();
+
+            if (datasetSource.EnsureLocalFileCallCount == 2)
+            {
+                return;
+            }
+
+            await Task.Delay(20);
         }
 
-        Assert.Equal(2, datasetSource.EnsureLocalFileCallCount);
+        Assert.Fail(
+            $"Faulted background task was not evicted after 50 retry attempts. "
+            + $"Observed EnsureLocalFileCallCount={datasetSource.EnsureLocalFileCallCount}.");
     }
 
     private static RecordingDatasetContentSource CreateDatasetSource(string datasetRoot)
