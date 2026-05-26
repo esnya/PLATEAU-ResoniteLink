@@ -77,8 +77,10 @@ internal static class RoadSurfaceEdgePairSelector
         ProjectionParsedRing ring,
         Float3[] positions)
     {
+        ArgumentNullException.ThrowIfNull(ring);
+
         EdgePairSelection pair = Select(ring.Vertices, positions);
-        if (ring.UVs is null || ring.UVs.Count != ring.Vertices.Length || ring.Vertices.Length != 4)
+        if (ring.UVs is null || ring.UVs.Count != ring.Vertices.Length)
         {
             return pair;
         }

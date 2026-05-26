@@ -18,6 +18,9 @@ internal static class GeneratedRoadMarkingCityObjectFactory
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
+        ArgumentNullException.ThrowIfNull(cityObject);
+        ArgumentNullException.ThrowIfNull(cityObjectOrigin);
+
         if (!string.Equals(cityObject.PackageName, "tran", StringComparison.OrdinalIgnoreCase))
         {
             return null;
@@ -67,7 +70,7 @@ internal static class GeneratedRoadMarkingCityObjectFactory
         Float3[] positions = vertices
             .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
-        Float3? normal = ComputePolygonNormal(positions);
+        Float3? normal = PolygonNormal.Compute(positions);
         if (normal is null || Math.Abs(normal.Y) < 0.7)
         {
             return [];
@@ -134,36 +137,6 @@ internal static class GeneratedRoadMarkingCityObjectFactory
         }
 
         return segments;
-    }
-
-    private static Float3? ComputePolygonNormal(IEnumerable<Float3> positions)
-    {
-        Float3[] points = positions.ToArray();
-        if (points.Length < 3)
-        {
-            return null;
-        }
-
-        double normalX = 0.0;
-        double normalY = 0.0;
-        double normalZ = 0.0;
-
-        for (int index = 0; index < points.Length; index++)
-        {
-            Float3 current = points[index];
-            Float3 next = points[(index + 1) % points.Length];
-            normalX += (current.Y - next.Y) * (current.Z + next.Z);
-            normalY += (current.Z - next.Z) * (current.X + next.X);
-            normalZ += (current.X - next.X) * (current.Y + next.Y);
-        }
-
-        double magnitude = Math.Sqrt((normalX * normalX) + (normalY * normalY) + (normalZ * normalZ));
-        if (magnitude < 1e-8)
-        {
-            return null;
-        }
-
-        return new Float3(normalX / magnitude, normalY / magnitude, normalZ / magnitude);
     }
 
     private static Float3 CreateScenePosition(
