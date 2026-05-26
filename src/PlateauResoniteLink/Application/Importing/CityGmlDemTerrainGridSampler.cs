@@ -40,11 +40,11 @@ internal static class CityGmlDemTerrainGridSampler
         for (int zIndex = 0; zIndex < height; zIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            double v = height == 1 ? 0.0 : (double)zIndex / (height - 1);
+            double v = (double)zIndex / (height - 1);
             double sampleZ = minZ + (extentZ * v);
             for (int xIndex = 0; xIndex < width; xIndex++)
             {
-                double u = width == 1 ? 0.0 : (double)xIndex / (width - 1);
+                double u = (double)xIndex / (width - 1);
                 double sampleX = minX + (extentX * u);
                 int sampleIndex = (zIndex * width) + xIndex;
                 if (TrySampleLocalHeight(sampleX, sampleZ, triangles, spatialIndex, out double localHeight))
