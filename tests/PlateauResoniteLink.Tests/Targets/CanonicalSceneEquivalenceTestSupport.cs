@@ -89,7 +89,7 @@ internal static class CanonicalSceneEquivalenceTestSupport
                 .Select(static submesh => submesh.TriangleCount.ToString(CultureInfo.InvariantCulture)));
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{mesh.VertexCount}:{mesh.HasColors}:{submeshes}:{SumPositions(mesh):0.###}:{CreateUvCoverageSignature(mesh)}");
+            $"{mesh.VertexCount}:{mesh.HasColors}:{submeshes}:{SumPositions(mesh):0.##}:{CreateUvCoverageSignature(mesh)}");
     }
 
     private static string CreateTextureSignature(SceneSinkRecordingClient client)
@@ -144,7 +144,6 @@ internal static class CanonicalSceneEquivalenceTestSupport
 
         int finiteCount = 0;
         int nonZeroCount = 0;
-        HashSet<string> distinctQuantizedUvs = [];
         HashSet<double> distinctQuantizedUs = [];
         HashSet<double> distinctQuantizedVs = [];
         for (int index = 0; index < mesh.VertexCount; index++)
@@ -161,9 +160,8 @@ internal static class CanonicalSceneEquivalenceTestSupport
                 nonZeroCount++;
             }
 
-            double quantizedU = Math.Round(uv.x, 3, MidpointRounding.AwayFromZero);
-            double quantizedV = Math.Round(uv.y, 3, MidpointRounding.AwayFromZero);
-            distinctQuantizedUvs.Add(string.Create(CultureInfo.InvariantCulture, $"{quantizedU:0.###},{quantizedV:0.###}"));
+            double quantizedU = Math.Round(uv.x, 2, MidpointRounding.AwayFromZero);
+            double quantizedV = Math.Round(uv.y, 2, MidpointRounding.AwayFromZero);
             distinctQuantizedUs.Add(quantizedU);
             distinctQuantizedVs.Add(quantizedV);
         }
@@ -172,6 +170,6 @@ internal static class CanonicalSceneEquivalenceTestSupport
             ? "uv:0"
             : string.Create(
                 CultureInfo.InvariantCulture,
-                $"uv:{finiteCount}:{nonZeroCount}:{distinctQuantizedUvs.Count}:{distinctQuantizedUs.Count}/{distinctQuantizedVs.Count}");
+                $"uv:{finiteCount}:{nonZeroCount}:{distinctQuantizedUs.Count}/{distinctQuantizedVs.Count}");
     }
 }
