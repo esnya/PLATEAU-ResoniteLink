@@ -91,7 +91,7 @@ internal sealed class TerrainTextureTileSourceReader(
         int expandedGlobalTop = layoutGlobalTop - occupiedTop;
         int expandedGlobalRight = expandedGlobalLeft + canvasWidth;
         int expandedGlobalBottom = expandedGlobalTop + canvasHeight;
-        int maxTileIndex = (1 << zoomLevel) - 1;
+        int maxTileIndex = checked((int)((1U << zoomLevel) - 1U));
         int minTileX = Math.Clamp((int)Math.Floor(expandedGlobalLeft / (double)WebMercatorTileMath.TileSizePixels), 0, maxTileIndex);
         int maxTileX = Math.Clamp((int)Math.Floor((expandedGlobalRight - 1) / (double)WebMercatorTileMath.TileSizePixels), 0, maxTileIndex);
         int minTileY = Math.Clamp((int)Math.Floor(expandedGlobalTop / (double)WebMercatorTileMath.TileSizePixels), 0, maxTileIndex);

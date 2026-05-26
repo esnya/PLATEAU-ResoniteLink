@@ -7,10 +7,14 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed record TerrainTextureSourceImage(
-    Image<Rgba32> Image,
-    TextureUvRect? OccupiedUvRect) : IDisposable
+internal sealed class TerrainTextureSourceImage(
+    Image<Rgba32> image,
+    TextureUvRect? occupiedUvRect) : IDisposable
 {
+    public Image<Rgba32> Image { get; } = image;
+
+    public TextureUvRect? OccupiedUvRect { get; } = occupiedUvRect;
+
     public void Dispose()
     {
         Image.Dispose();
