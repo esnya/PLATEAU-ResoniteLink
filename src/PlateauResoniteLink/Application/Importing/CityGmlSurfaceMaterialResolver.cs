@@ -144,7 +144,7 @@ internal static class CityGmlSurfaceMaterialResolver
                 ?? throw TerrainOverlayDiagnostics.CreateMeshCodeMismatchException(
                     "material-binding",
                     actualMeshCode,
-                    actualMeshCode,
+                    requestedMeshCode: null,
                     requestedMeshCodeBounds: null,
                     representativeSurface.Material.TerrainOverlay);
         ColorRgba baseColor = representativeSurface.Material.TerrainOverlay is null
