@@ -12,6 +12,9 @@ local/
 runtime/
 nul
 
+# Real-data Fake Link canonical dumps are local verification artifacts.
+tests/Fixtures/CanonicalDumps/
+
 # User-specific files
 *.rsuser
 *.suo
