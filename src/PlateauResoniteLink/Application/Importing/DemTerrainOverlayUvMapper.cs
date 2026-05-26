@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -78,40 +79,8 @@ internal static class DemTerrainOverlayUvMapper
     private static GeographicRectangle GetCityObjectGeographicBounds(
         ParsedCityObject cityObject)
     {
-        bool hasPoint = false;
-        double minLatitude = 0.0;
-        double maxLatitude = 0.0;
-        double minLongitude = 0.0;
-        double maxLongitude = 0.0;
-        foreach (ParsedSurface surface in cityObject.Surfaces)
-        {
-            foreach (GeodeticPoint point in surface.Vertices)
-            {
-                if (!hasPoint)
-                {
-                    minLatitude = maxLatitude = point.Latitude;
-                    minLongitude = maxLongitude = point.Longitude;
-                    hasPoint = true;
-                    continue;
-                }
-
-                minLatitude = Math.Min(minLatitude, point.Latitude);
-                maxLatitude = Math.Max(maxLatitude, point.Latitude);
-                minLongitude = Math.Min(minLongitude, point.Longitude);
-                maxLongitude = Math.Max(maxLongitude, point.Longitude);
-            }
-        }
-
-        if (!hasPoint)
-        {
-            throw new InvalidOperationException("DEM city object has no vertices.");
-        }
-
-        return new GeographicRectangle(
-            MinLatitude: minLatitude,
-            MaxLatitude: maxLatitude,
-            MinLongitude: minLongitude,
-            MaxLongitude: maxLongitude);
+        return CityObjectGeographicBoundsResolver.Resolve(
+            cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
     }
 
     private static GeographicRectangle IntersectGeographicBounds(
