@@ -107,7 +107,7 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
             cityObject,
             progressReporter,
             cancellationToken);
-        PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask;
+        PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask.WaitAsync(cancellationToken);
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay = preparedTextures
             .Where(static texture => texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
             .ToDictionary(
