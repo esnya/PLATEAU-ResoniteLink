@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
-using GeographicLib;
-
 using PlateauResoniteLink.Domain.Importing;
+
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class DemSourceDiscoverySupport
@@ -151,23 +150,6 @@ internal static class DemSourceDiscoverySupport
         IReadOnlyList<string> meshCodes)
     {
         return CreateDemTerrainOverlayRegions(meshCodes);
-    }
-
-    internal static TerrainHeightSampler? CreateTerrainHeightSampler(
-        bool isGeographicReferenceSystem,
-        IReadOnlyCollection<TerrainHeightTriangle> terrainTriangles,
-        GeodeticPoint globalOriginPoint,
-        Geocentric? geocentric)
-    {
-        if (!isGeographicReferenceSystem || terrainTriangles.Count == 0 || geocentric is null)
-        {
-            return null;
-        }
-
-        return TerrainHeightSampler.Create(
-            terrainTriangles,
-            globalOriginPoint,
-            geocentric);
     }
 
     private static DemTerrainOverlayRegion CreateDemTerrainOverlayRegion(

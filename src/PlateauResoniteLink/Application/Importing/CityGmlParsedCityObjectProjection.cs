@@ -31,8 +31,8 @@ internal static class CityGmlParsedCityObjectProjection
         ArgumentNullException.ThrowIfNull(materialResolver);
 
         LocalCityGmlObjectProjection.ValidateCompatibleReferenceSystem(
-            referenceSystem.ToProjectionModel(),
-            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem.ToProjectionModel() ?? referenceSystem.ToProjectionModel());
+            referenceSystem,
+            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem ?? referenceSystem);
 
         ParsedCityObject[] projectedInputCityObjects =
             DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
