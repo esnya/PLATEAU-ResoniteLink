@@ -11,8 +11,6 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class TerrainOverlayProjectionSplitPolicy
 {
-    private const double UnknownRoofBottomAltitudeToleranceMeters = 0.1;
-
     internal static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
         ParsedCityObject cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
@@ -284,40 +282,11 @@ internal static class TerrainOverlayProjectionSplitPolicy
     {
         return surface.TexturePayload is null
             && !surface.UsesGeneratedDemTexture
-            && IsRoofTerrainTextureSurface(surface, cityObjectMinAltitude, cityObjectOrigin, cityObjectCartesian);
-    }
-
-    private static bool IsRoofTerrainTextureSurface(
-        ParsedSurface surface,
-        double cityObjectMinAltitude,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        if (surface.Semantic == ParsedSurfaceSemantic.Roof)
-        {
-            return true;
-        }
-
-        if (surface.Semantic is not (ParsedSurfaceSemantic.Unknown
-            or ParsedSurfaceSemantic.Ground
-            or ParsedSurfaceSemantic.OuterCeiling
-            or ParsedSurfaceSemantic.OuterFloor))
-        {
-            return false;
-        }
-
-        Float3? normal = ComputeSurfaceNormal(surface, cityObjectOrigin, cityObjectCartesian);
-        return normal is not null
-            && Math.Abs(normal.Y) >= 0.98
-            && IsAboveCityObjectBottomAltitude(surface, cityObjectMinAltitude);
-    }
-
-    private static bool IsAboveCityObjectBottomAltitude(
-        ParsedSurface surface,
-        double cityObjectMinAltitude)
-    {
-        double surfaceMinAltitude = surface.Vertices.Min(static vertex => vertex.Altitude);
-        return surfaceMinAltitude > cityObjectMinAltitude + UnknownRoofBottomAltitudeToleranceMeters;
+            && RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(
+                surface,
+                cityObjectMinAltitude,
+                cityObjectOrigin,
+                cityObjectCartesian);
     }
 
     private static bool TryCreateSurfaceGeographicBounds(
@@ -344,54 +313,6 @@ internal static class TerrainOverlayProjectionSplitPolicy
         return CityObjectOriginResolver.Resolve(
             cityObject.GeodeticOriginOverride,
             cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
-    }
-
-    private static Float3? ComputeSurfaceNormal(
-        ParsedSurface surface,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        Float3[] positions = surface.Vertices
-            .Select(point => SceneAxisMapper.CreatePosition(
-                point.Latitude,
-                point.Longitude,
-                point.Altitude,
-                cityObjectOrigin.Latitude,
-                cityObjectOrigin.Longitude,
-                cityObjectOrigin.Altitude,
-                cityObjectCartesian))
-            .ToArray();
-        return ComputePolygonNormal(positions);
-    }
-
-    private static Float3? ComputePolygonNormal(IEnumerable<Float3> positions)
-    {
-        Float3[] points = positions.ToArray();
-        if (points.Length < 3)
-        {
-            return null;
-        }
-
-        double normalX = 0.0;
-        double normalY = 0.0;
-        double normalZ = 0.0;
-
-        for (int index = 0; index < points.Length; index++)
-        {
-            Float3 current = points[index];
-            Float3 next = points[(index + 1) % points.Length];
-            normalX += (current.Y - next.Y) * (current.Z + next.Z);
-            normalY += (current.Z - next.Z) * (current.X + next.X);
-            normalZ += (current.X - next.X) * (current.Y + next.Y);
-        }
-
-        double magnitude = Math.Sqrt((normalX * normalX) + (normalY * normalY) + (normalZ * normalZ));
-        if (magnitude < 1e-8)
-        {
-            return null;
-        }
-
-        return new Float3(normalX / magnitude, normalY / magnitude, normalZ / magnitude);
     }
 
     private static InvalidOperationException CreateTerrainOverlayMeshCodeMismatchException(
