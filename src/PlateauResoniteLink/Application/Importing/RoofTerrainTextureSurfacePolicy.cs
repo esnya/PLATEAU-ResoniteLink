@@ -42,7 +42,7 @@ internal static class RoofTerrainTextureSurfacePolicy
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
-        Float3[] positions = surface.Vertices
+        Float3[] positions = surface.ExteriorRing.Vertices
             .Select(point => SceneAxisMapper.CreatePosition(
                 point.Latitude,
                 point.Longitude,
