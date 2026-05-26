@@ -169,7 +169,7 @@ internal static class GeneratedLod1RoofSurfaceFactory
         Float3[] wallPositions = vertices
             .Select(point => CreateApproximateHorizontalPosition(point, referenceLatitude, referenceLongitude))
             .ToArray();
-        Float3? normal = ComputePolygonNormal(wallPositions);
+        Float3? normal = PolygonNormal.Compute(wallPositions);
         if (normal is null)
         {
             return vertices;
@@ -205,7 +205,7 @@ internal static class GeneratedLod1RoofSurfaceFactory
         Float3[] roofPositions = vertices
             .Select(point => CreateApproximateHorizontalPosition(point, referenceLatitude, referenceLongitude))
             .ToArray();
-        Float3? normal = ComputePolygonNormal(roofPositions);
+        Float3? normal = PolygonNormal.Compute(roofPositions);
         if (normal is null)
         {
             return vertices;
@@ -258,32 +258,6 @@ internal static class GeneratedLod1RoofSurfaceFactory
             source.Latitude + ((target.Latitude - source.Latitude) * ratio),
             source.Longitude + ((target.Longitude - source.Longitude) * ratio),
             source.Altitude + ((target.Altitude - source.Altitude) * ratio));
-    }
-
-    private static Float3? ComputePolygonNormal(IEnumerable<Float3> positions)
-    {
-        Float3[] vertices = positions.ToArray();
-        if (vertices.Length < 3)
-        {
-            return null;
-        }
-
-        double normalX = 0.0;
-        double normalY = 0.0;
-        double normalZ = 0.0;
-        for (int index = 0; index < vertices.Length; index++)
-        {
-            Float3 current = vertices[index];
-            Float3 next = vertices[(index + 1) % vertices.Length];
-            normalX += (current.Y - next.Y) * (current.Z + next.Z);
-            normalY += (current.Z - next.Z) * (current.X + next.X);
-            normalZ += (current.X - next.X) * (current.Y + next.Y);
-        }
-
-        double length = Math.Sqrt((normalX * normalX) + (normalY * normalY) + (normalZ * normalZ));
-        return length < 1e-8
-            ? null
-            : new Float3(normalX / length, normalY / length, normalZ / length);
     }
 
     private static double Dot(Float3 left, Float3 right)
