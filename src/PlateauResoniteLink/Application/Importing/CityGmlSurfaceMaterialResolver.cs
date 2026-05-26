@@ -28,6 +28,22 @@ internal static class CityGmlSurfaceMaterialResolver
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
+        return EnumerateSurfaces(
+                cityObject,
+                cityObjectOrigin,
+                cityObjectCartesian,
+                demTerrainTextureOverlay,
+                materialResolver)
+            .ToArray();
+    }
+
+    internal static IEnumerable<ResolvedSurfaceMaterial> EnumerateSurfaces(
+        ParsedCityObject cityObject,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian,
+        TerrainTextureOverlay? demTerrainTextureOverlay,
+        IDefaultMaterialResolver materialResolver)
+    {
         ArgumentNullException.ThrowIfNull(cityObject);
         ArgumentNullException.ThrowIfNull(cityObjectOrigin);
         ArgumentNullException.ThrowIfNull(materialResolver);
@@ -44,19 +60,17 @@ internal static class CityGmlSurfaceMaterialResolver
             projectionSurfaces.SelectMany(static surface => surface.Vertices),
             static point => point.Altitude);
 
-        return
-        [
-            .. cityObject.Surfaces
-                .Where(surface => !culledSurfaceIds.Contains(surface.PolygonId))
-                .Select(surface => ResolveSurfaceMaterial(
-                    cityObject,
-                    cityObjectOrigin,
-                    cityObjectCartesian,
-                    surface,
-                    cityObjectMinAltitude,
-                    demTerrainTextureOverlay,
-                    materialResolver)),
-        ];
+        foreach (ParsedSurface surface in cityObject.Surfaces.Where(surface => !culledSurfaceIds.Contains(surface.PolygonId)))
+        {
+            yield return ResolveSurfaceMaterial(
+                cityObject,
+                cityObjectOrigin,
+                cityObjectCartesian,
+                surface,
+                cityObjectMinAltitude,
+                demTerrainTextureOverlay,
+                materialResolver);
+        }
     }
 
     internal static MaterialBinding[] CreateSharedCommonMaterialBindings(

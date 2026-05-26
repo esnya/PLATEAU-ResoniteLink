@@ -4215,7 +4215,7 @@ internal static class LocalCityGmlObjectProjection
         }
 
         GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject, demTerrainTextureOverlay);
-        ResolvedSurfaceMaterial? representativeSurface = CityGmlSurfaceMaterialResolver.ResolveSurfaces(
+        ResolvedSurfaceMaterial? representativeSurface = CityGmlSurfaceMaterialResolver.EnumerateSurfaces(
                 cityObject,
                 cityObjectOrigin,
                 cityObjectCartesian,
