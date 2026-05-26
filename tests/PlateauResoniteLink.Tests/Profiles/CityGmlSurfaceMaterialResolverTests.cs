@@ -85,17 +85,17 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             UsesGeneratedDemTexture: usesGeneratedDemTexture);
     }
 
-    private static LocalCityGmlObjectProjection.ParsedSurface CreateSurface()
+    private static ParsedSurface CreateSurface()
     {
-        return new LocalCityGmlObjectProjection.ParsedSurface(
+        return new ParsedSurface(
             PolygonId: "surface",
-            Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Roof,
-            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing(
+            Semantic: ParsedSurfaceSemantic.Roof,
+            ExteriorRing: new ParsedRing(
                 "surface-ring",
                 [
-                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0, 139.0, 10.0),
-                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0, 139.1, 10.0),
-                    new LocalCityGmlObjectProjection.GeodeticPoint(35.1, 139.1, 10.0),
+                    new GeodeticPoint(35.0, 139.0, 10.0),
+                    new GeodeticPoint(35.0, 139.1, 10.0),
+                    new GeodeticPoint(35.1, 139.1, 10.0),
                 ],
                 UVs: null),
             InteriorRings: [],
