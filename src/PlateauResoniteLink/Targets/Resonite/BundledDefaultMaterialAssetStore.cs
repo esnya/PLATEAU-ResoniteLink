@@ -21,6 +21,7 @@ internal sealed class BundledDefaultMaterialAssetStore
     private static readonly HashSet<string> ResourceNames = Assembly
         .GetManifestResourceNames()
         .ToHashSet(StringComparer.Ordinal);
+    private static readonly Dictionary<string, long> ResourceLengths = new(StringComparer.Ordinal);
     private static readonly AsyncLocal<string?> ExtractionRootOverride = new();
     private static readonly string DefaultExtractionRoot = Path.Combine(
         Path.GetTempPath(),
@@ -49,8 +50,16 @@ internal sealed class BundledDefaultMaterialAssetStore
 
         lock (SyncRoot)
         {
+            if (File.Exists(absolutePath)
+                && ResourceLengths.TryGetValue(resourceName, out long expectedLength)
+                && new FileInfo(absolutePath).Length == expectedLength)
+            {
+                return absolutePath;
+            }
+
             using Stream resourceStream = Assembly.GetManifestResourceStream(resourceName)
                 ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' was not found.");
+            ResourceLengths[resourceName] = resourceStream.Length;
             if (File.Exists(absolutePath))
             {
                 FileInfo existingFile = new(absolutePath);
