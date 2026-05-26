@@ -97,8 +97,30 @@ internal static class DatasetTextureVramEstimator
                 return null;
             }
 
-            await using Stream stream = await datasetSource.OpenReadAsync(texturePath, cancellationToken);
-            using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
+            await using Stream identifyStream = await datasetSource.OpenReadAsync(texturePath, cancellationToken);
+            ImageInfo? imageInfo = await Image.IdentifyAsync(identifyStream, cancellationToken);
+            if (imageInfo is null)
+            {
+                return null;
+            }
+
+            if (IsJpegPath(texturePath))
+            {
+                long jpegRendererBytes = EstimateBlockCompressedTextureBytes(
+                    imageInfo.Width,
+                    imageInfo.Height,
+                    Bc1BlockBytes);
+                return new DatasetTextureVramEntry(
+                    texturePath,
+                    imageInfo.Width,
+                    imageInfo.Height,
+                    HasEffectiveAlpha: false,
+                    jpegRendererBytes,
+                    (long)imageInfo.Width * imageInfo.Height * 4);
+            }
+
+            await using Stream imageStream = await datasetSource.OpenReadAsync(texturePath, cancellationToken);
+            using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(imageStream, cancellationToken);
             bool hasEffectiveAlpha = HasNonOpaquePixels(image);
             long rendererBytes = EstimateBlockCompressedTextureBytes(
                 image.Width,
@@ -142,6 +164,13 @@ internal static class DatasetTextureVramEstimator
             }
         });
         return hasNonOpaquePixels;
+    }
+
+    private static bool IsJpegPath(string path)
+    {
+        string extension = Path.GetExtension(path);
+        return extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
     }
 
     private static long EstimateBlockCompressedTextureBytes(int width, int height, int blockBytes)

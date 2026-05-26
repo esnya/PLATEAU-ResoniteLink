@@ -256,6 +256,11 @@ internal static class GeoTiffTagReader
         Dictionary<ushort, object> values)
     {
         ushort tag = ReadUInt16(bytes, entryOffset, littleEndian);
+        if (!IsTrackedTag(tag))
+        {
+            return;
+        }
+
         ushort type = ReadUInt16(bytes, entryOffset + 2, littleEndian);
         uint count = ReadUInt32(bytes, entryOffset + 4, littleEndian);
         uint valueOrOffset = ReadUInt32(bytes, entryOffset + 8, littleEndian);
@@ -307,6 +312,11 @@ internal static class GeoTiffTagReader
         Dictionary<ushort, object> values)
     {
         ushort tag = ReadUInt16(bytes, entryOffset, littleEndian);
+        if (!IsTrackedTag(tag))
+        {
+            return;
+        }
+
         ushort type = ReadUInt16(bytes, entryOffset + 2, littleEndian);
         ulong count = ReadUInt64(bytes, entryOffset + 4, littleEndian);
         ulong valueOrOffset = ReadUInt64(bytes, entryOffset + 12, littleEndian);

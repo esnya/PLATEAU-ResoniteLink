@@ -281,20 +281,23 @@ internal static class DatasetSourceFileStatsReader
 
             ReadOnlySpan<char> token = coordinateText.AsSpan(tokenStart, index - tokenStart);
             int ordinateIndex = coordinateValueCount % GeometryCoordinateDimension;
-            if (double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out double coordinate))
+            if (!double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out double coordinate))
             {
-                switch (ordinateIndex)
-                {
-                    case 0:
-                        x = coordinate;
-                        break;
-                    case 1:
-                        y = coordinate;
-                        break;
-                    case 2:
-                        z = coordinate;
-                        break;
-                }
+                ringTokens = null;
+                return false;
+            }
+
+            switch (ordinateIndex)
+            {
+                case 0:
+                    x = coordinate;
+                    break;
+                case 1:
+                    y = coordinate;
+                    break;
+                case 2:
+                    z = coordinate;
+                    break;
             }
 
             if (ordinateIndex == GeometryCoordinateDimension - 1)
@@ -307,6 +310,12 @@ internal static class DatasetSourceFileStatsReader
 
             coordinateValueCount++;
             tokenStart = -1;
+        }
+
+        if (positionCount <= 0)
+        {
+            ringTokens = null;
+            return false;
         }
 
         ringTokens = new GmlLinearRingTokenSequence(
@@ -379,6 +388,7 @@ internal sealed class LinearRingGeometryAccumulator(int depth)
     public void AddPosition(string coordinateText)
     {
         double[] position = new double[DatasetSourceFileStatsReader.GeometryCoordinateDimension];
+        int parsedOrdinateCount = 0;
         int coordinateValueCount = 0;
         int tokenStart = -1;
 
@@ -400,21 +410,27 @@ internal sealed class LinearRingGeometryAccumulator(int depth)
                 continue;
             }
 
-            if (coordinateValueCount < DatasetSourceFileStatsReader.GeometryCoordinateDimension
-                && double.TryParse(
+            if (coordinateValueCount < DatasetSourceFileStatsReader.GeometryCoordinateDimension)
+            {
+                if (!double.TryParse(
                     coordinateText.AsSpan(tokenStart, index - tokenStart),
                     NumberStyles.Float,
                     CultureInfo.InvariantCulture,
                     out double coordinate))
-            {
+                {
+                    return;
+                }
+
                 position[coordinateValueCount] = coordinate;
+                parsedOrdinateCount++;
             }
 
             coordinateValueCount++;
             tokenStart = -1;
         }
 
-        if (coordinateValueCount != DatasetSourceFileStatsReader.GeometryCoordinateDimension)
+        if (coordinateValueCount != DatasetSourceFileStatsReader.GeometryCoordinateDimension
+            || parsedOrdinateCount != DatasetSourceFileStatsReader.GeometryCoordinateDimension)
         {
             return;
         }
