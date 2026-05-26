@@ -326,10 +326,16 @@ internal static class LocalCityGmlObjectProjection
         EdgePairSelection edgePair = SelectPrimaryRoadEdgePair(
             global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface.ExteriorRing),
             positions);
+        ParsedSurface projectionSurface = global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface);
         List<ParsedSurface> strips = TerrainAlignedTransportationSurfaceSplitter.Split(
-            global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.ToProjectionModel(surface),
+            projectionSurface,
             positions,
             edgePair);
+        if (strips.Count == 1 && ReferenceEquals(strips[0], projectionSurface))
+        {
+            return [surface];
+        }
+
         return strips.Select(global::PlateauResoniteLink.Application.Importing.CityGmlProjectionModelAdapter.FromProjectionModel).ToList();
     }
 
