@@ -19,7 +19,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
         if (!PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName)
             || cityObject.LodLevel != 1
             || !cityObject.ReferenceSystem.IsGeographic
-            || cityObject.Surfaces.Any(IsGeneratedLod1RoofSurface))
+            || cityObject.Surfaces.Any(GeneratedLod1RoofSurfaceIdentity.IsGenerated))
         {
             return cityObject;
         }
@@ -144,21 +144,6 @@ internal static class GeneratedLod1RoofCityObjectFactory
             positions.Min(static position => position.Y),
             positions.Max(static position => position.Y),
             isNearHorizontal);
-    }
-
-    private static bool IsGeneratedLod1RoofSurface(ParsedSurface surface)
-    {
-        const string generatedToken = "_generated_";
-        int generatedTokenIndex = surface.PolygonId.LastIndexOf(generatedToken, StringComparison.Ordinal);
-        if (generatedTokenIndex < 0)
-        {
-            return false;
-        }
-
-        ReadOnlySpan<char> suffix = surface.PolygonId.AsSpan(generatedTokenIndex + generatedToken.Length);
-        return suffix.StartsWith("shed-", StringComparison.Ordinal)
-            || suffix.StartsWith("gable-", StringComparison.Ordinal)
-            || suffix.StartsWith("hip-", StringComparison.Ordinal);
     }
 
     private static GeodeticPoint[] RemoveClosingPoint(GeodeticPoint[] vertices)
