@@ -229,17 +229,8 @@ internal static class ResoniteMaterialComponentPolicy
 
     private static bool ShouldOmitUvTransformMembers(ResoniteMaterialBinding material)
     {
-        if (material.AssetScope == ResoniteMaterialAssetScope.Common
-            && string.IsNullOrWhiteSpace(material.Family)
-            && material.TerrainOverlay is null)
-        {
-            return true;
-        }
-
-        return ResoniteDynamicMaterialUvNormalizer.ShouldNormalizeTextureTransform(material)
-            && material.TextureScale is not null
-            && (Math.Abs(material.TextureScale.X - 1.0) > 1e-9
-                || Math.Abs(material.TextureScale.Y - 1.0) > 1e-9);
+        return IsIdentityTextureScale(material.TextureScale)
+            && IsZeroTextureOffset(material.TextureOffset);
     }
 
     private static void ValidateNoNonCommonUvTransform(ResoniteMaterialBinding material)
@@ -270,6 +261,20 @@ internal static class ResoniteMaterialComponentPolicy
             : string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
                 $"({value.X:0.######},{value.Y:0.######})");
+    }
+
+    private static bool IsIdentityTextureScale(ResoniteFloat2? textureScale)
+    {
+        return textureScale is null
+            || (Math.Abs(textureScale.X - 1.0) < 1e-9
+                && Math.Abs(textureScale.Y - 1.0) < 1e-9);
+    }
+
+    private static bool IsZeroTextureOffset(ResoniteFloat2? textureOffset)
+    {
+        return textureOffset is null
+            || (Math.Abs(textureOffset.X) < 1e-9
+                && Math.Abs(textureOffset.Y) < 1e-9);
     }
 
     public static Field_colorX CreateColorMember(ResoniteColor color)

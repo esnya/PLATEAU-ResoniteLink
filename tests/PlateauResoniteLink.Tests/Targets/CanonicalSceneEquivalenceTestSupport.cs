@@ -89,7 +89,7 @@ internal static class CanonicalSceneEquivalenceTestSupport
                 .Select(static submesh => submesh.TriangleCount.ToString(CultureInfo.InvariantCulture)));
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{mesh.VertexCount}:{mesh.HasColors}:{submeshes}:{SumPositions(mesh):0.###}:{SumUvs(mesh):0.###}");
+            $"{mesh.VertexCount}:{mesh.HasColors}:{submeshes}:{SumPositions(mesh):0.###}:{CreateUvCoverageSignature(mesh)}");
     }
 
     private static string CreateTextureSignature(SceneSinkRecordingClient client)
@@ -134,16 +134,44 @@ internal static class CanonicalSceneEquivalenceTestSupport
         return total;
     }
 
-    private static double SumUvs(ImportMeshRawData mesh)
+    private static string CreateUvCoverageSignature(ImportMeshRawData mesh)
     {
         Span<float2> uv0 = mesh.AccessUV_2D(0);
-        double total = 0.0;
-        for (int index = 0; index < mesh.VertexCount; index++)
+        if (uv0.Length == 0)
         {
-            total += uv0[index].x;
-            total += uv0[index].y;
+            return "uv:0";
         }
 
-        return total;
+        int finiteCount = 0;
+        int nonZeroCount = 0;
+        HashSet<string> distinctQuantizedUvs = [];
+        HashSet<double> distinctQuantizedUs = [];
+        HashSet<double> distinctQuantizedVs = [];
+        for (int index = 0; index < mesh.VertexCount; index++)
+        {
+            float2 uv = uv0[index];
+            if (!float.IsFinite(uv.x) || !float.IsFinite(uv.y))
+            {
+                continue;
+            }
+
+            finiteCount++;
+            if (MathF.Abs(uv.x) > 0.0001f || MathF.Abs(uv.y) > 0.0001f)
+            {
+                nonZeroCount++;
+            }
+
+            double quantizedU = Math.Round(uv.x, 3, MidpointRounding.AwayFromZero);
+            double quantizedV = Math.Round(uv.y, 3, MidpointRounding.AwayFromZero);
+            distinctQuantizedUvs.Add(string.Create(CultureInfo.InvariantCulture, $"{quantizedU:0.###},{quantizedV:0.###}"));
+            distinctQuantizedUs.Add(quantizedU);
+            distinctQuantizedVs.Add(quantizedV);
+        }
+
+        return finiteCount == 0
+            ? "uv:0"
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"uv:{finiteCount}:{nonZeroCount}:{distinctQuantizedUvs.Count}:{distinctQuantizedUs.Count}/{distinctQuantizedVs.Count}");
     }
 }

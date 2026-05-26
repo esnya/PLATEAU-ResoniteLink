@@ -782,6 +782,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.10000000149011612",
+                              "y": "0.10000000149011612"
+                            }
                           }
                         }
                       }
@@ -888,6 +902,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.041666667908430099",
+                              "y": "0.041666667908430099"
+                            }
                           }
                         }
                       }
@@ -994,6 +1022,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.125",
+                              "y": "0.125"
+                            }
                           }
                         }
                       }
@@ -1130,6 +1172,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.10000000149011612",
+                              "y": "0.10000000149011612"
+                            }
                           }
                         }
                       }
@@ -1260,6 +1316,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.02500000037252903",
+                              "y": "0.02500000037252903"
+                            }
                           }
                         }
                       }
@@ -1396,6 +1466,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.0078125"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.03125",
+                              "y": "0.03125"
+                            }
                           }
                         }
                       }
@@ -1526,6 +1610,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.0078125"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.03125",
+                              "y": "0.03125"
+                            }
                           }
                         }
                       }
@@ -3144,6 +3242,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.34999999403953552",
+                              "y": "0.34999999403953552"
+                            }
                           }
                         }
                       }
@@ -3250,6 +3362,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.34999999403953552",
+                              "y": "0.34999999403953552"
+                            }
                           }
                         }
                       }
@@ -3356,6 +3482,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.34999999403953552",
+                              "y": "0.34999999403953552"
+                            }
                           }
                         }
                       }
@@ -3462,6 +3602,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.34999999403953552",
+                              "y": "0.34999999403953552"
+                            }
                           }
                         }
                       }
@@ -4310,6 +4464,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.071428574621677399"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.1428571492433548",
+                              "y": "0.1428571492433548"
+                            }
                           }
                         }
                       }
@@ -4416,6 +4584,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.071428574621677399"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.1428571492433548",
+                              "y": "0.1428571492433548"
+                            }
                           }
                         }
                       }
@@ -4528,6 +4710,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.10000000149011612"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.20000000298023224",
+                              "y": "0.20000000298023224"
+                            }
                           }
                         }
                       }
@@ -4634,6 +4830,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.10000000149011612"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.20000000298023224",
+                              "y": "0.20000000298023224"
+                            }
                           }
                         }
                       }
@@ -4746,6 +4956,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.083333335816860199"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.1666666716337204",
+                              "y": "0.1666666716337204"
+                            }
                           }
                         }
                       }
@@ -4852,6 +5076,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.083333335816860199"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.1666666716337204",
+                              "y": "0.1666666716337204"
+                            }
                           }
                         }
                       }
@@ -4964,6 +5202,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.1666666716337204"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.3333333432674408",
+                              "y": "0.3333333432674408"
+                            }
                           }
                         }
                       }
@@ -5076,6 +5328,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.083333335816860199"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.1666666716337204",
+                              "y": "0.1666666716337204"
+                            }
                           }
                         }
                       }
@@ -5182,6 +5448,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.083333335816860199"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.1666666716337204",
+                              "y": "0.1666666716337204"
+                            }
                           }
                         }
                       }
@@ -5318,6 +5598,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.125"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.25",
+                              "y": "0.25"
+                            }
                           }
                         }
                       }
@@ -5448,6 +5742,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.125"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.25",
+                              "y": "0.25"
+                            }
                           }
                         }
                       }
@@ -5584,6 +5892,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.125"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.25",
+                              "y": "0.25"
+                            }
                           }
                         }
                       }
@@ -5714,6 +6036,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.125"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.25",
+                              "y": "0.25"
+                            }
                           }
                         }
                       }
@@ -5844,6 +6180,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.125"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.25",
+                              "y": "0.25"
+                            }
                           }
                         }
                       }
@@ -5974,6 +6324,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.125"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.25",
+                              "y": "0.25"
+                            }
                           }
                         }
                       }
@@ -6086,6 +6450,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.10000000149011612"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.20000000298023224",
+                              "y": "0.20000000298023224"
+                            }
                           }
                         }
                       }
@@ -6192,6 +6570,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.10000000149011612"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.20000000298023224",
+                              "y": "0.20000000298023224"
+                            }
                           }
                         }
                       }
@@ -6328,6 +6720,20 @@
                           "Smoothness": {
                             "kind": "Field_float",
                             "value": "0"
+                          },
+                          "TextureOffset": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0",
+                              "y": "0.1666666716337204"
+                            }
+                          },
+                          "TextureScale": {
+                            "kind": "Field_float2",
+                            "value": {
+                              "x": "0.3333333432674408",
+                              "y": "0.3333333432674408"
+                            }
                           }
                         }
                       }
