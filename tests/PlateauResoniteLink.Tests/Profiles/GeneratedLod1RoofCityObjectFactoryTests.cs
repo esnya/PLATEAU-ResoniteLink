@@ -68,6 +68,33 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
         Assert.True(resoniteSideNormal.Z < -0.9);
     }
 
+    [Fact]
+    public void CreateReplacesRoofOnlyLod1NoWallBuildingWithThinRoofSlab()
+    {
+        TexturePayload texture = CreateTexturePayload("textures/no-wall-lod1-roof-only.png");
+        ParsedCityObject cityObject = CreateCityObject(
+            [
+                CreateSurface(
+                    "lod1-roof-only",
+                    ParsedSurfaceSemantic.Roof,
+                    CreateClosedQuadVertices(altitude: 10.0, longitudeOffset: 0.0, longitudeWidth: 0.00020),
+                    CreateClosedQuadUvs(),
+                    texture),
+            ],
+            CoordinateReferenceSystem.Parse("EPSG:6697"),
+            BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
+            lodLevel: 1);
+
+        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+
+        Assert.NotSame(cityObject, generated);
+        Assert.Equal(6, generated.Surfaces.Length);
+        ParsedSurface generatedTop = Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod1-roof-only");
+        Assert.Same(texture, generatedTop.TexturePayload);
+        Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod1-roof-only_generated_no-wall-bottom");
+        Assert.Equal(4, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_no-wall-side-", System.StringComparison.Ordinal)));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

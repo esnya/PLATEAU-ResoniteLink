@@ -198,22 +198,41 @@ internal static class GeneratedLod1RoofCityObjectFactory
             return false;
         }
 
-        double objectMinimumY = surfaceInfos.Min(static info => info.MinimumY!.Value);
         double objectMaximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
-        topSurfaces = surfaceInfos
+        SurfaceProjectionInfo[] topSurfaceInfos = surfaceInfos
             .Where(static info => info.IsNearHorizontal)
             .Where(info => info.MaximumY!.Value >= objectMaximumY - 0.1)
-            .Where(info => info.MinimumY!.Value > objectMinimumY + BuildingBottomCullBandMeters)
-            .Where(info => info.MinimumY!.Value - NoWallRoofThicknessMeters > objectMinimumY + BuildingBottomCullBandMeters)
-            .Select(static info => info.Surface)
             .ToArray();
-        if (topSurfaces.Length == 0
-            || topSurfaces.Any(static surface => surface.InteriorRings.Length != 0))
+        if (topSurfaceInfos.Length == 0
+            || topSurfaceInfos.Any(static info => info.Surface.InteriorRings.Length != 0))
         {
             topSurfaces = null;
             return false;
         }
 
+        HashSet<string> topSurfaceIds = topSurfaceInfos
+            .Select(static info => info.Surface.PolygonId)
+            .ToHashSet(StringComparer.Ordinal);
+        SurfaceProjectionInfo[] lowerSurfaceInfos = surfaceInfos
+            .Where(info => !topSurfaceIds.Contains(info.Surface.PolygonId))
+            .ToArray();
+        if (lowerSurfaceInfos.Length != 0)
+        {
+            double objectMinimumY = lowerSurfaceInfos.Min(static info => info.MinimumY!.Value);
+            topSurfaceInfos = topSurfaceInfos
+                .Where(info => info.MinimumY!.Value > objectMinimumY + BuildingBottomCullBandMeters)
+                .Where(info => info.MinimumY!.Value - NoWallRoofThicknessMeters > objectMinimumY + BuildingBottomCullBandMeters)
+                .ToArray();
+            if (topSurfaceInfos.Length == 0)
+            {
+                topSurfaces = null;
+                return false;
+            }
+        }
+
+        topSurfaces = topSurfaceInfos
+            .Select(static info => info.Surface)
+            .ToArray();
         return true;
     }
 
