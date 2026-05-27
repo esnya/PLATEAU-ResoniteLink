@@ -69,11 +69,9 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     }
 
     [Theory]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    public void CreateOrientsNoWallTopSurfaceForResoniteOutput(int lodLevel, bool reverseSourceRing)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CreateOrientsLod1NoWallTopSurfaceForResoniteOutput(bool reverseSourceRing)
     {
         TexturePayload texture = CreateTexturePayload("textures/no-wall-top.png");
         GeodeticPoint[] vertices = CreateClosedQuadVertices(altitude: 10.0, longitudeOffset: 0.0, longitudeWidth: 0.00020);
@@ -98,13 +96,52 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             ],
             CoordinateReferenceSystem.Parse("EPSG:6697"),
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
-            lodLevel);
+            lodLevel: 1);
 
         ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
 
         ParsedSurface generatedTop = Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod1-top");
         Assert.Same(texture, generatedTop.TexturePayload);
         Assert.True(ComputeResoniteNormal(generatedTop).Y > 0.9);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CreatePreservesLod2NoWallTopSurfaceWinding(bool reverseSourceRing)
+    {
+        TexturePayload texture = CreateTexturePayload("textures/no-wall-top.png");
+        GeodeticPoint[] vertices = CreateClosedQuadVertices(altitude: 10.0, longitudeOffset: 0.0, longitudeWidth: 0.00020);
+        Float2[] uvs = CreateClosedQuadUvs();
+        if (reverseSourceRing)
+        {
+            vertices = ReverseClosedRing(vertices);
+            uvs = ReverseClosedUvs(uvs);
+        }
+
+        ParsedSurface top = CreateSurface(
+            "lod2-top",
+            ParsedSurfaceSemantic.Roof,
+            vertices,
+            uvs,
+            texture);
+        ParsedCityObject cityObject = CreateCityObject(
+            [
+                top,
+                CreateSurface("lod2-bottom", ParsedSurfaceSemantic.Ground, altitude: 0.0),
+                CreateSurface("lod2-wall", ParsedSurfaceSemantic.Wall, altitude: 4.0),
+            ],
+            CoordinateReferenceSystem.Parse("EPSG:6697"),
+            BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
+            lodLevel: 2);
+
+        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+
+        ParsedSurface generatedTop = Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-top");
+        Assert.Same(top, generatedTop);
+        Assert.Equal(vertices, generatedTop.ExteriorRing.Vertices);
+        Assert.Equal(uvs, generatedTop.ExteriorRing.UVs);
+        Assert.Same(texture, generatedTop.TexturePayload);
     }
 
     [Fact]
@@ -217,8 +254,8 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
 
         ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
 
-        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof-a");
-        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof-b");
+        Assert.Same(roofA, Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof-a"));
+        Assert.Same(roofB, Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof-b"));
         Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Wall);
         Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Ground);
         Assert.Equal(10, generated.Surfaces.Length);

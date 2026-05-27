@@ -118,7 +118,10 @@ internal static class GeneratedLod1RoofCityObjectFactory
             ParsedSurface[] lod1RoofSurfaces = topSurfaces!
                 .Select(static surface => surface with { Semantic = ParsedSurfaceSemantic.Roof })
                 .ToArray();
-            if (!TryCreateNoWallRoofSurfaces(lod1RoofSurfaces, includeTopSurfaces: true, out ParsedSurface[]? generatedSurfaces))
+            if (!TryCreateNoWallRoofSurfaces(
+                lod1RoofSurfaces,
+                topSurfaceMode: NoWallRoofTopSurfaceMode.Generated,
+                out ParsedSurface[]? generatedSurfaces))
             {
                 return false;
             }
@@ -163,7 +166,10 @@ internal static class GeneratedLod1RoofCityObjectFactory
             }
         }
 
-        if (!TryCreateNoWallRoofSurfaces(roofSurfaces, includeTopSurfaces: true, out ParsedSurface[]? generatedLod2Surfaces))
+        if (!TryCreateNoWallRoofSurfaces(
+            roofSurfaces,
+            topSurfaceMode: NoWallRoofTopSurfaceMode.PreserveSource,
+            out ParsedSurface[]? generatedLod2Surfaces))
         {
             return false;
         }
@@ -231,7 +237,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
 
     private static bool TryCreateNoWallRoofSurfaces(
         IReadOnlyList<ParsedSurface> roofSurfaces,
-        bool includeTopSurfaces,
+        NoWallRoofTopSurfaceMode topSurfaceMode,
         out ParsedSurface[]? generatedSurfaces)
     {
         generatedSurfaces = null;
@@ -253,9 +259,12 @@ internal static class GeneratedLod1RoofCityObjectFactory
             }
         }
 
-        List<ParsedSurface> surfaces = includeTopSurfaces
-            ? [.. roofSurfaces.Select(surface => CreateNoWallTopSurface(surface, ringsByPolygonId[surface.PolygonId]))]
-            : [];
+        List<ParsedSurface> surfaces = topSurfaceMode switch
+        {
+            NoWallRoofTopSurfaceMode.Generated => [.. roofSurfaces.Select(surface => CreateNoWallTopSurface(surface, ringsByPolygonId[surface.PolygonId]))],
+            NoWallRoofTopSurfaceMode.PreserveSource => [.. roofSurfaces],
+            _ => [],
+        };
         foreach (ParsedSurface roofSurface in roofSurfaces)
         {
             NoWallRoofRing ring = ringsByPolygonId[roofSurface.PolygonId];
@@ -430,9 +439,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
         ParsedCityObject cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian cityObjectCartesian,
-        out Lod1RoofFootprint? footprint,
-        bool allowTexturedTop = false,
-        double? requiredBottomClearanceMeters = null)
+        out Lod1RoofFootprint? footprint)
     {
         footprint = null;
         SurfaceProjectionInfo[] surfaceInfos = cityObject.Surfaces
@@ -457,14 +464,8 @@ internal static class GeneratedLod1RoofCityObjectFactory
             return false;
         }
 
-        if (requiredBottomClearanceMeters.HasValue
-            && topCandidates[0].MinimumY!.Value - requiredBottomClearanceMeters.Value <= objectMinimumY + BuildingBottomCullBandMeters)
-        {
-            return false;
-        }
-
         ParsedSurface topSurface = topCandidates[0].Surface;
-        if ((!allowTexturedTop && topSurface.TexturePayload is not null) || topSurface.InteriorRings.Length != 0)
+        if (topSurface.TexturePayload is not null || topSurface.InteriorRings.Length != 0)
         {
             return false;
         }
@@ -689,6 +690,12 @@ internal static class GeneratedLod1RoofCityObjectFactory
         GeodeticPoint[] TopRing,
         GeodeticPoint[] BottomRing,
         Float2[]? TopUvs);
+
+    private enum NoWallRoofTopSurfaceMode
+    {
+        Generated,
+        PreserveSource,
+    }
 
     private readonly record struct NoWallRoofEdgeKey(NoWallRoofPointKey A, NoWallRoofPointKey B)
     {

@@ -8,7 +8,7 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class TerrainOverlayProjectionSplitPolicyTests
 {
     [Fact]
-    public void SplitParsedCityObjectExcludesGeneratedNoWallSlabPartsFromTerrainRoofProjection()
+    public void SplitParsedCityObjectProjectsGeneratedNoWallSlabPartsWithTerrainRoofProjection()
     {
         MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("53394525")!;
         ParsedSurface top = CreateHorizontalSurface("roof", altitude: 10.0, meshBounds: meshBounds);
@@ -45,15 +45,15 @@ public sealed class TerrainOverlayProjectionSplitPolicyTests
             .SelectMany(static cityObject => cityObject.Surfaces)
             .Where(static surface => surface.UsesGeneratedDemTexture)
             .ToArray();
-        ParsedSurface generatedTop = Assert.Single(generatedTerrainSurfaces);
-        Assert.Equal("roof", generatedTop.PolygonId);
+        Assert.Equal(3, generatedTerrainSurfaces.Length);
+        Assert.Contains(generatedTerrainSurfaces, static surface => surface.PolygonId == "roof");
 
         ParsedSurface[] noWallSlabParts = regeneratedSplitObjects
             .SelectMany(static cityObject => cityObject.Surfaces)
             .Where(static surface => surface.PolygonId.Contains("_generated_no-wall-", System.StringComparison.Ordinal))
             .ToArray();
         Assert.Equal(2, noWallSlabParts.Length);
-        Assert.All(noWallSlabParts, static surface => Assert.False(surface.UsesGeneratedDemTexture));
+        Assert.All(noWallSlabParts, static surface => Assert.True(surface.UsesGeneratedDemTexture));
     }
 
     private static ParsedSurface CreateHorizontalSurface(string polygonId, double altitude, MeshCodeBounds meshBounds)
