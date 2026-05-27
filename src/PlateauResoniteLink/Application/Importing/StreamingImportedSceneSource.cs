@@ -366,7 +366,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         Task<ProjectionTerrainOverlaySet> overlaySetTask;
         lock (projectionTerrainOverlaySetGate)
         {
-            overlaySetTask = projectionTerrainOverlaySetTask ??= CreateProjectionTerrainOverlaySetAsync(cancellationToken);
+            overlaySetTask = projectionTerrainOverlaySetTask ??= CreateProjectionTerrainOverlaySetAsync(CancellationToken.None);
         }
 
         try
@@ -451,7 +451,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             demTextureSourcesTask = sceneDemTextureSourcesTask ??= demTextureSourcePolicy.ResolveAsync(
                 request,
                 overlayRegions,
-                cancellationToken);
+                CancellationToken.None);
         }
 
         try
@@ -487,7 +487,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         Task<DemTerrainOverlayRegion[]> overlayRegionsTask;
         lock (sceneDemOverlayRegionsGate)
         {
-            overlayRegionsTask = sceneDemOverlayRegionsTask ??= CreateSceneDemOverlayRegionsAsync(cancellationToken);
+            overlayRegionsTask = sceneDemOverlayRegionsTask ??= CreateSceneDemOverlayRegionsAsync(CancellationToken.None);
         }
 
         try
@@ -542,7 +542,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             parsedDemSourceFilesTask = sceneParsedDemSourceFilesTask ??= Task.WhenAll(
                 sourceFiles
                     .Where(static sourceFile => string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-                    .Select(sourceFile => sourceFile.GetParseTask().WaitAsync(cancellationToken)));
+                    .Select(static sourceFile => sourceFile.GetParseTask()));
         }
 
         try

@@ -629,7 +629,7 @@ public sealed class StreamingImportedSceneSourceTests
     }
 
     [Fact]
-    public async Task ReadCityObjectsAsyncCancelsWhileResolvingDemFallbackOverlays()
+    public async Task ReadCityObjectsAsyncCancelsWaitingForSharedDemFallbackOverlayResolutionWithoutPoisoningCache()
     {
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
@@ -639,7 +639,8 @@ public sealed class StreamingImportedSceneSourceTests
             PackageNames: ["dem"]);
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false);
-        StubDemTextureSourcePolicy demTextureSourcePolicy = new(delayOverlayResolutionUntilCancellation: true);
+        TaskCompletionSource releaseOverlayResolution = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(delayOverlayResolutionUntil: releaseOverlayResolution.Task);
         StreamingImportedSceneSource source = new(
             CreateMetadata(request),
             request,
@@ -667,6 +668,12 @@ public sealed class StreamingImportedSceneSourceTests
         await cancellationTokenSource.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => readTask);
+        Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
+
+        releaseOverlayResolution.SetResult();
+        List<ImportedCityObject> cityObjects = await source.ReadCityObjectsAsync().ToListAsync();
+
+        Assert.Single(cityObjects);
         Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
     }
 
@@ -1000,20 +1007,20 @@ public sealed class StreamingImportedSceneSourceTests
     private sealed class StubDemTextureSourcePolicy : IDemTextureSourcePolicy
     {
         private readonly TerrainTextureOverlay[] fallbackOverlays;
-        private readonly bool delayOverlayResolutionUntilCancellation;
+        private readonly Task? delayOverlayResolutionUntil;
 
         public StubDemTextureSourcePolicy(
             params TerrainTextureOverlay[] fallbackOverlays)
-            : this(false, fallbackOverlays)
+            : this(null, fallbackOverlays)
         {
         }
 
         public StubDemTextureSourcePolicy(
-            bool delayOverlayResolutionUntilCancellation,
+            Task? delayOverlayResolutionUntil,
             params TerrainTextureOverlay[] fallbackOverlays)
         {
             this.fallbackOverlays = fallbackOverlays;
-            this.delayOverlayResolutionUntilCancellation = delayOverlayResolutionUntilCancellation;
+            this.delayOverlayResolutionUntil = delayOverlayResolutionUntil;
         }
 
         public IReadOnlyList<string>? LastOverlayRegionIdentities { get; private set; }
@@ -1047,9 +1054,9 @@ public sealed class StreamingImportedSceneSourceTests
         private async Task<ResolvedDemTextureSources> ResolveOverlayRegionsCoreAsync(
             CancellationToken cancellationToken)
         {
-            if (delayOverlayResolutionUntilCancellation)
+            if (delayOverlayResolutionUntil is not null)
             {
-                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                await delayOverlayResolutionUntil.WaitAsync(cancellationToken);
             }
 
             return new ResolvedDemTextureSources(fallbackOverlays);
