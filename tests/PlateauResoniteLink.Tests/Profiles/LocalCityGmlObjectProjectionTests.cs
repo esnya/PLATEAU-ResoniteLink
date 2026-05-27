@@ -3569,7 +3569,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         GeographicLib.LocalCartesian cartesian)
     {
         return CityGmlSurfaceMaterialResolver.CreateSharedCommonMaterialBindings(
-            cityObject,
+            ConstructionCityObjectDraft.FromParsedCityObject(cityObject),
             cityObjectOrigin,
             cartesian,
             demTerrainTextureOverlay: null,

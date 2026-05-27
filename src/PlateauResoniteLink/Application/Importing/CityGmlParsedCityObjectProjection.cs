@@ -230,11 +230,12 @@ internal static class CityGmlParsedCityObjectProjection
                     cityObjectOrigin.Altitude,
                     splitCityObject.CityObject.ReferenceSystem.Geocentric)
                 : null;
+            ConstructionCityObjectDraft draft = ConstructionCityObjectDraft.FromParsedCityObject(splitCityObject.CityObject);
 
             foreach (MaterialBinding material in request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic
                          && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                             ? CityGmlSurfaceMaterialResolver.CreateDemTerrainGridMaterials(
-                                splitCityObject.CityObject,
+                                draft,
                                 cityObjectOrigin,
                                 cityObjectCartesian,
                                 splitCityObject.Overlay,
@@ -242,7 +243,7 @@ internal static class CityGmlParsedCityObjectProjection
                                 requestedMeshCodeBounds,
                                 materialResolver)
                             : CityGmlSurfaceMaterialResolver.CreateSharedCommonMaterialBindings(
-                                splitCityObject.CityObject,
+                                draft,
                                 cityObjectOrigin,
                                 cityObjectCartesian,
                                 splitCityObject.Overlay,

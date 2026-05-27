@@ -28,7 +28,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             SharedAcrossMeshCodes: false);
 
         ResolvedSurfaceMaterial? representativeSurface = CityGmlSurfaceMaterialResolver.EnumerateSurfaces(
-                cityObject,
+                ConstructionCityObjectDraft.FromParsedCityObject(cityObject),
                 cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
                 cityObjectCartesian: null,
                 demTerrainTextureOverlay: CreateOverlay("53394525"),
@@ -53,7 +53,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
                 TextureScale: null,
                 MaterialReuseScope.Shared,
                 TerrainOverlay: CreateOverlay("53394525")),
-            DepthOffset: null);
+            depthOffset: null);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
             () => CityGmlSurfaceMaterialResolver.CreateMaterialBinding(
@@ -76,7 +76,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
         DefaultMaterialResolver materialResolver = new(CommonMaterialCatalog.Create());
 
         ResolvedSurfaceMaterial resolvedSurface = Assert.Single(CityGmlSurfaceMaterialResolver.ResolveSurfaces(
-            cityObject,
+            ConstructionCityObjectDraft.FromParsedCityObject(cityObject),
             cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
             cityObjectCartesian: null,
             demTerrainTextureOverlay: null,
@@ -95,7 +95,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
         DefaultMaterialResolver materialResolver = new(CommonMaterialCatalog.Create());
 
         ResolvedSurfaceMaterial resolvedSurface = Assert.Single(CityGmlSurfaceMaterialResolver.ResolveSurfaces(
-            cityObject,
+            ConstructionCityObjectDraft.FromParsedCityObject(cityObject),
             cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
             cityObjectCartesian: null,
             demTerrainTextureOverlay: null,
@@ -144,11 +144,12 @@ public sealed class CityGmlSurfaceMaterialResolverTests
 
     private static ParsedSurface CreateSurface(string polygonId, ParsedSurfaceSemantic semantic)
     {
-        return CreateSurface() with
+        ParsedSurface surface = CreateSurface();
+        return surface with
         {
             PolygonId = polygonId,
             Semantic = semantic,
-            ExteriorRing = CreateSurface().ExteriorRing with { RingId = $"{polygonId}-ring" },
+            ExteriorRing = surface.ExteriorRing with { RingId = $"{polygonId}-ring" },
         };
     }
 

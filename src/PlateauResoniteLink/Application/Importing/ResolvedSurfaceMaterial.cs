@@ -8,8 +8,8 @@ internal sealed record ResolvedSurfaceMaterial(
     public ResolvedSurfaceMaterial(
         ParsedSurface surface,
         ResolvedMaterial material,
-        MaterialDepthOffset? DepthOffset)
-        : this(new ConstructionFace(surface, ConstructionCityObjectDraft.ResolveRole(surface)), material, DepthOffset)
+        MaterialDepthOffset? depthOffset)
+        : this(new ConstructionFace(surface, ConstructionCityObjectDraft.ResolveRole(surface)), material, depthOffset)
     {
     }
 

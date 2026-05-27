@@ -22,7 +22,8 @@ internal sealed record ConstructionFace(
 
 internal sealed record ConstructionCityObjectDraft(
     ParsedCityObject Source,
-    ConstructionFace[] Faces)
+    ConstructionFace[] Faces,
+    ParsedSurface[] Surfaces)
 {
     public string SlotKey => Source.SlotKey;
 
@@ -50,17 +51,17 @@ internal sealed record ConstructionCityObjectDraft(
 
     public double? GeometryHeightMeters => Source.GeometryHeightMeters;
 
-    public ParsedSurface[] Surfaces => Faces.Select(static face => face.Surface).ToArray();
-
     public static ConstructionCityObjectDraft FromParsedCityObject(ParsedCityObject cityObject)
     {
         ArgumentNullException.ThrowIfNull(cityObject);
 
+        ConstructionFace[] faces = cityObject.Surfaces
+            .Select(static surface => new ConstructionFace(surface, ResolveRole(surface)))
+            .ToArray();
         return new ConstructionCityObjectDraft(
             cityObject,
-            cityObject.Surfaces
-                .Select(static surface => new ConstructionFace(surface, ResolveRole(surface)))
-                .ToArray());
+            faces,
+            cityObject.Surfaces);
     }
 
     internal static ConstructionFaceRole ResolveRole(ParsedSurface surface)

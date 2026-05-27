@@ -54,6 +54,8 @@ public sealed class TerrainOverlayProjectionSplitPolicyTests
             .ToArray();
         Assert.Equal(2, noWallSlabParts.Length);
         Assert.All(noWallSlabParts, static surface => Assert.True(surface.UsesGeneratedDemTexture));
+        ParsedSurface noWallSide = Assert.Single(noWallSlabParts, static surface => surface.PolygonId == "roof_generated_no-wall-side-0");
+        Assert.Equal(ParsedSurfaceSemantic.Wall, noWallSide.Semantic);
     }
 
     private static ParsedSurface CreateHorizontalSurface(string polygonId, double altitude, MeshCodeBounds meshBounds)
@@ -80,7 +82,7 @@ public sealed class TerrainOverlayProjectionSplitPolicyTests
     {
         return new ParsedSurface(
             polygonId,
-            ParsedSurfaceSemantic.Roof,
+            ParsedSurfaceSemantic.Wall,
             new ParsedRing(
                 $"{polygonId}-ring",
                 [
