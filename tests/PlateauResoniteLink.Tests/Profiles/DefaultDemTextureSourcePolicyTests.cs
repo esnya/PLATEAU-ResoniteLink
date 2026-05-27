@@ -45,9 +45,9 @@ public sealed class DefaultDemTextureSourcePolicyTests
         TerrainTextureTileSource secondSource = Assert.IsType<TerrainTextureTileSource>(overlay.Sources[1]);
         Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, secondSource.UrlTemplate);
         Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, secondSource.ZoomLevel);
-        Assert.IsType<TerrainTextureTileSource>(overlay.Sources[2]);
+        Assert.Contains(overlay.Sources, IsGsiFallbackSource);
         Assert.Same(rasterSource, overlay.Sources[^1]);
-        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoOnly, overlay.LicenseMode);
+        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
     }
 
     [Fact]
@@ -84,7 +84,8 @@ public sealed class DefaultDemTextureSourcePolicyTests
             source => Assert.IsType<TerrainTextureTileSource>(source),
             source => Assert.IsType<TerrainTextureTileSource>(source),
             source => Assert.IsType<TerrainTextureTileSource>(source));
-        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoOnly, overlay.LicenseMode);
+        Assert.Contains(overlay.Sources, IsGsiFallbackSource);
+        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
     }
 
     [Fact]
@@ -255,6 +256,15 @@ public sealed class DefaultDemTextureSourcePolicyTests
     private static IReadOnlyList<DemTerrainOverlayRegion> CreateOverlayRegions(params string[] meshCodes)
     {
         return DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(meshCodes);
+    }
+
+    private static bool IsGsiFallbackSource(TerrainTextureSource source)
+    {
+        return source is TerrainTextureTileSource tileSource
+            && string.Equals(
+                tileSource.UrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                StringComparison.Ordinal);
     }
 
     private static (double PixelWidthMeters, double PixelHeightMeters) EstimateTilePixelSizeMeters(

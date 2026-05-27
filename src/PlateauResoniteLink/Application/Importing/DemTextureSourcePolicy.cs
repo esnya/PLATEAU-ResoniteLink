@@ -187,7 +187,6 @@ internal sealed class DefaultDemTextureSourcePolicy(
                     DemTerrainTextureDefaults.FallbackZoomLevel)),
         ];
 
-        TerrainTextureLicenseMode licenseMode = TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback;
         if (rasterCatalog is not null)
         {
             TerrainTextureGeoReferencedRasterSource? rasterSource = await rasterCatalog.TryResolveRasterSourceAsync(
@@ -201,16 +200,16 @@ internal sealed class DefaultDemTextureSourcePolicy(
                     DemTextureSourcePreference.GeoReferencedRaster,
                     rasterSource,
                     EffectivePixelAreaSquareMeters: metadata.PixelWidthMeters * metadata.PixelHeightMeters));
-                licenseMode = TerrainTextureLicenseMode.PlateauOrthoOnly;
             }
         }
 
+        TerrainTextureSource[] sources = OrderSources(candidates);
         return new TerrainTextureOverlay(
             PackageName: "dem",
             GeographicBounds: region.GeographicBounds,
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize,
-            Sources: OrderSources(candidates),
-            LicenseMode: licenseMode);
+            Sources: sources,
+            LicenseMode: ResolveLicenseMode(sources));
     }
 
     private static TerrainTextureOverlay CreateFallbackOverlay(DemTerrainOverlayRegion region)
@@ -243,6 +242,22 @@ internal sealed class DefaultDemTextureSourcePolicy(
             .ThenBy(static candidate => (int)candidate.Preference)
             .Select(static candidate => candidate.TerrainTextureSource)
             .ToArray();
+    }
+
+    private static TerrainTextureLicenseMode ResolveLicenseMode(IEnumerable<TerrainTextureSource> sources)
+    {
+        return sources.Any(IsGsiFallbackSource)
+            ? TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback
+            : TerrainTextureLicenseMode.PlateauOrthoOnly;
+    }
+
+    private static bool IsGsiFallbackSource(TerrainTextureSource source)
+    {
+        return source is TerrainTextureTileSource tileSource
+            && string.Equals(
+                tileSource.UrlTemplate,
+                DemTerrainTextureDefaults.GsiFallbackUrlTemplate,
+                StringComparison.Ordinal);
     }
 
     private static double DegreesLatitudeToMeters(double degrees)
