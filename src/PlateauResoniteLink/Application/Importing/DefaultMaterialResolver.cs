@@ -1,9 +1,5 @@
 using System;
-using System.Buffers.Binary;
 using System.Linq;
-
-using System.Security.Cryptography;
-using System.Text;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -373,11 +369,11 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
 
     private static bool IsWeightedAlternate(string variantSelectionKey)
     {
-        return SelectStableBucket($"{variantSelectionKey}:residential-wall-weight", 5) == 0;
+        return StableVariantSelector.SelectBucket($"{variantSelectionKey}:residential-wall-weight", 5) == 0;
     }
 
     private static DefaultCommonMaterialMember SelectCityFurnitureMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 6) switch
+        StableVariantSelector.SelectBucket(key, 6) switch
         {
             0 => commonMaterials.CityFurniture.Plaster002,
             1 => commonMaterials.CityFurniture.Plaster001,
@@ -388,7 +384,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectFacadeHighriseGlassMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 3) switch
+        StableVariantSelector.SelectBucket(key, 3) switch
         {
             0 => commonMaterials.FacadeHighriseGlass.Facade001,
             1 => commonMaterials.FacadeHighriseGlass.Facade005,
@@ -396,17 +392,17 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectFacadeHighriseNightLowMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.FacadeHighriseNightLow.Facade002
             : commonMaterials.FacadeHighriseNightLow.Facade011;
 
     private static DefaultCommonMaterialMember SelectFacadeMidriseGridMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.FacadeMidriseGrid.Facade014
             : commonMaterials.FacadeMidriseGrid.Facade015;
 
     private static DefaultCommonMaterialMember SelectOtherMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 9) switch
+        StableVariantSelector.SelectBucket(key, 9) switch
         {
             0 => commonMaterials.Other.Concrete012,
             1 => commonMaterials.Other.Ground054,
@@ -420,7 +416,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectRoadTriplanarMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 4) switch
+        StableVariantSelector.SelectBucket(key, 4) switch
         {
             0 => commonMaterials.RoadTriplanar.Road012A,
             1 => commonMaterials.RoadTriplanar.Road013A,
@@ -429,7 +425,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectRoadUvMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 4) switch
+        StableVariantSelector.SelectBucket(key, 4) switch
         {
             0 => commonMaterials.RoadUv.Road012A,
             1 => commonMaterials.RoadUv.Road013A,
@@ -438,7 +434,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectRoofMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 4) switch
+        StableVariantSelector.SelectBucket(key, 4) switch
         {
             0 => commonMaterials.Roof.Concrete012,
             1 => commonMaterials.Roof.Concrete033,
@@ -447,37 +443,37 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectVegetationMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.Vegetation.Ground054
             : commonMaterials.Vegetation.Concrete012;
 
     private static DefaultCommonMaterialMember SelectWallApartmentTileMidMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallApartmentTileMid.ApartmentTileMid
             : commonMaterials.WallApartmentTileMid.ApartmentTileDark;
 
     private static DefaultCommonMaterialMember SelectWallBrickRetroMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallBrickRetro.BrickRetro
             : commonMaterials.WallBrickRetro.BrickDark;
 
     private static DefaultCommonMaterialMember SelectWallCommercialPanelMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallCommercialPanel.CommercialPanel
             : commonMaterials.WallCommercialPanel.CommercialPanelDark;
 
     private static DefaultCommonMaterialMember SelectWallRcPaintedMidMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallRcPaintedMid.RcPaintedMid
             : commonMaterials.WallRcPaintedMid.RcPaintedDark;
 
     private static DefaultCommonMaterialMember SelectWallResidentialPlasterLowMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallResidentialPlasterLow.ResidentialPlasterLow
             : commonMaterials.WallResidentialPlasterLow.ResidentialPlasterDark;
 
     private static DefaultCommonMaterialMember SelectWallResidentialTileLowMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 4) switch
+        StableVariantSelector.SelectBucket(key, 4) switch
         {
             0 => commonMaterials.WallResidentialTileLow.ResidentialTileLow,
             1 => commonMaterials.WallResidentialTileLow.ResidentialTileDark,
@@ -486,17 +482,9 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectWallSchoolPublicBandMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallSchoolPublicBand.SchoolPublicBand
             : commonMaterials.WallSchoolPublicBand.SchoolPublicDark;
-
-    private static int SelectStableBucket(string variantSelectionKey, int bucketCount)
-    {
-        byte[] keyBytes = Encoding.UTF8.GetBytes(variantSelectionKey);
-        byte[] hashBytes = SHA256.HashData(keyBytes);
-        int hashCode = BinaryPrimitives.ReadInt32LittleEndian(hashBytes) & int.MaxValue;
-        return hashCode % bucketCount;
-    }
 
     private static Float2 ToContractFloat2(Domain.Importing.ScalarPair value) => new(value.X, value.Y);
 }

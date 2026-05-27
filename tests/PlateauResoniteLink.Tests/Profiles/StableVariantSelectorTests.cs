@@ -1,0 +1,23 @@
+using System;
+
+using PlateauResoniteLink.Application.Importing;
+
+namespace PlateauResoniteLink.Tests.Profiles;
+
+public sealed class StableVariantSelectorTests
+{
+    [Fact]
+    public void SelectBucketIsStableForKnownKeys()
+    {
+        Assert.Equal(2, StableVariantSelector.SelectBucket("53394525:bldg:wall", 6));
+        Assert.Equal(2, StableVariantSelector.SelectBucket("53394525:bldg:roof", 4));
+        Assert.Equal(0, StableVariantSelector.SelectBucket("53394525:other", 9));
+    }
+
+    [Fact]
+    public void SelectBucketRejectsInvalidBucketCount()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => StableVariantSelector.SelectBucket("53394525:bldg:wall", 0));
+    }
+}
