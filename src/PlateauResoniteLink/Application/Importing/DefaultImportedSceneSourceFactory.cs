@@ -17,6 +17,8 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
         IImportedSceneSourceComposer constructionComposer,
         IImportedObjectUnitOptimizer objectUnitOptimizer)
     {
+        ArgumentNullException.ThrowIfNull(documentReader);
+        ArgumentNullException.ThrowIfNull(constructionComposer);
         ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
         this.documentReader = documentReader;
         this.constructionComposer = constructionComposer;

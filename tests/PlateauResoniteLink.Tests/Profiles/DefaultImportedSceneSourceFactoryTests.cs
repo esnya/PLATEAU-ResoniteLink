@@ -13,6 +13,24 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class DefaultImportedSceneSourceFactoryTests
 {
     [Fact]
+    public void ConstructorRejectsNullDependencies()
+    {
+        RecordingDocumentReader reader = new();
+        RecordingComposer composer = new(new StubImportedSceneSource());
+        PassthroughImportedObjectUnitOptimizer optimizer = new();
+
+        Assert.Throws<ArgumentNullException>(
+            "documentReader",
+            () => new DefaultImportedSceneSourceFactory(null!, composer, optimizer));
+        Assert.Throws<ArgumentNullException>(
+            "constructionComposer",
+            () => new DefaultImportedSceneSourceFactory(reader, null!, optimizer));
+        Assert.Throws<ArgumentNullException>(
+            "objectUnitOptimizer",
+            () => new DefaultImportedSceneSourceFactory(reader, composer, null!));
+    }
+
+    [Fact]
     public async Task CreateAsyncUsesDocumentReaderAndComposer()
     {
         StubImportedSceneSource expectedSource = new();
