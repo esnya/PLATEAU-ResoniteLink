@@ -156,13 +156,32 @@ public sealed class StreamingImportedSceneSourceTests
             ]);
         OverlayRecordingGeometryProjector geometryProjector = new();
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(fallbackOverlay);
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        SourceFileDescriptor buildingSourceFile = new("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false);
+        SourceFileDescriptor demSourceFile = new("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false);
         StreamingImportedSceneSource source = new(
             CreateMetadata(request),
             request,
             CreateReadResult(
                 [
-                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false),
-                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
+                    new SourceFilePipeline(
+                        buildingSourceFile,
+                        () => Task.FromResult(
+                            new ParsedSourceFileResult(
+                                buildingSourceFile,
+                                [CreateParsedCityObject(0, buildingSourceFile, referenceSystem)],
+                                referenceSystem,
+                                [],
+                                TimeSpan.Zero))),
+                    new SourceFilePipeline(
+                        demSourceFile,
+                        () => Task.FromResult(
+                            new ParsedSourceFileResult(
+                                demSourceFile,
+                                [CreateParsedCityObjectInMesh53394525(demSourceFile, referenceSystem)],
+                                referenceSystem,
+                                [],
+                                TimeSpan.Zero))),
                 ],
                 selectedMeshCodes: ["53394525"]),
             geometryProjector,
@@ -183,7 +202,7 @@ public sealed class StreamingImportedSceneSourceTests
         Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
         Assert.Contains(
             demTextureSourcePolicy.OverlayRegionIdentityCalls,
-            static identities => identities.Count > 0);
+            static identities => identities.SequenceEqual(["53394525"]));
     }
 
     [Fact]
@@ -642,6 +661,40 @@ public sealed class StreamingImportedSceneSourceTests
             ActualMeshCode: sourceFile.MatchedMeshCode,
             LodLevel: 1,
             Surfaces: surfaces,
+            ReferenceSystem: referenceSystem,
+            SourceFileRelativePath: sourceFile.RelativePath,
+            SharedAcrossMeshCodes: false);
+    }
+
+    private static ParsedCityObject CreateParsedCityObjectInMesh53394525(
+        SourceFileDescriptor sourceFile,
+        CoordinateReferenceSystem referenceSystem)
+    {
+        return new ParsedCityObject(
+            SlotKey: "slot-53394525",
+            DisplayName: "slot-53394525",
+            PackageName: sourceFile.PackageName,
+            ActualMeshCode: sourceFile.MatchedMeshCode,
+            LodLevel: 1,
+            Surfaces:
+            [
+                new ParsedSurface(
+                    PolygonId: "dem-surface-53394525",
+                    Semantic: ParsedSurfaceSemantic.Ground,
+                    ExteriorRing: new ParsedRing(
+                        "dem-ring-53394525",
+                        [
+                            new GeodeticPoint(35.684, 139.688, 0.0),
+                            new GeodeticPoint(35.684, 139.689, 0.0),
+                            new GeodeticPoint(35.685, 139.689, 0.0),
+                            new GeodeticPoint(35.685, 139.688, 0.0),
+                        ],
+                        UVs: null),
+                    InteriorRings: [],
+                    BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+                    TexturePayload: null,
+                    UsesGeneratedDemTexture: true),
+            ],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
             SharedAcrossMeshCodes: false);

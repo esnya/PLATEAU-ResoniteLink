@@ -410,8 +410,10 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         ParsedSourceFileResult[] parsedDemSourceFiles = await GetSceneParsedDemSourceFilesAsync(cancellationToken);
         foreach (ParsedSourceFileResult parsedSourceFile in parsedDemSourceFiles)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (ParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (DemTerrainOverlayAssignment.HasOverlayCoverage(
                         parsedCityObject,
                         overlays,
