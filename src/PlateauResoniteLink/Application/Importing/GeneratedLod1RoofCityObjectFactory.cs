@@ -31,10 +31,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
             return cityObject;
         }
 
-        if (isNoWallBuilding
-            && (cityObject.Surfaces.Any(static surface => surface.UsesGeneratedDemTexture)
-                || !cityObject.Surfaces.Any(static surface => surface.Vertices.Any())
-                || (cityObject.LodLevel >= 2 && !cityObject.Surfaces.Any(static surface => surface.Semantic == ParsedSurfaceSemantic.Roof))))
+        if (isNoWallBuilding && !HasProcessableNoWallGeometry(cityObject))
         {
             return cityObject;
         }
@@ -95,6 +92,18 @@ internal static class GeneratedLod1RoofCityObjectFactory
         return cityObject.LodLevel >= 1
             && cityObject.BuildingAttributes is not null
             && NoWallBuildingClassCodes.Any(code => BuildingAttributePredicates.HasExactCityGmlClassCode(cityObject.BuildingAttributes, code));
+    }
+
+    private static bool HasProcessableNoWallGeometry(ParsedCityObject cityObject)
+    {
+        if (cityObject.Surfaces.Any(static surface => surface.UsesGeneratedDemTexture)
+            || !cityObject.Surfaces.Any(static surface => surface.Vertices.Any()))
+        {
+            return false;
+        }
+
+        return cityObject.LodLevel < 2
+            || cityObject.Surfaces.Any(static surface => surface.Semantic == ParsedSurfaceSemantic.Roof);
     }
 
     private static bool TryCreateNoWallRoofSlab(
@@ -183,21 +192,11 @@ internal static class GeneratedLod1RoofCityObjectFactory
         IReadOnlyList<SurfaceProjectionInfo> surfaceInfos)
     {
         double roofMinimumY = roofInfo.MinimumY!.Value;
-        SurfaceProjectionInfo[] lowerNonRoofInfos = surfaceInfos
+        double slabBottomY = roofMinimumY - NoWallRoofThicknessMeters;
+        return surfaceInfos
             .Where(static info => info.Surface.Semantic != ParsedSurfaceSemantic.Roof)
             .Where(info => info.MinimumY!.Value < roofMinimumY)
-            .ToArray();
-        if (lowerNonRoofInfos.Length == 0)
-        {
-            return false;
-        }
-
-        double nearestLowerY = lowerNonRoofInfos
-            .Where(info => info.MaximumY!.Value < roofMinimumY)
-            .Select(static info => info.MaximumY!.Value)
-            .DefaultIfEmpty(double.NegativeInfinity)
-            .Max();
-        return roofMinimumY - NoWallRoofThicknessMeters <= nearestLowerY + BuildingBottomCullBandMeters;
+            .Any(info => slabBottomY <= info.MaximumY!.Value + BuildingBottomCullBandMeters);
     }
 
     private static bool TryGetNoWallTopSurfaces(
@@ -312,7 +311,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
     {
         GeodeticPoint[] vertices = ring.TopRing;
         Float2[]? uvs = ring.TopUvs;
-        return CreateNoWallSurface(sourceSurface, sourceSurface.PolygonId, vertices, uvs, sourceSurface.UsesGeneratedDemTexture);
+        return CreateNoWallRoofSurface(sourceSurface, sourceSurface.PolygonId, vertices, uvs, sourceSurface.UsesGeneratedDemTexture);
     }
 
     private static ParsedSurface CreateNoWallBottomSurface(
@@ -322,7 +321,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
         GeodeticPoint[] vertices = ring.BottomRing.Reverse().ToArray();
         Float2[]? uvs = ring.TopUvs?.Reverse().ToArray();
         string polygonId = $"{topSurface.PolygonId}_generated_no-wall-bottom";
-        return CreateNoWallSurface(topSurface, polygonId, vertices, uvs, usesGeneratedDemTexture: false);
+        return CreateNoWallRoofSurface(topSurface, polygonId, vertices, uvs, usesGeneratedDemTexture: false);
     }
 
     private static ParsedSurface CreateNoWallSideSurface(
@@ -348,10 +347,10 @@ internal static class GeneratedLod1RoofCityObjectFactory
                 ring.TopUvs[nextIndex],
         ];
         string polygonId = $"{topSurface.PolygonId}_generated_no-wall-side-{index}";
-        return CreateNoWallSurface(topSurface, polygonId, vertices, uvs, usesGeneratedDemTexture: false);
+        return CreateNoWallRoofSurface(topSurface, polygonId, vertices, uvs, usesGeneratedDemTexture: false);
     }
 
-    private static ParsedSurface CreateNoWallSurface(
+    private static ParsedSurface CreateNoWallRoofSurface(
         ParsedSurface sourceSurface,
         string polygonId,
         GeodeticPoint[] vertices,

@@ -280,6 +280,7 @@ internal static class TerrainOverlayProjectionSplitPolicy
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
+        // Generated no-wall slab parts are extruded from the top roof surface, so terrain imagery follows the slab.
         return surface.TexturePayload is null
             && !surface.UsesGeneratedDemTexture
             && RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(
