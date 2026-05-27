@@ -253,9 +253,7 @@ public sealed class StreamingImportedSceneSourceTests
         Assert.Same(fallbackOverlay, geometryProjector.LastOverlayByPackage["bldg"]);
         Assert.Same(fallbackOverlay, geometryProjector.LastOverlayByPackage["dem"]);
         Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
-        Assert.Contains(
-            demTextureSourcePolicy.OverlayRegionIdentityCalls,
-            static identities => identities.SequenceEqual(["53394525"]));
+        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     [Fact]
