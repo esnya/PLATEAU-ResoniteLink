@@ -40,6 +40,21 @@ public sealed class BuildingAttributePredicatesTests
     }
 
     [Theory]
+    [InlineData("3003", "3003", true)]
+    [InlineData(" 3003 ", "3003", true)]
+    [InlineData("30030", "3003", false)]
+    [InlineData("300", "3003", false)]
+    public void HasExactCityGmlClassCodeUsesTrimmedExactMatch(string rawCode, string expectedCode, bool expected)
+    {
+        BuildingAttributeContext attributes = BuildingAttributeContext.Empty with
+        {
+            CityGmlClassCodes = [rawCode],
+        };
+
+        Assert.Equal(expected, BuildingAttributePredicates.HasExactCityGmlClassCode(attributes, expectedCode));
+    }
+
+    [Theory]
     [InlineData((int)PlateauBuildingUse.Apartment)]
     [InlineData((int)PlateauBuildingUse.MixedResidential)]
     public void HasNightOccupancyIncludesResidentialSharedOccupancyUses(int useValue)

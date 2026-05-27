@@ -61,6 +61,14 @@ internal static class BuildingAttributePredicates
             || attributes.CityGmlClassCodes.Any(candidate => IsSameBroadCode(candidate, code));
     }
 
+    public static bool HasExactCityGmlClassCode(BuildingAttributeContext attributes, string code)
+    {
+        ArgumentNullException.ThrowIfNull(attributes);
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+
+        return attributes.CityGmlClassCodes.Any(candidate => string.Equals(candidate.Trim(), code, StringComparison.Ordinal));
+    }
+
     private static bool HasRawBuildingCode(string code, PlateauBuildingUse use)
     {
         string broadCode = CreateBroadBuildingCode(code);

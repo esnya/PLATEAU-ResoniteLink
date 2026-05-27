@@ -55,6 +55,7 @@ internal static class CityGmlSurfaceProjectionPolicy
         double objectMaximumY = candidates.Max(static info => info.MaximumY!.Value);
 
         return candidates
+            .Where(static info => !info.IsGeneratedLod1RoofSurface)
             .Where(static info => info.IsNearHorizontal)
             .Where(info => info.MaximumY!.Value <= objectMinimumY + BuildingBottomCullBandMeters)
             .Where(info => objectMaximumY > info.MaximumY!.Value + BuildingBottomCullBandMeters)
@@ -163,7 +164,8 @@ internal static class CityGmlSurfaceProjectionPolicy
     {
         return polygonId.Contains("_generated_shed-", StringComparison.Ordinal)
             || polygonId.Contains("_generated_gable-", StringComparison.Ordinal)
-            || polygonId.Contains("_generated_hip-", StringComparison.Ordinal);
+            || polygonId.Contains("_generated_hip-", StringComparison.Ordinal)
+            || polygonId.Contains("_generated_no-wall-", StringComparison.Ordinal);
     }
 
     private static Float3? ComputePolygonNormal(IEnumerable<Float3> positions)

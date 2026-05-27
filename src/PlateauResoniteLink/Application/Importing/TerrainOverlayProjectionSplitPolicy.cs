@@ -282,6 +282,7 @@ internal static class TerrainOverlayProjectionSplitPolicy
     {
         return surface.TexturePayload is null
             && !surface.UsesGeneratedDemTexture
+            && !GeneratedLod1RoofSurfaceIdentity.IsGeneratedNoWallSlabPart(surface)
             && RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(
                 surface,
                 cityObjectMinAltitude,
