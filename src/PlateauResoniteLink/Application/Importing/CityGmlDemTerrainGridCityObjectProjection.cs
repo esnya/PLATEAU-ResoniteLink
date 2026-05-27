@@ -51,6 +51,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             return false;
         }
 
+        ConstructionCityObjectDraft draft = ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         Float3 slotPosition = CreateScenePosition(cityObjectOrigin, globalOriginPoint, globalCartesian);
         Float3[] positions = cityObject.Surfaces
             .SelectMany(static surface => surface.Vertices)
@@ -119,7 +120,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         double maxHeight = localHeights.Max();
 
         MaterialBinding[] materials = CityGmlSurfaceMaterialResolver.CreateDemTerrainGridMaterials(
-            cityObject,
+            draft,
             cityObjectOrigin,
             cityObjectCartesian,
             demTerrainTextureOverlay,
@@ -132,7 +133,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         }
 
         TextureUvRect? heightMapOccupiedUvRect = TryCreateDemTerrainGridOccupiedUvRect(
-            cityObject,
+            draft,
             cityObjectOrigin,
             cityObjectCartesian,
             demTerrainTextureOverlay,
@@ -175,7 +176,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
     }
 
     private static TextureUvRect? TryCreateDemTerrainGridOccupiedUvRect(
-        ParsedCityObject cityObject,
+        ConstructionCityObjectDraft cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
@@ -186,7 +187,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             return null;
         }
 
-        GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject, demTerrainTextureOverlay);
+        GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject.Source, demTerrainTextureOverlay);
         ResolvedSurfaceMaterial? representativeSurface = CityGmlSurfaceMaterialResolver.EnumerateSurfaces(
                 cityObject,
                 cityObjectOrigin,
@@ -200,7 +201,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         }
 
         TextureUvRect? occupiedUvRect = DemTerrainOverlayUvMapper.TryCreateTerrainGridOccupiedUvRect(
-            cityObject,
+            cityObject.Source,
             representativeSurface,
             demTerrainTextureOverlay,
             demObjectBounds);

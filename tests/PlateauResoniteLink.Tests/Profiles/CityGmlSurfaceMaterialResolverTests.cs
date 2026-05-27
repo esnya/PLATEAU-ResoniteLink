@@ -66,6 +66,45 @@ public sealed class CityGmlSurfaceMaterialResolverTests
         Assert.DoesNotContain("requested_mesh_code=", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void EnumerateSurfacesUsesConstructionRoleInsteadOfParsedSemanticForGeneratedNoWallSlabParts()
+    {
+        ParsedSurface generatedSide = CreateSurface(
+            "lod2-roof_generated_no-wall-side-0",
+            ParsedSurfaceSemantic.Wall);
+        ParsedCityObject cityObject = CreateBuildingCityObject([generatedSide]);
+        DefaultMaterialResolver materialResolver = new(CommonMaterialCatalog.Create());
+
+        ResolvedSurfaceMaterial resolvedSurface = Assert.Single(CityGmlSurfaceMaterialResolver.ResolveSurfaces(
+            cityObject,
+            cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
+            cityObjectCartesian: null,
+            demTerrainTextureOverlay: null,
+            materialResolver));
+
+        Assert.Equal(ConstructionFaceRole.RoofSlab, resolvedSurface.Role);
+        Assert.Equal(BundledDefaultMaterialFamilies.Roof, resolvedSurface.Material.Family);
+        Assert.DoesNotContain(BundledDefaultMaterialFamilies.BuildingFacadeFamilies, family => family == resolvedSurface.Material.Family);
+    }
+
+    [Fact]
+    public void EnumerateSurfacesMapsOrdinaryBuildingWallToFacadeConstructionRole()
+    {
+        ParsedSurface wall = CreateSurface("lod2-wall", ParsedSurfaceSemantic.Wall);
+        ParsedCityObject cityObject = CreateBuildingCityObject([wall]);
+        DefaultMaterialResolver materialResolver = new(CommonMaterialCatalog.Create());
+
+        ResolvedSurfaceMaterial resolvedSurface = Assert.Single(CityGmlSurfaceMaterialResolver.ResolveSurfaces(
+            cityObject,
+            cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
+            cityObjectCartesian: null,
+            demTerrainTextureOverlay: null,
+            materialResolver));
+
+        Assert.Equal(ConstructionFaceRole.Wall, resolvedSurface.Role);
+        Assert.Contains(BundledDefaultMaterialFamilies.BuildingFacadeFamilies, family => family == resolvedSurface.Material.Family);
+    }
+
     private static ParsedSurface CreateParsedSurface(string polygonId, bool usesGeneratedDemTexture)
     {
         return new ParsedSurface(
@@ -101,6 +140,30 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null);
+    }
+
+    private static ParsedSurface CreateSurface(string polygonId, ParsedSurfaceSemantic semantic)
+    {
+        return CreateSurface() with
+        {
+            PolygonId = polygonId,
+            Semantic = semantic,
+            ExteriorRing = CreateSurface().ExteriorRing with { RingId = $"{polygonId}-ring" },
+        };
+    }
+
+    private static ParsedCityObject CreateBuildingCityObject(ParsedSurface[] surfaces)
+    {
+        return new ParsedCityObject(
+            SlotKey: "bldg-object",
+            DisplayName: "bldg-object",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Surfaces: surfaces,
+            ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
+            SourceFileRelativePath: "udx/bldg/53394525/sample.gml",
+            SharedAcrossMeshCodes: false);
     }
 
     private static TerrainTextureOverlay CreateOverlay(string meshCode)

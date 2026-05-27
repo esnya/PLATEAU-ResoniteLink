@@ -3257,7 +3257,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             ReuseScope: MaterialReuseScope.PerObject);
         return CityGmlSurfaceMeshTessellator.Tessellate(new SurfaceMeshTessellationRequest(
             packageName,
-            surface,
+            new ConstructionFace(surface, ConstructionCityObjectDraft.ResolveRole(surface)),
             material,
             cityObjectOrigin,
             cartesian,
