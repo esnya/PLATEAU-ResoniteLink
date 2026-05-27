@@ -37,7 +37,7 @@ internal static class StableVariantSelector
         {
             if (rentedKeyBytes is not null)
             {
-                ArrayPool<byte>.Shared.Return(rentedKeyBytes);
+                ArrayPool<byte>.Shared.Return(rentedKeyBytes, clearArray: true);
             }
         }
     }
