@@ -5,10 +5,10 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
-public sealed class TerrainOverlayProjectionSplitPolicyTests
+public sealed class TerrainOverlayMaterialSourcePartitionerTests
 {
     [Fact]
-    public void SplitParsedCityObjectProjectsGeneratedNoWallSlabPartsWithTerrainRoofProjection()
+    public void PartitionParsedCityObjectAssignsTerrainOverlayMaterialSourceToGeneratedNoWallSlabParts()
     {
         MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("53394525")!;
         ParsedSurface top = CreateHorizontalSurface("roof", altitude: 10.0, meshBounds: meshBounds);
@@ -32,7 +32,7 @@ public sealed class TerrainOverlayProjectionSplitPolicyTests
         ];
 
         (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
-            TerrainOverlayProjectionSplitPolicy.SplitParsedCityObject(
+            TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
                 cityObject,
                 [overlay],
                 requestedMeshCodeBounds)

@@ -445,7 +445,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     }
 
     [Fact]
-    public void CreateLeavesNoWallTerrainOverlaySplitBeforeRegeneratingSlabParts()
+    public void CreateLeavesNoWallTerrainOverlayMaterialPartitionBeforeRegeneratingSlabParts()
     {
         ParsedSurface terrainRoof = CreateSurface("lod2-terrain-roof", ParsedSurfaceSemantic.Roof, altitude: 10.0) with
         {
