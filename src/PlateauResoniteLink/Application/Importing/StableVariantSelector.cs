@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
@@ -12,9 +13,32 @@ internal static class StableVariantSelector
         ArgumentNullException.ThrowIfNull(variantSelectionKey);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bucketCount);
 
-        byte[] keyBytes = Encoding.UTF8.GetBytes(variantSelectionKey);
-        byte[] hashBytes = SHA256.HashData(keyBytes);
-        int hashCode = BinaryPrimitives.ReadInt32LittleEndian(hashBytes) & int.MaxValue;
-        return hashCode % bucketCount;
+        int keyByteCount = Encoding.UTF8.GetByteCount(variantSelectionKey);
+        byte[]? rentedKeyBytes = null;
+        Span<byte> keyBytes = keyByteCount <= 512
+            ? stackalloc byte[keyByteCount]
+            : rentedKeyBytes = ArrayPool<byte>.Shared.Rent(keyByteCount);
+        keyBytes = keyBytes[..keyByteCount];
+
+        try
+        {
+            Encoding.UTF8.GetBytes(variantSelectionKey, keyBytes);
+            Span<byte> hashBytes = stackalloc byte[SHA256.HashSizeInBytes];
+            if (!SHA256.TryHashData(keyBytes, hashBytes, out int hashBytesWritten)
+                || hashBytesWritten != SHA256.HashSizeInBytes)
+            {
+                throw new CryptographicException("SHA-256 hash generation failed.");
+            }
+
+            int hashCode = BinaryPrimitives.ReadInt32LittleEndian(hashBytes) & int.MaxValue;
+            return hashCode % bucketCount;
+        }
+        finally
+        {
+            if (rentedKeyBytes is not null)
+            {
+                ArrayPool<byte>.Shared.Return(rentedKeyBytes);
+            }
+        }
     }
 }
