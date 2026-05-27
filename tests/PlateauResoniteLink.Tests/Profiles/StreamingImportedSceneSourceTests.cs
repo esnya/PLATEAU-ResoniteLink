@@ -250,6 +250,78 @@ public sealed class StreamingImportedSceneSourceTests
     }
 
     [Fact]
+    public async Task ReadCityObjectsAsyncDoesNotEagerParseAllDemFilesForMapTileFallbackOverlays()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
+            PackageNames: ["dem"]);
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        int parseTaskCallCount = 0;
+        SourceFilePipeline[] pipelines = Enumerable.Range(0, 3)
+            .Select(index =>
+            {
+                SourceFileDescriptor sourceFile = new(
+                    $"udx/dem/file-{index:000}.gml",
+                    "dem",
+                    "57402736",
+                    RequiresMeshCodeBoundsFilter: false);
+                return new SourceFilePipeline(
+                    sourceFile,
+                    () =>
+                    {
+                        Interlocked.Increment(ref parseTaskCallCount);
+                        return Task.FromResult(
+                            new ParsedSourceFileResult(
+                                sourceFile,
+                                [CreateParsedCityObject(index, sourceFile, referenceSystem)],
+                                referenceSystem,
+                                [],
+                                TimeSpan.Zero));
+                    },
+                    streamFactory: cancellationToken => StreamSingleParsedCityObjectAsync(
+                        index,
+                        sourceFile,
+                        referenceSystem,
+                        cancellationToken));
+            })
+            .ToArray();
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(
+            new TerrainTextureOverlay(
+                PackageName: "dem",
+                GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                MaxTextureSize: 1024,
+                Sources:
+                [
+                    new TerrainTextureTileSource("https://tiles.example/fallback/{z}/{x}/{y}.png", 17),
+                ]));
+        StreamingImportedSceneSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateReadResult(pipelines),
+            new TrackingGeometryProjector(),
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
+
+        await source.ReadCityObjectsAsync().ToListAsync();
+
+        Assert.Equal(0, parseTaskCallCount);
+        Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
+
+        static async IAsyncEnumerable<ParsedCityObject> StreamSingleParsedCityObjectAsync(
+            int index,
+            SourceFileDescriptor sourceFile,
+            CoordinateReferenceSystem referenceSystem,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return CreateParsedCityObject(index, sourceFile, referenceSystem);
+            await Task.CompletedTask;
+        }
+    }
+
+    [Fact]
     public async Task ReadCityObjectsAsyncResolvesDemFallbackOverlaysOncePerScene()
     {
         PlateauImportRequest request = new(
@@ -413,7 +485,7 @@ public sealed class StreamingImportedSceneSourceTests
                         () => Task.FromResult(
                             new ParsedSourceFileResult(
                                 demSourceFile,
-                                [CreateParsedCityObject(1, demSourceFile, referenceSystem)],
+                                [CreateParsedCityObjectInMesh53394525(demSourceFile, referenceSystem)],
                                 referenceSystem,
                                 [],
                                 TimeSpan.Zero))),
@@ -426,10 +498,7 @@ public sealed class StreamingImportedSceneSourceTests
         await source.ValidateBeforeSinkSetupAsync();
 
         Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
-        Assert.NotNull(demTextureSourcePolicy.LastOverlayRegionIdentities);
-        Assert.True(
-            demTextureSourcePolicy.LastOverlayRegionIdentities!.Count < 100,
-            "Explicit DEM validation should not expand a parent mesh to every child mesh when parsed DEM coverage is narrower.");
+        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     [Fact]

@@ -79,7 +79,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             return;
         }
 
-        _ = await GetSceneDemTextureSourcesAsync(cancellationToken);
+        _ = await GetSceneDemTextureSourcesAsync(useParsedDemCoverage: true, cancellationToken);
     }
 
     public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
@@ -399,7 +399,10 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             return new ProjectionTerrainOverlaySet(discoveryTerrainTextureOverlays);
         }
 
-        ResolvedDemTextureSources resolvedDemTextureSources = await GetSceneDemTextureSourcesAsync(cancellationToken);
+        bool useParsedDemCoverage = request.DemTextureSource is not null || discoveryTerrainTextureOverlays.Length > 0;
+        ResolvedDemTextureSources resolvedDemTextureSources = await GetSceneDemTextureSourcesAsync(
+            useParsedDemCoverage,
+            cancellationToken);
         return new ProjectionTerrainOverlaySet(resolvedDemTextureSources.Overlays);
     }
 
@@ -430,9 +433,12 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     }
 
     private async Task<ResolvedDemTextureSources> GetSceneDemTextureSourcesAsync(
+        bool useParsedDemCoverage,
         CancellationToken cancellationToken)
     {
-        DemTerrainOverlayRegion[] overlayRegions = await GetSceneDemOverlayRegionsAsync(cancellationToken);
+        DemTerrainOverlayRegion[] overlayRegions = await GetSceneDemOverlayRegionsAsync(
+            useParsedDemCoverage,
+            cancellationToken);
         if (overlayRegions.Length == 0)
         {
             return new ResolvedDemTextureSources([]);
@@ -469,8 +475,14 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     }
 
     private async Task<DemTerrainOverlayRegion[]> GetSceneDemOverlayRegionsAsync(
+        bool useParsedDemCoverage,
         CancellationToken cancellationToken)
     {
+        if (!useParsedDemCoverage)
+        {
+            return CreateRequestedDemOverlayRegions();
+        }
+
         Task<DemTerrainOverlayRegion[]> overlayRegionsTask;
         lock (sceneDemOverlayRegionsGate)
         {
@@ -501,14 +513,23 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private async Task<DemTerrainOverlayRegion[]> CreateSceneDemOverlayRegionsAsync(
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<string> requestedMeshCodes = selectedMeshCodes.Length == 0 ? [request.MeshCode] : selectedMeshCodes;
         ParsedSourceFileResult[] parsedDemSourceFiles = await GetSceneParsedDemSourceFilesAsync(cancellationToken);
         DemTerrainBounds? demBounds = DemSourceDiscoverySupport.ResolveDemTerrainBounds(
             parsedDemSourceFiles,
             ResolveRequestedDemTerrainBounds());
         return demBounds is null
-            ? DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(requestedMeshCodes)
-            : DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(demBounds, requestedMeshCodes);
+            ? CreateRequestedDemOverlayRegions()
+            : DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(demBounds, GetRequestedMeshCodes());
+    }
+
+    private DemTerrainOverlayRegion[] CreateRequestedDemOverlayRegions()
+    {
+        return DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(GetRequestedMeshCodes());
+    }
+
+    private string[] GetRequestedMeshCodes()
+    {
+        return selectedMeshCodes.Length == 0 ? [request.MeshCode] : selectedMeshCodes;
     }
 
     private async Task<ParsedSourceFileResult[]> GetSceneParsedDemSourceFilesAsync(
