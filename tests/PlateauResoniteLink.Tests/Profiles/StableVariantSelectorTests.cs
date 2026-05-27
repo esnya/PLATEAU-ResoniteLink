@@ -14,6 +14,21 @@ public sealed class StableVariantSelectorTests
         Assert.Equal(0, StableVariantSelector.SelectBucket("53394525:other", 9));
     }
 
+    [Theory]
+    [InlineData("", 5)]
+    [InlineData("   ", 2)]
+    public void SelectBucketPreservesEmptyAndWhitespaceKeyHashing(string variantSelectionKey, int expectedBucket)
+    {
+        Assert.Equal(expectedBucket, StableVariantSelector.SelectBucket(variantSelectionKey, 6));
+    }
+
+    [Fact]
+    public void SelectBucketRejectsNullKey()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => StableVariantSelector.SelectBucket(null!, 6));
+    }
+
     [Fact]
     public void SelectBucketRejectsInvalidBucketCount()
     {

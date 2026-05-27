@@ -9,7 +9,7 @@ internal static class StableVariantSelector
 {
     public static int SelectBucket(string variantSelectionKey, int bucketCount)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(variantSelectionKey);
+        ArgumentNullException.ThrowIfNull(variantSelectionKey);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bucketCount);
 
         byte[] keyBytes = Encoding.UTF8.GetBytes(variantSelectionKey);
