@@ -45,7 +45,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
         TerrainTextureTileSource secondSource = Assert.IsType<TerrainTextureTileSource>(overlay.Sources[1]);
         Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, secondSource.UrlTemplate);
         Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, secondSource.ZoomLevel);
-        Assert.Contains(overlay.Sources, IsGsiFallbackSource);
+        Assert.Contains(overlay.Sources, DemTerrainTextureDefaults.IsGsiFallbackSource);
         Assert.Same(rasterSource, overlay.Sources[^1]);
         Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
     }
@@ -84,7 +84,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
             source => Assert.IsType<TerrainTextureTileSource>(source),
             source => Assert.IsType<TerrainTextureTileSource>(source),
             source => Assert.IsType<TerrainTextureTileSource>(source));
-        Assert.Contains(overlay.Sources, IsGsiFallbackSource);
+        Assert.Contains(overlay.Sources, DemTerrainTextureDefaults.IsGsiFallbackSource);
         Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
     }
 
@@ -256,15 +256,6 @@ public sealed class DefaultDemTextureSourcePolicyTests
     private static IReadOnlyList<DemTerrainOverlayRegion> CreateOverlayRegions(params string[] meshCodes)
     {
         return DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(meshCodes);
-    }
-
-    private static bool IsGsiFallbackSource(TerrainTextureSource source)
-    {
-        return source is TerrainTextureTileSource tileSource
-            && string.Equals(
-                tileSource.UrlTemplate,
-                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
-                StringComparison.Ordinal);
     }
 
     private static (double PixelWidthMeters, double PixelHeightMeters) EstimateTilePixelSizeMeters(

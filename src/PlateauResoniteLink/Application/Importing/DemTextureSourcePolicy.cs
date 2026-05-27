@@ -246,18 +246,9 @@ internal sealed class DefaultDemTextureSourcePolicy(
 
     private static TerrainTextureLicenseMode ResolveLicenseMode(IEnumerable<TerrainTextureSource> sources)
     {
-        return sources.Any(IsGsiFallbackSource)
+        return sources.Any(DemTerrainTextureDefaults.IsGsiFallbackSource)
             ? TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback
             : TerrainTextureLicenseMode.PlateauOrthoOnly;
-    }
-
-    private static bool IsGsiFallbackSource(TerrainTextureSource source)
-    {
-        return source is TerrainTextureTileSource tileSource
-            && string.Equals(
-                tileSource.UrlTemplate,
-                DemTerrainTextureDefaults.GsiFallbackUrlTemplate,
-                StringComparison.Ordinal);
     }
 
     private static double DegreesLatitudeToMeters(double degrees)
