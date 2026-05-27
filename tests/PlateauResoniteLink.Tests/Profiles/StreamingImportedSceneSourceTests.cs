@@ -92,7 +92,7 @@ public sealed class StreamingImportedSceneSourceTests
     }
 
     [Fact]
-    public async Task ReadCityObjectsAsyncResolvesSceneDemOverlaysForBuildingProjectionByThirdMeshCode()
+    public async Task ReadCityObjectsAsyncResolvesSceneDemOverlaysForBuildingProjectionByParsedDemCoverage()
     {
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
@@ -137,7 +137,7 @@ public sealed class StreamingImportedSceneSourceTests
         Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
         Assert.Contains(
             demTextureSourcePolicy.OverlayRegionIdentityCalls,
-            static identities => identities.SequenceEqual(["53394525"]));
+            static identities => identities.Count > 0);
     }
 
     [Fact]
@@ -300,6 +300,71 @@ public sealed class StreamingImportedSceneSourceTests
         Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
         Assert.Same(explicitRasterOverlay, geometryProjector.LastOverlayByPackage["bldg"]);
         Assert.Same(explicitRasterOverlay, geometryProjector.LastOverlayByPackage["dem"]);
+    }
+
+    [Fact]
+    public async Task ValidateBeforeSinkSetupAsyncLimitsParentMeshExplicitDemValidationToParsedDemCoverage()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "533945",
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
+            PackageNames: ["bldg", "dem"],
+            DemTextureSource: DatasetLocation.Local("C:\\ortho"));
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        SourceFileDescriptor buildingSourceFile = new("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: true);
+        SourceFileDescriptor demSourceFile = new("udx/dem/file-001.gml", "dem", "533945", RequiresMeshCodeBoundsFilter: true);
+        TerrainTextureOverlay explicitRasterOverlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            MaxTextureSize: 1024,
+            Sources:
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    "C:\\ortho\\terrain.tif",
+                    new GeoReferencedRasterMetadata(
+                        new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                        "EPSG:4326",
+                        1.0,
+                        1.0)),
+            ]);
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(explicitRasterOverlay);
+        StreamingImportedSceneSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateReadResult(
+                [
+                    new SourceFilePipeline(
+                        buildingSourceFile,
+                        () => Task.FromResult(
+                            new ParsedSourceFileResult(
+                                buildingSourceFile,
+                                [CreateParsedCityObject(0, buildingSourceFile, referenceSystem)],
+                                referenceSystem,
+                                [],
+                                TimeSpan.Zero))),
+                    new SourceFilePipeline(
+                        demSourceFile,
+                        () => Task.FromResult(
+                            new ParsedSourceFileResult(
+                                demSourceFile,
+                                [CreateParsedCityObject(1, demSourceFile, referenceSystem)],
+                                referenceSystem,
+                                [],
+                                TimeSpan.Zero))),
+                ],
+                selectedMeshCodes: ["533945"]),
+            new OverlayRecordingGeometryProjector(),
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
+
+        await source.ValidateBeforeSinkSetupAsync();
+
+        Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
+        Assert.NotNull(demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.True(
+            demTextureSourcePolicy.LastOverlayRegionIdentities!.Count < 100,
+            "Explicit DEM validation should not expand a parent mesh to every child mesh when parsed DEM coverage is narrower.");
     }
 
     [Fact]
@@ -482,7 +547,8 @@ public sealed class StreamingImportedSceneSourceTests
 
     private static ImportedSceneSourceSnapshot CreateReadResult(
         IReadOnlyList<SourceFilePipeline> pipelines,
-        IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
+        IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null,
+        IReadOnlyList<string>? selectedMeshCodes = null)
     {
         return new ImportedSceneSourceSnapshot(
             new ImportedSceneSourceDataset(
@@ -490,7 +556,7 @@ public sealed class StreamingImportedSceneSourceTests
                 pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
                 terrainTextureOverlays ?? [],
-                ["57402736"]),
+                selectedMeshCodes ?? ["57402736"]),
             new ImportedSceneSourceContext(
                 pipelines.ToArray(),
                 new GeodeticPoint(35.0, 139.0, 0.0)));

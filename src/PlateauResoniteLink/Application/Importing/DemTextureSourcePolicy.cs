@@ -200,8 +200,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
                 candidates.Add(new DemTextureSourceCandidate(
                     DemTextureSourcePreference.GeoReferencedRaster,
                     rasterSource,
-                    IsExplicit: true,
-                    EffectiveResolutionMeters: Math.Max(metadata.PixelWidthMeters, metadata.PixelHeightMeters)));
+                    EffectivePixelAreaSquareMeters: metadata.PixelWidthMeters * metadata.PixelHeightMeters));
                 licenseMode = TerrainTextureLicenseMode.PlateauOrthoOnly;
             }
         }
@@ -229,21 +228,18 @@ internal sealed class DefaultDemTextureSourcePolicy(
             (geographicBounds.MinLatitude + geographicBounds.MaxLatitude) * 0.5,
             geographicBounds.MaxLongitude - geographicBounds.MinLongitude);
         double heightMeters = DegreesLatitudeToMeters(geographicBounds.MaxLatitude - geographicBounds.MinLatitude);
-        double effectiveResolutionMeters = Math.Max(
-            widthMeters / layoutPlan.CropWidth,
-            heightMeters / layoutPlan.CropHeight);
+        double pixelWidthMeters = widthMeters / layoutPlan.CropWidth;
+        double pixelHeightMeters = heightMeters / layoutPlan.CropHeight;
         return new DemTextureSourceCandidate(
             preference,
             source,
-            IsExplicit: false,
-            EffectiveResolutionMeters: effectiveResolutionMeters);
+            EffectivePixelAreaSquareMeters: pixelWidthMeters * pixelHeightMeters);
     }
 
     private static TerrainTextureSource[] OrderSources(IEnumerable<DemTextureSourceCandidate> candidates)
     {
         return candidates
-            .OrderByDescending(static candidate => candidate.IsExplicit)
-            .ThenBy(static candidate => candidate.EffectiveResolutionMeters)
+            .OrderBy(static candidate => candidate.EffectivePixelAreaSquareMeters)
             .ThenBy(static candidate => (int)candidate.Preference)
             .Select(static candidate => candidate.TerrainTextureSource)
             .ToArray();
@@ -260,8 +256,8 @@ internal sealed class DefaultDemTextureSourcePolicy(
     }
     private enum DemTextureSourcePreference
     {
-        Ortho19 = 0,
-        GeoReferencedRaster = 1,
+        GeoReferencedRaster = 0,
+        Ortho19 = 1,
         Ortho18 = 2,
         Gsi18 = 3,
     }
@@ -269,6 +265,5 @@ internal sealed class DefaultDemTextureSourcePolicy(
     private sealed record DemTextureSourceCandidate(
         DemTextureSourcePreference Preference,
         TerrainTextureSource TerrainTextureSource,
-        bool IsExplicit,
-        double EffectiveResolutionMeters);
+        double EffectivePixelAreaSquareMeters);
 }

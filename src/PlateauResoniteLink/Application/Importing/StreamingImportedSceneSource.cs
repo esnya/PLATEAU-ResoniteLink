@@ -26,6 +26,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
+    private readonly object sceneDemOverlayRegionsGate = new();
     private readonly object sceneDemTextureSourcesGate = new();
     private readonly object projectionTerrainOverlaySetGate = new();
     private readonly X3DMaterialWarningStatistics x3DMaterialWarningStatistics = new();
@@ -33,6 +34,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private readonly string[] selectedMeshCodes;
     private readonly TerrainTextureOverlay[] discoveryTerrainTextureOverlays;
     private readonly bool hasDemPackage;
+    private Task<DemTerrainOverlayRegion[]>? sceneDemOverlayRegionsTask;
     private Task<ResolvedDemTextureSources>? sceneDemTextureSourcesTask;
     private Task<ProjectionTerrainOverlaySet>? projectionTerrainOverlaySetTask;
     private CoordinateReferenceSystem? referenceSystem;
@@ -401,8 +403,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private async Task<ResolvedDemTextureSources> GetSceneDemTextureSourcesAsync(
         CancellationToken cancellationToken)
     {
-        DemTerrainOverlayRegion[] overlayRegions = DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
-            selectedMeshCodes.Length == 0 ? [request.MeshCode] : selectedMeshCodes);
+        DemTerrainOverlayRegion[] overlayRegions = await GetSceneDemOverlayRegionsAsync(cancellationToken);
         if (overlayRegions.Length == 0)
         {
             return new ResolvedDemTextureSources([]);
@@ -436,6 +437,63 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
 
             throw;
         }
+    }
+
+    private async Task<DemTerrainOverlayRegion[]> GetSceneDemOverlayRegionsAsync(
+        CancellationToken cancellationToken)
+    {
+        Task<DemTerrainOverlayRegion[]> overlayRegionsTask;
+        lock (sceneDemOverlayRegionsGate)
+        {
+            overlayRegionsTask = sceneDemOverlayRegionsTask ??= CreateSceneDemOverlayRegionsAsync(cancellationToken);
+        }
+
+        try
+        {
+            return await overlayRegionsTask.WaitAsync(cancellationToken);
+        }
+        catch
+        {
+            if (overlayRegionsTask.IsCanceled || overlayRegionsTask.IsFaulted)
+            {
+                lock (sceneDemOverlayRegionsGate)
+                {
+                    if (ReferenceEquals(sceneDemOverlayRegionsTask, overlayRegionsTask))
+                    {
+                        sceneDemOverlayRegionsTask = null;
+                    }
+                }
+            }
+
+            throw;
+        }
+    }
+
+    private async Task<DemTerrainOverlayRegion[]> CreateSceneDemOverlayRegionsAsync(
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> requestedMeshCodes = selectedMeshCodes.Length == 0 ? [request.MeshCode] : selectedMeshCodes;
+        ParsedSourceFileResult[] parsedDemSourceFiles = await Task.WhenAll(
+            sourceFiles
+                .Where(static sourceFile => string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+                .Select(sourceFile => sourceFile.GetParseTask().WaitAsync(cancellationToken)));
+        DemTerrainBounds? demBounds = DemSourceDiscoverySupport.ResolveDemTerrainBounds(
+            parsedDemSourceFiles,
+            ResolveRequestedDemTerrainBounds());
+        return demBounds is null
+            ? DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(requestedMeshCodes)
+            : DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(demBounds, requestedMeshCodes);
+    }
+
+    private DemTerrainBounds? ResolveRequestedDemTerrainBounds()
+    {
+        return MeshCodeBounds.TryMerge(requestedMeshCodeBounds) is { } requestedMeshBounds
+            ? new DemTerrainBounds(
+                requestedMeshBounds.SouthLatitude,
+                requestedMeshBounds.NorthLatitude,
+                requestedMeshBounds.WestLongitude,
+                requestedMeshBounds.EastLongitude)
+            : null;
     }
 
     private static void ValidateCompatibleReferenceSystem(
