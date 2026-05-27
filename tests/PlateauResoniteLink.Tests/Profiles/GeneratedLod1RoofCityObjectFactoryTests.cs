@@ -322,15 +322,18 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     }
 
     [Fact]
-    public void CreateLeavesLod2NoWallBuildingWhenLowerNonRoofSurfaceReachesRoofPlane()
+    public void CreateLeavesLod2NoWallBuildingWhenLowerNonRoofSurfaceEntersSlopedRoofSlabBand()
     {
         ParsedCityObject cityObject = CreateCityObject(
             [
-                CreateSurface("lod2-roof", ParsedSurfaceSemantic.Roof, altitude: 10.0),
                 CreateSurface(
-                    "lod2-wall-to-roof",
+                    "lod2-roof",
+                    ParsedSurfaceSemantic.Roof,
+                    CreateSlopedClosedQuadVertices(minimumAltitude: 10.0, maximumAltitude: 12.0)),
+                CreateSurface(
+                    "lod2-detail-under-sloped-roof",
                     ParsedSurfaceSemantic.Wall,
-                    CreateVerticalClosedQuadVertices(minimumAltitude: 0.0, maximumAltitude: 10.0)),
+                    CreateSlopedClosedQuadVertices(minimumAltitude: 11.0, maximumAltitude: 11.2)),
             ],
             CoordinateReferenceSystem.Parse("EPSG:6697"),
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
@@ -643,20 +646,6 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             new(35.0, 139.00020, maximumAltitude),
             new(35.00010, 139.00020, maximumAltitude),
             new(35.00010, 139.0, minimumAltitude),
-            new(35.0, 139.0, minimumAltitude),
-        ];
-    }
-
-    private static GeodeticPoint[] CreateVerticalClosedQuadVertices(
-        double minimumAltitude,
-        double maximumAltitude)
-    {
-        return
-        [
-            new(35.0, 139.0, minimumAltitude),
-            new(35.0, 139.0, maximumAltitude),
-            new(35.0, 139.00020, maximumAltitude),
-            new(35.0, 139.00020, minimumAltitude),
             new(35.0, 139.0, minimumAltitude),
         ];
     }

@@ -192,10 +192,12 @@ internal static class GeneratedLod1RoofCityObjectFactory
         IReadOnlyList<SurfaceProjectionInfo> surfaceInfos)
     {
         double roofMinimumY = roofInfo.MinimumY!.Value;
+        double roofMaximumY = roofInfo.MaximumY!.Value;
         double slabBottomY = roofMinimumY - NoWallRoofThicknessMeters;
         return surfaceInfos
             .Where(static info => info.Surface.Semantic != ParsedSurfaceSemantic.Roof)
-            .Where(info => info.MinimumY!.Value < roofMinimumY)
+            .Where(info => info.MinimumY!.Value < roofMaximumY)
+            .Where(info => info.MaximumY!.Value < roofMaximumY)
             .Any(info => slabBottomY <= info.MaximumY!.Value + BuildingBottomCullBandMeters);
     }
 
