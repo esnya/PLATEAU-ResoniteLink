@@ -69,6 +69,64 @@ public sealed class CityGmlSurfaceProjectionPolicyTests
         Assert.InRange(context.Value.MaximumY, 6.0 - 1e-5, 6.0 + 1e-5);
     }
 
+    [Fact]
+    public void TryCreateFacadeUvProjectionContextIgnoresGeneratedNoWallRoofSurfacesWhenWallRangeExists()
+    {
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        LocalCartesian cartesian = CreateCartesian(origin);
+        ParsedSurface wall = CreateSurface(
+            "wall",
+            ParsedSurfaceSemantic.Wall,
+            CreateVerticalQuadVertices(origin, widthMeters: 8.0, heightMeters: 6.0));
+        ParsedSurface generatedNoWallBottom = CreateSurface(
+            "bldg_generated_no-wall-bottom",
+            ParsedSurfaceSemantic.Roof,
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 8.7, sizeMeters: 8.0, reverseWinding: true));
+
+        HashSet<string> culledSurfaceIds = CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
+            "bldg",
+            [wall, generatedNoWallBottom],
+            origin,
+            cartesian);
+        FacadeUvProjectionContext? context = CityGmlSurfaceProjectionPolicy.TryCreateFacadeUvProjectionContext(
+            "bldg",
+            [wall, generatedNoWallBottom],
+            origin,
+            cartesian);
+
+        Assert.Empty(culledSurfaceIds);
+        Assert.NotNull(context);
+        Assert.InRange(context.Value.MinimumY, -1e-5, 1e-5);
+        Assert.InRange(context.Value.MaximumY, 6.0 - 1e-5, 6.0 + 1e-5);
+    }
+
+    [Fact]
+    public void GetCulledSurfaceIdsBeforeProjectionKeepsGeneratedNoWallRoofBottomAtObjectMinimum()
+    {
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        LocalCartesian cartesian = CreateCartesian(origin);
+        ParsedSurface generatedNoWallBottom = CreateSurface(
+            "roof_generated_no-wall-bottom",
+            ParsedSurfaceSemantic.Roof,
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 9.7, sizeMeters: 8.0));
+        ParsedSurface generatedNoWallSide = CreateSurface(
+            "roof_generated_no-wall-side-0",
+            ParsedSurfaceSemantic.Roof,
+            CreateVerticalQuadVertices(origin with { Altitude = 9.7 }, widthMeters: 8.0, heightMeters: 0.3));
+        ParsedSurface roof = CreateSurface(
+            "roof",
+            ParsedSurfaceSemantic.Roof,
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 10.0, sizeMeters: 8.0, reverseWinding: true));
+
+        HashSet<string> culledSurfaceIds = CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
+            "bldg",
+            [roof, generatedNoWallBottom, generatedNoWallSide],
+            origin,
+            cartesian);
+
+        Assert.Empty(culledSurfaceIds);
+    }
+
     private static LocalCartesian CreateCartesian(GeodeticPoint origin)
     {
         return new LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, Geocentric.WGS84);

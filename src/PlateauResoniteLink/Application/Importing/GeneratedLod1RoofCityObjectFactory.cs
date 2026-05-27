@@ -11,15 +11,27 @@ namespace PlateauResoniteLink.Application.Importing;
 internal static class GeneratedLod1RoofCityObjectFactory
 {
     private const double BuildingBottomCullBandMeters = 0.1;
+    private const double NoWallRoofThicknessMeters = 0.3;
+    private static readonly string[] NoWallBuildingClassCodes = ["3003", "3004"];
 
     internal static ParsedCityObject Create(ParsedCityObject cityObject)
     {
         ArgumentNullException.ThrowIfNull(cityObject);
 
         if (!PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName)
-            || cityObject.LodLevel != 1
             || !cityObject.ReferenceSystem.IsGeographic
             || cityObject.Surfaces.Any(GeneratedLod1RoofSurfaceIdentity.IsGenerated))
+        {
+            return cityObject;
+        }
+
+        bool isNoWallBuilding = IsNoWallBuilding(cityObject);
+        if (!isNoWallBuilding && cityObject.LodLevel != 1)
+        {
+            return cityObject;
+        }
+
+        if (isNoWallBuilding && !HasProcessableNoWallGeometry(cityObject))
         {
             return cityObject;
         }
@@ -32,6 +44,18 @@ internal static class GeneratedLod1RoofCityObjectFactory
             cityObjectOrigin.Longitude,
             cityObjectOrigin.Altitude,
             cityObject.ReferenceSystem.Geocentric);
+        if (isNoWallBuilding)
+        {
+            return TryCreateNoWallRoofSlab(cityObject, cityObjectOrigin, cityObjectCartesian, out ParsedCityObject? noWallRoofSlab)
+                ? noWallRoofSlab!
+                : cityObject;
+        }
+
+        if (cityObject.LodLevel != 1)
+        {
+            return cityObject;
+        }
+
         if (!TryCreateFootprint(cityObject, cityObjectOrigin, cityObjectCartesian, out Lod1RoofFootprint? footprint))
         {
             return cityObject;
@@ -61,6 +85,355 @@ internal static class GeneratedLod1RoofCityObjectFactory
             .. generatedSurfaces,
         ];
         return cityObject with { Surfaces = surfaces };
+    }
+
+    private static bool IsNoWallBuilding(ParsedCityObject cityObject)
+    {
+        return cityObject.LodLevel >= 1
+            && cityObject.BuildingAttributes is not null
+            && NoWallBuildingClassCodes.Any(code => BuildingAttributePredicates.HasExactCityGmlClassCode(cityObject.BuildingAttributes, code));
+    }
+
+    private static bool HasProcessableNoWallGeometry(ParsedCityObject cityObject)
+    {
+        if (cityObject.Surfaces.Any(static surface => surface.UsesGeneratedDemTexture)
+            || !cityObject.Surfaces.Any(static surface => surface.Vertices.Any()))
+        {
+            return false;
+        }
+
+        return cityObject.LodLevel < 2
+            || cityObject.Surfaces.Any(static surface => surface.Semantic == ParsedSurfaceSemantic.Roof);
+    }
+
+    private static bool TryCreateNoWallRoofSlab(
+        ParsedCityObject cityObject,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian cityObjectCartesian,
+        out ParsedCityObject? noWallRoofSlab)
+    {
+        noWallRoofSlab = null;
+        if (cityObject.LodLevel == 1)
+        {
+            if (!TryGetNoWallTopSurfaces(
+                cityObject,
+                cityObjectOrigin,
+                cityObjectCartesian,
+                out ParsedSurface[]? topSurfaces))
+            {
+                return false;
+            }
+
+            ParsedSurface[] lod1RoofSurfaces = topSurfaces!
+                .Select(static surface => surface with { Semantic = ParsedSurfaceSemantic.Roof })
+                .ToArray();
+            if (!TryCreateNoWallRoofSurfaces(
+                lod1RoofSurfaces,
+                topSurfaceMode: NoWallRoofTopSurfaceMode.Generated,
+                out ParsedSurface[]? generatedSurfaces))
+            {
+                return false;
+            }
+
+            noWallRoofSlab = cityObject with { Surfaces = generatedSurfaces! };
+            return true;
+        }
+
+        if (cityObject.LodLevel < 2)
+        {
+            return false;
+        }
+
+        ParsedSurface[] roofSurfaces = cityObject.Surfaces
+            .Where(static surface => surface.Semantic == ParsedSurfaceSemantic.Roof)
+            .ToArray();
+        if (roofSurfaces.Length == 0
+            || roofSurfaces.Any(static surface => surface.InteriorRings.Length != 0))
+        {
+            return false;
+        }
+
+        SurfaceProjectionInfo[] surfaceInfos = cityObject.Surfaces
+            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
+            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
+            .ToArray();
+        if (surfaceInfos.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (ParsedSurface roofSurface in roofSurfaces)
+        {
+            if (!surfaceInfos.Any(info => string.Equals(info.Surface.PolygonId, roofSurface.PolygonId, StringComparison.Ordinal)))
+            {
+                return false;
+            }
+        }
+
+        if (!TryCreateNoWallRoofSurfaces(
+            roofSurfaces,
+            topSurfaceMode: NoWallRoofTopSurfaceMode.PreserveSource,
+            out ParsedSurface[]? generatedLod2Surfaces))
+        {
+            return false;
+        }
+
+        noWallRoofSlab = cityObject with { Surfaces = generatedLod2Surfaces! };
+        return true;
+    }
+
+    private static bool TryGetNoWallTopSurfaces(
+        ParsedCityObject cityObject,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian cityObjectCartesian,
+        out ParsedSurface[]? topSurfaces)
+    {
+        topSurfaces = null;
+        SurfaceProjectionInfo[] surfaceInfos = cityObject.Surfaces
+            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
+            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
+            .ToArray();
+        if (surfaceInfos.Length == 0)
+        {
+            return false;
+        }
+
+        double objectMaximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
+        SurfaceProjectionInfo[] topSurfaceInfos = surfaceInfos
+            .Where(static info => info.IsNearHorizontal)
+            .Where(info => info.MaximumY!.Value >= objectMaximumY - 0.1)
+            .ToArray();
+        if (topSurfaceInfos.Length == 0
+            || topSurfaceInfos.Any(static info => info.Surface.InteriorRings.Length != 0))
+        {
+            topSurfaces = null;
+            return false;
+        }
+
+        HashSet<string> topSurfaceIds = topSurfaceInfos
+            .Select(static info => info.Surface.PolygonId)
+            .ToHashSet(StringComparer.Ordinal);
+        SurfaceProjectionInfo[] lowerSurfaceInfos = surfaceInfos
+            .Where(info => !topSurfaceIds.Contains(info.Surface.PolygonId))
+            .ToArray();
+        if (lowerSurfaceInfos.Length != 0)
+        {
+            double objectMinimumY = lowerSurfaceInfos.Min(static info => info.MinimumY!.Value);
+            topSurfaceInfos = topSurfaceInfos
+                .Where(info => info.MinimumY!.Value > objectMinimumY + BuildingBottomCullBandMeters)
+                .Where(info => info.MinimumY!.Value - NoWallRoofThicknessMeters > objectMinimumY + BuildingBottomCullBandMeters)
+                .ToArray();
+            if (topSurfaceInfos.Length == 0)
+            {
+                topSurfaces = null;
+                return false;
+            }
+        }
+
+        topSurfaces = topSurfaceInfos
+            .Select(static info => info.Surface)
+            .ToArray();
+        return true;
+    }
+
+    private static bool TryCreateNoWallRoofSurfaces(
+        IReadOnlyList<ParsedSurface> roofSurfaces,
+        NoWallRoofTopSurfaceMode topSurfaceMode,
+        out ParsedSurface[]? generatedSurfaces)
+    {
+        generatedSurfaces = null;
+        Dictionary<NoWallRoofEdgeKey, int> edgeUseCounts = [];
+        Dictionary<string, NoWallRoofRing> ringsByPolygonId = new(StringComparer.Ordinal);
+        foreach (ParsedSurface roofSurface in roofSurfaces)
+        {
+            if (!TryCreateNoWallRoofRing(roofSurface, out NoWallRoofRing ring))
+            {
+                return false;
+            }
+
+            ringsByPolygonId.Add(roofSurface.PolygonId, ring);
+            for (int index = 0; index < ring.TopRing.Length; index++)
+            {
+                int nextIndex = (index + 1) % ring.TopRing.Length;
+                NoWallRoofEdgeKey edgeKey = NoWallRoofEdgeKey.Create(ring.TopRing[index], ring.TopRing[nextIndex]);
+                edgeUseCounts[edgeKey] = edgeUseCounts.TryGetValue(edgeKey, out int count) ? count + 1 : 1;
+            }
+        }
+
+        List<ParsedSurface> surfaces = topSurfaceMode switch
+        {
+            NoWallRoofTopSurfaceMode.Generated => [.. roofSurfaces.Select(surface => CreateNoWallTopSurface(surface, ringsByPolygonId[surface.PolygonId]))],
+            NoWallRoofTopSurfaceMode.PreserveSource => [.. roofSurfaces],
+            _ => [],
+        };
+        foreach (ParsedSurface roofSurface in roofSurfaces)
+        {
+            NoWallRoofRing ring = ringsByPolygonId[roofSurface.PolygonId];
+            surfaces.Add(CreateNoWallBottomSurface(roofSurface, ring));
+            for (int index = 0; index < ring.TopRing.Length; index++)
+            {
+                int nextIndex = (index + 1) % ring.TopRing.Length;
+                NoWallRoofEdgeKey edgeKey = NoWallRoofEdgeKey.Create(ring.TopRing[index], ring.TopRing[nextIndex]);
+                if (edgeUseCounts[edgeKey] == 1)
+                {
+                    surfaces.Add(CreateNoWallSideSurface(roofSurface, ring, index, nextIndex));
+                }
+            }
+        }
+
+        generatedSurfaces = surfaces.ToArray();
+        return true;
+    }
+
+    private static bool TryCreateNoWallRoofRing(
+        ParsedSurface roofSurface,
+        out NoWallRoofRing ring)
+    {
+        ring = default;
+        GeodeticPoint[] topRing = RemoveClosingPoint(roofSurface.ExteriorRing.Vertices);
+        if (topRing.Length < 3)
+        {
+            return false;
+        }
+
+        Float2[]? topUvs = NormalizeUvs(roofSurface.ExteriorRing.UVs, roofSurface.ExteriorRing.Vertices.Length, topRing.Length);
+        if (!TryOrientTopRingForDownwardParsedNormal(topRing, topUvs, out GeodeticPoint[]? orientedTopRing, out Float2[]? orientedTopUvs))
+        {
+            return false;
+        }
+
+        GeodeticPoint[] bottomRing = orientedTopRing!.Select(static point => Lower(point, NoWallRoofThicknessMeters)).ToArray();
+        ring = new NoWallRoofRing(orientedTopRing!, bottomRing, orientedTopUvs);
+        return true;
+    }
+
+    private static ParsedSurface CreateNoWallTopSurface(
+        ParsedSurface sourceSurface,
+        NoWallRoofRing ring)
+    {
+        GeodeticPoint[] vertices = ring.TopRing;
+        Float2[]? uvs = ring.TopUvs;
+        return CreateNoWallRoofSurface(sourceSurface, sourceSurface.PolygonId, vertices, uvs, sourceSurface.UsesGeneratedDemTexture);
+    }
+
+    private static ParsedSurface CreateNoWallBottomSurface(
+        ParsedSurface topSurface,
+        NoWallRoofRing ring)
+    {
+        GeodeticPoint[] vertices = ring.BottomRing.Reverse().ToArray();
+        Float2[]? uvs = ring.TopUvs?.Reverse().ToArray();
+        string polygonId = $"{topSurface.PolygonId}_generated_no-wall-bottom";
+        return CreateNoWallRoofSurface(topSurface, polygonId, vertices, uvs, usesGeneratedDemTexture: false);
+    }
+
+    private static ParsedSurface CreateNoWallSideSurface(
+        ParsedSurface topSurface,
+        NoWallRoofRing ring,
+        int index,
+        int nextIndex)
+    {
+        GeodeticPoint[] vertices =
+        [
+            ring.TopRing[index],
+            ring.BottomRing[index],
+            ring.BottomRing[nextIndex],
+            ring.TopRing[nextIndex],
+        ];
+        Float2[]? uvs = ring.TopUvs is null
+            ? null
+            :
+            [
+                ring.TopUvs[index],
+                ring.TopUvs[index],
+                ring.TopUvs[nextIndex],
+                ring.TopUvs[nextIndex],
+        ];
+        string polygonId = $"{topSurface.PolygonId}_generated_no-wall-side-{index}";
+        return CreateNoWallRoofSurface(topSurface, polygonId, vertices, uvs, usesGeneratedDemTexture: false);
+    }
+
+    private static ParsedSurface CreateNoWallRoofSurface(
+        ParsedSurface sourceSurface,
+        string polygonId,
+        GeodeticPoint[] vertices,
+        Float2[]? uvs,
+        bool usesGeneratedDemTexture)
+    {
+        GeodeticPoint[] closedVertices = [.. vertices, vertices[0]];
+        Float2[]? closedUvs = uvs is null ? null : [.. uvs, uvs[0]];
+        return new ParsedSurface(
+            polygonId,
+            ParsedSurfaceSemantic.Roof,
+            new ParsedRing($"{polygonId}-ring", closedVertices, closedUvs),
+            InteriorRings: [],
+            sourceSurface.BaseColor,
+            sourceSurface.TexturePayload,
+            usesGeneratedDemTexture,
+            sourceSurface.OpticalProperties);
+    }
+
+    private static Float2[]? NormalizeUvs(
+        IReadOnlyList<Float2>? uvs,
+        int sourceVertexCount,
+        int ringVertexCount)
+    {
+        if (uvs is null)
+        {
+            return null;
+        }
+
+        if (uvs.Count == ringVertexCount)
+        {
+            return uvs.ToArray();
+        }
+
+        if (uvs.Count == sourceVertexCount && sourceVertexCount == ringVertexCount + 1)
+        {
+            return uvs.Take(ringVertexCount).ToArray();
+        }
+
+        return null;
+    }
+
+    private static bool TryOrientTopRingForDownwardParsedNormal(
+        GeodeticPoint[] topRing,
+        Float2[]? topUvs,
+        out GeodeticPoint[]? orientedTopRing,
+        out Float2[]? orientedTopUvs)
+    {
+        orientedTopRing = topRing;
+        orientedTopUvs = topUvs;
+        Float3[] positions = CreateApproximatePositions(topRing);
+        Float3? normal = PolygonNormal.Compute(positions);
+        if (normal is null)
+        {
+            orientedTopRing = null;
+            orientedTopUvs = null;
+            return false;
+        }
+
+        if (normal.Y <= 0.0)
+        {
+            return true;
+        }
+
+        orientedTopRing = topRing.Reverse().ToArray();
+        orientedTopUvs = topUvs?.Reverse().ToArray();
+        return true;
+    }
+
+    private static Float3[] CreateApproximatePositions(GeodeticPoint[] points)
+    {
+        if (points.Length == 0)
+        {
+            return [];
+        }
+
+        double referenceLatitude = points.Average(static point => point.Latitude);
+        double referenceLongitude = points.Average(static point => point.Longitude);
+        return points
+            .Select(point => CreateApproximatePosition(point, referenceLatitude, referenceLongitude))
+            .ToArray();
     }
 
     private static bool TryCreateFootprint(
@@ -285,6 +658,24 @@ internal static class GeneratedLod1RoofCityObjectFactory
         return new Float3(left.X - right.X, left.Y - right.Y, left.Z - right.Z);
     }
 
+    private static GeodeticPoint Lower(GeodeticPoint point, double meters)
+    {
+        return point with { Altitude = point.Altitude - meters };
+    }
+
+    private static Float3 CreateApproximatePosition(
+        GeodeticPoint point,
+        double referenceLatitude,
+        double referenceLongitude)
+    {
+        const double metersPerLatitudeDegree = 111_320.0;
+        double metersPerLongitudeDegree = metersPerLatitudeDegree * Math.Cos(referenceLatitude * (Math.PI / 180.0));
+        return new Float3(
+            (point.Longitude - referenceLongitude) * metersPerLongitudeDegree,
+            point.Altitude,
+            (point.Latitude - referenceLatitude) * metersPerLatitudeDegree);
+    }
+
     private static double Dot(Float3 left, Float3 right)
     {
         return (left.X * right.X) + (left.Y * right.Y) + (left.Z * right.Z);
@@ -295,4 +686,57 @@ internal static class GeneratedLod1RoofCityObjectFactory
         double? MinimumY,
         double? MaximumY,
         bool IsNearHorizontal);
+
+    private readonly record struct NoWallRoofRing(
+        GeodeticPoint[] TopRing,
+        GeodeticPoint[] BottomRing,
+        Float2[]? TopUvs);
+
+    private enum NoWallRoofTopSurfaceMode
+    {
+        Generated,
+        PreserveSource,
+    }
+
+    private readonly record struct NoWallRoofEdgeKey(NoWallRoofPointKey A, NoWallRoofPointKey B)
+    {
+        public static NoWallRoofEdgeKey Create(GeodeticPoint left, GeodeticPoint right)
+        {
+            NoWallRoofPointKey leftKey = NoWallRoofPointKey.Create(left);
+            NoWallRoofPointKey rightKey = NoWallRoofPointKey.Create(right);
+            return leftKey.CompareTo(rightKey) <= 0
+                ? new NoWallRoofEdgeKey(leftKey, rightKey)
+                : new NoWallRoofEdgeKey(rightKey, leftKey);
+        }
+    }
+
+    private readonly record struct NoWallRoofPointKey(long Latitude, long Longitude, long Altitude) : IComparable<NoWallRoofPointKey>
+    {
+        public static NoWallRoofPointKey Create(GeodeticPoint point)
+        {
+            return new NoWallRoofPointKey(
+                Quantize(point.Latitude, 1e8),
+                Quantize(point.Longitude, 1e8),
+                Quantize(point.Altitude, 1e3));
+        }
+
+        public int CompareTo(NoWallRoofPointKey other)
+        {
+            int latitudeComparison = Latitude.CompareTo(other.Latitude);
+            if (latitudeComparison != 0)
+            {
+                return latitudeComparison;
+            }
+
+            int longitudeComparison = Longitude.CompareTo(other.Longitude);
+            return longitudeComparison != 0
+                ? longitudeComparison
+                : Altitude.CompareTo(other.Altitude);
+        }
+
+        private static long Quantize(double value, double scale)
+        {
+            return (long)Math.Round(value * scale, MidpointRounding.AwayFromZero);
+        }
+    }
 }
