@@ -91,12 +91,12 @@ internal static class CityGmlParsedCityObjectProjection
         List<ImportedCityObject> generatedRoadMarkings = [];
 
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) partitionedCityObject
-             in TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
-                 terrainAlignedParsedCityObject,
-                 demTerrainTextureOverlays,
-                 requestedMeshCodeBounds,
-                 progressReporter,
-                 cancellationToken))
+                 in TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
+                     terrainAlignedParsedCityObject,
+                     demTerrainTextureOverlays,
+                     requestedMeshCodeBounds,
+                     progressReporter,
+                     cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!TerrainOverlayMaterialSourcePartitioner.IsPartitionCompatibleWithRequest(
