@@ -40,7 +40,6 @@ internal static class PlateauImportServiceCollectionExtensions
             new DefaultImportedSceneSourceFactory(
                 provider.GetRequiredService<ICityGmlDocumentReader>(),
                 provider.GetRequiredService<IImportedSceneSourceComposer>(),
-                provider.GetRequiredService<IDemTextureSourcePolicy>(),
                 provider.GetRequiredService<IImportedObjectUnitOptimizer>()));
 
         return services;

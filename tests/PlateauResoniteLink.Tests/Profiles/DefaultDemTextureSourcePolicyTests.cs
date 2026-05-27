@@ -12,7 +12,7 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class DefaultDemTextureSourcePolicyTests
 {
     [Fact]
-    public async Task ResolveAsyncPrefersExplicitGeoReferencedRasterBeforeMapTileFallback()
+    public async Task ResolveAsyncOrdersSourcesBySmallestEffectivePixelArea()
     {
         GeographicRectangle rasterBounds = new(35.0, 35.01, 139.0, 139.01);
         TerrainTextureGeoReferencedRasterSource rasterSource = new(
@@ -39,13 +39,90 @@ public sealed class DefaultDemTextureSourcePolicyTests
         ResolvedDemTextureSources result = await policy.ResolveAsync(request, CreateOverlayRegions("53394525"));
 
         TerrainTextureOverlay overlay = Assert.Single(result.Overlays);
+        TerrainTextureTileSource firstSource = Assert.IsType<TerrainTextureTileSource>(overlay.Sources[0]);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, firstSource.UrlTemplate);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, firstSource.ZoomLevel);
+        TerrainTextureTileSource secondSource = Assert.IsType<TerrainTextureTileSource>(overlay.Sources[1]);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, secondSource.UrlTemplate);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, secondSource.ZoomLevel);
+        Assert.Contains(overlay.Sources, DemTerrainTextureDefaults.IsGsiFallbackSource);
+        Assert.Same(rasterSource, overlay.Sources[^1]);
+        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncPrefersExplicitGeoReferencedRasterWhenItHasSmallestPixelArea()
+    {
+        GeographicRectangle rasterBounds = new(35.0, 35.01, 139.0, 139.01);
+        TerrainTextureGeoReferencedRasterSource rasterSource = new(
+            "C:\\ortho\\53394525.tif",
+            new GeoReferencedRasterMetadata(
+                rasterBounds,
+                "EPSG:4326",
+                PixelWidthMeters: 0.01,
+                PixelHeightMeters: 0.01));
+        DefaultDemTextureSourcePolicy policy = new(
+            new StubDemTerrainGeoReferencedRasterCatalogFactory(
+                new StubDemTerrainGeoReferencedRasterCatalog(
+                    new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["53394525"] = rasterSource,
+                    })));
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("C:\\dataset"),
+            DemTextureSource: DatasetLocation.Local("C:\\ortho"),
+            PackageNames: ["dem"]);
+
+        ResolvedDemTextureSources result = await policy.ResolveAsync(request, CreateOverlayRegions("53394525"));
+
+        TerrainTextureOverlay overlay = Assert.Single(result.Overlays);
         Assert.Same(rasterSource, overlay.Sources[0]);
         Assert.Collection(
             overlay.Sources.Skip(1),
             source => Assert.IsType<TerrainTextureTileSource>(source),
             source => Assert.IsType<TerrainTextureTileSource>(source),
             source => Assert.IsType<TerrainTextureTileSource>(source));
-        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoOnly, overlay.LicenseMode);
+        Assert.Contains(overlay.Sources, DemTerrainTextureDefaults.IsGsiFallbackSource);
+        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncUsesStableTieBreakerWhenPixelAreasMatch()
+    {
+        DemTerrainOverlayRegion region = Assert.Single(CreateOverlayRegions("53394525"));
+        (double PixelWidthMeters, double PixelHeightMeters) ortho19PixelSize = EstimateTilePixelSizeMeters(
+            region.GeographicBounds,
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel);
+        TerrainTextureGeoReferencedRasterSource rasterSource = new(
+            "C:\\ortho\\53394525.tif",
+            new GeoReferencedRasterMetadata(
+                region.GeographicBounds,
+                "EPSG:4326",
+                ortho19PixelSize.PixelWidthMeters,
+                ortho19PixelSize.PixelHeightMeters));
+        DefaultDemTextureSourcePolicy policy = new(
+            new StubDemTerrainGeoReferencedRasterCatalogFactory(
+                new StubDemTerrainGeoReferencedRasterCatalog(
+                    new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["53394525"] = rasterSource,
+                    })));
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("C:\\dataset"),
+            DemTextureSource: DatasetLocation.Local("C:\\ortho"),
+            PackageNames: ["dem"]);
+
+        ResolvedDemTextureSources result = await policy.ResolveAsync(request, [region]);
+
+        TerrainTextureOverlay overlay = Assert.Single(result.Overlays);
+        Assert.Same(rasterSource, overlay.Sources[0]);
+        TerrainTextureTileSource secondSource = Assert.IsType<TerrainTextureTileSource>(overlay.Sources[1]);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, secondSource.UrlTemplate);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, secondSource.ZoomLevel);
     }
 
     [Fact]
@@ -179,5 +256,17 @@ public sealed class DefaultDemTextureSourcePolicyTests
     private static IReadOnlyList<DemTerrainOverlayRegion> CreateOverlayRegions(params string[] meshCodes)
     {
         return DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(meshCodes);
+    }
+
+    private static (double PixelWidthMeters, double PixelHeightMeters) EstimateTilePixelSizeMeters(
+        GeographicRectangle geographicBounds,
+        int zoomLevel)
+    {
+        TerrainTextureLayoutPlan layoutPlan = TerrainTextureLayoutPlanner.Create(geographicBounds, zoomLevel);
+        double widthMeters = Math.Abs(geographicBounds.MaxLongitude - geographicBounds.MinLongitude)
+            * 111_320.0
+            * Math.Cos(((geographicBounds.MinLatitude + geographicBounds.MaxLatitude) * 0.5) * (Math.PI / 180.0));
+        double heightMeters = Math.Abs(geographicBounds.MaxLatitude - geographicBounds.MinLatitude) * 111_320.0;
+        return (widthMeters / layoutPlan.CropWidth, heightMeters / layoutPlan.CropHeight);
     }
 }

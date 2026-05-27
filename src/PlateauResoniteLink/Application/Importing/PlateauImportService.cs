@@ -75,6 +75,12 @@ internal sealed class PlateauImportService(
                 resolvedRequest.CityGmlLocalSourcePath!,
                 datasetWorkRoot,
                 this.commonMaterials);
+
+            if (importedSceneSource is IImportedSceneSourcePreflight preflight)
+            {
+                await preflight.ValidateBeforeSinkSetupAsync(cancellationToken);
+            }
+
             ReportProgress(
                 PlateauLog.Info(
                     "import",

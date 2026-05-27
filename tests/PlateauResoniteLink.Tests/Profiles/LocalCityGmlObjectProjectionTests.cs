@@ -43,11 +43,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                             new DefaultPlateauDatasetContentSourceFactory(
                                 new RemoteArchiveDistributionPolicy(),
                                 new ArchiveFileLayoutPolicy())))),
-                new DefaultDemTextureSourcePolicy(
-                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
-                        new DefaultPlateauDatasetContentSourceFactory(
-                            new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy()))),
                 new PassthroughImportedObjectUnitOptimizer()),
             commonMaterials: CommonMaterialCatalog.Create(),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy(),
@@ -87,11 +82,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy())))),
-            new DefaultDemTextureSourcePolicy(
-                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
-                        new DefaultPlateauDatasetContentSourceFactory(
-                            new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy()))),
             new PassthroughImportedObjectUnitOptimizer());
         IImportedSceneSource source = await factory.CreateAsync(request);
 

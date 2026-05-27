@@ -40,11 +40,6 @@ public sealed class CliApplicationTests
                             new DefaultPlateauDatasetContentSourceFactory(
                                 new RemoteArchiveDistributionPolicy(),
                                 new ArchiveFileLayoutPolicy())))),
-                new DefaultDemTextureSourcePolicy(
-                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
-                        new DefaultPlateauDatasetContentSourceFactory(
-                            new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy()))),
                 new PassthroughImportedObjectUnitOptimizer()),
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());

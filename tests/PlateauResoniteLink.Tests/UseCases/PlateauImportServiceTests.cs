@@ -363,6 +363,56 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_RunsSourcePreflightBeforeSinkExecution()
+    {
+        using TemporaryDirectory rawSourceRoot = new();
+        using TemporaryDirectory workRoot = new();
+        string demTextureSourcePath = Path.Combine(rawSourceRoot.Path, "ortho.tif");
+        File.WriteAllBytes(demTextureSourcePath, [0]);
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local(rawSourceRoot.Path),
+            PackageNames: ["dem"],
+            DemTextureSource: DatasetLocation.Local(demTextureSourcePath));
+        ValidatedPlateauImportRequest validatedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
+            CityGmlSource: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            PackageNames: ["dem"],
+            DemTextureSource: new ValidatedLocalDatasetLocation(demTextureSourcePath));
+        ImportedSceneSourceSnapshot readResult = CreateReadResult(
+            new RecordingDatasetSource(rawSourceRoot.Path),
+            ["dem"],
+            ["udx/dem/53394525/terrain.gml"]);
+        RecordingSceneSink sceneSink = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
+        PreflightThrowingImportedSceneSource source = new(
+            CreateMetadata(request, ["dem"], readResult.DocumentSet.RelativeSourceFiles));
+        RecordingImportedSceneSourceFactory importedSceneSourceFactory = new(source, readResult);
+
+        PlateauImportService service = new(
+            sceneSink,
+            datasetSourceResolver,
+            importedSceneSourceFactory,
+            CommonMaterialCatalog.Create(),
+            new ArchiveFileLayoutPolicy());
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
+            () => service.ExecuteAsync(request, workRoot.Path));
+
+        Assert.Contains("invalid-dem-texture-source", exception.Errors);
+        Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
+        Assert.Equal(1, importedSceneSourceFactory.CreateCallCount);
+        Assert.Equal(1, source.PreflightCallCount);
+        Assert.False(source.EnumerationStarted);
+        Assert.Equal(0, sceneSink.ExecuteCallCount);
+        Assert.Equal(1, sceneSink.DisposeCount);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ThrowsOperationalFailureWhenTargetFailsEveryCityObject()
     {
         using TemporaryDirectory rawSourceRoot = new();
@@ -624,6 +674,32 @@ public sealed class PlateauImportServiceTests
                 yield return objectUnit;
                 await Task.CompletedTask;
             }
+        }
+    }
+
+    private sealed class PreflightThrowingImportedSceneSource(ImportedSceneMetadata metadata)
+        : IImportedSceneSource, IImportedSceneSourcePreflight
+    {
+        public ImportedSceneMetadata Metadata { get; } = metadata;
+
+        public int PreflightCallCount { get; private set; }
+
+        public bool EnumerationStarted { get; private set; }
+
+        public Task ValidateBeforeSinkSetupAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            PreflightCallCount++;
+            throw new PlateauImportValidationException(["invalid-dem-texture-source"]);
+        }
+
+        public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            EnumerationStarted = true;
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return CreateObjectUnit("test-source.gml", CreateCityObject("city-object"));
+            await Task.CompletedTask;
         }
     }
 
