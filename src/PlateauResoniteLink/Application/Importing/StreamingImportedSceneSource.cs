@@ -393,7 +393,8 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private async Task<ProjectionTerrainOverlaySet> CreateProjectionTerrainOverlaySetAsync(
         CancellationToken cancellationToken)
     {
-        if (discoveryTerrainTextureOverlays.Length > 0
+        if (request.DemTextureSource is null
+            && discoveryTerrainTextureOverlays.Length > 0
             && await HasSceneDemOverlayCoverageAsync(discoveryTerrainTextureOverlays, cancellationToken))
         {
             return new ProjectionTerrainOverlaySet(discoveryTerrainTextureOverlays);
