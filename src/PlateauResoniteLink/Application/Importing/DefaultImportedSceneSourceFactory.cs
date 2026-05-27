@@ -41,6 +41,6 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
             request,
             progressReporter,
             cancellationToken);
-        return await Task.FromResult(constructionComposer.Compose(request, readResult, objectUnitOptimizer, progressReporter));
+        return constructionComposer.Compose(request, readResult, objectUnitOptimizer, progressReporter);
     }
 }

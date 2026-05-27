@@ -14,7 +14,7 @@ using LocalCartesian = GeographicLib.LocalCartesian;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class StreamingImportedSceneSource : IImportedSceneSource
+internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImportedSceneSourcePreflight
 {
     internal const int MaxConcurrentCityObjectProducers = 8;
 
@@ -66,6 +66,16 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
     }
 
     public ImportedSceneMetadata Metadata { get; }
+
+    public async Task ValidateBeforeSinkSetupAsync(CancellationToken cancellationToken = default)
+    {
+        if (request.DemTextureSource is null || !hasDemPackage)
+        {
+            return;
+        }
+
+        _ = await CreateSceneDemTerrainTextureOverlaysAsync(cancellationToken);
+    }
 
     public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)

@@ -66,6 +66,48 @@ public sealed class DefaultImportedSceneSourceComposerTests
             source.Metadata.Attribution.DatasetLicense);
     }
 
+    [Fact]
+    public async Task ComposedStreamingSourcePreflightValidatesExplicitDemTextureSource()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem"],
+            DemTextureSource: DatasetLocation.Local("/tmp/plateau/ortho.tif"));
+        ImportedSceneSourceSnapshot readResult = new(
+            new ImportedSceneSourceDataset(
+                new EmptyDatasetContentSource(),
+                ["udx/dem/53394525/terrain.gml"],
+                ["dem"],
+                [
+                    new TerrainTextureOverlay(
+                        "dem",
+                        "https://example.invalid/discovered/{z}/{x}/{y}.png",
+                        18,
+                        new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
+                        1024),
+                ],
+                ["53394525"]),
+            new ImportedSceneSourceContext([], new GeodeticPoint(35.0, 139.0, 0.0)));
+        RecordingDemTextureSourcePolicy demTextureSourcePolicy = new();
+        DefaultImportedSceneSourceComposer composer = new(
+            new ThrowingGeometryProjector(),
+            demTextureSourcePolicy);
+
+        IImportedSceneSource source = composer.Compose(
+            request,
+            readResult,
+            new PassthroughImportedObjectUnitOptimizer());
+
+        IImportedSceneSourcePreflight preflight = Assert.IsAssignableFrom<IImportedSceneSourcePreflight>(source);
+        await preflight.ValidateBeforeSinkSetupAsync();
+
+        Assert.Equal(1, demTextureSourcePolicy.ResolveCallCount);
+        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.NotEmpty(demTextureSourcePolicy.LastOverlayRegions!);
+    }
+
     private sealed class ThrowingGeometryProjector : ICityGmlGeometryProjector
     {
         public IEnumerable<ImportedCityObject> ProjectCityObjects(
@@ -139,6 +181,42 @@ public sealed class DefaultImportedSceneSourceComposerTests
             _ = request;
             _ = overlayRegions;
             return Task.FromResult(new ResolvedDemTextureSources([]));
+        }
+
+        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
+        {
+            _ = overlayRegions;
+            return [];
+        }
+    }
+
+    private sealed class RecordingDemTextureSourcePolicy : IDemTextureSourcePolicy
+    {
+        public int ResolveCallCount { get; private set; }
+
+        public PlateauImportRequest? LastRequest { get; private set; }
+
+        public IReadOnlyList<DemTerrainOverlayRegion>? LastOverlayRegions { get; private set; }
+
+        public Task<ResolvedDemTextureSources> ResolveAsync(
+            PlateauImportRequest request,
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ResolveCallCount++;
+            LastRequest = request;
+            LastOverlayRegions = overlayRegions;
+            return Task.FromResult(new ResolvedDemTextureSources(
+                [
+                    new TerrainTextureOverlay(
+                        "dem",
+                        "https://example.invalid/{z}/{x}/{y}.png",
+                        18,
+                        overlayRegions[0].GeographicBounds,
+                        1024),
+                ]));
         }
 
         public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
