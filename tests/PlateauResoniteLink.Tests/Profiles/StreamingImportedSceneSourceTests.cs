@@ -92,6 +92,52 @@ public sealed class StreamingImportedSceneSourceTests
     }
 
     [Fact]
+    public async Task ReadCityObjectsAsyncRebuildsDiscoveryDemOverlaysWhenParsedDemCoverageMisses()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
+            PackageNames: ["bldg", "dem"]);
+        TerrainTextureOverlay staleDiscoveryOverlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://example.invalid/stale/{z}/{x}/{y}.png",
+            ZoomLevel: 18,
+            GeographicBounds: new GeographicRectangle(36.0, 36.1, 140.0, 140.1),
+            MaxTextureSize: 1024,
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
+        TerrainTextureOverlay rebuiltOverlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.0, 35.03, 139.0, 139.03),
+            MaxTextureSize: 1024,
+            Sources:
+            [
+                new TerrainTextureTileSource("https://tiles.example/rebuilt/{z}/{x}/{y}.png", 17),
+            ]);
+        OverlayRecordingGeometryProjector geometryProjector = new();
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(rebuiltOverlay);
+        StreamingImportedSceneSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateReadResult(
+                [
+                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
+                ],
+                [staleDiscoveryOverlay],
+                selectedMeshCodes: ["53394525"]),
+            geometryProjector,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
+
+        await source.ReadCityObjectsAsync().ToListAsync();
+
+        Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
+        Assert.Same(rebuiltOverlay, geometryProjector.LastOverlayByPackage["bldg"]);
+        Assert.Same(rebuiltOverlay, geometryProjector.LastOverlayByPackage["dem"]);
+    }
+
+    [Fact]
     public async Task ReadCityObjectsAsyncResolvesSceneDemOverlaysForBuildingProjectionByParsedDemCoverage()
     {
         PlateauImportRequest request = new(
