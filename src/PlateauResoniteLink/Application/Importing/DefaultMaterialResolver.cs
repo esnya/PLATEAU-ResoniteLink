@@ -160,31 +160,27 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials)
     {
         BuildingAttributeContext attributes = request.BuildingAttributes ?? BuildingAttributeContext.Empty;
-        int? floorCount = request.FloorsAboveGround;
-        double? heightMeters = GetEffectiveHeightMeters(request);
-        double? footprintArea = request.FootprintAreaSquareMeters;
-        bool lowRise = IsLowRise(floorCount, heightMeters);
-        bool midOrHighRise = IsMidOrHighRise(floorCount, heightMeters);
-        bool midrise = IsMidrise(floorCount, heightMeters);
-        bool highrise = IsHighrise(floorCount, heightMeters);
-        bool landmark = IsLandmarkScale(floorCount, heightMeters);
-        bool largeLowRise = lowRise && footprintArea is >= 1000.0;
+        BuildingFacadeScale scale = BuildingFacadeScale.Classify(
+            request.FloorsAboveGround,
+            request.MeasuredHeightMeters,
+            request.GeometryHeightMeters,
+            request.FootprintAreaSquareMeters);
 
-        if (landmark)
+        if (scale.Landmark)
         {
             return BuildingAttributePredicates.HasNightOccupancy(attributes)
                 ? SelectFacadeHighriseNightLowMember(commonMaterials, request.VariantSelectionKey)
                 : SelectFacadeHighriseGlassMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (highrise)
+        if (scale.Highrise)
         {
             return BuildingAttributePredicates.HasNightOccupancy(attributes)
                 ? SelectFacadeHighriseNightLowMember(commonMaterials, request.VariantSelectionKey)
                 : SelectFacadeHighriseGlassMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (midrise && BuildingAttributePredicates.HasFacadeLikeMidriseUse(attributes))
+        if (scale.Midrise && BuildingAttributePredicates.HasFacadeLikeMidriseUse(attributes))
         {
             return SelectFacadeMidriseGridMember(commonMaterials, request.VariantSelectionKey);
         }
@@ -193,7 +189,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
             || BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Warehouse)
             || BuildingAttributePredicates.HasRawBuildingCode(attributes, "441")
             || BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Factory)
-            || largeLowRise)
+            || scale.LargeLowRise)
         {
             return commonMaterials.WallFactoryMetal.FactoryMetal;
         }
@@ -211,7 +207,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         if (BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Commercial)
             || BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Office))
         {
-            return lowRise
+            return scale.LowRise
                 ? SelectWallCommercialPanelMember(commonMaterials, request.VariantSelectionKey)
                 : SelectWallRcPaintedMidMember(commonMaterials, request.VariantSelectionKey);
         }
@@ -224,14 +220,14 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
 
         if (BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Apartment))
         {
-            return lowRise
+            return scale.LowRise
                 ? SelectWallResidentialTileLowMember(commonMaterials, request.VariantSelectionKey)
                 : SelectWallApartmentTileMidMember(commonMaterials, request.VariantSelectionKey);
         }
 
         if (BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.MixedResidential))
         {
-            return lowRise
+            return scale.LowRise
                 ? SelectWallResidentialPlasterLowMember(commonMaterials, request.VariantSelectionKey)
                 : SelectWallApartmentTileMidMember(commonMaterials, request.VariantSelectionKey);
         }
@@ -243,55 +239,12 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
                 : SelectWallResidentialPlasterLowMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (BuildingAttributePredicates.IsRobustStructure(attributes) || midOrHighRise)
+        if (BuildingAttributePredicates.IsRobustStructure(attributes) || scale.MidOrHighRise)
         {
             return SelectWallRcPaintedMidMember(commonMaterials, request.VariantSelectionKey);
         }
 
         return SelectWallResidentialPlasterLowMember(commonMaterials, request.VariantSelectionKey);
-    }
-
-    private static bool IsLowRise(int? floorCount, double? heightMeters)
-    {
-        return (!FacadeFloorMetrics.IsUsableFloorCount(floorCount) || floorCount <= 3)
-            && (!heightMeters.HasValue || heightMeters.Value < 12.0);
-    }
-
-    private static bool IsMidOrHighRise(int? floorCount, double? heightMeters)
-    {
-        return (FacadeFloorMetrics.IsUsableFloorCount(floorCount) && floorCount >= 4)
-            || heightMeters is >= 12.0;
-    }
-
-    private static bool IsMidrise(int? floorCount, double? heightMeters)
-    {
-        return (heightMeters is >= 25.0 and < 80.0)
-            || (FacadeFloorMetrics.IsUsableFloorCount(floorCount) && floorCount is >= 8 and < 20);
-    }
-
-    private static bool IsHighrise(int? floorCount, double? heightMeters)
-    {
-        return (heightMeters is >= 80.0 and < 150.0)
-            || (FacadeFloorMetrics.IsUsableFloorCount(floorCount) && floorCount is >= 20 and < 35);
-    }
-
-    private static bool IsLandmarkScale(int? floorCount, double? heightMeters)
-    {
-        return heightMeters is >= 150.0
-            || (FacadeFloorMetrics.IsUsableFloorCount(floorCount) && floorCount >= 35);
-    }
-
-    private static double? GetEffectiveHeightMeters(DefaultMaterialRequest request)
-    {
-        return TryGetPositiveValue(request.MeasuredHeightMeters)
-            ?? TryGetPositiveValue(request.GeometryHeightMeters);
-    }
-
-    private static double? TryGetPositiveValue(double? value)
-    {
-        return value is > 0.0 && !double.IsNaN(value.Value) && !double.IsInfinity(value.Value)
-            ? value.Value
-            : null;
     }
 
     private static bool IsWeightedAlternate(string variantSelectionKey)
