@@ -23,6 +23,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         {
             GeometryHeightMeters = geometryHeightMeters,
         };
+        ConstructionCityObjectDraft draft = ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         GeodeticPoint cityObjectOrigin = ResolveCityObjectOrigin(cityObject);
 
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
@@ -44,7 +45,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
             .. CityGmlSurfaceMaterialResolver.ResolveSurfaces(
-                cityObject,
+                draft,
                 cityObjectOrigin,
                 cityObjectCartesian,
                 demTerrainTextureOverlay,
@@ -64,7 +65,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
             .ToArray();
         FacadeUvProjectionContext? facadeUvProjectionContext = CityGmlSurfaceProjectionPolicy.TryCreateFacadeUvProjectionContext(
             cityObject.PackageName,
-            cityObject.Surfaces,
+            draft.Surfaces,
             cityObjectOrigin,
             cityObjectCartesian);
 
@@ -79,7 +80,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
                 SurfaceMeshTessellation tessellation = CityGmlSurfaceMeshTessellator.Tessellate(
                     new SurfaceMeshTessellationRequest(
                         cityObject.PackageName,
-                        resolvedSurface.Surface,
+                        resolvedSurface.Face,
                         resolvedSurface.Material,
                         cityObjectOrigin,
                         cityObjectCartesian,

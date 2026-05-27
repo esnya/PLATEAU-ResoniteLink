@@ -10,24 +10,25 @@ internal static class RoofTerrainTextureSurfacePolicy
     private const double UnknownRoofBottomAltitudeToleranceMeters = 0.1;
 
     internal static bool IsRoofTerrainTextureSurface(
-        ParsedSurface surface,
+        ConstructionFace face,
         double cityObjectMinAltitude,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
-        if (surface.Semantic == ParsedSurfaceSemantic.Roof)
+        if (face.Role is ConstructionFaceRole.Roof or ConstructionFaceRole.RoofSlab)
         {
             return true;
         }
 
-        if (surface.Semantic is not (ParsedSurfaceSemantic.Unknown
-            or ParsedSurfaceSemantic.Ground
-            or ParsedSurfaceSemantic.OuterCeiling
-            or ParsedSurfaceSemantic.OuterFloor))
+        if (face.Role is not (ConstructionFaceRole.Unknown
+            or ConstructionFaceRole.Ground
+            or ConstructionFaceRole.OuterCeiling
+            or ConstructionFaceRole.OuterFloor))
         {
             return false;
         }
 
+        ParsedSurface surface = face.Surface;
         Float3? normal = ComputeSurfaceNormal(
             surface,
             cityObjectOrigin,

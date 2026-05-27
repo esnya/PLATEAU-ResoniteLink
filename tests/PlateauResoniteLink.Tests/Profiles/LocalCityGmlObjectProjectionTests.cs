@@ -3257,7 +3257,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             ReuseScope: MaterialReuseScope.PerObject);
         return CityGmlSurfaceMeshTessellator.Tessellate(new SurfaceMeshTessellationRequest(
             packageName,
-            surface,
+            new ConstructionFace(surface, ConstructionCityObjectDraft.ResolveRole(surface)),
             material,
             cityObjectOrigin,
             cartesian,
@@ -3569,7 +3569,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         GeographicLib.LocalCartesian cartesian)
     {
         return CityGmlSurfaceMaterialResolver.CreateSharedCommonMaterialBindings(
-            cityObject,
+            ConstructionCityObjectDraft.FromParsedCityObject(cityObject),
             cityObjectOrigin,
             cartesian,
             demTerrainTextureOverlay: null,

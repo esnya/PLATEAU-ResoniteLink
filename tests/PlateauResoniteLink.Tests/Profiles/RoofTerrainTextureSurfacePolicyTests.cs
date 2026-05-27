@@ -35,7 +35,35 @@ public sealed class RoofTerrainTextureSurfacePolicyTests
             TexturePayload: null);
 
         bool result = RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(
-            surface,
+            new ConstructionFace(surface, ConstructionCityObjectDraft.ResolveRole(surface)),
+            cityObjectMinAltitude: 0.0,
+            cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
+            cityObjectCartesian: null);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void IsRoofTerrainTextureSurfaceTreatsGeneratedNoWallWallSurfaceAsRoofSlab()
+    {
+        ParsedSurface surface = new(
+            PolygonId: "roof_generated_no-wall-side-0",
+            Semantic: ParsedSurfaceSemantic.Wall,
+            ExteriorRing: new ParsedRing(
+                "roof_generated_no-wall-side-0-ring",
+                [
+                    new GeodeticPoint(35.0, 139.0, 10.0),
+                    new GeodeticPoint(35.0, 139.0, 9.7),
+                    new GeodeticPoint(35.0, 139.1, 9.7),
+                    new GeodeticPoint(35.0, 139.1, 10.0),
+                ],
+                UVs: null),
+            InteriorRings: [],
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null);
+
+        bool result = RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(
+            new ConstructionFace(surface, ConstructionCityObjectDraft.ResolveRole(surface)),
             cityObjectMinAltitude: 0.0,
             cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
             cityObjectCartesian: null);

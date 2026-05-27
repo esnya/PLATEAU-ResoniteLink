@@ -109,14 +109,15 @@ internal static class TerrainOverlayProjectionSplitPolicy
         foreach (ParsedSurface surface in cityObject.Surfaces)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!IsNonDemTerrainTextureSurface(surface, cityObjectMinAltitude, cityObjectOrigin, cityObjectCartesian)
+            ConstructionFace face = new(surface, ConstructionCityObjectDraft.ResolveRole(surface));
+            if (!IsNonDemTerrainTextureSurface(face, cityObjectMinAltitude, cityObjectOrigin, cityObjectCartesian)
                 || !TryCreateSurfaceGeographicBounds(surface, out GeographicRectangle surfaceBounds))
             {
                 untexturedSurfaces.Add(surface);
                 continue;
             }
 
-            ParsedSurface terrainProjectionSurface = NormalizeNonDemTerrainTextureSurface(surface);
+            ParsedSurface terrainProjectionSurface = NormalizeNonDemTerrainTextureSurface(face);
 
             TerrainTextureOverlay[] candidateOverlays = demTerrainTextureOverlays
                 .Where(overlay => TerrainOverlayMeshCodeResolver.IsRequestedOverlay(overlay, requestedMeshCodeBounds)
@@ -267,24 +268,30 @@ internal static class TerrainOverlayProjectionSplitPolicy
         return surface with { UsesGeneratedDemTexture = true };
     }
 
-    private static ParsedSurface NormalizeNonDemTerrainTextureSurface(ParsedSurface surface)
+    private static ParsedSurface NormalizeNonDemTerrainTextureSurface(ConstructionFace face)
     {
+        ParsedSurface surface = face.Surface;
+        if (face.Role is ConstructionFaceRole.RoofSlab)
+        {
+            return surface;
+        }
+
         return surface.Semantic == ParsedSurfaceSemantic.Roof
             ? surface
             : surface with { Semantic = ParsedSurfaceSemantic.Roof };
     }
 
     private static bool IsNonDemTerrainTextureSurface(
-        ParsedSurface surface,
+        ConstructionFace face,
         double cityObjectMinAltitude,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
-        // Generated no-wall slab parts are extruded from the top roof surface, so terrain imagery follows the slab.
+        ParsedSurface surface = face.Surface;
         return surface.TexturePayload is null
             && !surface.UsesGeneratedDemTexture
             && RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(
-                surface,
+                face,
                 cityObjectMinAltitude,
                 cityObjectOrigin,
                 cityObjectCartesian);

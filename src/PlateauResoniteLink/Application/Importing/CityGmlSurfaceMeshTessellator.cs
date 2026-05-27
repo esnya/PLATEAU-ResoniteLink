@@ -17,27 +17,28 @@ internal static class CityGmlSurfaceMeshTessellator
     {
         List<(MeshVertex First, MeshVertex Second, MeshVertex Third, string SortKey)> triangles = [];
         bool useVertexColors = request.Material.MaterialType == MaterialType.VertexColor;
+        ParsedSurface surface = request.Face.Surface;
         DemUvProjection? generatedDemUvProjection = request.Material.TerrainOverlay is not null
             ? request.DemUvProjection
             : null;
         bool useGeneratedDemUv = generatedDemUvProjection is not null;
         SurfaceUvProjection? generatedSurfaceUvProjection = !useGeneratedDemUv
-            && request.Surface.TexturePayload is null
+            && surface.TexturePayload is null
             && request.Material.Projection == MaterialProjection.Uv
                 ? CreateGeneratedSurfaceUvProjection(
-                    request.Surface,
+                    surface,
                     request.PackageName,
                     request.CityObjectOrigin,
                     request.CityObjectCartesian,
                     request.FacadeUvProjectionContext)
                 : null;
         List<TessellatedRing> tessellatedRings = CreateSurfaceTessellatedRings(
-            request.Surface,
+            surface,
             request.CityObjectOrigin,
             request.CityObjectCartesian,
             generatedDemUvProjection,
             generatedSurfaceUvProjection,
-            useVertexColors ? request.Surface.BaseColor : null);
+            useVertexColors ? surface.BaseColor : null);
         if (tessellatedRings.Count == 0)
         {
             return SurfaceMeshTessellation.Empty;
@@ -659,7 +660,7 @@ internal static class CityGmlSurfaceMeshTessellator
 
 internal sealed record SurfaceMeshTessellationRequest(
     string PackageName,
-    ParsedSurface Surface,
+    ConstructionFace Face,
     ResolvedMaterial Material,
     GeodeticPoint CityObjectOrigin,
     LocalCartesian? CityObjectCartesian,
