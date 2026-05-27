@@ -301,7 +301,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     }
 
     [Fact]
-    public void CreateLeavesLod2NoWallBuildingWhenGeneratedBottomWouldEnterLowerNonRoofCullBand()
+    public void CreateGeneratesLod2NoWallSlabWithoutTreatingLowerNonRoofSurfacesAsRealWalls()
     {
         ParsedCityObject cityObject = CreateCityObject(
             [
@@ -318,11 +318,13 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
 
         ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
 
-        Assert.Same(cityObject, generated);
+        Assert.NotSame(cityObject, generated);
+        Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Ground);
+        Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof_generated_no-wall-bottom");
     }
 
     [Fact]
-    public void CreateLeavesLod2NoWallBuildingWhenLowerNonRoofSurfaceEntersSlopedRoofSlabBand()
+    public void CreateGeneratesLod2NoWallSlabWithoutTreatingSlopedLowerNonRoofSurfacesAsRealWalls()
     {
         ParsedCityObject cityObject = CreateCityObject(
             [
@@ -341,7 +343,9 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
 
         ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
 
-        Assert.Same(cityObject, generated);
+        Assert.NotSame(cityObject, generated);
+        Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Wall);
+        Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof_generated_no-wall-bottom");
     }
 
     [Theory]

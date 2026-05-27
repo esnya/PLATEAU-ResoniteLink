@@ -162,14 +162,9 @@ internal static class GeneratedLod1RoofCityObjectFactory
             return false;
         }
 
-        Dictionary<string, SurfaceProjectionInfo> infosByPolygonId = surfaceInfos.ToDictionary(
-            static info => info.Surface.PolygonId,
-            static info => info,
-            StringComparer.Ordinal);
         foreach (ParsedSurface roofSurface in roofSurfaces)
         {
-            if (!infosByPolygonId.TryGetValue(roofSurface.PolygonId, out SurfaceProjectionInfo roofInfo)
-                || IsNoWallLod2BottomInCullBand(roofInfo, surfaceInfos))
+            if (!surfaceInfos.Any(info => string.Equals(info.Surface.PolygonId, roofSurface.PolygonId, StringComparison.Ordinal)))
             {
                 return false;
             }
@@ -185,20 +180,6 @@ internal static class GeneratedLod1RoofCityObjectFactory
 
         noWallRoofSlab = cityObject with { Surfaces = generatedLod2Surfaces! };
         return true;
-    }
-
-    private static bool IsNoWallLod2BottomInCullBand(
-        SurfaceProjectionInfo roofInfo,
-        IReadOnlyList<SurfaceProjectionInfo> surfaceInfos)
-    {
-        double roofMinimumY = roofInfo.MinimumY!.Value;
-        double roofMaximumY = roofInfo.MaximumY!.Value;
-        double slabBottomY = roofMinimumY - NoWallRoofThicknessMeters;
-        return surfaceInfos
-            .Where(static info => info.Surface.Semantic != ParsedSurfaceSemantic.Roof)
-            .Where(info => info.MinimumY!.Value < roofMaximumY)
-            .Where(info => info.MaximumY!.Value < roofMaximumY)
-            .Any(info => slabBottomY <= info.MaximumY!.Value + BuildingBottomCullBandMeters);
     }
 
     private static bool TryGetNoWallTopSurfaces(
