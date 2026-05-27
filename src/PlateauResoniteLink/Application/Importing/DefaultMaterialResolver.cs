@@ -1,9 +1,4 @@
 using System;
-using System.Buffers.Binary;
-using System.Linq;
-
-using System.Security.Cryptography;
-using System.Text;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -165,90 +160,86 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials)
     {
         BuildingAttributeContext attributes = request.BuildingAttributes ?? BuildingAttributeContext.Empty;
-        int? floorCount = request.FloorsAboveGround;
-        double? heightMeters = GetEffectiveHeightMeters(request);
-        double? footprintArea = request.FootprintAreaSquareMeters;
-        bool lowRise = IsLowRise(floorCount, heightMeters);
-        bool midOrHighRise = IsMidOrHighRise(floorCount, heightMeters);
-        bool midrise = IsMidrise(floorCount, heightMeters);
-        bool highrise = IsHighrise(floorCount, heightMeters);
-        bool landmark = IsLandmarkScale(floorCount, heightMeters);
-        bool largeLowRise = lowRise && footprintArea is >= 1000.0;
+        BuildingFacadeScale scale = BuildingFacadeScale.Classify(
+            request.FloorsAboveGround,
+            request.MeasuredHeightMeters,
+            request.GeometryHeightMeters,
+            request.FootprintAreaSquareMeters);
 
-        if (landmark)
+        if (scale.Landmark)
         {
-            return HasNightOccupancy(attributes)
+            return BuildingAttributePredicates.HasNightOccupancy(attributes)
                 ? SelectFacadeHighriseNightLowMember(commonMaterials, request.VariantSelectionKey)
                 : SelectFacadeHighriseGlassMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (highrise)
+        if (scale.Highrise)
         {
-            return HasNightOccupancy(attributes)
+            return BuildingAttributePredicates.HasNightOccupancy(attributes)
                 ? SelectFacadeHighriseNightLowMember(commonMaterials, request.VariantSelectionKey)
                 : SelectFacadeHighriseGlassMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (midrise && IsFacadeLikeMidriseUse(attributes))
+        if (scale.Midrise && BuildingAttributePredicates.HasFacadeLikeMidriseUse(attributes))
         {
             return SelectFacadeMidriseGridMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (HasRawBuildingCode(attributes, "431")
-            || HasUse(attributes, PlateauBuildingUse.Warehouse)
-            || HasRawBuildingCode(attributes, "441")
-            || HasUse(attributes, PlateauBuildingUse.Factory)
-            || largeLowRise)
+        if (BuildingAttributePredicates.HasRawBuildingCode(attributes, "431")
+            || BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Warehouse)
+            || BuildingAttributePredicates.HasRawBuildingCode(attributes, "441")
+            || BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Factory)
+            || scale.LargeLowRise)
         {
             return commonMaterials.WallFactoryMetal.FactoryMetal;
         }
 
-        if (HasRawBuildingCode(attributes, "451"))
+        if (BuildingAttributePredicates.HasRawBuildingCode(attributes, "451"))
         {
             return commonMaterials.WallWoodRural.WoodRuralLight;
         }
 
-        if (HasBrickLikeStructure(attributes))
+        if (BuildingAttributePredicates.HasBrickLikeStructure(attributes))
         {
             return SelectWallBrickRetroMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (HasUse(attributes, PlateauBuildingUse.Commercial)
-            || HasUse(attributes, PlateauBuildingUse.Office))
+        if (BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Commercial)
+            || BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Office))
         {
-            return lowRise
+            return scale.LowRise
                 ? SelectWallCommercialPanelMember(commonMaterials, request.VariantSelectionKey)
                 : SelectWallRcPaintedMidMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (HasUse(attributes, PlateauBuildingUse.Public)
-            || HasUse(attributes, PlateauBuildingUse.Education))
+        if (BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Public)
+            || BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Education))
         {
             return SelectWallSchoolPublicBandMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (HasUse(attributes, PlateauBuildingUse.Apartment))
+        if (BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.Apartment))
         {
-            return lowRise
+            return scale.LowRise
                 ? SelectWallResidentialTileLowMember(commonMaterials, request.VariantSelectionKey)
                 : SelectWallApartmentTileMidMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (HasUse(attributes, PlateauBuildingUse.MixedResidential))
+        if (BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.MixedResidential))
         {
-            return lowRise
+            return scale.LowRise
                 ? SelectWallResidentialPlasterLowMember(commonMaterials, request.VariantSelectionKey)
                 : SelectWallApartmentTileMidMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (HasUse(attributes, PlateauBuildingUse.DetachedResidential))
+        if (BuildingAttributePredicates.HasUse(attributes, PlateauBuildingUse.DetachedResidential))
         {
             return IsWeightedAlternate(request.VariantSelectionKey)
                 ? SelectWallResidentialTileLowMember(commonMaterials, request.VariantSelectionKey)
                 : SelectWallResidentialPlasterLowMember(commonMaterials, request.VariantSelectionKey);
         }
 
-        if (IsRobustStructure(attributes) || midOrHighRise)
+        if (BuildingAttributePredicates.IsRobustStructure(attributes) || scale.MidOrHighRise)
         {
             return SelectWallRcPaintedMidMember(commonMaterials, request.VariantSelectionKey);
         }
@@ -256,128 +247,13 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         return SelectWallResidentialPlasterLowMember(commonMaterials, request.VariantSelectionKey);
     }
 
-    private static bool IsLowRise(int? floorCount, double? heightMeters)
-    {
-        return (!FacadeFloorMetrics.IsUsableFloorCount(floorCount) || floorCount <= 3)
-            && (!heightMeters.HasValue || heightMeters.Value < 12.0);
-    }
-
-    private static bool IsMidOrHighRise(int? floorCount, double? heightMeters)
-    {
-        return (FacadeFloorMetrics.IsUsableFloorCount(floorCount) && floorCount >= 4)
-            || heightMeters is >= 12.0;
-    }
-
-    private static bool IsMidrise(int? floorCount, double? heightMeters)
-    {
-        return (heightMeters is >= 25.0 and < 80.0)
-            || (FacadeFloorMetrics.IsUsableFloorCount(floorCount) && floorCount is >= 8 and < 20);
-    }
-
-    private static bool IsHighrise(int? floorCount, double? heightMeters)
-    {
-        return (heightMeters is >= 80.0 and < 150.0)
-            || (FacadeFloorMetrics.IsUsableFloorCount(floorCount) && floorCount is >= 20 and < 35);
-    }
-
-    private static bool IsLandmarkScale(int? floorCount, double? heightMeters)
-    {
-        return heightMeters is >= 150.0
-            || (FacadeFloorMetrics.IsUsableFloorCount(floorCount) && floorCount >= 35);
-    }
-
-    private static double? GetEffectiveHeightMeters(DefaultMaterialRequest request)
-    {
-        return TryGetPositiveValue(request.MeasuredHeightMeters)
-            ?? TryGetPositiveValue(request.GeometryHeightMeters);
-    }
-
-    private static double? TryGetPositiveValue(double? value)
-    {
-        return value is > 0.0 && !double.IsNaN(value.Value) && !double.IsInfinity(value.Value)
-            ? value.Value
-            : null;
-    }
-
-    private static bool IsFacadeLikeMidriseUse(BuildingAttributeContext attributes)
-    {
-        return HasUse(attributes, PlateauBuildingUse.Office)
-            || HasUse(attributes, PlateauBuildingUse.Commercial)
-            || HasUse(attributes, PlateauBuildingUse.Public)
-            || HasUse(attributes, PlateauBuildingUse.Education)
-            || HasUse(attributes, PlateauBuildingUse.Apartment)
-            || HasUse(attributes, PlateauBuildingUse.MixedResidential)
-            || HasRawBuildingCode(attributes, "403");
-    }
-
-    private static bool HasNightOccupancy(BuildingAttributeContext attributes)
-    {
-        return HasUse(attributes, PlateauBuildingUse.Apartment)
-            || HasUse(attributes, PlateauBuildingUse.MixedResidential)
-            || HasRawBuildingCode(attributes, "403");
-    }
-
-    private static bool IsRobustStructure(BuildingAttributeContext attributes)
-    {
-        return attributes.Structures.Any(static structure => structure.Value is PlateauBuildingStructure.ReinforcedConcrete
-            or PlateauBuildingStructure.SteelReinforcedConcrete
-            or PlateauBuildingStructure.NonWood);
-    }
-
-    private static bool HasBrickLikeStructure(BuildingAttributeContext attributes)
-    {
-        return attributes.Structures.Any(static structure => structure.Value is PlateauBuildingStructure.ConcreteBlock);
-    }
-
-    private static bool HasUse(BuildingAttributeContext attributes, PlateauBuildingUse use)
-    {
-        return attributes.Uses.Any(candidate => candidate.Value == use)
-            || attributes.DetailedUses.Any(candidate => candidate.Value == use)
-            || attributes.CityGmlFunctionCodes.Any(code => HasRawBuildingCode(code, use));
-    }
-
-    private static bool HasRawBuildingCode(BuildingAttributeContext attributes, string code)
-    {
-        return attributes.CityGmlFunctionCodes.Any(candidate => IsSameBroadCode(candidate, code))
-            || attributes.CityGmlClassCodes.Any(candidate => IsSameBroadCode(candidate, code));
-    }
-
-    private static bool HasRawBuildingCode(string code, PlateauBuildingUse use)
-    {
-        string broadCode = CreateBroadBuildingCode(code);
-        return use switch
-        {
-            PlateauBuildingUse.DetachedResidential => broadCode is "411" or "111",
-            PlateauBuildingUse.Apartment => broadCode is "412" or "112" or "113",
-            PlateauBuildingUse.MixedResidential => broadCode is "413" or "414" or "415" or "114" or "115" or "116",
-            PlateauBuildingUse.Office => broadCode is "401" or "131",
-            PlateauBuildingUse.Commercial => broadCode is "402" or "403" or "404" or "151" or "152",
-            PlateauBuildingUse.Warehouse => broadCode is "431" or "171" or "172",
-            PlateauBuildingUse.Factory => broadCode is "441" or "174",
-            PlateauBuildingUse.Education => broadCode is "422" or "181",
-            PlateauBuildingUse.Public => broadCode is "421" or "191" or "192" or "193",
-            _ => false,
-        };
-    }
-
-    private static bool IsSameBroadCode(string candidate, string expected)
-    {
-        return string.Equals(CreateBroadBuildingCode(candidate), expected, StringComparison.Ordinal);
-    }
-
-    private static string CreateBroadBuildingCode(string code)
-    {
-        string trimmed = code.Trim();
-        return trimmed.Length <= 3 ? trimmed : trimmed[..3];
-    }
-
     private static bool IsWeightedAlternate(string variantSelectionKey)
     {
-        return SelectStableBucket($"{variantSelectionKey}:residential-wall-weight", 5) == 0;
+        return StableVariantSelector.SelectBucket($"{variantSelectionKey}:residential-wall-weight", 5) == 0;
     }
 
     private static DefaultCommonMaterialMember SelectCityFurnitureMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 6) switch
+        StableVariantSelector.SelectBucket(key, 6) switch
         {
             0 => commonMaterials.CityFurniture.Plaster002,
             1 => commonMaterials.CityFurniture.Plaster001,
@@ -388,7 +264,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectFacadeHighriseGlassMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 3) switch
+        StableVariantSelector.SelectBucket(key, 3) switch
         {
             0 => commonMaterials.FacadeHighriseGlass.Facade001,
             1 => commonMaterials.FacadeHighriseGlass.Facade005,
@@ -396,17 +272,17 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectFacadeHighriseNightLowMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.FacadeHighriseNightLow.Facade002
             : commonMaterials.FacadeHighriseNightLow.Facade011;
 
     private static DefaultCommonMaterialMember SelectFacadeMidriseGridMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.FacadeMidriseGrid.Facade014
             : commonMaterials.FacadeMidriseGrid.Facade015;
 
     private static DefaultCommonMaterialMember SelectOtherMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 9) switch
+        StableVariantSelector.SelectBucket(key, 9) switch
         {
             0 => commonMaterials.Other.Concrete012,
             1 => commonMaterials.Other.Ground054,
@@ -420,7 +296,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectRoadTriplanarMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 4) switch
+        StableVariantSelector.SelectBucket(key, 4) switch
         {
             0 => commonMaterials.RoadTriplanar.Road012A,
             1 => commonMaterials.RoadTriplanar.Road013A,
@@ -429,7 +305,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectRoadUvMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 4) switch
+        StableVariantSelector.SelectBucket(key, 4) switch
         {
             0 => commonMaterials.RoadUv.Road012A,
             1 => commonMaterials.RoadUv.Road013A,
@@ -438,7 +314,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectRoofMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 4) switch
+        StableVariantSelector.SelectBucket(key, 4) switch
         {
             0 => commonMaterials.Roof.Concrete012,
             1 => commonMaterials.Roof.Concrete033,
@@ -447,37 +323,37 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectVegetationMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.Vegetation.Ground054
             : commonMaterials.Vegetation.Concrete012;
 
     private static DefaultCommonMaterialMember SelectWallApartmentTileMidMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallApartmentTileMid.ApartmentTileMid
             : commonMaterials.WallApartmentTileMid.ApartmentTileDark;
 
     private static DefaultCommonMaterialMember SelectWallBrickRetroMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallBrickRetro.BrickRetro
             : commonMaterials.WallBrickRetro.BrickDark;
 
     private static DefaultCommonMaterialMember SelectWallCommercialPanelMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallCommercialPanel.CommercialPanel
             : commonMaterials.WallCommercialPanel.CommercialPanelDark;
 
     private static DefaultCommonMaterialMember SelectWallRcPaintedMidMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallRcPaintedMid.RcPaintedMid
             : commonMaterials.WallRcPaintedMid.RcPaintedDark;
 
     private static DefaultCommonMaterialMember SelectWallResidentialPlasterLowMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallResidentialPlasterLow.ResidentialPlasterLow
             : commonMaterials.WallResidentialPlasterLow.ResidentialPlasterDark;
 
     private static DefaultCommonMaterialMember SelectWallResidentialTileLowMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 4) switch
+        StableVariantSelector.SelectBucket(key, 4) switch
         {
             0 => commonMaterials.WallResidentialTileLow.ResidentialTileLow,
             1 => commonMaterials.WallResidentialTileLow.ResidentialTileDark,
@@ -486,17 +362,9 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         };
 
     private static DefaultCommonMaterialMember SelectWallSchoolPublicBandMember(CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials, string key) =>
-        SelectStableBucket(key, 2) == 0
+        StableVariantSelector.SelectBucket(key, 2) == 0
             ? commonMaterials.WallSchoolPublicBand.SchoolPublicBand
             : commonMaterials.WallSchoolPublicBand.SchoolPublicDark;
-
-    private static int SelectStableBucket(string variantSelectionKey, int bucketCount)
-    {
-        byte[] keyBytes = Encoding.UTF8.GetBytes(variantSelectionKey);
-        byte[] hashBytes = SHA256.HashData(keyBytes);
-        int hashCode = BinaryPrimitives.ReadInt32LittleEndian(hashBytes) & int.MaxValue;
-        return hashCode % bucketCount;
-    }
 
     private static Float2 ToContractFloat2(Domain.Importing.ScalarPair value) => new(value.X, value.Y);
 }
