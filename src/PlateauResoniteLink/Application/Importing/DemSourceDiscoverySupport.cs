@@ -61,7 +61,7 @@ internal static class DemSourceDiscoverySupport
         (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? bounds = null;
         foreach (ParsedSourceFileResult parsedSourceFile in demParsedSourceFiles)
         {
-            if (parsedSourceFile.CityObjects.Length == 0)
+            if (parsedSourceFile.CityObjects.Length == 0 || !HasAnyVertices(parsedSourceFile.CityObjects))
             {
                 continue;
             }
@@ -217,6 +217,11 @@ internal static class DemSourceDiscoverySupport
             allPoints.Min(static point => point.Longitude),
             allPoints.Max(static point => point.Longitude),
             allPoints.Min(static point => point.Altitude));
+    }
+
+    private static bool HasAnyVertices(IEnumerable<ParsedCityObject> cityObjects)
+    {
+        return cityObjects.Any(static cityObject => cityObject.Surfaces.Any(static surface => surface.Vertices.Any()));
     }
 
     private static (

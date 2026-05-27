@@ -71,6 +71,29 @@ public sealed class DemSourceDiscoverySupportTests
             region.GeographicBounds);
     }
 
+    [Fact]
+    public void ResolveDemTerrainBoundsFallsBackWhenParsedDemObjectsHaveNoVertices()
+    {
+        SourceFileDescriptor sourceFile = new(
+            "udx/dem/53394525/empty-geometry.gml",
+            "dem",
+            "53394525",
+            RequiresMeshCodeBoundsFilter: false);
+        ParsedSourceFileResult parsedWithoutVertices = new(
+            sourceFile,
+            [CreateCityObjectWithoutVertices()],
+            CoordinateReferenceSystem.Parse("EPSG:4326"),
+            [],
+            TimeSpan.Zero);
+        DemTerrainBounds fallbackBounds = new(35.0, 35.01, 139.0, 139.01);
+
+        DemTerrainBounds? result = DemSourceDiscoverySupport.ResolveDemTerrainBounds(
+            [parsedWithoutVertices],
+            fallbackBounds);
+
+        Assert.Equal(fallbackBounds, result);
+    }
+
     private static ParsedCityObject CreateCityObject()
     {
         GeodeticPoint[] vertices =
@@ -100,6 +123,32 @@ public sealed class DemSourceDiscoverySupportTests
             ],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
+            SharedAcrossMeshCodes: false,
+            TerrainAligned: false,
+            GeodeticOriginOverride: null);
+    }
+
+    private static ParsedCityObject CreateCityObjectWithoutVertices()
+    {
+        return new ParsedCityObject(
+            SlotKey: "dem-empty",
+            DisplayName: "dem-empty",
+            PackageName: "dem",
+            ActualMeshCode: "53394525",
+            LodLevel: null,
+            Surfaces:
+            [
+                new ParsedSurface(
+                    PolygonId: "empty-surface",
+                    Semantic: ParsedSurfaceSemantic.Ground,
+                    ExteriorRing: new ParsedRing("empty-ring", [], null),
+                    InteriorRings: [],
+                    BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+                    TexturePayload: null,
+                    UsesGeneratedDemTexture: false),
+            ],
+            ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
+            SourceFileRelativePath: "udx/dem/53394525/empty-geometry.gml",
             SharedAcrossMeshCodes: false,
             TerrainAligned: false,
             GeodeticOriginOverride: null);
