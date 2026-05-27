@@ -87,6 +87,8 @@ public sealed class StreamingImportedSceneSourceTests
         Assert.Equal(2, cityObjects.Count);
         Assert.Equal(1, geometryProjector.OverlayCountsByPackage["bldg"]);
         Assert.Equal(1, geometryProjector.OverlayCountsByPackage["dem"]);
+        Assert.Same(overlay, geometryProjector.LastOverlayByPackage["bldg"]);
+        Assert.Same(overlay, geometryProjector.LastOverlayByPackage["dem"]);
     }
 
     [Fact]
@@ -129,6 +131,10 @@ public sealed class StreamingImportedSceneSourceTests
 
         Assert.Equal(2, cityObjects.Count);
         Assert.Equal(1, geometryProjector.OverlayCountsByPackage["bldg"]);
+        Assert.Equal(1, geometryProjector.OverlayCountsByPackage["dem"]);
+        Assert.Same(fallbackOverlay, geometryProjector.LastOverlayByPackage["bldg"]);
+        Assert.Same(fallbackOverlay, geometryProjector.LastOverlayByPackage["dem"]);
+        Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
         Assert.Contains(
             demTextureSourcePolicy.OverlayRegionIdentityCalls,
             static identities => identities.SequenceEqual(["53394525"]));
@@ -179,7 +185,7 @@ public sealed class StreamingImportedSceneSourceTests
     }
 
     [Fact]
-    public async Task ReadCityObjectsAsyncResolvesDemFallbackOverlaysOncePerSourceFile()
+    public async Task ReadCityObjectsAsyncResolvesDemFallbackOverlaysOncePerScene()
     {
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
@@ -189,6 +195,7 @@ public sealed class StreamingImportedSceneSourceTests
             PackageNames: ["dem"]);
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false);
+        SourceFileDescriptor secondSourceFile = new("udx/dem/file-002.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false);
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(
             new TerrainTextureOverlay(
                 PackageName: "dem",
@@ -216,6 +223,18 @@ public sealed class StreamingImportedSceneSourceTests
                                 [],
                                 TimeSpan.Zero)),
                         streamFactory: cancellationToken => StreamParsedCityObjects(sourceFile, referenceSystem, cancellationToken)),
+                    new SourceFilePipeline(
+                        secondSourceFile,
+                        () => Task.FromResult(
+                            new ParsedSourceFileResult(
+                                secondSourceFile,
+                                [
+                                    CreateParsedCityObject(2, secondSourceFile, referenceSystem),
+                                ],
+                                referenceSystem,
+                                [],
+                                TimeSpan.Zero)),
+                        streamFactory: cancellationToken => StreamParsedCityObjects(secondSourceFile, referenceSystem, cancellationToken)),
                 ]),
             new TrackingGeometryProjector(),
             demTextureSourcePolicy,
@@ -236,6 +255,51 @@ public sealed class StreamingImportedSceneSourceTests
             yield return CreateParsedCityObject(1, sourceFile, referenceSystem);
             await Task.CompletedTask;
         }
+    }
+
+    [Fact]
+    public async Task ReadCityObjectsAsyncReusesExplicitDemTextureSourcePreflightForProjectionOverlays()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
+            PackageNames: ["bldg", "dem"],
+            DemTextureSource: DatasetLocation.Local("C:\\ortho"));
+        TerrainTextureOverlay explicitRasterOverlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            MaxTextureSize: 1024,
+            Sources:
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    "C:\\ortho\\terrain.tif",
+                    new GeoReferencedRasterMetadata(
+                        new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                        "EPSG:4326",
+                        1.0,
+                        1.0)),
+            ]);
+        OverlayRecordingGeometryProjector geometryProjector = new();
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(explicitRasterOverlay);
+        StreamingImportedSceneSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateReadResult(
+                [
+                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "57402736", RequiresMeshCodeBoundsFilter: false),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
+                ]),
+            geometryProjector,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
+
+        await source.ValidateBeforeSinkSetupAsync();
+        await source.ReadCityObjectsAsync().ToListAsync();
+
+        Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
+        Assert.Same(explicitRasterOverlay, geometryProjector.LastOverlayByPackage["bldg"]);
+        Assert.Same(explicitRasterOverlay, geometryProjector.LastOverlayByPackage["dem"]);
     }
 
     [Fact]
@@ -604,7 +668,7 @@ public sealed class StreamingImportedSceneSourceTests
     private sealed class OverlayRecordingGeometryProjector : ICityGmlGeometryProjector
     {
         public ConcurrentDictionary<string, int> OverlayCountsByPackage { get; } = new(StringComparer.Ordinal);
-        public Dictionary<string, TerrainTextureOverlay?> LastOverlayByPackage { get; } = new(StringComparer.Ordinal);
+        public ConcurrentDictionary<string, TerrainTextureOverlay?> LastOverlayByPackage { get; } = new(StringComparer.Ordinal);
 
         public IEnumerable<ImportedCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,

@@ -26,14 +26,15 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
-    private readonly object sceneDemTerrainTextureOverlayGate = new();
-    private readonly ConcurrentDictionary<string, Task<TerrainTextureOverlay[]>> demTerrainTextureOverlayTasks = new(StringComparer.Ordinal);
+    private readonly object sceneDemTextureSourcesGate = new();
+    private readonly object projectionTerrainOverlaySetGate = new();
     private readonly X3DMaterialWarningStatistics x3DMaterialWarningStatistics = new();
     private readonly MeshCodeBounds[] requestedMeshCodeBounds;
     private readonly string[] selectedMeshCodes;
     private readonly TerrainTextureOverlay[] discoveryTerrainTextureOverlays;
     private readonly bool hasDemPackage;
-    private Task<TerrainTextureOverlay[]>? sceneDemTerrainTextureOverlayTask;
+    private Task<ResolvedDemTextureSources>? sceneDemTextureSourcesTask;
+    private Task<ProjectionTerrainOverlaySet>? projectionTerrainOverlaySetTask;
     private CoordinateReferenceSystem? referenceSystem;
 
     public StreamingImportedSceneSource(
@@ -74,7 +75,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             return;
         }
 
-        _ = await CreateSceneDemTerrainTextureOverlaysAsync(cancellationToken);
+        _ = await GetSceneDemTextureSourcesAsync(cancellationToken);
     }
 
     public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
@@ -214,9 +215,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         LocalCartesian? globalCartesian = null;
         int parsedCount = 0;
         int yieldedCount = 0;
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = await GetProjectionDemTerrainTextureOverlaysAsync(
-            sourceFile,
-            cancellationToken);
+        ProjectionTerrainOverlaySet projectionTerrainOverlaySet = await GetProjectionTerrainOverlaySetAsync(cancellationToken);
         bool isDemSourceFile = string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
         List<ParsedCityObject> parsedDemCityObjects = [];
         X3DMaterialWarningStatistics fileWarningStatistics = new();
@@ -240,7 +239,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                          resolvedReferenceSystem,
                          globalOriginPoint,
                          globalCartesian,
-                         demTerrainTextureOverlays,
+                         projectionTerrainOverlaySet.Overlays,
                          requestedMeshCodeBounds,
                          request,
                          predicate: null,
@@ -266,7 +265,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                                  [$"CityGML file '{sourceFile.SourceFile.RelativePath}' does not declare a supported coordinate reference system."]),
                          globalOriginPoint,
                          globalCartesian,
-                         demTerrainTextureOverlays,
+                         projectionTerrainOverlaySet.Overlays,
                          requestedMeshCodeBounds,
                          request,
                          predicate: null,
@@ -352,58 +351,38 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                 [$"CityGML file '{parsedSourceFile.SourceFile.RelativePath}' does not declare a supported coordinate reference system."]));
     }
 
-    private TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(string packageName)
-    {
-        if (!string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
-            || discoveryTerrainTextureOverlays.Length == 0)
-        {
-            return [];
-        }
-
-        return discoveryTerrainTextureOverlays.ToArray();
-    }
-
-    private async Task<TerrainTextureOverlay[]> GetProjectionDemTerrainTextureOverlaysAsync(
-        SourceFilePipeline sourceFile,
-        CancellationToken cancellationToken)
-    {
-        return string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            ? await GetDemTerrainTextureOverlaysAsync(sourceFile, cancellationToken)
-            : await GetSceneDemTerrainTextureOverlaysAsync(cancellationToken);
-    }
-
-    private async Task<TerrainTextureOverlay[]> GetSceneDemTerrainTextureOverlaysAsync(
+    private async Task<ProjectionTerrainOverlaySet> GetProjectionTerrainOverlaySetAsync(
         CancellationToken cancellationToken)
     {
         if (!hasDemPackage)
         {
-            return [];
+            return ProjectionTerrainOverlaySet.Empty;
         }
 
         if (discoveryTerrainTextureOverlays.Length > 0)
         {
-            return discoveryTerrainTextureOverlays.ToArray();
+            return new ProjectionTerrainOverlaySet(discoveryTerrainTextureOverlays);
         }
 
-        Task<TerrainTextureOverlay[]> overlayTask;
-        lock (sceneDemTerrainTextureOverlayGate)
+        Task<ProjectionTerrainOverlaySet> overlaySetTask;
+        lock (projectionTerrainOverlaySetGate)
         {
-            overlayTask = sceneDemTerrainTextureOverlayTask ??= CreateSceneDemTerrainTextureOverlaysAsync(cancellationToken);
+            overlaySetTask = projectionTerrainOverlaySetTask ??= CreateProjectionTerrainOverlaySetAsync(cancellationToken);
         }
 
         try
         {
-            return await overlayTask.WaitAsync(cancellationToken);
+            return await overlaySetTask.WaitAsync(cancellationToken);
         }
         catch
         {
-            if (overlayTask.IsCanceled || overlayTask.IsFaulted)
+            if (overlaySetTask.IsCanceled || overlaySetTask.IsFaulted)
             {
-                lock (sceneDemTerrainTextureOverlayGate)
+                lock (projectionTerrainOverlaySetGate)
                 {
-                    if (ReferenceEquals(sceneDemTerrainTextureOverlayTask, overlayTask))
+                    if (ReferenceEquals(projectionTerrainOverlaySetTask, overlaySetTask))
                     {
-                        sceneDemTerrainTextureOverlayTask = null;
+                        projectionTerrainOverlaySetTask = null;
                     }
                 }
             }
@@ -412,165 +391,51 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         }
     }
 
-    private async Task<TerrainTextureOverlay[]> CreateSceneDemTerrainTextureOverlaysAsync(
+    private async Task<ProjectionTerrainOverlaySet> CreateProjectionTerrainOverlaySetAsync(
+        CancellationToken cancellationToken)
+    {
+        ResolvedDemTextureSources resolvedDemTextureSources = await GetSceneDemTextureSourcesAsync(cancellationToken);
+        return new ProjectionTerrainOverlaySet(resolvedDemTextureSources.Overlays);
+    }
+
+    private async Task<ResolvedDemTextureSources> GetSceneDemTextureSourcesAsync(
         CancellationToken cancellationToken)
     {
         DemTerrainOverlayRegion[] overlayRegions = DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
             selectedMeshCodes.Length == 0 ? [request.MeshCode] : selectedMeshCodes);
         if (overlayRegions.Length == 0)
         {
-            return [];
+            return new ResolvedDemTextureSources([]);
         }
 
-        ResolvedDemTextureSources resolvedDemTextureSources = await demTextureSourcePolicy.ResolveAsync(
-            request,
-            overlayRegions,
-            cancellationToken);
-        return resolvedDemTextureSources.Overlays.ToArray();
-    }
-
-    private bool HasOverlayCoverage(
-        ParsedSourceFileResult parsedSourceFile,
-        IReadOnlyList<TerrainTextureOverlay> overlays)
-    {
-        foreach (ParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
+        Task<ResolvedDemTextureSources> demTextureSourcesTask;
+        lock (sceneDemTextureSourcesGate)
         {
-            if (DemTerrainOverlayAssignment.HasOverlayCoverage(
-                    parsedCityObject,
-                    overlays,
-                    requestedMeshCodeBounds))
-            {
-                continue;
-            }
-
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool HasAnyVertices(IEnumerable<ParsedCityObject> cityObjects)
-    {
-        return cityObjects.Any(static cityObject => cityObject.Surfaces.Any(static surface => surface.Vertices.Any()));
-    }
-
-    private async Task<TerrainTextureOverlay[]> CreateDemTerrainTextureOverlaysAsync(
-        ParsedSourceFileResult parsedSourceFile,
-        CancellationToken cancellationToken)
-    {
-        if (!string.Equals(parsedSourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-        {
-            return [];
-        }
-
-        TerrainTextureOverlay[] discoveryOverlays = CreateDemTerrainTextureOverlays(parsedSourceFile.SourceFile.PackageName);
-        if (discoveryOverlays.Length == 0)
-        {
-            return await CreateDemTerrainTextureOverlaysFromParsedSourceFileAsync(
-                parsedSourceFile,
-                preferRequestedMeshCodeSplit: true,
+            demTextureSourcesTask = sceneDemTextureSourcesTask ??= demTextureSourcePolicy.ResolveAsync(
+                request,
+                overlayRegions,
                 cancellationToken);
         }
 
-        if (HasOverlayCoverage(parsedSourceFile, discoveryOverlays))
-        {
-            return discoveryOverlays;
-        }
-
-        return await CreateDemTerrainTextureOverlaysFromParsedSourceFileAsync(
-            parsedSourceFile,
-            preferRequestedMeshCodeSplit: false,
-            cancellationToken);
-    }
-
-    private async Task<TerrainTextureOverlay[]> GetDemTerrainTextureOverlaysAsync(
-        SourceFilePipeline sourceFile,
-        CancellationToken cancellationToken)
-    {
-        if (!string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-        {
-            return [];
-        }
-
-        Task<TerrainTextureOverlay[]> overlayTask = demTerrainTextureOverlayTasks.GetOrAdd(
-            sourceFile.SourceFile.RelativePath,
-            _ => ResolveDemTerrainTextureOverlaysCoreAsync(sourceFile, cancellationToken));
         try
         {
-            return await overlayTask.WaitAsync(cancellationToken);
+            return await demTextureSourcesTask.WaitAsync(cancellationToken);
         }
         catch
         {
-            if (overlayTask.IsCanceled || overlayTask.IsFaulted)
+            if (demTextureSourcesTask.IsCanceled || demTextureSourcesTask.IsFaulted)
             {
-                demTerrainTextureOverlayTasks.TryRemove(sourceFile.SourceFile.RelativePath, out _);
+                lock (sceneDemTextureSourcesGate)
+                {
+                    if (ReferenceEquals(sceneDemTextureSourcesTask, demTextureSourcesTask))
+                    {
+                        sceneDemTextureSourcesTask = null;
+                    }
+                }
             }
 
             throw;
         }
-    }
-
-    private async Task<TerrainTextureOverlay[]> ResolveDemTerrainTextureOverlaysCoreAsync(
-        SourceFilePipeline sourceFile,
-        CancellationToken cancellationToken)
-    {
-        ParsedSourceFileResult parsedSourceFile = await sourceFile.GetParseTask().WaitAsync(cancellationToken);
-        return await CreateDemTerrainTextureOverlaysAsync(parsedSourceFile, cancellationToken);
-    }
-
-    private async Task<TerrainTextureOverlay[]> CreateDemTerrainTextureOverlaysFromParsedSourceFileAsync(
-        ParsedSourceFileResult parsedSourceFile,
-        bool preferRequestedMeshCodeSplit,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        DemTerrainOverlayRegion[] overlayRegions = ResolveDemTerrainOverlayRegionsFromParsedSourceFile(
-            parsedSourceFile,
-            preferRequestedMeshCodeSplit);
-        if (overlayRegions.Length == 0)
-        {
-            return [];
-        }
-
-        ResolvedDemTextureSources resolvedDemTextureSources = await demTextureSourcePolicy.ResolveAsync(
-            request,
-            overlayRegions,
-            cancellationToken);
-        return resolvedDemTextureSources.Overlays.ToArray();
-    }
-
-    private DemTerrainOverlayRegion[] ResolveDemTerrainOverlayRegionsFromParsedSourceFile(
-        ParsedSourceFileResult parsedSourceFile,
-        bool preferRequestedMeshCodeSplit)
-    {
-        DemTerrainBounds? fallbackBounds = MeshCodeBounds.TryMerge(requestedMeshCodeBounds) is { } requestedMeshBounds
-            ? new DemTerrainBounds(
-                requestedMeshBounds.SouthLatitude,
-                requestedMeshBounds.NorthLatitude,
-                requestedMeshBounds.WestLongitude,
-                requestedMeshBounds.EastLongitude)
-            : null;
-        IReadOnlyList<string> selectedMeshCodes =
-            preferRequestedMeshCodeSplit && Metadata.SourceDataset.SelectedMeshCodes is { Count: > 0 }
-                ? Metadata.SourceDataset.SelectedMeshCodes
-                : [];
-        if (!HasAnyVertices(parsedSourceFile.CityObjects))
-        {
-            return fallbackBounds is null
-                ? []
-                : DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
-                    fallbackBounds,
-                    selectedMeshCodes);
-        }
-
-        DemTerrainBounds? demBounds = DemSourceDiscoverySupport.ResolveDemTerrainBounds(
-            [parsedSourceFile],
-            fallbackBounds);
-        return demBounds is null
-            ? []
-            : DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
-                demBounds,
-                selectedMeshCodes);
     }
 
     private static void ValidateCompatibleReferenceSystem(
@@ -584,6 +449,11 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
 
         throw new PlateauImportValidationException(
             [$"Mixed CityGML coordinate reference systems are not supported. Found '{expectedReferenceSystem.SrsName}' and '{actualReferenceSystem.SrsName}'."]);
+    }
+
+    private sealed record ProjectionTerrainOverlaySet(IReadOnlyList<TerrainTextureOverlay> Overlays)
+    {
+        public static ProjectionTerrainOverlaySet Empty { get; } = new([]);
     }
 
     private sealed class X3DMaterialWarningStatistics
