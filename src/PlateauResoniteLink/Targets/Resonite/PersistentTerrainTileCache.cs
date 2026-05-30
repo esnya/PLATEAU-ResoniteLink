@@ -17,7 +17,7 @@ internal sealed class PersistentTerrainTileCache
         this.cacheRoot = Path.GetFullPath(cacheRoot ?? GetDefaultCacheRoot());
     }
 
-    public async Task<byte[]?> TryReadTileBytesAsync(
+    public Task<Stream?> TryOpenTileReadAsync(
         string urlTemplate,
         int zoomLevel,
         int tileX,
@@ -27,38 +27,45 @@ internal sealed class PersistentTerrainTileCache
         string cachePath = GetCachePath(urlTemplate, zoomLevel, tileX, tileY);
         if (!File.Exists(cachePath))
         {
-            return null;
+            return Task.FromResult<Stream?>(null);
         }
 
         try
         {
-            return await File.ReadAllBytesAsync(cachePath, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Stream?>(File.OpenRead(cachePath));
         }
         catch (IOException)
         {
-            return null;
+            return Task.FromResult<Stream?>(null);
         }
         catch (UnauthorizedAccessException)
         {
-            return null;
+            return Task.FromResult<Stream?>(null);
         }
     }
 
-    public async Task WriteTileBytesAsync(
+    public async Task WriteTileAsync(
         string urlTemplate,
         int zoomLevel,
         int tileX,
         int tileY,
-        byte[] encodedBytes,
+        Stream encodedContent,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(encodedContent);
+
         string cachePath = GetCachePath(urlTemplate, zoomLevel, tileX, tileY);
         Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
 
         string temporaryPath = $"{cachePath}.{Guid.NewGuid():N}.tmp";
         try
         {
-            await File.WriteAllBytesAsync(temporaryPath, encodedBytes, cancellationToken);
+            await using (FileStream temporaryStream = File.Create(temporaryPath))
+            {
+                await encodedContent.CopyToAsync(temporaryStream, cancellationToken);
+            }
+
             File.Move(temporaryPath, cachePath, overwrite: true);
         }
         catch
