@@ -402,7 +402,7 @@ public sealed class ResoniteSceneAnchorResolverTests
             return Task.FromResult(resolvedSlot is null ? null : CloneSlot(resolvedSlot, depth: 8));
         }
 
-        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        public Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

@@ -7,11 +7,11 @@ internal static class PreparedConstructionGeometryFormatter
         return geometry switch
         {
             PreparedTriangleMeshGeometry triangleMesh =>
-                $"triangle-mesh(vertices={triangleMesh.MeshImport.VertexCount}, submeshes={triangleMesh.MeshImport.Submeshes.Count})",
+                $"triangle-mesh(vertices={triangleMesh.MeshSource.VertexCount}, submeshes={triangleMesh.MeshSource.SubmeshCount})",
             PreparedTerrainGridGeometry heightMap =>
                 $"terrain-grid({heightMap.Geometry.Width}x{heightMap.Geometry.Height})",
             PreparedDynamicTerrainGeometry dynamicTerrain =>
-                $"dynamic-terrain(static={dynamicTerrain.StaticMesh.MeshImport.VertexCount} vertices, grid={dynamicTerrain.GridMesh.Geometry.Width}x{dynamicTerrain.GridMesh.Geometry.Height})",
+                $"dynamic-terrain(static={dynamicTerrain.StaticMesh.MeshSource.VertexCount} vertices, grid={dynamicTerrain.GridMesh.Geometry.Width}x{dynamicTerrain.GridMesh.Geometry.Height})",
             _ => geometry.GetType().Name,
         };
     }

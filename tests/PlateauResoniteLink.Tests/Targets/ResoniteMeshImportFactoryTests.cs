@@ -36,7 +36,7 @@ public sealed class ResoniteMeshImportFactoryTests
                 new ResoniteMeshSubmesh(1, [0, 1, 2]),
             ]);
 
-        ImportMeshRawData result = ResoniteMeshImportFactory.Create(mesh);
+        ImportMeshRawData result = ResoniteMeshImportFactory.CreateRawDataForTests(mesh);
 
         Assert.True(result.HasColors);
         Assert.Equal(2, result.Submeshes.Count);
@@ -92,7 +92,7 @@ public sealed class ResoniteMeshImportFactoryTests
                 new ResoniteMeshSubmesh(0, [0, 65_535, 65_536]),
             ]);
 
-        ImportMeshRawData result = ResoniteMeshImportFactory.Create(mesh);
+        ImportMeshRawData result = ResoniteMeshImportFactory.CreateRawDataForTests(mesh);
 
         TriangleSubmeshRawData submesh = Assert.IsType<TriangleSubmeshRawData>(Assert.Single(result.Submeshes));
         Assert.Equal(65_537, result.VertexCount);

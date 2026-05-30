@@ -30,7 +30,7 @@ internal interface IResoniteLinkClient : IDisposable
 
     Task<Slot?> GetSlotAsync(ResoniteTransportSlotLocator slot, int depth, CancellationToken cancellationToken);
 
-    Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken);
+    Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken);
 
     Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken);
 
@@ -140,10 +140,14 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             "slot");
     }
 
-    public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+    public async Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
     {
         ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(geometrySource);
+        ImportMeshRawData request = await GeometryImportSourceMaterializer.MaterializeRawAsync(
+            geometrySource,
+            cancellationToken);
         AssetData result = await ExecuteSerializedAsync(
             "import_mesh",
             _ => link.ImportMeshAsync(request),

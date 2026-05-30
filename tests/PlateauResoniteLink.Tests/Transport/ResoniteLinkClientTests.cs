@@ -97,6 +97,29 @@ public sealed class ResoniteLinkClientTests
     }
 
     [Fact]
+    public async Task ImportMeshAsyncMaterializesSourceOnlyInsideLinkAdapter()
+    {
+        using FakeResoniteLinkTransport transport = new()
+        {
+            ImportMeshResult = new AssetData
+            {
+                Success = true,
+                AssetURL = new Uri("file:///tmp/mesh.brson"),
+            },
+        };
+        InstrumentedGeometryImportSource source = new();
+
+        Assert.Equal(0, source.MaterializeCallCount);
+
+        using ResoniteLinkClient client = new(transport);
+        Uri importedMesh = await client.ImportMeshAsync(source, CancellationToken.None);
+
+        Assert.Equal(new Uri("file:///tmp/mesh.brson"), importedMesh);
+        Assert.Equal(1, source.MaterializeCallCount);
+        Assert.Equal([9, 8, 7], transport.LastMeshRequest!.RawBinaryPayload);
+    }
+
+    [Fact]
     public async Task CreateRawFromFileAsyncThrowsWhenLocalFileIsMissing()
     {
         string texturePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
@@ -227,7 +250,13 @@ public sealed class ResoniteLinkClientTests
     {
         public AssetData ImportTextureRawResult { get; set; } = new() { Success = true };
 
+        public AssetData ImportMeshResult { get; set; } = new() { Success = true };
+
         public int ImportTextureRawCallCount { get; private set; }
+
+        public int ImportMeshCallCount { get; private set; }
+
+        public ImportMeshRawData? LastMeshRequest { get; private set; }
 
         public ImportTexture2DRawData? LastRawTextureRequest { get; private set; }
 
@@ -245,7 +274,12 @@ public sealed class ResoniteLinkClientTests
 
         public Task<SlotData> GetSlotDataAsync(GetSlot request) => throw new NotSupportedException();
 
-        public Task<AssetData> ImportMeshAsync(ImportMeshRawData request) => throw new NotSupportedException();
+        public Task<AssetData> ImportMeshAsync(ImportMeshRawData request)
+        {
+            ImportMeshCallCount++;
+            LastMeshRequest = request;
+            return Task.FromResult(ImportMeshResult);
+        }
 
         public Task<AssetData> ImportTextureRawAsync(ImportTexture2DRawData request)
         {
@@ -361,6 +395,32 @@ public sealed class ResoniteLinkClientTests
                 1,
                 ResoniteTextureColorProfiles.Srgb,
                 [1, 2, 3, 4]));
+        }
+    }
+
+    private sealed class InstrumentedGeometryImportSource : IRawGeometryPayloadSource
+    {
+        public int MaterializeCallCount { get; private set; }
+
+        public string Identity => "instrumented-mesh";
+
+        public string Description => "instrumented-mesh";
+
+        public int VertexCount => 3;
+
+        public int SubmeshCount => 1;
+
+        public long? EstimatedByteLength => 3;
+
+        public ValueTask<ImportMeshRawData> MaterializeRawAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            MaterializeCallCount++;
+            return ValueTask.FromResult(new ImportMeshRawData
+            {
+                RawBinaryPayload = [9, 8, 7],
+                VertexCount = 3,
+            });
         }
     }
 }

@@ -82,9 +82,12 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
             cancellationToken);
     }
 
-    public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+    public Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
     {
-        return ExecuteOnLeastBusyRouteAsync("import_mesh", (client, ct) => client.ImportMeshAsync(request, ct), cancellationToken);
+        return ExecuteOnLeastBusyRouteAsync(
+            "import_mesh",
+            (client, ct) => client.ImportMeshAsync(geometrySource, ct),
+            cancellationToken);
     }
 
     public Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
