@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
-
-using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -209,7 +209,21 @@ internal static class ResoniteCityObjectPreparation
             : new ResoniteFloat2(terrainTextureRect.Value.OffsetValue.X, terrainTextureRect.Value.OffsetValue.Y);
     }
 
-    public static ResoniteRawHdrTextureImport PrepareTerrainGridDisplacementTexture(ResoniteTerrainGridGeometry geometry)
+    public static ITextureImportSource PrepareTerrainGridDisplacementTexture(ResoniteTerrainGridGeometry geometry)
+    {
+        return TextureImportSourceFactory.CreateGeneratedImage(
+            cancellationToken =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return ValueTask.FromResult(CreateTerrainGridDisplacementPayload(geometry));
+            },
+            $"terrain-grid-height:{RuntimeHelpers.GetHashCode(geometry)}:{geometry.Width}x{geometry.Height}",
+            $"terrain-grid-height:{geometry.Width}x{geometry.Height}",
+            colorProfile: null,
+            estimatedByteLength: checked((long)geometry.Width * geometry.Height * 4L * sizeof(float)));
+    }
+
+    private static RawTexturePayload CreateTerrainGridDisplacementPayload(ResoniteTerrainGridGeometry geometry)
     {
         float[] rawPixels = new float[geometry.Width * geometry.Height * 4];
         double heightRange = Math.Max(geometry.MaxHeight - geometry.MinHeight, 0.0);
@@ -235,7 +249,12 @@ internal static class ResoniteCityObjectPreparation
 
         byte[] rawBytes = new byte[rawPixels.Length * sizeof(float)];
         Buffer.BlockCopy(rawPixels, 0, rawBytes, 0, rawBytes.Length);
-        return new ResoniteRawHdrTextureImport(geometry.Width, geometry.Height, rawBytes);
+        return new RawTexturePayload(
+            geometry.Width,
+            geometry.Height,
+            ColorProfile: null,
+            rawBytes,
+            RawTexturePayloadFormat.RgbaFloat32);
     }
 
     public static string CreateTriangleMeshDiagnosticSummary(
@@ -320,12 +339,12 @@ internal static class ResoniteCityObjectPreparation
 internal abstract record PreparedConstructionGeometry;
 
 internal sealed record PreparedTriangleMeshGeometry(
-    ImportMeshRawData MeshImport)
+    IGeometryImportSource MeshSource)
     : PreparedConstructionGeometry;
 
 internal sealed record PreparedTerrainGridGeometry(
     ResoniteTerrainGridGeometry Geometry,
-    ResoniteRawHdrTextureImport HeightTextureImport)
+    ITextureImportSource HeightTextureSource)
     : PreparedConstructionGeometry;
 
 internal sealed record PreparedDynamicTerrainGeometry(

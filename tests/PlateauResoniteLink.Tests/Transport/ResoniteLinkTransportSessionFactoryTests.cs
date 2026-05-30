@@ -135,7 +135,7 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
             throw new NotSupportedException();
         }
 
-        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        public Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

@@ -144,11 +144,11 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             static state => $"slot '{state.Slot.Value}'");
     }
 
-    public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+    public Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
     {
         return ExecuteMeasuredWithoutReconnectAsync(
             static (client, state, ct) => client.ImportMeshAsync(state, ct),
-            request,
+            geometrySource,
             "ImportMesh",
             cancellationToken,
             static _ => null);

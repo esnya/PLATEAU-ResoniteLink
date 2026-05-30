@@ -29,6 +29,8 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
 
     public List<ImportMeshRawData> ImportedMeshes { get; } = [];
 
+    public List<IGeometryImportSource> ImportedGeometrySources { get; } = [];
+
     public List<ResoniteRawTextureImport> ImportedRawTextures { get; } = [];
 
     public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
@@ -209,13 +211,17 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
         }
     }
 
-    public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+    public async Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ImportMeshRawData request = await GeometryImportSourceMaterializer.MaterializeRawAsync(
+            geometrySource,
+            cancellationToken);
         lock (gate)
         {
+            ImportedGeometrySources.Add(geometrySource);
             ImportedMeshes.Add(request);
-            return Task.FromResult(new Uri($"resdb:///mesh/{ImportedMeshes.Count - 1}", UriKind.Absolute));
+            return new Uri($"resdb:///mesh/{ImportedMeshes.Count - 1}", UriKind.Absolute);
         }
     }
 

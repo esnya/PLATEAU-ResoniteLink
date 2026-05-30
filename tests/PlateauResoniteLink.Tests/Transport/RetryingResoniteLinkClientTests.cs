@@ -15,6 +15,11 @@ namespace PlateauResoniteLink.Tests.Transport;
 
 public sealed class RetryingResoniteLinkClientTests
 {
+    private static TestGeometryImportSource CreateRawGeometrySource()
+    {
+        return new TestGeometryImportSource();
+    }
+
     [Fact]
     public async Task ImportMeshAsyncDoesNotReconnectOrRetryAfterFailure()
     {
@@ -34,11 +39,7 @@ public sealed class RetryingResoniteLinkClientTests
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
         ResoniteLinkOperationException exception = await Assert.ThrowsAsync<ResoniteLinkOperationException>(
             () => client.ImportMeshAsync(
-                new ImportMeshRawData
-                {
-                    RawBinaryPayload = [1, 2, 3],
-                    VertexCount = 3,
-                },
+                CreateRawGeometrySource(),
                 CancellationToken.None));
         Assert.Equal("ImportMesh", exception.OperationName);
 
@@ -56,6 +57,21 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.DoesNotContain(
             progressMessages,
             static message => message.Contains("Reconnected ResoniteLink client", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ImportMeshAsyncPassesGeometrySourceThroughRetryLayerWithoutMaterializing()
+    {
+        using StubReconnectableClient innerClient = new();
+        using RetryingResoniteLinkClient client = new(() => innerClient);
+        InstrumentedGeometryImportSource source = new();
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+        Uri importedMesh = await client.ImportMeshAsync(source, CancellationToken.None);
+
+        Assert.Equal(new Uri("resdb:///mesh/ok", UriKind.Absolute), importedMesh);
+        Assert.Equal(1, innerClient.ImportMeshCallCount);
+        Assert.Equal(0, source.MaterializeCallCount);
     }
 
     [Fact]
@@ -78,11 +94,7 @@ public sealed class RetryingResoniteLinkClientTests
 
         await Assert.ThrowsAsync<ResoniteLinkOperationException>(
             () => client.ImportMeshAsync(
-                new ImportMeshRawData
-                {
-                    RawBinaryPayload = [1, 2, 3],
-                    VertexCount = 3,
-                },
+                CreateRawGeometrySource(),
                 CancellationToken.None));
 
         ResoniteTransportSlotCreationResult createdSlot = await ((IResoniteLinkClient)client).AddSlotAsync(
@@ -223,11 +235,7 @@ public sealed class RetryingResoniteLinkClientTests
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
 
         Task<Uri> importTask = client.ImportMeshAsync(
-            new ImportMeshRawData
-            {
-                RawBinaryPayload = [1, 2, 3],
-                VertexCount = 3,
-            },
+            CreateRawGeometrySource(),
             CancellationToken.None);
 
         await innerClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -306,11 +314,7 @@ public sealed class RetryingResoniteLinkClientTests
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
 
         Task<Uri> importTask = client.ImportMeshAsync(
-            new ImportMeshRawData
-            {
-                RawBinaryPayload = [1, 2, 3],
-                VertexCount = 3,
-            },
+            CreateRawGeometrySource(),
             CancellationToken.None);
         await firstClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -388,11 +392,7 @@ public sealed class RetryingResoniteLinkClientTests
 
         await Assert.ThrowsAsync<ResoniteLinkOperationException>(
             () => client.ImportMeshAsync(
-                new ImportMeshRawData
-                {
-                    RawBinaryPayload = [1, 2, 3],
-                    VertexCount = 3,
-                },
+                CreateRawGeometrySource(),
                 CancellationToken.None));
 
         ResoniteTransportSlotCreationResult createdSlot = await ((IResoniteLinkClient)client).AddSlotAsync(
@@ -524,7 +524,7 @@ public sealed class RetryingResoniteLinkClientTests
             });
         }
 
-        public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        public async Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ImportMeshStarted.TrySetResult();
@@ -637,7 +637,7 @@ public sealed class RetryingResoniteLinkClientTests
             });
         }
 
-        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        public Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ImportMeshCallCount++;
@@ -701,6 +701,55 @@ public sealed class RetryingResoniteLinkClientTests
         public Task<AssetData> ImportTextureRawHdrAsync(ImportTexture2DRawDataHDR request) => throw new NotSupportedException();
 
         public Task<Response> UpdateComponentAsync(UpdateComponent request) => throw new NotSupportedException();
+    }
+
+    private sealed class TestGeometryImportSource : IRawGeometryPayloadSource
+    {
+        public string Identity => "test-mesh";
+
+        public string Description => "test-mesh";
+
+        public int VertexCount => 3;
+
+        public int SubmeshCount => 0;
+
+        public long? EstimatedByteLength => 3;
+
+        public ValueTask<ImportMeshRawData> MaterializeRawAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(new ImportMeshRawData
+            {
+                RawBinaryPayload = [1, 2, 3],
+                VertexCount = 3,
+            });
+        }
+    }
+
+    private sealed class InstrumentedGeometryImportSource : IRawGeometryPayloadSource
+    {
+        public int MaterializeCallCount { get; private set; }
+
+        public string Identity => "instrumented-mesh";
+
+        public string Description => "instrumented-mesh";
+
+        public int VertexCount => 3;
+
+        public int SubmeshCount => 1;
+
+        public long? EstimatedByteLength => 3;
+
+        public ValueTask<ImportMeshRawData> MaterializeRawAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            MaterializeCallCount++;
+            return ValueTask.FromResult(new ImportMeshRawData
+            {
+                RawBinaryPayload = [1, 2, 3],
+                VertexCount = 3,
+            });
+        }
     }
 
     private sealed class BlockingReconnectableClient : IResoniteLinkClient
@@ -774,7 +823,7 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.FromResult<Slot?>(null);
         }
 
-        public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        public async Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ImportMeshCallCount++;
@@ -893,7 +942,7 @@ public sealed class RetryingResoniteLinkClientTests
             });
         }
 
-        public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        public async Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ImportMeshStarted.TrySetResult();
@@ -916,4 +965,3 @@ public sealed class RetryingResoniteLinkClientTests
         }
     }
 }
-

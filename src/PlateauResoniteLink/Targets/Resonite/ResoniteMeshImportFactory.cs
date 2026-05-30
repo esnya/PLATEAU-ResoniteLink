@@ -1,6 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
@@ -11,10 +16,23 @@ internal static class ResoniteMeshImportFactory
     // ResoniteLink raw mesh import uses Int32-backed vertex counts and index spans.
     internal const int MaxSupportedVertexCount = int.MaxValue;
 
-    public static ImportMeshRawData Create(ResoniteImportedMesh mesh)
+    public static IGeometryImportSource Create(ResoniteImportedMesh mesh)
     {
         ArgumentNullException.ThrowIfNull(mesh);
         Validate(mesh);
+        return new ResoniteMeshImportSource(mesh);
+    }
+
+    internal static ImportMeshRawData CreateRawDataForTests(ResoniteImportedMesh mesh)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+        Validate(mesh);
+        return CreateRawData(mesh);
+    }
+
+    private static ImportMeshRawData CreateRawData(ResoniteImportedMesh mesh)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
 
         ResoniteMeshSubmesh[] orderedSubmeshes = mesh.Submeshes
             .OrderBy(static submesh => submesh.Index)
@@ -80,6 +98,27 @@ internal static class ResoniteMeshImportFactory
         }
 
         return request;
+    }
+
+    private sealed class ResoniteMeshImportSource(ResoniteImportedMesh mesh) : IRawGeometryPayloadSource
+    {
+        public string Identity => $"mesh:{RuntimeHelpers.GetHashCode(mesh)}";
+
+        public string Description => $"triangle-mesh:{VertexCount}:{SubmeshCount}";
+
+        public int VertexCount => mesh.Vertices.Count;
+
+        public int SubmeshCount => mesh.Submeshes.Count;
+
+        public long? EstimatedByteLength => checked(
+            (long)mesh.Vertices.Count * 128L
+            + mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count * sizeof(int)));
+
+        public ValueTask<ImportMeshRawData> MaterializeRawAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(CreateRawData(mesh));
+        }
     }
 
     private static void Validate(ResoniteImportedMesh mesh)

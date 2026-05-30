@@ -56,10 +56,10 @@ internal sealed class MetricsResoniteLinkClient(
         return await inner.GetComponentAsync(component, cancellationToken);
     }
 
-    public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+    public async Task<Uri> ImportMeshAsync(IGeometryImportSource geometrySource, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("import_mesh");
-        return await inner.ImportMeshAsync(request, cancellationToken);
+        return await inner.ImportMeshAsync(geometrySource, cancellationToken);
     }
 
     public async Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
