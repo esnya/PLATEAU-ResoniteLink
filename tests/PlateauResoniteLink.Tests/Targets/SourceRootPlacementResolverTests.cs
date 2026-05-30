@@ -1,5 +1,4 @@
 using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Targets.Resonite.Execution;
 
 using ResoniteLink;
 
@@ -8,17 +7,12 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class SourceRootPlacementResolverTests
 {
     [Fact]
-    public void ResolveUsesObservedRootBeforeSceneAnchorFallback()
+    public void ResolveUsesObservedRootBeforeRequestOriginFallback()
     {
         SourceRootPlacement placement = SourceRootPlacementResolver.Resolve(
             "plateau_tokyo23ku_bldg_53394525",
             "53394525",
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
-            new SceneAnchor(
-                new ResoniteSlotLocator("dataset-root"),
-                "53394526",
-                new ResoniteFloat3(0.0, 0.0, 0.0),
-                ReferenceSourceFileRoot: null),
             [
                 CreateSlot(
                     "source-root",
@@ -31,21 +25,18 @@ public sealed class SourceRootPlacementResolverTests
     }
 
     [Fact]
-    public void ResolveUsesDatasetRootAnchorWhenNoObservedRootExists()
+    public void ResolveUsesRequestOriginWhenNoObservedSourceRootExists()
     {
+        ResoniteLocalOrigin requestLocalOrigin = new(35.0, 139.0, 0.0);
+
         SourceRootPlacement placement = SourceRootPlacementResolver.Resolve(
             "plateau_tokyo23ku_bldg_53394525",
             "53394525",
-            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
-            new SceneAnchor(
-                new ResoniteSlotLocator("dataset-root"),
-                "53394524",
-                new ResoniteFloat3(0.0, 0.0, 0.0),
-                ReferenceSourceFileRoot: null),
+            requestLocalOrigin,
             []);
 
         Assert.Equal(
-            ResonitePlacementPolicy.ComputeMeshCodeOffset("53394524", "53394525"),
+            ResonitePlacementPolicy.ResolveMeshRootPosition(requestLocalOrigin, "53394525"),
             placement.RootPosition);
     }
 

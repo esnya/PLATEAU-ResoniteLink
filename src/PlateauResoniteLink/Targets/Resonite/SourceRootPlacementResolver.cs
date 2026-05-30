@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Targets.Resonite.Execution;
-
 using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -12,7 +10,6 @@ internal static class SourceRootPlacementResolver
         string sourceFileSlotName,
         string rootMeshCode,
         ResoniteLocalOrigin requestLocalOrigin,
-        SceneAnchor? sceneAnchor,
         IReadOnlyList<Slot> observedDatasetSourceRoots)
     {
         ObservedSourceRootPlacement? observedRootPlacement = ObservedSourceRootPlacementResolver.TryResolve(
@@ -20,22 +17,9 @@ internal static class SourceRootPlacementResolver
             rootMeshCode,
             observedDatasetSourceRoots);
         ResoniteFloat3 rootPosition = observedRootPlacement?.Position
-            ?? ResolveDatasetRootAnchoredSourceRootPosition(sceneAnchor, rootMeshCode)
             ?? ResonitePlacementPolicy.ResolveMeshRootPosition(requestLocalOrigin, rootMeshCode);
 
         return new SourceRootPlacement(rootPosition, rootPosition);
-    }
-
-    private static ResoniteFloat3? ResolveDatasetRootAnchoredSourceRootPosition(
-        SceneAnchor? sceneAnchor,
-        string rootMeshCode)
-    {
-        if (sceneAnchor is not { ReferenceSourceFileRoot: null } anchor)
-        {
-            return null;
-        }
-
-        return ResonitePlacementPolicy.ComputeMeshCodeOffset(anchor.MeshCode, rootMeshCode);
     }
 }
 
