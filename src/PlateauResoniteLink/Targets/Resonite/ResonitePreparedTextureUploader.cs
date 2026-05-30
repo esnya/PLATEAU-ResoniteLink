@@ -16,7 +16,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed record ResoniteUploadedTextureAssetSet(
     Dictionary<ResoniteTexturePayload, Uri> TextureUrisByPayload,
     Dictionary<TerrainTextureOverlay, Uri> TerrainTextureUrisByOverlay,
-    Dictionary<string, ResoniteComponentLocator> TerrainTexturePropertyBlockComponentsByMeshCode);
+    Dictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> TerrainTexturePropertyBlockComponentsByMeshCode);
 
 internal static class ResonitePreparedTextureUploader
 {
@@ -28,35 +28,38 @@ internal static class ResonitePreparedTextureUploader
     {
         Dictionary<ResoniteTexturePayload, Uri> textureUrisByPayload = new(ResoniteTexturePayloadReferenceComparer.Instance);
         Dictionary<TerrainTextureOverlay, Uri> terrainTextureUrisByOverlay = [];
-        Dictionary<string, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode = new(StringComparer.Ordinal);
+        Dictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode = [];
         HashSet<ResoniteTexturePayload> queuedPayloads = new(ResoniteTexturePayloadReferenceComparer.Instance);
-        List<(PreparedTextureReference Texture, Task<Uri> ImportTask)> textureImportTasks = [];
-        List<(PreparedTextureReference Texture, Task<SharedTerrainTextureAsset> ImportTask)> terrainTextureImportTasks = [];
+        List<(PreparedMaterialTextureReference Texture, Task<Uri> ImportTask)> textureImportTasks = [];
+        List<(PreparedTerrainOverlayTextureReference Texture, Task<SharedTerrainTextureAsset> ImportTask)> terrainTextureImportTasks = [];
 
         foreach (PreparedTextureReference texture in preparedCityObject.Textures)
         {
-            if (texture.TexturePayload is not null && !queuedPayloads.Add(texture.TexturePayload))
+            if (texture is PreparedMaterialTextureReference materialTexture)
             {
+                if (materialTexture.TexturePayload is not null && !queuedPayloads.Add(materialTexture.TexturePayload))
+                {
+                    continue;
+                }
+
+                textureImportTasks.Add((
+                    materialTexture,
+                    importClient.ImportTextureAsync(materialTexture.TextureSource, cancellationToken)));
                 continue;
             }
 
-            if (texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
+            if (texture is PreparedTerrainOverlayTextureReference terrainTexture)
             {
-                string meshCode = ResolveTerrainTextureMeshCode(texture);
                 terrainTextureImportTasks.Add((
-                    texture,
+                    terrainTexture,
                     EnsureSharedTerrainTextureAssetAsync(
                         state,
                         importClient,
-                        meshCode,
-                        texture.TextureSource,
+                        terrainTexture.MeshCode,
+                        terrainTexture.TextureSource,
                         cancellationToken)));
                 continue;
             }
-
-            textureImportTasks.Add((
-                texture,
-                importClient.ImportTextureAsync(texture.TextureSource, cancellationToken)));
         }
 
         Task[] importTasks = textureImportTasks
@@ -65,7 +68,7 @@ internal static class ResonitePreparedTextureUploader
             .ToArray();
         await Task.WhenAll(importTasks);
 
-        foreach ((PreparedTextureReference texture, Task<Uri> importTask) in textureImportTasks)
+        foreach ((PreparedMaterialTextureReference texture, Task<Uri> importTask) in textureImportTasks)
         {
             Uri textureUri = await importTask;
             if (texture.TexturePayload is not null)
@@ -74,12 +77,11 @@ internal static class ResonitePreparedTextureUploader
             }
         }
 
-        foreach ((PreparedTextureReference texture, Task<SharedTerrainTextureAsset> importTask) in terrainTextureImportTasks)
+        foreach ((PreparedTerrainOverlayTextureReference texture, Task<SharedTerrainTextureAsset> importTask) in terrainTextureImportTasks)
         {
             SharedTerrainTextureAsset sharedTexture = await importTask;
-            string meshCode = ResolveTerrainTextureMeshCode(texture);
-            terrainTextureUrisByOverlay.Add(texture.TerrainOverlay!, sharedTexture.TextureUri);
-            terrainTexturePropertyBlockComponentsByMeshCode.TryAdd(meshCode, sharedTexture.MainTexturePropertyBlockComponent.Locator);
+            terrainTextureUrisByOverlay.Add(texture.Overlay, sharedTexture.TextureUri);
+            terrainTexturePropertyBlockComponentsByMeshCode.TryAdd(texture.MeshCode, sharedTexture.MainTexturePropertyBlockComponent.Locator);
         }
 
         return new ResoniteUploadedTextureAssetSet(
@@ -91,12 +93,12 @@ internal static class ResonitePreparedTextureUploader
     private static Task<SharedTerrainTextureAsset> EnsureSharedTerrainTextureAssetAsync(
         LiveSendRunState state,
         IResoniteLinkClient importClient,
-        string meshCode,
+        ThirdRegionalMeshCode meshCode,
         ITextureImportSource textureSource,
         CancellationToken cancellationToken)
     {
         return state.TerrainTextures.AssetsByMeshCode.GetOrCreateAsync(
-            meshCode,
+            meshCode.Value,
             () => EnsureSharedTerrainTextureAssetCoreAsync(state, importClient, meshCode, textureSource, cancellationToken),
             cancellationToken);
     }
@@ -104,7 +106,7 @@ internal static class ResonitePreparedTextureUploader
     private static async Task<SharedTerrainTextureAsset> EnsureSharedTerrainTextureAssetCoreAsync(
         LiveSendRunState state,
         IResoniteLinkClient importClient,
-        string meshCode,
+        ThirdRegionalMeshCode meshCode,
         ITextureImportSource textureSource,
         CancellationToken cancellationToken)
     {
@@ -116,7 +118,7 @@ internal static class ResonitePreparedTextureUploader
         CreatedSlot meshSlot = await state.Placement.GetOrCreateSharedChildSlotAsync(
             importClient,
             terrainTexturesRoot.Locator,
-            meshCode,
+            meshCode.Value,
             cancellationToken);
         SharedTerrainTextureAsset? existingTexture = await TryFindSharedTerrainTextureAssetAsync(
             importClient,
@@ -246,15 +248,4 @@ internal static class ResonitePreparedTextureUploader
             && wrapModeVMember is Field_Enum { Value: "Clamp" };
     }
 
-    private static string ResolveTerrainTextureMeshCode(PreparedTextureReference texture)
-    {
-        if (texture.TerrainMeshCode is not { } meshCode)
-        {
-            throw new InvalidOperationException(
-                "Terrain texture overlay preparation requires a valid third-level mesh-code. "
-                + $"provided_mesh='{texture.TerrainMeshCode?.Value ?? "<null>"}'.");
-        }
-
-        return meshCode.Value;
-    }
 }

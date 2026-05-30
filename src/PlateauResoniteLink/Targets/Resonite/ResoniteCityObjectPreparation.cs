@@ -357,10 +357,17 @@ internal sealed record PreparedCityObject(
     PreparedConstructionGeometry Geometry,
     IReadOnlyList<PreparedTextureReference> Textures);
 
-internal sealed record PreparedTextureReference(
+internal abstract record PreparedTextureReference(
+    ITextureImportSource TextureSource);
+
+internal sealed record PreparedMaterialTextureReference(
     ResoniteTexturePayload? TexturePayload,
     ResoniteTextureSourceKind TextureSourceKind,
-    ITextureImportSource TextureSource,
-    ThirdRegionalMeshCode? TerrainMeshCode = null,
-    TerrainTextureOverlay? TerrainOverlay = null,
-    GeneratedTerrainTexture? GeneratedTerrainTexture = null);
+    ITextureImportSource TextureSource)
+    : PreparedTextureReference(TextureSource);
+
+internal sealed record PreparedTerrainOverlayTextureReference(
+    ThirdRegionalMeshCode MeshCode,
+    TerrainTextureOverlay Overlay,
+    GeneratedTerrainTexture GeneratedTerrainTexture)
+    : PreparedTextureReference(GeneratedTerrainTexture.TextureSource);

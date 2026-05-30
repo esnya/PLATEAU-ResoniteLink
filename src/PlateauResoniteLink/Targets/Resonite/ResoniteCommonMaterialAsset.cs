@@ -114,8 +114,6 @@ internal static class ResoniteCommonMaterialSlots
 {
     public static string GetSlotName(ResoniteMaterialBinding material)
     {
-        return ResoniteSceneMaterialConventions.CreateMaterialSlotName(
-            material,
-            useCommonMaterialAssets: true);
+        return ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
     }
 }

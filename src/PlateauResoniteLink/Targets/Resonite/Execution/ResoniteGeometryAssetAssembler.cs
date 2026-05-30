@@ -13,7 +13,7 @@ namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
 internal interface IResoniteGeometryAssetAssembler
 {
-    Task<UploadedGeometryAssetBatch> PrepareTriangleMeshAsync(
+    Task<UploadedTriangleMeshAssetBatch> PrepareTriangleMeshAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string displayName,
@@ -21,7 +21,7 @@ internal interface IResoniteGeometryAssetAssembler
         Action<string>? progressReporter,
         CancellationToken cancellationToken);
 
-    Task<UploadedGeometryAssetBatch> PrepareTerrainGridAsync(
+    Task<UploadedTerrainGridAssetBatch> PrepareTerrainGridAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string heightMapAssetSlotName,
@@ -36,7 +36,7 @@ internal interface IResoniteGeometryAssetAssembler
 
 internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAssembler
 {
-    public async Task<UploadedGeometryAssetBatch> PrepareTriangleMeshAsync(
+    public async Task<UploadedTriangleMeshAssetBatch> PrepareTriangleMeshAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string displayName,
@@ -54,7 +54,7 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         return new UploadedTriangleMeshAssetBatch(meshAssetSlotName, assetUri);
     }
 
-    public async Task<UploadedGeometryAssetBatch> PrepareTerrainGridAsync(
+    public async Task<UploadedTerrainGridAssetBatch> PrepareTerrainGridAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string heightMapAssetSlotName,

@@ -28,15 +28,10 @@ internal static class ResoniteSceneMaterialConventions
         string? PreferredProfile,
         string? WrapMode);
 
-    public static string CreateMaterialSlotName(ResoniteMaterialBinding material, bool useCommonMaterialAssets)
+    public static string CreateMaterialSlotName(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
         ResoniteMaterialBinding normalizedMaterial = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
-
-        if (!useCommonMaterialAssets)
-        {
-            throw new InvalidOperationException("Dedicated material slot names require a material index.");
-        }
 
         return CreateCommonMaterialSlotName(normalizedMaterial);
     }
@@ -60,7 +55,7 @@ internal static class ResoniteSceneMaterialConventions
             return EmptyLookupNames;
         }
 
-        return [CreateMaterialSlotName(material, useCommonMaterialAssets: true)];
+        return [CreateMaterialSlotName(material)];
     }
 
     public static ResoniteMaterialProjection GetBundledCommonMaterialProjection(string family)

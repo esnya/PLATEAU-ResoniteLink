@@ -65,14 +65,14 @@ internal sealed class ResoniteGeometryAssetPlanner(
                     cancellationToken)),
             PreparedDynamicTerrainGeometry dynamicTerrain => CreatePlannedDynamicTerrainGeometryAsset(
                 cityObject,
-                AssertUploadedTriangleMeshAssetBatch(await geometryAssetAssembler.PrepareTriangleMeshAsync(
+                await geometryAssetAssembler.PrepareTriangleMeshAsync(
                     importClient,
                     CreateMeshAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     dynamicTerrain.StaticMesh.MeshSource,
                     progressReporter,
-                    cancellationToken)),
-                AssertUploadedTerrainGridAssetBatch(await geometryAssetAssembler.PrepareTerrainGridAsync(
+                    cancellationToken),
+                await geometryAssetAssembler.PrepareTerrainGridAsync(
                     importClient,
                     CreateMeshAssetSlotName(cityObject),
                     CreateTerrainGridAssetSlotName(cityObject),
@@ -82,38 +82,44 @@ internal sealed class ResoniteGeometryAssetPlanner(
                     ResoniteCityObjectPreparation.ResolveTerrainGridUvScale(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
                     ResoniteCityObjectPreparation.ResolveTerrainGridUvOffset(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
                     progressReporter,
-                    cancellationToken))),
+                    cancellationToken)),
             _ => throw new InvalidOperationException(
                 $"Unsupported prepared geometry type '{preparedCityObject.Geometry.GetType().Name}'."),
         };
     }
 
-    private static PlannedGeometryAsset CreatePlannedGeometryAsset(
+    private static PlannedTriangleMeshGeometryAsset CreatePlannedGeometryAsset(
         ResoniteConstructionCityObject cityObject,
-        UploadedGeometryAssetBatch uploadedGeometryBatch)
+        UploadedTriangleMeshAssetBatch uploadedGeometryBatch)
     {
         GeometryIdentity identity = new(
             string.Create(
                 CultureInfo.InvariantCulture,
                 $"geometry-{cityObject.PackageName}-{cityObject.SlotKey}-{uploadedGeometryBatch.MeshAssetSlotName}"));
 
-        return uploadedGeometryBatch switch
-        {
-            UploadedTriangleMeshAssetBatch triangleMesh => new PlannedTriangleMeshGeometryAsset(
-                identity,
-                triangleMesh.MeshAssetSlotName,
-                triangleMesh.MeshUri),
-            UploadedTerrainGridAssetBatch heightMap => new PlannedTerrainGridGeometryAsset(
-                identity,
-                heightMap.MeshAssetSlotName,
-                heightMap.TerrainGridAssetSlotName,
-                heightMap.Geometry,
-                heightMap.HeightTextureUri,
-                heightMap.UvScale,
-                heightMap.UvOffset),
-            _ => throw new InvalidOperationException(
-                $"Unsupported uploaded geometry asset batch type '{uploadedGeometryBatch.GetType().Name}'."),
-        };
+        return new PlannedTriangleMeshGeometryAsset(
+            identity,
+            uploadedGeometryBatch.MeshAssetSlotName,
+            uploadedGeometryBatch.MeshUri);
+    }
+
+    private static PlannedTerrainGridGeometryAsset CreatePlannedGeometryAsset(
+        ResoniteConstructionCityObject cityObject,
+        UploadedTerrainGridAssetBatch uploadedGeometryBatch)
+    {
+        GeometryIdentity identity = new(
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"geometry-{cityObject.PackageName}-{cityObject.SlotKey}-{uploadedGeometryBatch.MeshAssetSlotName}"));
+
+        return new PlannedTerrainGridGeometryAsset(
+            identity,
+            uploadedGeometryBatch.MeshAssetSlotName,
+            uploadedGeometryBatch.TerrainGridAssetSlotName,
+            uploadedGeometryBatch.Geometry,
+            uploadedGeometryBatch.HeightTextureUri,
+            uploadedGeometryBatch.UvScale,
+            uploadedGeometryBatch.UvOffset);
     }
 
     private static PlannedDynamicTerrainGeometryAsset CreatePlannedDynamicTerrainGeometryAsset(
@@ -135,22 +141,6 @@ internal sealed class ResoniteGeometryAssetPlanner(
             gridMeshBatch.HeightTextureUri,
             gridMeshBatch.UvScale,
             gridMeshBatch.UvOffset);
-    }
-
-    private static UploadedTriangleMeshAssetBatch AssertUploadedTriangleMeshAssetBatch(
-        UploadedGeometryAssetBatch uploadedGeometryBatch)
-    {
-        return uploadedGeometryBatch as UploadedTriangleMeshAssetBatch
-            ?? throw new InvalidOperationException(
-                $"Unsupported uploaded static terrain asset batch type '{uploadedGeometryBatch.GetType().Name}'.");
-    }
-
-    private static UploadedTerrainGridAssetBatch AssertUploadedTerrainGridAssetBatch(
-        UploadedGeometryAssetBatch uploadedGeometryBatch)
-    {
-        return uploadedGeometryBatch as UploadedTerrainGridAssetBatch
-            ?? throw new InvalidOperationException(
-                $"Unsupported uploaded terrain grid asset batch type '{uploadedGeometryBatch.GetType().Name}'.");
     }
 
     private static string CreateMeshAssetSlotName(ResoniteConstructionCityObject cityObject)

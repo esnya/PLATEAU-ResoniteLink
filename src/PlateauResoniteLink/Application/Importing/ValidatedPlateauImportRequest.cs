@@ -36,19 +36,8 @@ public sealed record ValidatedPlateauImportRequest(
 
     public PlateauImportRequest ToImportRequest()
     {
-        DatasetLocation rawCityGmlSource = CityGmlSource switch
-        {
-            ValidatedLocalDatasetLocation localSource => new LocalDatasetLocation(localSource.LocalSourcePath),
-            ValidatedRemoteDatasetLocation remoteSource => new RemoteDatasetLocation(remoteSource.ServerUri),
-            _ => throw new InvalidOperationException($"Unsupported validated CityGML source kind '{CityGmlSourceKind}'."),
-        };
-        DatasetLocation? rawDemTextureSource = DemTextureSource switch
-        {
-            null => null,
-            ValidatedLocalDatasetLocation localSource => new LocalDatasetLocation(localSource.LocalSourcePath),
-            ValidatedRemoteDatasetLocation remoteSource => new RemoteDatasetLocation(remoteSource.ServerUri),
-            _ => throw new InvalidOperationException($"Unsupported validated terrain texture source kind '{DemTextureSourceKind}'."),
-        };
+        DatasetLocation rawCityGmlSource = CityGmlSource.ToDatasetLocation();
+        DatasetLocation? rawDemTextureSource = DemTextureSource?.ToDatasetLocation();
 
         return new PlateauImportRequest(
             Dataset,
