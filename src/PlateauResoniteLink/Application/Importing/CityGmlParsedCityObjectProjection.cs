@@ -232,22 +232,12 @@ internal static class CityGmlParsedCityObjectProjection
                 : null;
             ConstructionCityObjectDraft draft = ConstructionCityObjectDraft.FromParsedCityObject(partitionedCityObject.CityObject);
 
-            foreach (MaterialBinding material in request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic
-                         && string.Equals(partitionedCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                            ? CityGmlSurfaceMaterialResolver.CreateDemTerrainGridMaterials(
-                                draft,
-                                cityObjectOrigin,
-                                cityObjectCartesian,
-                                partitionedCityObject.Overlay,
-                                request.MeshCode,
-                                requestedMeshCodeBounds,
-                                materialResolver)
-                            : CityGmlSurfaceMaterialResolver.CreateSharedCommonMaterialBindings(
-                                draft,
-                                cityObjectOrigin,
-                                cityObjectCartesian,
-                                partitionedCityObject.Overlay,
-                                materialResolver))
+            foreach (MaterialBinding material in CityGmlSurfaceMaterialResolver.CreateSharedCommonMaterialBindings(
+                         draft,
+                         cityObjectOrigin,
+                         cityObjectCartesian,
+                         partitionedCityObject.Overlay,
+                         materialResolver))
             {
                 yield return material;
             }

@@ -844,8 +844,7 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     AssetScope: ResoniteMaterialAssetScope.Common,
-                    TerrainOverlay: overlay,
-                    TerrainMeshCode: "53394525",
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
                     CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
             ],
         };

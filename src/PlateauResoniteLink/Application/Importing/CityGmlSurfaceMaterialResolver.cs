@@ -79,6 +79,7 @@ internal static class CityGmlSurfaceMaterialResolver
                 cityObjectCartesian,
                 demTerrainTextureOverlay,
                 materialResolver)
+            .Where(static resolvedSurface => resolvedSurface.Material.TerrainOverlay is null)
             .GroupBy(
                 resolvedSurface => MaterialGroupingPolicy.CreateKey(
                     cityObject.ActualMeshCode,
@@ -154,6 +155,11 @@ internal static class CityGmlSurfaceMaterialResolver
                     requestedMeshCode: null,
                     requestedMeshCodeBounds: null,
                     representativeSurface.Material.TerrainOverlay);
+        TerrainOverlayMaterialBinding? terrainOverlayMaterial = representativeSurface.Material.TerrainOverlay is null
+            ? null
+            : new TerrainOverlayMaterialBinding(
+                ThirdRegionalMeshCode.Parse(terrainMeshCode!),
+                representativeSurface.Material.TerrainOverlay);
         ColorRgba baseColor = representativeSurface.Material.TerrainOverlay is null
             ? ToContractColor(representativeSurface.Surface.BaseColor)
             : new ColorRgba(1.0, 1.0, 1.0, 1.0);
@@ -180,9 +186,8 @@ internal static class CityGmlSurfaceMaterialResolver
             Family: representativeSurface.Material.Family,
             TextureOffset: representativeSurface.Material.TextureOffset,
             ReuseScope: representativeSurface.Material.ReuseScope,
-            TerrainOverlay: representativeSurface.Material.TerrainOverlay,
+            TerrainOverlayMaterial: terrainOverlayMaterial,
             BundledVariantIndex: representativeSurface.Material.BundledVariantIndex,
-            TerrainMeshCode: terrainMeshCode,
             CommonMaterial: commonMaterial);
     }
 

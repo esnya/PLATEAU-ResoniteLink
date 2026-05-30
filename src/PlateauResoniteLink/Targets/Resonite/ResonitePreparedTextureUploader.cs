@@ -248,15 +248,13 @@ internal static class ResonitePreparedTextureUploader
 
     private static string ResolveTerrainTextureMeshCode(PreparedTextureReference texture)
     {
-        if (texture.TerrainMeshCode is not { Length: > 0 } meshCode
-            || meshCode.Length != 8
-            || !PlateauMeshCode.TryGetBounds(meshCode, out _))
+        if (texture.TerrainMeshCode is not { } meshCode)
         {
             throw new InvalidOperationException(
                 "Terrain texture overlay preparation requires a valid third-level mesh-code. "
-                + $"provided_mesh='{texture.TerrainMeshCode ?? "<null>"}'.");
+                + $"provided_mesh='{texture.TerrainMeshCode?.Value ?? "<null>"}'.");
         }
 
-        return meshCode;
+        return meshCode.Value;
     }
 }

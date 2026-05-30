@@ -68,8 +68,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureOffset: null,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TerrainOverlay: overlay,
-                    TerrainMeshCode: MeshCode),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse(MeshCode), overlay)),
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
@@ -402,56 +401,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncRejectsTerrainOverlayMaterialWithoutMeshCode()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        using SceneSinkRecordingClient client = new();
-        TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/{z}/{x}/{y}.png");
-        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
-                CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
-                new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.0, 0.0)));
-        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            DatasetName,
-            MeshCode,
-            datasetDirectory.Path,
-            LocalOrigin,
-            packageNames: ["dem"],
-            sourceFiles:
-            [
-                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
-            ]);
-        ResoniteConstructionCityObject baseCityObject = CreateTerrainOverlayCityObject(
-            "terrain-missing-mesh-code",
-            "Terrain Missing Mesh Code",
-            "dem",
-            MeshCode,
-            overlay);
-        ResoniteConstructionCityObject cityObject = baseCityObject with
-        {
-            Materials =
-            [
-                baseCityObject.Materials[0] with
-                {
-                    TerrainMeshCode = null,
-                },
-            ],
-        };
-
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-                metadata,
-                [cityObject],
-                client,
-                terrainTextureGenerator));
-        Assert.Contains("matches the overlay geographic bounds", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("object_slot='terrain-missing-mesh-code'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains($"actual_mesh_code='{MeshCode}'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("terrain_mesh='<null>'", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task ExecuteAsyncDoesNotReuseExistingGenericCommonMaterialForTerrainOverlayMaterial()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -499,8 +448,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TerrainOverlay: overlay,
-                    TerrainMeshCode: MeshCode),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse(MeshCode), overlay)),
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
@@ -882,8 +830,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TerrainOverlay: overlay,
-                    TerrainMeshCode: MeshCode),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse(MeshCode), overlay)),
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
@@ -993,15 +940,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TerrainOverlay: overlay,
-                    TerrainMeshCode: MeshCode),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse(MeshCode), overlay)),
             ]
         );
         ResoniteConstructionCityObject withoutOverlay = withOverlay with
         {
             Materials =
             [
-                withOverlay.Materials[0] with { TerrainOverlay = null },
+                withOverlay.Materials[0] with { TerrainOverlayMaterial = null },
             ],
         };
 
@@ -1745,8 +1691,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureOffset: null,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TerrainOverlay: overlay,
-                    TerrainMeshCode: meshCode),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse(meshCode), overlay)),
             ],
             SourceFileRelativePath: $"udx/{packageName}/{meshCode}/plateau_{DatasetName}_{packageName}_{meshCode}.gml");
     }

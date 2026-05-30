@@ -191,6 +191,10 @@ public enum MaterialReuseScope
     Shared = 1,
 }
 
+public sealed record TerrainOverlayMaterialBinding(
+    ThirdRegionalMeshCode MeshCode,
+    TerrainTextureOverlay Overlay);
+
 public sealed record MaterialBinding(
     ColorRgba BaseColor,
     MaterialType MaterialType,
@@ -203,7 +207,11 @@ public sealed record MaterialBinding(
     string? Family = null,
     Float2? TextureOffset = null,
     MaterialReuseScope ReuseScope = MaterialReuseScope.PerObject,
-    TerrainTextureOverlay? TerrainOverlay = null,
+    TerrainOverlayMaterialBinding? TerrainOverlayMaterial = null,
     int? BundledVariantIndex = null,
-    string? TerrainMeshCode = null,
-    DefaultCommonMaterialMember? CommonMaterial = null);
+    DefaultCommonMaterialMember? CommonMaterial = null)
+{
+    public TerrainTextureOverlay? TerrainOverlay => TerrainOverlayMaterial?.Overlay;
+
+    public string? TerrainMeshCode => TerrainOverlayMaterial?.MeshCode.Value;
+}

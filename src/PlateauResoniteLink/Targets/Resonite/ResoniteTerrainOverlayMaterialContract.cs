@@ -14,7 +14,7 @@ internal static class ResoniteTerrainOverlayMaterialContract
     {
         if (material.TerrainOverlay is null)
         {
-            return material with { TerrainMeshCode = null };
+            return material with { TerrainOverlayMaterial = null };
         }
 
         if (material.TerrainMeshCode is null)
@@ -26,29 +26,26 @@ internal static class ResoniteTerrainOverlayMaterialContract
                 "missing terrain mesh-code");
         }
 
-        return material with
-        {
-            TerrainMeshCode = ValidateMeshCode(
-                cityObject,
-                materialIndex,
-                material,
-                material.TerrainMeshCode,
-                material.TerrainOverlay),
-        };
+        _ = ValidateMeshCode(
+            cityObject,
+            materialIndex,
+            material,
+            material.TerrainMeshCode,
+            material.TerrainOverlay);
+        return material;
     }
 
-    public static string ValidateMeshCode(
+    public static ThirdRegionalMeshCode ValidateMeshCode(
         ResoniteConstructionCityObject cityObject,
         int materialIndex,
         ResoniteMaterialBinding material,
         string meshCode,
         TerrainTextureOverlay terrainOverlay)
     {
-        if (meshCode.Length == 8
-            && PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds)
-            && BoundsApproximatelyEqual(bounds, terrainOverlay.GeographicBounds))
+        if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode)
+            && BoundsApproximatelyEqual(thirdMeshCode.Bounds, terrainOverlay.GeographicBounds))
         {
-            return meshCode;
+            return thirdMeshCode;
         }
 
         throw CreateException(
@@ -90,7 +87,7 @@ internal static class ResoniteTerrainOverlayMaterialContract
     }
 
     private static bool BoundsApproximatelyEqual(
-        (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds,
+        JisRegionalMeshBounds bounds,
         GeographicRectangle geographicBounds)
     {
         const double tolerance = 1e-8;

@@ -101,7 +101,8 @@ internal static class CityGmlParsedCityObjectReader
             SharedAcrossMeshCodes: sharedAcrossMeshCodes,
             FloorsAboveGround: floorsAboveGround,
             MeasuredHeightMeters: measuredHeightMeters,
-            BuildingAttributes: buildingAttributes);
+            BuildingAttributes: buildingAttributes,
+            SourceMeshCode: actualMeshCode);
     }
 
     private static string? GetAttribute(XElement element, XName attributeName)

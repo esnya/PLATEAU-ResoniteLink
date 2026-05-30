@@ -1134,8 +1134,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     ResoniteMaterialProjection.Uv,
                     null,
                     [0],
-                    TerrainOverlay: overlay,
-                    TerrainMeshCode: "53394525"),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay)),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: sourceFileRelativePath);

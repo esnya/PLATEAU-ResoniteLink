@@ -1150,7 +1150,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectParsedCityObjectAssignsSelectedAdjacentOverlayToTexturelessBuildingRoof()
+    public void ProjectParsedCityObjectUsesSourceOverlayForTexturelessBuildingRoofOutsideSourceBounds()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay selectedRequestOverlay = CreateThirdMeshOverlay("53394525");
@@ -1182,8 +1182,81 @@ public sealed class LocalCityGmlObjectProjectionTests
             new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
 
         MaterialBinding material = Assert.Single(projected.Materials);
-        Assert.Same(selectedAdjacentOverlay, material.TerrainOverlay);
-        Assert.Equal("53394526", material.TerrainMeshCode);
+        Assert.Same(selectedRequestOverlay, material.TerrainOverlay);
+        Assert.Equal("53394525", material.TerrainMeshCode);
+    }
+
+    [Fact]
+    public void ProjectParsedCityObjectUsesSourceMeshOverlayBeforeActualMeshOverlay()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay sourceOverlay = CreateThirdMeshOverlay("53394525");
+        TerrainTextureOverlay actualOverlay = CreateThirdMeshOverlay("53394526");
+        GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
+        ParsedSurface roofSurface = CreateParsedSurface(
+            "actual-mesh-textureless-roof",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem) with
+        {
+            ActualMeshCode = "53394526",
+            SourceMeshCode = "53394525",
+        };
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem", "bldg"]);
+
+        ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            origin,
+            globalCartesian: null,
+            demTerrainTextureOverlays: [sourceOverlay, actualOverlay],
+            requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Same(sourceOverlay, material.TerrainOverlay);
+        Assert.Equal("53394525", material.TerrainMeshCode);
+    }
+
+    [Fact]
+    public void ProjectParsedCityObjectDoesNotUseUnrelatedParentSourceOverlayForTexturelessBuildingRoof()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay unrelatedSourceParentOverlay = CreateThirdMeshOverlay("53394525");
+        GeodeticPoint origin = CreateMeshCenterPoint("53394526", altitudeMeters: 8.0);
+        ParsedSurface roofSurface = CreateParsedSurface(
+            "parent-source-partial-coverage-roof",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null);
+        ParsedCityObject cityObject = CreateParsedCityObject("bldg", [roofSurface], referenceSystem) with
+        {
+            ActualMeshCode = "53394526",
+            SourceMeshCode = "533945",
+        };
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "533945",
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem", "bldg"]);
+
+        ImportedCityObject projected = Assert.Single(LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            origin,
+            globalCartesian: null,
+            demTerrainTextureOverlays: [unrelatedSourceParentOverlay],
+            requestedMeshCodeBounds: [MeshCodeBounds.TryParse("533945")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+
+        Assert.DoesNotContain(projected.Materials, static material => material.TerrainOverlay is not null);
     }
 
     [Fact]
@@ -1256,6 +1329,43 @@ public sealed class LocalCityGmlObjectProjectionTests
             globalCartesian: null,
             demTerrainTextureOverlays: [firstOverlay, secondOverlay],
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("533945")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+
+        Assert.Empty(materialBindings);
+    }
+
+    [Fact]
+    public void EnumerateCommonMaterialsForParsedCityObjectExcludesTerrainOverlayDemGridForRegexMeshSelector()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
+        ParsedSurface demSurface = CreateParsedSurface(
+            "regex-dem-grid-terrain-overlay",
+            ParsedSurfaceSemantic.Roof,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
+            texturePayload: null) with
+        {
+            UsesGeneratedDemTexture = true,
+        };
+        ParsedCityObject cityObject = CreateParsedCityObject("dem", [demSurface], referenceSystem) with
+        {
+            ActualMeshCode = "533945",
+        };
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: ".*",
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem"],
+            TerrainMeshMode: TerrainMeshMode.Grid);
+
+        MaterialBinding[] materialBindings = LocalCityGmlObjectProjection.EnumerateCommonMaterialsForParsedCityObject(
+            cityObject,
+            CreateMeshCenterPoint("53394525", altitudeMeters: 8.0),
+            globalCartesian: null,
+            demTerrainTextureOverlays: [overlay],
+            requestedMeshCodeBounds: [],
             terrainHeightSampler: null,
             request,
             new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();

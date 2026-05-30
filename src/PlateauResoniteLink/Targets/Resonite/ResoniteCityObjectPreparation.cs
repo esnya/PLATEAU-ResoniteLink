@@ -361,6 +361,6 @@ internal sealed record PreparedTextureReference(
     ResoniteTexturePayload? TexturePayload,
     ResoniteTextureSourceKind TextureSourceKind,
     ITextureImportSource TextureSource,
-    string? TerrainMeshCode = null,
+    ThirdRegionalMeshCode? TerrainMeshCode = null,
     TerrainTextureOverlay? TerrainOverlay = null,
     GeneratedTerrainTexture? GeneratedTerrainTexture = null);

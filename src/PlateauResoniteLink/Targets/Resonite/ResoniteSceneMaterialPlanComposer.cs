@@ -133,8 +133,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             ? sourceMaterial
             : sourceMaterial with
             {
-                TerrainOverlay = null,
-                TerrainMeshCode = null,
+                TerrainOverlayMaterial = null,
                 TextureScale = null,
                 TextureOffset = null,
             };
