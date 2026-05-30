@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
 
 using ResoniteLink;
@@ -86,11 +87,11 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
         return ExecuteOnLeastBusyRouteAsync("import_mesh", (client, ct) => client.ImportMeshAsync(request, ct), cancellationToken);
     }
 
-    public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+    public Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
     {
         return ExecuteOnLeastBusyRouteAsync(
             "import_texture",
-            (client, ct) => client.ImportTextureAsync(textureImport, ct),
+            (client, ct) => client.ImportTextureAsync(textureSource, ct),
             cancellationToken);
     }
 

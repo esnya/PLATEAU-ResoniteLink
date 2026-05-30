@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
@@ -535,7 +536,7 @@ public sealed class RetryingResoniteLinkClientTests
             return new Uri("resdb:///mesh/serialized", UriKind.Absolute);
         }
 
-        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(new Uri("resdb:///texture/ok", UriKind.Absolute));
@@ -648,7 +649,7 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.FromResult(new Uri("resdb:///mesh/ok", UriKind.Absolute));
         }
 
-        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ImportTextureCallCount++;
@@ -782,7 +783,7 @@ public sealed class RetryingResoniteLinkClientTests
             return new Uri("resdb:///mesh/serialized", UriKind.Absolute);
         }
 
-        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(new Uri("resdb:///texture/ok", UriKind.Absolute));
@@ -902,7 +903,7 @@ public sealed class RetryingResoniteLinkClientTests
             return new Uri("resdb:///mesh/ok", UriKind.Absolute);
         }
 
-        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(new Uri("resdb:///texture/ok", UriKind.Absolute));
@@ -915,5 +916,4 @@ public sealed class RetryingResoniteLinkClientTests
         }
     }
 }
-
 

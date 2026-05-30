@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Immutable;
 
+using PlateauResoniteLink.Application.Importing;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 public enum ResoniteTexturePayloadFormat
@@ -26,6 +28,31 @@ public sealed record ResoniteTexturePayload
         BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
         Identity = identity;
         Format = format;
+        Source = TextureImportSourceFactory.CreateInMemory(
+            width,
+            height,
+            colorProfile,
+            binaryPayload,
+            identity ?? Guid.NewGuid().ToString("N"),
+            (TexturePayloadFormat)format);
+    }
+
+    public ResoniteTexturePayload(
+        int? width,
+        int? height,
+        string? colorProfile,
+        ITextureImportSource source,
+        string? identity = null,
+        ResoniteTexturePayloadFormat format = ResoniteTexturePayloadFormat.EncodedImage)
+    {
+        Width = width;
+        Height = height;
+        ColorProfile = colorProfile;
+        ArgumentNullException.ThrowIfNull(source);
+        BinaryPayload = [];
+        Identity = identity ?? source.Identity;
+        Format = format;
+        Source = source;
     }
 
     public int? Width { get; init; }
@@ -39,4 +66,6 @@ public sealed record ResoniteTexturePayload
     public string? Identity { get; init; }
 
     public ResoniteTexturePayloadFormat Format { get; init; }
+
+    public ITextureImportSource Source { get; init; }
 }

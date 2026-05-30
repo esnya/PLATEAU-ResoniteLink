@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
 
 using ResoniteLink;
@@ -31,7 +32,7 @@ internal interface IResoniteLinkClient : IDisposable
 
     Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken);
 
-    Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken);
+    Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken);
 
     Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken);
 }
@@ -151,16 +152,19 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         return result.AssetURL ?? throw new InvalidOperationException("ResoniteLink returned a null mesh asset URL.");
     }
 
-    public async Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+    public async Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
     {
         ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
-        ArgumentNullException.ThrowIfNull(textureImport);
-        AssetData result = textureImport switch
+        ArgumentNullException.ThrowIfNull(textureSource);
+        RawTexturePayload rawPayload = await TextureImportSourceMaterializer.MaterializeRawAsync(
+            textureSource,
+            cancellationToken);
+        AssetData result = rawPayload.Format switch
         {
-            ResoniteRawTextureImport rawImport => await ImportRawTextureAsync(rawImport, cancellationToken),
-            ResoniteRawHdrTextureImport rawHdrImport => await ImportRawHdrTextureAsync(rawHdrImport, cancellationToken),
-            _ => throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'."),
+            RawTexturePayloadFormat.Rgba32 => await ImportRawTextureAsync(rawPayload, cancellationToken),
+            RawTexturePayloadFormat.RgbaFloat32 => await ImportRawHdrTextureAsync(rawPayload, cancellationToken),
+            _ => throw new InvalidOperationException($"Unsupported texture payload format '{rawPayload.Format}'."),
         };
 
         EnsureSuccess(result, "import texture");
@@ -245,31 +249,31 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             "component");
     }
 
-    private Task<AssetData> ImportRawTextureAsync(ResoniteRawTextureImport rawImport, CancellationToken cancellationToken)
+    private Task<AssetData> ImportRawTextureAsync(RawTexturePayload rawPayload, CancellationToken cancellationToken)
     {
         return ExecuteSerializedAsync(
             "import_texture",
             _ => link.ImportTextureRawAsync(
                 new ImportTexture2DRawData
                 {
-                    Width = rawImport.Width,
-                    Height = rawImport.Height,
-                    ColorProfile = rawImport.ColorProfile,
-                    RawBinaryPayload = rawImport.RawRgba32Bytes,
+                    Width = rawPayload.Width,
+                    Height = rawPayload.Height,
+                    ColorProfile = rawPayload.ColorProfile ?? ResoniteTextureColorProfiles.Srgb,
+                    RawBinaryPayload = rawPayload.Bytes,
                 }),
             cancellationToken);
     }
 
-    private Task<AssetData> ImportRawHdrTextureAsync(ResoniteRawHdrTextureImport rawHdrImport, CancellationToken cancellationToken)
+    private Task<AssetData> ImportRawHdrTextureAsync(RawTexturePayload rawPayload, CancellationToken cancellationToken)
     {
         return ExecuteSerializedAsync(
             "import_texture",
             _ => link.ImportTextureRawHdrAsync(
                 new ImportTexture2DRawDataHDR
                 {
-                    Width = rawHdrImport.Width,
-                    Height = rawHdrImport.Height,
-                    RawBinaryPayload = rawHdrImport.RawRgbaFloatBytes,
+                    Width = rawPayload.Width,
+                    Height = rawPayload.Height,
+                    RawBinaryPayload = rawPayload.Bytes,
                 }),
             cancellationToken);
     }

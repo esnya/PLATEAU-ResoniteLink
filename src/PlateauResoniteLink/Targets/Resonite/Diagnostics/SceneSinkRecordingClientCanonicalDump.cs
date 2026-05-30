@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
@@ -370,14 +371,9 @@ internal static class SceneSinkRecordingClientCanonicalDump
         if (value.StartsWith("resdb:///texture/", StringComparison.Ordinal)
             && int.TryParse(value["resdb:///texture/".Length..], NumberStyles.None, CultureInfo.InvariantCulture, out int textureIndex))
         {
-            if (textureIndex >= 0 && textureIndex < client.ImportedTextures.Count)
+            if (textureIndex >= 0 && textureIndex < client.ImportedTexturePayloads.Count)
             {
-                return client.ImportedTextures[textureIndex] switch
-                {
-                    ResoniteRawTextureImport rawTexture => CreateTextureToken(rawTexture),
-                    ResoniteRawHdrTextureImport hdrTexture => CreateHdrTextureToken(hdrTexture),
-                    _ => value,
-                };
+                return CreateTextureToken(client.ImportedTexturePayloads[textureIndex]);
             }
         }
 
@@ -403,6 +399,17 @@ internal static class SceneSinkRecordingClientCanonicalDump
         return string.Create(
             CultureInfo.InvariantCulture,
             $"hdr-texture:{texture.Width}x{texture.Height}:{HashBytes(texture.RawRgbaFloatBytes)}");
+    }
+
+    private static string CreateTextureToken(RawTexturePayload texture)
+    {
+        return texture.Format == RawTexturePayloadFormat.RgbaFloat32
+            ? string.Create(
+                CultureInfo.InvariantCulture,
+                $"hdr-texture:{texture.Width}x{texture.Height}:{HashBytes(texture.Bytes)}")
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"texture:{texture.Width}x{texture.Height}:{texture.ColorProfile}:{HashBytes(texture.Bytes)}");
     }
 
     private static string HashBytes(byte[]? bytes)

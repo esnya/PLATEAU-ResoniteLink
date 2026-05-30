@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
+
 using ResoniteLink;
 
 namespace PlateauResoniteLink.Transport.ResoniteLink;
@@ -60,10 +62,10 @@ internal sealed class MetricsResoniteLinkClient(
         return await inner.ImportMeshAsync(request, cancellationToken);
     }
 
-    public async Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+    public async Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("import_texture");
-        return await inner.ImportTextureAsync(textureImport, cancellationToken);
+        return await inner.ImportTextureAsync(textureSource, cancellationToken);
     }
 
     public async Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)

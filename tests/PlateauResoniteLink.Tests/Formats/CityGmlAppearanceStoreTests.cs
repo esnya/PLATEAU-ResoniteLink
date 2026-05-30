@@ -1,5 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
@@ -19,11 +22,12 @@ public sealed class CityGmlAppearanceStoreTests
         using TemporaryDirectory datasetRoot = new();
         string packageDirectory = Path.Combine(datasetRoot.Path, "udx", "bldg", "53394525");
         string appearanceDirectory = Path.Combine(packageDirectory, "appearance");
+        string texturePath = Path.Combine(appearanceDirectory, "roof.png");
         Directory.CreateDirectory(appearanceDirectory);
 
         using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 255, 255, 255)))
         {
-            await image.SaveAsPngAsync(Path.Combine(appearanceDirectory, "roof.png"));
+            await image.SaveAsPngAsync(texturePath);
         }
 
         IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
@@ -73,6 +77,7 @@ public sealed class CityGmlAppearanceStoreTests
         Assert.NotNull(appearance.TexturePayload);
         Assert.NotNull(appearance.ParameterizedTexture);
         Assert.Equal("image/png", appearance.ParameterizedTexture!.MimeType);
+        Assert.Equal(new FileInfo(texturePath).Length, appearance.TexturePayload!.Source.EstimatedByteLength);
         Assert.NotNull(appearance.MaterialAttributes);
         Assert.Equal(0.25, appearance.MaterialAttributes!.AmbientIntensity!.Value, 6);
         Assert.Equal(0.5, appearance.MaterialAttributes.Shininess!.Value, 6);
@@ -226,5 +231,83 @@ public sealed class CityGmlAppearanceStoreTests
         Assert.Null(appearance.MaterialAttributes.SpecularColor);
         Assert.Null(appearance.MaterialAttributes.Shininess);
         Assert.Null(appearance.MaterialAttributes.Transparency);
+    }
+
+    [Fact]
+    public async Task Resolve_DefersDatasetTextureReadUntilRawMaterialization()
+    {
+        byte[] pngBytes;
+        using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 0, 0, 255)))
+        {
+            using MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream);
+            pngBytes = stream.ToArray();
+        }
+
+        CountingDatasetContentSource datasetSource = new(pngBytes);
+        ICityGmlAppearanceStore store = new CityGmlAppearanceStoreFactory().Create(
+            "udx/bldg/53394525/example.gml",
+            datasetSource);
+        XDocument document = XDocument.Parse(
+            """
+            <core:CityModel xmlns:app="http://www.opengis.net/citygml/appearance/2.0" xmlns:core="http://www.opengis.net/citygml/2.0">
+              <app:appearanceMember>
+                <app:Appearance>
+                  <app:surfaceDataMember>
+                    <app:ParameterizedTexture>
+                      <app:imageURI>appearance/roof.png</app:imageURI>
+                      <app:target uri="#poly-1" />
+                    </app:ParameterizedTexture>
+                  </app:surfaceDataMember>
+                </app:Appearance>
+              </app:appearanceMember>
+            </core:CityModel>
+            """);
+
+        store.LoadFromDocument(document);
+        CityGmlResolvedAppearance appearance = store.Resolve("poly-1");
+
+        Assert.NotNull(appearance.TexturePayload);
+        Assert.Equal(0, datasetSource.OpenReadCallCount);
+
+        RawTexturePayload rawPayload = await TextureImportSourceMaterializer.MaterializeRawAsync(
+            appearance.TexturePayload!.Source,
+            CancellationToken.None);
+
+        Assert.Equal(1, datasetSource.OpenReadCallCount);
+        Assert.Equal(1, rawPayload.Width);
+        Assert.Equal(1, rawPayload.Height);
+        Assert.Equal([255, 0, 0, 255], rawPayload.Bytes);
+    }
+
+    private sealed class CountingDatasetContentSource(byte[] payload) : IPlateauDatasetContentSource
+    {
+        public string SourcePath => "memory";
+
+        public int OpenReadCallCount { get; private set; }
+
+        public IReadOnlyList<string> EnumerateFiles() => ["udx/bldg/53394525/appearance/roof.png"];
+
+        public bool FileExists(string relativePath) => true;
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return "udx/bldg/53394525/appearance/roof.png";
+        }
+
+        public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OpenReadCallCount++;
+            return ValueTask.FromResult<Stream>(new MemoryStream(payload, writable: false));
+        }
+
+        public Task<string> EnsureLocalFileAsync(
+            string relativePath,
+            string outputRoot,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

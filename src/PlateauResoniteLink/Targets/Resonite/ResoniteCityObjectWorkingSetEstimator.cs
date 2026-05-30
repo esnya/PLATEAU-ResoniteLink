@@ -40,7 +40,8 @@ internal static class ResoniteCityObjectWorkingSetEstimator
             .Select(static material => material.TexturePayload!)
             .Distinct(ResoniteTexturePayloadReferenceComparer.Instance)
             .ToArray();
-        long directTexturePayloadWeightBytes = distinctTexturePayloads.Sum(static payload => (long)payload.BinaryPayload.Length);
+        long directTexturePayloadWeightBytes = distinctTexturePayloads.Sum(
+            static payload => payload.Source.EstimatedByteLength ?? 0L);
         long terrainOverlayWeightBytes = cityObject.Materials
             .Where(static material => material.TerrainOverlay is not null)
             .Select(static material => material.TerrainOverlay!)

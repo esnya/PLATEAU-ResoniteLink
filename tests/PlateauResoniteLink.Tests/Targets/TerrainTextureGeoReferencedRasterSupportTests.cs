@@ -274,11 +274,11 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         Assert.Equal(0, handler.RequestCount);
         using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
-            texture.TextureImport.RawRgba32Bytes,
-            texture.TextureImport.Width,
-            texture.TextureImport.Height);
+            Materialize(texture.TextureSource).Bytes,
+            Materialize(texture.TextureSource).Width,
+            Materialize(texture.TextureSource).Height);
         Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[0, 0]);
-        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
+        Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
         Assert.IsType<TerrainTextureGeoReferencedRasterSource>(texture.UsedSource);
     }
 
@@ -335,9 +335,9 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeneratedTerrainTexture rasterOnlyTexture = await generator.EnsureTextureAsync(rasterOnlyOverlay, CancellationToken.None);
         GeneratedTerrainTexture mixedTexture = await generator.EnsureTextureAsync(mixedOverlay, CancellationToken.None);
 
-        Assert.NotEqual(tileOnlyTexture.TextureImport.RawRgba32Bytes, rasterOnlyTexture.TextureImport.RawRgba32Bytes);
-        Assert.NotEqual(tileOnlyTexture.TextureImport.RawRgba32Bytes, mixedTexture.TextureImport.RawRgba32Bytes);
-        Assert.NotEqual(rasterOnlyTexture.TextureImport.RawRgba32Bytes, mixedTexture.TextureImport.RawRgba32Bytes);
+        Assert.NotEqual(Materialize(tileOnlyTexture.TextureSource).Bytes, Materialize(rasterOnlyTexture.TextureSource).Bytes);
+        Assert.NotEqual(Materialize(tileOnlyTexture.TextureSource).Bytes, Materialize(mixedTexture.TextureSource).Bytes);
+        Assert.NotEqual(Materialize(rasterOnlyTexture.TextureSource).Bytes, Materialize(mixedTexture.TextureSource).Bytes);
         Assert.Single(rasterOnlyTexture.UsedSources ?? []);
         Assert.Equal(2, (mixedTexture.UsedSources ?? []).Count);
     }
@@ -379,17 +379,17 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(rasterOverlay, CancellationToken.None);
 
         Assert.Equal(0, handler.RequestCount);
-        Assert.Equal(8192, texture.TextureImport.Width);
-        Assert.Equal(4096, texture.TextureImport.Height);
+        Assert.Equal(8192, Materialize(texture.TextureSource).Width);
+        Assert.Equal(4096, Materialize(texture.TextureSource).Height);
         Assert.Equal(
             new ScalarPair(
-                (double)layout.CropWidth / texture.TextureImport.Width,
-                (double)layout.CropHeight / texture.TextureImport.Height),
+                (double)layout.CropWidth / Materialize(texture.TextureSource).Width,
+                (double)layout.CropHeight / Materialize(texture.TextureSource).Height),
             texture.OccupiedUvRect.ScaleValue);
         using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
-            texture.TextureImport.RawRgba32Bytes,
-            texture.TextureImport.Width,
-            texture.TextureImport.Height);
+            Materialize(texture.TextureSource).Bytes,
+            Materialize(texture.TextureSource).Width,
+            Materialize(texture.TextureSource).Height);
         int occupiedLeft = (outputImage.Width - layout.CropWidth) / 2;
         int occupiedTop = (outputImage.Height - layout.CropHeight) / 2;
         Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 0]);
@@ -427,9 +427,9 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
-            texture.TextureImport.RawRgba32Bytes,
-            texture.TextureImport.Width,
-            texture.TextureImport.Height);
+            Materialize(texture.TextureSource).Bytes,
+            Materialize(texture.TextureSource).Width,
+            Materialize(texture.TextureSource).Height);
         Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 0]);
         Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[1, 0]);
         Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 1]);
@@ -477,9 +477,9 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
-            texture.TextureImport.RawRgba32Bytes,
-            texture.TextureImport.Width,
-            texture.TextureImport.Height);
+            Materialize(texture.TextureSource).Bytes,
+            Materialize(texture.TextureSource).Width,
+            Materialize(texture.TextureSource).Height);
         int occupiedTop = outputImage.Height - layout.CropHeight;
         Assert.NotEqual(
             TerrainTextureAssetGenerator.DefaultDemGroundFillColor,
@@ -487,7 +487,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.Equal(
             new Rgba32(12, 34, 56, 255),
             outputImage[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)]);
-        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
+        Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
         Assert.Contains(texture.UsedSources ?? [], static source => source is TerrainTextureGeoReferencedRasterSource);
         Assert.Contains(
             texture.UsedSources ?? [],
@@ -517,7 +517,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(4, handler.RequestCount);
-        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
+        Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
         Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
     }
 
@@ -631,5 +631,13 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     {
         double radians = latitude * (Math.PI / 180.0);
         return Math.Log(Math.Tan((Math.PI / 4.0) + (radians / 2.0)));
+    }
+
+    private static RawTexturePayload Materialize(ITextureImportSource texture)
+    {
+        return TextureImportSourceMaterializer.MaterializeRawAsync(texture, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
     }
 }

@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Transport.ResoniteLink;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -60,7 +59,7 @@ public sealed class TerrainTextureAssetGeneratorTests
                 (double)layout.CropHeight / RoundUpToPowerOfTwo(layout.CropHeight)),
             firstTexture.OccupiedUvRect.ScaleValue);
 
-        using Image<Rgba32> image = LoadImage(firstTexture.TextureImport);
+        using Image<Rgba32> image = LoadImage(firstTexture.TextureSource);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), image.Width);
         Rectangle occupied = ToTopLeftPixelRect(firstTexture.OccupiedUvRect, image.Width, image.Height);
         AssertColor(Sample(occupied, image, 0.25, 0.5), 255, 0, 0);
@@ -81,7 +80,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
         Assert.Equal(256, image.Width);
         Assert.Equal(128, image.Height);
         Assert.Equal(new ScalarPair(1.0, 1.0), texture.OccupiedUvRect.ScaleValue);
@@ -110,9 +109,9 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        using Image<Rgba32> image = LoadImage(texture.TextureImport);
-        Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), texture.TextureImport.Width);
-        Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), texture.TextureImport.Height);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
+        Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), Materialize(texture.TextureSource).Width);
+        Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), Materialize(texture.TextureSource).Height);
         Assert.Equal(
             new ScalarPair(
                 (double)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth),
@@ -139,7 +138,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
         Assert.Equal(256, image.Width);
         Assert.Equal(128, image.Height);
         Assert.Equal(new ScalarPair(1.0, 1.0), texture.OccupiedUvRect.ScaleValue);
@@ -166,7 +165,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), image.Width);
         Rectangle occupied = ToTopLeftPixelRect(texture.OccupiedUvRect, image.Width, image.Height);
         AssertColor(Sample(occupied, image, 0.25, 0.25), 255, 0, 0);
@@ -222,9 +221,9 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureAssetGenerator thirdGenerator = new(thirdClient, cacheRoot.Path);
         GeneratedTerrainTexture repeatedTexture = await thirdGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(texture.TextureImport.Width, repeatedTexture.TextureImport.Width);
-        Assert.Equal(texture.TextureImport.Height, repeatedTexture.TextureImport.Height);
-        Assert.Equal(texture.TextureImport.RawRgba32Bytes, repeatedTexture.TextureImport.RawRgba32Bytes);
+        Assert.Equal(Materialize(texture.TextureSource).Width, Materialize(repeatedTexture.TextureSource).Width);
+        Assert.Equal(Materialize(texture.TextureSource).Height, Materialize(repeatedTexture.TextureSource).Height);
+        Assert.Equal(Materialize(texture.TextureSource).Bytes, Materialize(repeatedTexture.TextureSource).Bytes);
     }
 
     [Fact]
@@ -262,7 +261,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture secondTexture = await generator.EnsureTextureAsync(secondOverlay, CancellationToken.None);
 
         Assert.NotSame(firstTexture, secondTexture);
-        Assert.NotEqual(firstTexture.TextureImport.Height, secondTexture.TextureImport.Height);
+        Assert.NotEqual(Materialize(firstTexture.TextureSource).Height, Materialize(secondTexture.TextureSource).Height);
     }
 
     [Fact]
@@ -324,7 +323,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(512, texture.TextureImport.Width);
+        Assert.Equal(512, Materialize(texture.TextureSource).Width);
         Assert.Equal(4, handler.RequestCount);
     }
 
@@ -340,7 +339,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Same(firstTexture, texture);
-        Assert.Equal(512, texture.TextureImport.Width);
+        Assert.Equal(512, Materialize(texture.TextureSource).Width);
         Assert.Equal(4, handler.RequestCount);
     }
 
@@ -363,7 +362,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(512, texture.TextureImport.Width);
+        Assert.Equal(512, Materialize(texture.TextureSource).Width);
         Assert.Equal(1, secondHandler.RequestCount);
     }
 
@@ -387,7 +386,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(512, texture.TextureImport.Width);
+        Assert.Equal(512, Materialize(texture.TextureSource).Width);
         Assert.Equal(4, handler.RequestCount);
     }
 
@@ -402,7 +401,7 @@ public sealed class TerrainTextureAssetGeneratorTests
             "https://fallback.example/{z}/{x}/{y}.png");
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
         Rectangle occupied = ToTopLeftPixelRect(texture.OccupiedUvRect, image.Width, image.Height);
         AssertColor(Sample(occupied, image, 0.25, 0.5), 255, 0, 0);
         AssertColor(Sample(occupied, image, 0.75, 0.5), 0, 255, 0);
@@ -431,7 +430,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
+        Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
         Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
         Assert.Contains(("primary.example", 2), handler.HostZoomRequests);
         Assert.Contains(("primary.example", 1), handler.HostZoomRequests);
@@ -485,7 +484,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
+        Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
         Assert.Contains(
             texture.UsedSources ?? [],
             static source => source is TerrainTextureTileSource tileSource
@@ -493,7 +492,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.Contains("primary.example", handler.RequestedHosts);
         Assert.Contains("fallback.example", handler.RequestedHosts);
 
-        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
         Assert.True(ContainsColor(image, 255, 0, 0));
         Assert.True(ContainsColor(image, 255, 0, 255));
     }
@@ -516,7 +515,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
         Assert.True(ContainsColor(image, 255, 0, 0));
         Rgba32 fillColor = TerrainTextureAssetGenerator.DefaultDemGroundFillColor;
         Assert.True(ContainsColor(image, fillColor.R, fillColor.G, fillColor.B));
@@ -555,7 +554,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        using Image<Rgba32> outputImage = LoadImage(texture.TextureImport);
+        using Image<Rgba32> outputImage = LoadImage(texture.TextureSource);
         Assert.Equal(new Rgba32(255, 0, 0, 255), outputImage[0, 0]);
         Assert.Equal(new Rgba32(255, 0, 0, 255), outputImage[1, 0]);
         Assert.NotEqual(new Rgba32(255, 0, 0, 255), outputImage[3, 0]);
@@ -570,7 +569,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(512, texture.TextureImport.Width);
+        Assert.Equal(512, Materialize(texture.TextureSource).Width);
         Assert.Equal(5, handler.RequestCount);
     }
 
@@ -589,10 +588,20 @@ public sealed class TerrainTextureAssetGeneratorTests
             FallbackUrlTemplate: fallbackUrlTemplate);
     }
 
-    private static Image<Rgba32> LoadImage(ResoniteRawTextureImport texture)
+    private static Image<Rgba32> LoadImage(ITextureImportSource texture)
     {
-        return Image.LoadPixelData<Rgba32>(texture.RawRgba32Bytes, texture.Width, texture.Height);
+        RawTexturePayload rawPayload = Materialize(texture);
+        return Image.LoadPixelData<Rgba32>(rawPayload.Bytes, rawPayload.Width, rawPayload.Height);
     }
+
+    private static RawTexturePayload Materialize(ITextureImportSource texture)
+    {
+        return TextureImportSourceMaterializer.MaterializeRawAsync(texture, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+    }
+
     private static bool ContainsColor(Image<Rgba32> image, byte expectedR, byte expectedG, byte expectedB)
     {
         bool found = false;

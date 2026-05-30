@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
@@ -32,7 +33,9 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
 
     public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
 
-    public List<ResoniteTextureImport> ImportedTextures { get; } = [];
+    public List<ITextureImportSource> ImportedTextures { get; } = [];
+
+    public List<RawTexturePayload> ImportedTexturePayloads { get; } = [];
 
     public List<IReadOnlyList<DataModelOperation>> Batches { get; } = [];
 
@@ -216,27 +219,39 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
         }
     }
 
-    public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+    public async Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        RawTexturePayload rawPayload = await TextureImportSourceMaterializer.MaterializeRawAsync(
+            textureSource,
+            cancellationToken);
         lock (gate)
         {
             OperationNames.Add("ImportTexture");
-            switch (textureImport)
+            switch (rawPayload.Format)
             {
-                case ResoniteRawTextureImport rawImport:
+                case RawTexturePayloadFormat.Rgba32:
+                    ResoniteRawTextureImport rawImport = new(
+                        rawPayload.Width,
+                        rawPayload.Height,
+                        rawPayload.ColorProfile ?? ResoniteTextureColorProfiles.Srgb,
+                        rawPayload.Bytes);
                     ImportedRawTextures.Add(rawImport);
-                    ImportedTextures.Add(rawImport);
                     break;
-                case ResoniteRawHdrTextureImport rawHdrImport:
+                case RawTexturePayloadFormat.RgbaFloat32:
+                    ResoniteRawHdrTextureImport rawHdrImport = new(
+                        rawPayload.Width,
+                        rawPayload.Height,
+                        rawPayload.Bytes);
                     ImportedRawHdrTextures.Add(rawHdrImport);
-                    ImportedTextures.Add(rawHdrImport);
                     break;
                 default:
-                    throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'.");
+                    throw new InvalidOperationException($"Unsupported texture payload format '{rawPayload.Format}'.");
             }
 
-            return Task.FromResult(new Uri($"resdb:///texture/{ImportedTextures.Count - 1}", UriKind.Absolute));
+            ImportedTextures.Add(textureSource);
+            ImportedTexturePayloads.Add(rawPayload);
+            return new Uri($"resdb:///texture/{ImportedTextures.Count - 1}", UriKind.Absolute);
         }
     }
 

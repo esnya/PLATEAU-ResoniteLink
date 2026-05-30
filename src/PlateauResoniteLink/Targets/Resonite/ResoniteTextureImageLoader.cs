@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Application.Importing;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -13,21 +13,31 @@ internal sealed class ResoniteTextureImageLoader
 {
 #pragma warning disable CA1822
     public Task<Image<Rgba32>> LoadAsync(
-        ResoniteTextureImport textureImport,
+        ITextureImportSource textureSource,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(textureImport);
+        ArgumentNullException.ThrowIfNull(textureSource);
 
-        return textureImport switch
+        return LoadCoreAsync(textureSource, cancellationToken);
+    }
+
+    private static async Task<Image<Rgba32>> LoadCoreAsync(
+        ITextureImportSource textureSource,
+        CancellationToken cancellationToken)
+    {
+        RawTexturePayload rawPayload = await TextureImportSourceMaterializer.MaterializeRawAsync(
+            textureSource,
+            cancellationToken);
+        if (rawPayload.Format != RawTexturePayloadFormat.Rgba32)
         {
-            ResoniteRawTextureImport rawTextureImport => Task.FromResult(
-                Image.LoadPixelData<Rgba32>(
-                    rawTextureImport.RawRgba32Bytes,
-                    rawTextureImport.Width,
-                    rawTextureImport.Height)),
-            _ => throw new InvalidOperationException(
-                $"Unsupported texture import type '{textureImport.GetType().Name}'."),
-        };
+            throw new InvalidOperationException(
+                $"Unsupported texture payload format '{rawPayload.Format}' for image loading.");
+        }
+
+        return Image.LoadPixelData<Rgba32>(
+            rawPayload.Bytes,
+            rawPayload.Width,
+            rawPayload.Height);
     }
 #pragma warning restore CA1822
 }
