@@ -11,6 +11,8 @@ using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.Resonite
 
 using ResoniteLink;
 
+using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
+
 namespace PlateauResoniteLink.Tests.Transport;
 
 public sealed class RetryingResoniteLinkClientTests
@@ -142,7 +144,7 @@ public sealed class RetryingResoniteLinkClientTests
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
         Uri importedTexture = await client.ImportTextureAsync(
-            new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 4]),
+            CreateRawTextureSource(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 4]),
             CancellationToken.None);
 
         Assert.Equal(new Uri("resdb:///texture/ok", UriKind.Absolute), importedTexture);
@@ -176,7 +178,7 @@ public sealed class RetryingResoniteLinkClientTests
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
         Uri importedTexture = await client.ImportTextureAsync(
-            new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 4]),
+            CreateRawTextureSource(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 4]),
             CancellationToken.None);
 
         Assert.Equal(new Uri("resdb:///texture/ok", UriKind.Absolute), importedTexture);

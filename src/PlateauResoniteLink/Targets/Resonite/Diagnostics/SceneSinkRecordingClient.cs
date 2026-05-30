@@ -31,10 +31,6 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
 
     public List<IGeometryImportSource> ImportedGeometrySources { get; } = [];
 
-    public List<ResoniteRawTextureImport> ImportedRawTextures { get; } = [];
-
-    public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
-
     public List<ITextureImportSource> ImportedTextures { get; } = [];
 
     public List<RawTexturePayload> ImportedTexturePayloads { get; } = [];
@@ -234,27 +230,6 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
         lock (gate)
         {
             OperationNames.Add("ImportTexture");
-            switch (rawPayload.Format)
-            {
-                case RawTexturePayloadFormat.Rgba32:
-                    ResoniteRawTextureImport rawImport = new(
-                        rawPayload.Width,
-                        rawPayload.Height,
-                        rawPayload.ColorProfile ?? ResoniteTextureColorProfiles.Srgb,
-                        rawPayload.Bytes);
-                    ImportedRawTextures.Add(rawImport);
-                    break;
-                case RawTexturePayloadFormat.RgbaFloat32:
-                    ResoniteRawHdrTextureImport rawHdrImport = new(
-                        rawPayload.Width,
-                        rawPayload.Height,
-                        rawPayload.Bytes);
-                    ImportedRawHdrTextures.Add(rawHdrImport);
-                    break;
-                default:
-                    throw new InvalidOperationException($"Unsupported texture payload format '{rawPayload.Format}'.");
-            }
-
             ImportedTextures.Add(textureSource);
             ImportedTexturePayloads.Add(rawPayload);
             return new Uri($"resdb:///texture/{ImportedTextures.Count - 1}", UriKind.Absolute);

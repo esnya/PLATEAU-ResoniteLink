@@ -12,6 +12,8 @@ using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.Resonite
 
 using ResoniteLink;
 
+using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
+
 namespace PlateauResoniteLink.Tests.Transport;
 
 public sealed class LiveSendClientSessionTests
@@ -100,7 +102,7 @@ public sealed class LiveSendClientSessionTests
 
         Task<Uri>[] imports = Enumerable.Range(0, 6)
             .Select(_ => client.ImportTextureAsync(
-                new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
+                CreateRawTextureSource(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
                 CancellationToken.None))
             .ToArray();
 

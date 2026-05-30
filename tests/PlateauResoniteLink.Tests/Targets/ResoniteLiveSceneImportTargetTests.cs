@@ -17,6 +17,8 @@ using ResoniteLink;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
+
 namespace PlateauResoniteLink.Tests.Targets;
 
 [Trait("Category", "Slow")]
@@ -77,8 +79,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             client,
             terrainTextureGenerator);
 
-        ResoniteRawTextureImport importedTexture = Assert.Single(
-            client.ImportedRawTextures,
+        RawTexturePayload importedTexture = Assert.Single(
+            ImportedRgba32Textures(client),
             texture => texture.Width == RoundUpToPowerOfTwo(layout.CropWidth)
                 && texture.Height == RoundUpToPowerOfTwo(layout.CropHeight));
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), importedTexture.Width);
@@ -146,7 +148,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay roofOverlayWithDifferentUri = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/roof/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
+                CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -226,7 +228,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay secondOverlay = CreateThirdMeshOverlay("53394526", "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
+                CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -276,7 +278,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
+                CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -366,7 +368,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay mismatchedOverlay = CreateThirdMeshOverlay("53394526", "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
+                CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -407,7 +409,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
+                CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -457,7 +459,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://example.invalid/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             requestedOverlay => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(
+                CreateRawTextureSource(
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
@@ -574,11 +576,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
 
         await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client);
 
-        ResoniteRawHdrTextureImport importedTexture = Assert.Single(client.ImportedRawHdrTextures);
+        RawTexturePayload importedTexture = Assert.Single(ImportedHdrTextures(client));
         Assert.Equal(2, importedTexture.Width);
         Assert.Equal(2, importedTexture.Height);
-        float[] pixels = new float[importedTexture.RawRgbaFloatBytes.Length / sizeof(float)];
-        Buffer.BlockCopy(importedTexture.RawRgbaFloatBytes, 0, pixels, 0, importedTexture.RawRgbaFloatBytes.Length);
+        float[] pixels = new float[importedTexture.Bytes.Length / sizeof(float)];
+        Buffer.BlockCopy(importedTexture.Bytes, 0, pixels, 0, importedTexture.Bytes.Length);
         Assert.Equal(0.0f, pixels[0]);
         Assert.Equal(0.0f, pixels[1]);
         Assert.Equal(3.0f, pixels[2]);
@@ -665,7 +667,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal(2, gridMeshRequests.Count);
         Assert.Equal(2, pointsGradientDriverRequests.Count);
         Assert.Equal(2, pointsProgressDriverRequests.Count);
-        Assert.Equal(2, client.ImportedRawHdrTextures.Count);
+        Assert.Equal(2, ImportedHdrTextures(client).Count);
 
         string[] pointsIds = gridMeshRequests
             .Select(static request => Assert.IsType<Field_int2>(request.Data.Members["Points"]).ID)
@@ -745,7 +747,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             [cityObject]);
 
         Assert.Single(client.ImportedMeshes);
-        Assert.Single(client.ImportedRawHdrTextures);
+        Assert.Single(ImportedHdrTextures(client));
         int queuedMessageIndex = progressMessages.FindIndex(static message => message.Contains("First city object queued", StringComparison.Ordinal));
         int preparationMessageIndex = progressMessages.FindIndex(static message => message.Contains("City object preparation started", StringComparison.Ordinal));
         Assert.True(queuedMessageIndex >= 0);
@@ -837,7 +839,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://example.invalid/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(
+                CreateRawTextureSource(
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
