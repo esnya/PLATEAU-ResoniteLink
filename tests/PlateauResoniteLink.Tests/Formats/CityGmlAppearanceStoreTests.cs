@@ -22,11 +22,12 @@ public sealed class CityGmlAppearanceStoreTests
         using TemporaryDirectory datasetRoot = new();
         string packageDirectory = Path.Combine(datasetRoot.Path, "udx", "bldg", "53394525");
         string appearanceDirectory = Path.Combine(packageDirectory, "appearance");
+        string texturePath = Path.Combine(appearanceDirectory, "roof.png");
         Directory.CreateDirectory(appearanceDirectory);
 
         using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 255, 255, 255)))
         {
-            await image.SaveAsPngAsync(Path.Combine(appearanceDirectory, "roof.png"));
+            await image.SaveAsPngAsync(texturePath);
         }
 
         IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
@@ -76,6 +77,7 @@ public sealed class CityGmlAppearanceStoreTests
         Assert.NotNull(appearance.TexturePayload);
         Assert.NotNull(appearance.ParameterizedTexture);
         Assert.Equal("image/png", appearance.ParameterizedTexture!.MimeType);
+        Assert.Equal(new FileInfo(texturePath).Length, appearance.TexturePayload!.Source.EstimatedByteLength);
         Assert.NotNull(appearance.MaterialAttributes);
         Assert.Equal(0.25, appearance.MaterialAttributes!.AmbientIntensity!.Value, 6);
         Assert.Equal(0.5, appearance.MaterialAttributes.Shininess!.Value, 6);

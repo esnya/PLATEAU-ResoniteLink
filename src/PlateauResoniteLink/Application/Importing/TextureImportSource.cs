@@ -137,7 +137,9 @@ internal sealed class DatasetTextureImportSource(
 
     public string? ColorProfile { get; } = colorProfile;
 
-    public long? EstimatedByteLength => null;
+    public long? EstimatedByteLength => datasetSource is IPlateauDatasetContentLengthSource lengthSource
+        ? lengthSource.TryGetFileLength(relativePath)
+        : null;
 
     public async ValueTask<RawTexturePayload> MaterializeRawAsync(CancellationToken cancellationToken)
     {

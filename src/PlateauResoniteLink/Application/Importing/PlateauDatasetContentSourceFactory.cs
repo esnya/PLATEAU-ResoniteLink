@@ -86,7 +86,7 @@ internal static class PlateauDatasetContentSourceFactory
 
     private sealed class LocalPlateauDatasetContentSource(
         string datasetRoot,
-        IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IPlateauDatasetContentSource
+        IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IPlateauDatasetContentSource, IPlateauDatasetContentLengthSource
     {
         public string SourcePath => datasetRoot;
 
@@ -103,6 +103,23 @@ internal static class PlateauDatasetContentSourceFactory
         {
             string absolutePath = Path.Combine(datasetRoot, archiveFileLayoutPolicy.NormalizeRelativePath(relativePath));
             return File.Exists(absolutePath);
+        }
+
+        public long? TryGetFileLength(string relativePath)
+        {
+            string absolutePath = Path.Combine(datasetRoot, archiveFileLayoutPolicy.NormalizeRelativePath(relativePath));
+            try
+            {
+                return File.Exists(absolutePath) ? new FileInfo(absolutePath).Length : null;
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return null;
+            }
         }
 
         public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
@@ -145,14 +162,16 @@ internal static class PlateauDatasetContentSourceFactory
         }
     }
 
-    private sealed class ArchivePlateauDatasetContentSource : IPlateauDatasetContentSource
+    private sealed class ArchivePlateauDatasetContentSource : IPlateauDatasetContentSource, IPlateauDatasetContentLengthSource
     {
         private sealed record ArchiveFileAccessor(
             string RelativePath,
+            long? Length,
             Func<CancellationToken, ValueTask<Stream>> OpenReadAsync);
 
         private sealed record RawArchiveFileAccessor(
             string RelativePath,
+            long? Length,
             Func<CancellationToken, ValueTask<Stream>> OpenReadAsync);
 
         private string ArchivePath { get; }
@@ -190,13 +209,14 @@ internal static class PlateauDatasetContentSourceFactory
                 .Select(file => new
                 {
                     RelativePath = archiveFileLayoutPolicy.StripDatasetRootPrefix(file.RelativePath, datasetRootPrefix),
+                    file.Length,
                     file.OpenReadAsync,
                 })
                 .Where(static file => !string.IsNullOrWhiteSpace(file.RelativePath))
                 .DistinctBy(static file => file.RelativePath, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(
                     static file => file.RelativePath,
-                    static file => new ArchiveFileAccessor(file.RelativePath, file.OpenReadAsync),
+                    static file => new ArchiveFileAccessor(file.RelativePath, file.Length, file.OpenReadAsync),
                     StringComparer.OrdinalIgnoreCase);
 
             return new ArchivePlateauDatasetContentSource(archivePath, indexedFiles, archiveFileLayoutPolicy);
@@ -210,6 +230,14 @@ internal static class PlateauDatasetContentSourceFactory
         public bool FileExists(string relativePath)
         {
             return Files.ContainsKey(ArchiveFileLayoutPolicy.NormalizeRelativePath(relativePath));
+        }
+
+        public long? TryGetFileLength(string relativePath)
+        {
+            string normalizedPath = ArchiveFileLayoutPolicy.NormalizeRelativePath(relativePath);
+            return Files.TryGetValue(normalizedPath, out ArchiveFileAccessor? fileAccessor)
+                ? fileAccessor.Length
+                : null;
         }
 
         public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
@@ -322,6 +350,7 @@ internal static class PlateauDatasetContentSourceFactory
                 string relativePath = archiveFileLayoutPolicy.CombineRelativePaths(prefix, entryKey);
                 results.Add(new RawArchiveFileAccessor(
                     relativePath,
+                    entry.Size,
                     ct => OpenEntryStreamAsync(archivePath, openArchiveStreamAsync, entryKey, archiveFileLayoutPolicy, ct)));
             }
         }

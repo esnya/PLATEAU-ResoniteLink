@@ -24,3 +24,8 @@ internal interface IPlateauDatasetContentSource
         string outputRoot,
         CancellationToken cancellationToken = default);
 }
+
+internal interface IPlateauDatasetContentLengthSource
+{
+    long? TryGetFileLength(string relativePath);
+}
