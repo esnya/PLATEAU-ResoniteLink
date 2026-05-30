@@ -852,7 +852,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectParsedCityObjectKeepsFlatLod1TopAsTerrainAfterOverlaySplit()
+    public void ProjectParsedCityObjectKeepsFlatLod1TopAsTerrainOverlayMaterial()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -898,7 +898,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectParsedCityObjectKeepsGeneratedShedHighWallAsFacadeAfterOverlaySplit()
+    public void ProjectParsedCityObjectKeepsGeneratedShedHighWallAsFacadeWithTerrainOverlayMaterial()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -947,7 +947,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectParsedCityObjectPassesMatchingDemOverlayToTexturelessBuildingRoof()
+    public void ProjectParsedCityObjectUsesTerrainOverlayMaterialForTexturelessBuildingRoof()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -2220,7 +2220,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public async Task SplitParsedCityObjectPreservesNonGeneratedDemSurfacesWhenOverlaysSplit()
+    public async Task PartitionParsedCityObjectPreservesNonGeneratedDemSurfacesWhenOverlaysPartition()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeMixedSurfaceDemFixture(datasetRoot.Path);
@@ -2528,7 +2528,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public async Task DemExactMeshRequestFiltersSplitParentMeshPiecesAfterOverlaySplit()
+    public async Task DemExactMeshRequestFiltersPartitionedParentMeshPiecesAfterOverlayPartition()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeParentMeshDemFixture(datasetRoot.Path, "53394525", "53394526");

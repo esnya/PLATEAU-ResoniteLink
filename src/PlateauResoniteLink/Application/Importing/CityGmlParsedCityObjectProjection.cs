@@ -90,8 +90,8 @@ internal static class CityGmlParsedCityObjectProjection
         List<ImportedCityObject> projectedCityObjects = [];
         List<ImportedCityObject> generatedRoadMarkings = [];
 
-        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
-                 in TerrainOverlayProjectionSplitPolicy.SplitParsedCityObject(
+        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) partitionedCityObject
+                 in TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
                      terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshCodeBounds,
@@ -99,25 +99,25 @@ internal static class CityGmlParsedCityObjectProjection
                      cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!TerrainOverlayProjectionSplitPolicy.ShouldProjectSplit(
-                    splitCityObject.CityObject.ActualMeshCode,
+            if (!TerrainOverlayMaterialSourcePartitioner.IsPartitionCompatibleWithRequest(
+                    partitionedCityObject.CityObject.ActualMeshCode,
                     request.MeshCode,
                     requestedMeshCodeBounds,
-                    splitCityObject.Overlay))
+                    partitionedCityObject.Overlay))
             {
                 throw CreateTerrainOverlayMeshCodeMismatchException(
                     "project",
-                    splitCityObject.CityObject.ActualMeshCode,
+                    partitionedCityObject.CityObject.ActualMeshCode,
                     request.MeshCode,
                     requestedMeshCodeBounds,
-                    splitCityObject.Overlay);
+                    partitionedCityObject.Overlay);
             }
 
             ImportedCityObject cityObject = ProjectTerrainMeshModeCityObject(
-                splitCityObject.CityObject,
+                partitionedCityObject.CityObject,
                 globalOriginPoint,
                 globalCartesian,
-                splitCityObject.Overlay,
+                partitionedCityObject.Overlay,
                 request,
                 requestedMeshCodeBounds,
                 materialResolver,
@@ -129,16 +129,16 @@ internal static class CityGmlParsedCityObjectProjection
                 projectedCityObjects.Add(cityObject);
             }
 
-            GeodeticPoint markingOrigin = ResolveCityObjectOrigin(splitCityObject.CityObject);
-            LocalCartesian? markingCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
+            GeodeticPoint markingOrigin = ResolveCityObjectOrigin(partitionedCityObject.CityObject);
+            LocalCartesian? markingCartesian = partitionedCityObject.CityObject.ReferenceSystem.IsGeographic
                 ? new LocalCartesian(
                     markingOrigin.Latitude,
                     markingOrigin.Longitude,
                     markingOrigin.Altitude,
-                    splitCityObject.CityObject.ReferenceSystem.Geocentric)
+                    partitionedCityObject.CityObject.ReferenceSystem.Geocentric)
                 : null;
             ParsedCityObject? roadMarkingCityObject = GeneratedRoadMarkingCityObjectFactory.Create(
-                splitCityObject.CityObject,
+                partitionedCityObject.CityObject,
                 markingOrigin,
                 markingCartesian);
             if (roadMarkingCityObject is null)
@@ -150,7 +150,7 @@ internal static class CityGmlParsedCityObjectProjection
                 roadMarkingCityObject,
                 globalOriginPoint,
                 globalCartesian,
-                splitCityObject.Overlay,
+                partitionedCityObject.Overlay,
                 materialResolver) with
             {
                 CollisionEnabled = false,
@@ -202,43 +202,43 @@ internal static class CityGmlParsedCityObjectProjection
                 GeometryHeightMeters = geometryHeightMeters,
             };
 
-        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
-                 in TerrainOverlayProjectionSplitPolicy.SplitParsedCityObject(
+        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) partitionedCityObject
+                 in TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
                      terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshCodeBounds))
         {
-            if (!TerrainOverlayProjectionSplitPolicy.ShouldProjectSplit(
-                    splitCityObject.CityObject.ActualMeshCode,
+            if (!TerrainOverlayMaterialSourcePartitioner.IsPartitionCompatibleWithRequest(
+                    partitionedCityObject.CityObject.ActualMeshCode,
                     request.MeshCode,
                     requestedMeshCodeBounds ?? [],
-                    splitCityObject.Overlay))
+                    partitionedCityObject.Overlay))
             {
                 throw CreateTerrainOverlayMeshCodeMismatchException(
                     "common-material-enumeration",
-                    splitCityObject.CityObject.ActualMeshCode,
+                    partitionedCityObject.CityObject.ActualMeshCode,
                     request.MeshCode,
                     requestedMeshCodeBounds,
-                    splitCityObject.Overlay);
+                    partitionedCityObject.Overlay);
             }
 
-            GeodeticPoint cityObjectOrigin = ResolveCityObjectOrigin(splitCityObject.CityObject);
-            LocalCartesian? cityObjectCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
+            GeodeticPoint cityObjectOrigin = ResolveCityObjectOrigin(partitionedCityObject.CityObject);
+            LocalCartesian? cityObjectCartesian = partitionedCityObject.CityObject.ReferenceSystem.IsGeographic
                 ? new LocalCartesian(
                     cityObjectOrigin.Latitude,
                     cityObjectOrigin.Longitude,
                     cityObjectOrigin.Altitude,
-                    splitCityObject.CityObject.ReferenceSystem.Geocentric)
+                    partitionedCityObject.CityObject.ReferenceSystem.Geocentric)
                 : null;
-            ConstructionCityObjectDraft draft = ConstructionCityObjectDraft.FromParsedCityObject(splitCityObject.CityObject);
+            ConstructionCityObjectDraft draft = ConstructionCityObjectDraft.FromParsedCityObject(partitionedCityObject.CityObject);
 
             foreach (MaterialBinding material in request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic
-                         && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+                         && string.Equals(partitionedCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                             ? CityGmlSurfaceMaterialResolver.CreateDemTerrainGridMaterials(
                                 draft,
                                 cityObjectOrigin,
                                 cityObjectCartesian,
-                                splitCityObject.Overlay,
+                                partitionedCityObject.Overlay,
                                 request.MeshCode,
                                 requestedMeshCodeBounds,
                                 materialResolver)
@@ -246,7 +246,7 @@ internal static class CityGmlParsedCityObjectProjection
                                 draft,
                                 cityObjectOrigin,
                                 cityObjectCartesian,
-                                splitCityObject.Overlay,
+                                partitionedCityObject.Overlay,
                                 materialResolver))
             {
                 yield return material;
