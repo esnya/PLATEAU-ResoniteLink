@@ -146,7 +146,7 @@ internal static class CityGmlSurfaceMaterialResolver
         ResolvedSurfaceMaterial representativeSurface,
         int materialIndex)
     {
-        string? terrainMeshCode = representativeSurface.Material.TerrainOverlay is null
+        ThirdRegionalMeshCode? terrainMeshCode = representativeSurface.Material.TerrainOverlay is null
             ? null
             : TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, representativeSurface.Material.TerrainOverlay)
                 ?? throw TerrainOverlayDiagnostics.CreateMeshCodeMismatchException(
@@ -158,7 +158,7 @@ internal static class CityGmlSurfaceMaterialResolver
         TerrainOverlayMaterialBinding? terrainOverlayMaterial = representativeSurface.Material.TerrainOverlay is null
             ? null
             : new TerrainOverlayMaterialBinding(
-                ThirdRegionalMeshCode.Parse(terrainMeshCode!),
+                terrainMeshCode!.Value,
                 representativeSurface.Material.TerrainOverlay);
         ColorRgba baseColor = representativeSurface.Material.TerrainOverlay is null
             ? ToContractColor(representativeSurface.Surface.BaseColor)

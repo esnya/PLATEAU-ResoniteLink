@@ -205,7 +205,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         {
             if (terrainMaterialGroups.Length == 1)
             {
-                string terrainMeshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
+                ThirdRegionalMeshCode terrainMeshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
                         materialSourceMeshCode,
                         materialSourceMeshCode,
                         requestedMeshCodeBounds,
@@ -219,7 +219,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                 yield return (
                     cityObject with
                     {
-                        ActualMeshCode = terrainMeshCode,
+                        ActualMeshCode = terrainMeshCode.Value,
                         Surfaces = terrainMaterialGroups[0].Select(static entry => MarkTerrainOverlayMaterialSource(entry.Surface)).ToArray(),
                         GeodeticOriginOverride = cityObjectOrigin,
                     },
@@ -241,7 +241,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         foreach (IGrouping<TerrainTextureOverlay, (ParsedSurface Surface, TerrainTextureOverlay Overlay)> group in terrainMaterialGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string terrainMeshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
+            ThirdRegionalMeshCode terrainMeshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
                     materialSourceMeshCode,
                     materialSourceMeshCode,
                     requestedMeshCodeBounds,
@@ -255,7 +255,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             yield return (
                 cityObject with
                 {
-                    ActualMeshCode = terrainMeshCode,
+                    ActualMeshCode = terrainMeshCode.Value,
                     SlotKey = $"{cityObject.SlotKey}_terrain_{terrainMeshCode}",
                     DisplayName = $"{cityObject.DisplayName} ({partitionIndex + 1})",
                     Surfaces = group.Select(static entry => MarkTerrainOverlayMaterialSource(entry.Surface)).ToArray(),

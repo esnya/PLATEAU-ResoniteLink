@@ -9,19 +9,17 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class TerrainOverlayMeshCodeResolver
 {
-    internal static string? ResolveMeshCode(
+    internal static ThirdRegionalMeshCode? ResolveMeshCode(
         string actualMeshCode,
         TerrainTextureOverlay terrainOverlay)
     {
-        if (actualMeshCode.Length == 8
-            && MeshCodeBounds.TryParse(actualMeshCode) is { } actualMeshBounds
-            && BoundsApproximatelyEqual(actualMeshBounds, terrainOverlay.GeographicBounds))
+        if (ThirdRegionalMeshCode.TryParse(actualMeshCode, out ThirdRegionalMeshCode actualThirdMeshCode)
+            && BoundsApproximatelyEqual(actualThirdMeshCode.Bounds, terrainOverlay.GeographicBounds))
         {
-            return actualMeshCode;
+            return actualThirdMeshCode;
         }
 
-        if (actualMeshCode.Length != 6
-            || !actualMeshCode.All(static character => character is >= '0' and <= '9'))
+        if (!SecondRegionalMeshCode.TryParse(actualMeshCode, out SecondRegionalMeshCode secondMeshCode))
         {
             return null;
         }
@@ -32,11 +30,11 @@ internal static class TerrainOverlayMeshCodeResolver
             {
                 string thirdMeshCode = string.Create(
                     CultureInfo.InvariantCulture,
-                    $"{actualMeshCode}{latitudeIndex}{longitudeIndex}");
-                if (MeshCodeBounds.TryParse(thirdMeshCode) is { } thirdMeshBounds
-                    && BoundsApproximatelyEqual(thirdMeshBounds, terrainOverlay.GeographicBounds))
+                    $"{secondMeshCode.Value}{latitudeIndex}{longitudeIndex}");
+                if (ThirdRegionalMeshCode.TryParse(thirdMeshCode, out ThirdRegionalMeshCode candidateThirdMeshCode)
+                    && BoundsApproximatelyEqual(candidateThirdMeshCode.Bounds, terrainOverlay.GeographicBounds))
                 {
-                    return thirdMeshCode;
+                    return candidateThirdMeshCode;
                 }
             }
         }
@@ -56,16 +54,16 @@ internal static class TerrainOverlayMeshCodeResolver
             return actualMeshCode;
         }
 
-        return ResolveMeshCode(requestedMeshCode, terrainOverlay)
+        return ResolveMeshCode(requestedMeshCode, terrainOverlay)?.Value
             ?? ResolveFromRequestedMeshCodeBounds(
                 actualMeshCode,
                 requestedMeshCode,
                 requestedMeshCodeBounds,
-                terrainOverlay)
+                terrainOverlay)?.Value
             ?? requestedMeshCode;
     }
 
-    internal static string? ResolveForOverlay(
+    internal static ThirdRegionalMeshCode? ResolveForOverlay(
         string actualMeshCode,
         string requestedMeshCode,
         IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
@@ -113,7 +111,7 @@ internal static class TerrainOverlayMeshCodeResolver
             && inner.MaxLongitude <= outer.MaxLongitude;
     }
 
-    private static string? ResolveFromRequestedMeshCodeBounds(
+    private static ThirdRegionalMeshCode? ResolveFromRequestedMeshCodeBounds(
         string actualMeshCode,
         string requestedMeshCode,
         IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
@@ -149,7 +147,7 @@ internal static class TerrainOverlayMeshCodeResolver
         return null;
     }
 
-    private static string? ResolveThirdMeshCodeFromOverlayBounds(TerrainTextureOverlay terrainOverlay)
+    private static ThirdRegionalMeshCode? ResolveThirdMeshCodeFromOverlayBounds(TerrainTextureOverlay terrainOverlay)
     {
         const double firstLatitudeSpan = 40.0 / 60.0;
         const double firstLongitudeSpan = 1.0;
@@ -197,6 +195,17 @@ internal static class TerrainOverlayMeshCodeResolver
             .Where(static meshCode => meshCode.Length >= 6 && meshCode.All(static character => character is >= '0' and <= '9'))
             .Select(static meshCode => meshCode[..6])
             .Distinct(StringComparer.Ordinal);
+    }
+
+    private static bool BoundsApproximatelyEqual(
+        JisRegionalMeshBounds meshBounds,
+        GeographicRectangle geographicBounds)
+    {
+        const double tolerance = 1e-8;
+        return Math.Abs(meshBounds.SouthLatitude - geographicBounds.MinLatitude) <= tolerance
+            && Math.Abs(meshBounds.NorthLatitude - geographicBounds.MaxLatitude) <= tolerance
+            && Math.Abs(meshBounds.WestLongitude - geographicBounds.MinLongitude) <= tolerance
+            && Math.Abs(meshBounds.EastLongitude - geographicBounds.MaxLongitude) <= tolerance;
     }
 
     private static bool BoundsApproximatelyEqual(

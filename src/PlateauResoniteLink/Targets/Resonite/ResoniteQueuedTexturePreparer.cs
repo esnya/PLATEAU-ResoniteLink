@@ -42,15 +42,15 @@ internal sealed class ResoniteQueuedTexturePreparer(
 
         (ThirdRegionalMeshCode TerrainMeshCode, TerrainTextureOverlay TerrainOverlay)[] distinctTerrainOverlays = cityObject.Materials
             .Select((material, materialIndex) => (Material: material, MaterialIndex: materialIndex))
-            .Where(static entry => entry.Material.TerrainOverlay is not null && entry.Material.TerrainMeshCode is not null)
+            .Where(static entry => entry.Material.TerrainOverlayMaterial is not null)
             .Select(entry => (
                 TerrainMeshCode: ResoniteTerrainOverlayMaterialContract.ValidateMeshCode(
                     cityObject,
                     entry.MaterialIndex,
                     entry.Material,
-                    entry.Material.TerrainMeshCode!,
-                    entry.Material.TerrainOverlay!),
-                TerrainOverlay: entry.Material.TerrainOverlay!))
+                    entry.Material.TerrainOverlayMaterial!.MeshCode,
+                    entry.Material.TerrainOverlayMaterial.Overlay),
+                TerrainOverlay: entry.Material.TerrainOverlayMaterial!.Overlay))
             .Distinct()
             .OrderBy(static entry => entry.TerrainMeshCode.Value, StringComparer.Ordinal)
             .ThenBy(static entry => entry.TerrainOverlay.PackageName, StringComparer.Ordinal)

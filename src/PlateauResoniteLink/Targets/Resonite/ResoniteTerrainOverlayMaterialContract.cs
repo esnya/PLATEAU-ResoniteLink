@@ -17,20 +17,11 @@ internal static class ResoniteTerrainOverlayMaterialContract
             return material with { TerrainOverlayMaterial = null };
         }
 
-        if (material.TerrainMeshCode is null)
-        {
-            throw CreateException(
-                cityObject,
-                materialIndex,
-                material,
-                "missing terrain mesh-code");
-        }
-
         _ = ValidateMeshCode(
             cityObject,
             materialIndex,
             material,
-            material.TerrainMeshCode,
+            material.TerrainOverlayMaterial!.MeshCode,
             material.TerrainOverlay);
         return material;
     }
@@ -39,13 +30,12 @@ internal static class ResoniteTerrainOverlayMaterialContract
         ResoniteConstructionCityObject cityObject,
         int materialIndex,
         ResoniteMaterialBinding material,
-        string meshCode,
+        ThirdRegionalMeshCode meshCode,
         TerrainTextureOverlay terrainOverlay)
     {
-        if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode)
-            && BoundsApproximatelyEqual(thirdMeshCode.Bounds, terrainOverlay.GeographicBounds))
+        if (BoundsApproximatelyEqual(meshCode.Bounds, terrainOverlay.GeographicBounds))
         {
-            return thirdMeshCode;
+            return meshCode;
         }
 
         throw CreateException(

@@ -10,9 +10,9 @@ public sealed class TerrainOverlayMeshCodeResolverTests
     {
         TerrainTextureOverlay overlay = CreateOverlay("53394525");
 
-        string? meshCode = TerrainOverlayMeshCodeResolver.ResolveMeshCode("53394525", overlay);
+        ThirdRegionalMeshCode? meshCode = TerrainOverlayMeshCodeResolver.ResolveMeshCode("53394525", overlay);
 
-        Assert.Equal("53394525", meshCode);
+        Assert.Equal("53394525", meshCode?.Value);
     }
 
     [Fact]
@@ -20,9 +20,9 @@ public sealed class TerrainOverlayMeshCodeResolverTests
     {
         TerrainTextureOverlay overlay = CreateOverlay("53394525");
 
-        string? meshCode = TerrainOverlayMeshCodeResolver.ResolveMeshCode("533945", overlay);
+        ThirdRegionalMeshCode? meshCode = TerrainOverlayMeshCodeResolver.ResolveMeshCode("533945", overlay);
 
-        Assert.Equal("53394525", meshCode);
+        Assert.Equal("53394525", meshCode?.Value);
     }
 
     [Fact]
@@ -30,13 +30,13 @@ public sealed class TerrainOverlayMeshCodeResolverTests
     {
         TerrainTextureOverlay overlay = CreateOverlay("53394525");
 
-        string? meshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
+        ThirdRegionalMeshCode? meshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
             actualMeshCode: "53394600",
             requestedMeshCode: "533945",
             requestedMeshCodeBounds: [],
             overlay);
 
-        Assert.Equal("53394525", meshCode);
+        Assert.Equal("53394525", meshCode?.Value);
     }
 
     [Fact]
@@ -44,13 +44,13 @@ public sealed class TerrainOverlayMeshCodeResolverTests
     {
         TerrainTextureOverlay overlay = CreateOverlay("53394525");
 
-        string? meshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
+        ThirdRegionalMeshCode? meshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
             actualMeshCode: "533946",
             requestedMeshCode: "533947",
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
             overlay);
 
-        Assert.Equal("53394525", meshCode);
+        Assert.Equal("53394525", meshCode?.Value);
     }
 
     [Fact]
