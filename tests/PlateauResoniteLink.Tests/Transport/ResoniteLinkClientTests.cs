@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -70,6 +71,29 @@ public sealed class ResoniteLinkClientTests
         Assert.NotNull(transport.LastRawTextureRequest);
         Assert.Equal(1, transport.LastRawTextureRequest!.Width);
         Assert.Equal(1, transport.LastRawTextureRequest.Height);
+    }
+
+    [Fact]
+    public async Task ImportTextureAsyncMaterializesSourceOnlyInsideLinkAdapter()
+    {
+        using FakeResoniteLinkTransport transport = new()
+        {
+            ImportTextureRawResult = new AssetData
+            {
+                Success = true,
+                AssetURL = new Uri("file:///tmp/lazy.png"),
+            },
+        };
+        InstrumentedTextureImportSource source = new();
+
+        Assert.Equal(0, source.MaterializeCallCount);
+
+        using ResoniteLinkClient client = new(transport);
+        Uri importedTexture = await client.ImportTextureAsync(source, CancellationToken.None);
+
+        Assert.Equal(new Uri("file:///tmp/lazy.png"), importedTexture);
+        Assert.Equal(1, source.MaterializeCallCount);
+        Assert.Equal([1, 2, 3, 4], transport.LastRawTextureRequest!.RawBinaryPayload);
     }
 
     [Fact]
@@ -313,6 +337,30 @@ public sealed class ResoniteLinkClientTests
         public void Dispose()
         {
             Environment.SetEnvironmentVariable(variableName, previousValue);
+        }
+    }
+
+    private sealed class InstrumentedTextureImportSource : IRawTexturePayloadSource
+    {
+        public int MaterializeCallCount { get; private set; }
+
+        public string Identity => "instrumented";
+
+        public string Description => "instrumented";
+
+        public string? ColorProfile => ResoniteTextureColorProfiles.Srgb;
+
+        public long? EstimatedByteLength => 4;
+
+        public ValueTask<RawTexturePayload> MaterializeRawAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            MaterializeCallCount++;
+            return ValueTask.FromResult(new RawTexturePayload(
+                1,
+                1,
+                ResoniteTextureColorProfiles.Srgb,
+                [1, 2, 3, 4]));
         }
     }
 }

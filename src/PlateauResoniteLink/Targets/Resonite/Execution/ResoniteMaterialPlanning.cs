@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -447,11 +448,10 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         CancellationToken cancellationToken)
     {
         string absolutePath = bundledDefaultMaterialAssetStore.GetAbsolutePath(asset);
-        ResoniteRawTextureImport textureImport = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+        ITextureImportSource textureSource = ResoniteTextureImportFactory.CreateSourceFromFile(
             absolutePath,
-            colorProfile,
-            cancellationToken);
-        return await importClient.ImportTextureAsync(textureImport, cancellationToken);
+            colorProfile);
+        return await importClient.ImportTextureAsync(textureSource, cancellationToken);
     }
 
     private Task<Uri?> ImportBundledAlbedoTextureAsync(

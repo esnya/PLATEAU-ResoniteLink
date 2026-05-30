@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
 
 using ResoniteLink;
@@ -153,11 +154,11 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             static _ => null);
     }
 
-    public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+    public Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
     {
         return ExecuteMeasuredWithReconnectAsync(
             static (client, state, ct) => client.ImportTextureAsync(state, ct),
-            textureImport,
+            textureSource,
             "ImportTexture",
             cancellationToken,
             static _ => null,

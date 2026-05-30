@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -340,7 +341,7 @@ internal sealed record PreparedCityObject(
 internal sealed record PreparedTextureReference(
     ResoniteTexturePayload? TexturePayload,
     ResoniteTextureSourceKind TextureSourceKind,
-    ResoniteTextureImport TextureImport,
+    ITextureImportSource TextureSource,
     string? TerrainMeshCode = null,
     TerrainTextureOverlay? TerrainOverlay = null,
     GeneratedTerrainTexture? GeneratedTerrainTexture = null);

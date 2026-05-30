@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -48,14 +49,14 @@ internal static class ResonitePreparedTextureUploader
                         state,
                         importClient,
                         meshCode,
-                        texture.TextureImport,
+                        texture.TextureSource,
                         cancellationToken)));
                 continue;
             }
 
             textureImportTasks.Add((
                 texture,
-                importClient.ImportTextureAsync(texture.TextureImport, cancellationToken)));
+                importClient.ImportTextureAsync(texture.TextureSource, cancellationToken)));
         }
 
         Task[] importTasks = textureImportTasks
@@ -91,12 +92,12 @@ internal static class ResonitePreparedTextureUploader
         LiveSendRunState state,
         IResoniteLinkClient importClient,
         string meshCode,
-        ResoniteTextureImport textureImport,
+        ITextureImportSource textureSource,
         CancellationToken cancellationToken)
     {
         return state.TerrainTextures.AssetsByMeshCode.GetOrCreateAsync(
             meshCode,
-            () => EnsureSharedTerrainTextureAssetCoreAsync(state, importClient, meshCode, textureImport, cancellationToken),
+            () => EnsureSharedTerrainTextureAssetCoreAsync(state, importClient, meshCode, textureSource, cancellationToken),
             cancellationToken);
     }
 
@@ -104,7 +105,7 @@ internal static class ResonitePreparedTextureUploader
         LiveSendRunState state,
         IResoniteLinkClient importClient,
         string meshCode,
-        ResoniteTextureImport textureImport,
+        ITextureImportSource textureSource,
         CancellationToken cancellationToken)
     {
         CreatedSlot terrainTexturesRoot = await state.Placement.GetOrCreateSharedChildSlotAsync(
@@ -123,7 +124,7 @@ internal static class ResonitePreparedTextureUploader
             cancellationToken);
         if (existingTexture is not null)
         {
-            Uri refreshedTextureUri = await importClient.ImportTextureAsync(textureImport, cancellationToken);
+            Uri refreshedTextureUri = await importClient.ImportTextureAsync(textureSource, cancellationToken);
             await importClient.UpdateComponentAsync(
                 new ResoniteComponentUpdate
                 {
@@ -139,7 +140,7 @@ internal static class ResonitePreparedTextureUploader
             };
         }
 
-        Uri importedTextureUri = await importClient.ImportTextureAsync(textureImport, cancellationToken);
+        Uri importedTextureUri = await importClient.ImportTextureAsync(textureSource, cancellationToken);
         CreatedComponent textureComponent = await ResoniteMaterialPlanning.CreateComponentAsync(
             importClient,
             meshSlot.Locator,

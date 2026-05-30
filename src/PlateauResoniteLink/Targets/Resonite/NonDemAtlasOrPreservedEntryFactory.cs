@@ -40,7 +40,7 @@ internal sealed class NonDemAtlasOrPreservedEntryFactory(
 
         TextureUvRect uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh);
         using Image<Rgba32> sourceImage = await textureImageLoader.LoadAsync(
-            ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
+            ResoniteTextureImportFactory.CreateSourceFromPayload(material.TexturePayload),
             cancellationToken);
         Rgba32 detectedBackgroundColor = NonDemTextureImageProcessing.DetectRepresentativeBackgroundColor(sourceImage);
         using Image<Rgba32> preparedSourceImage = sourceImage.Clone();

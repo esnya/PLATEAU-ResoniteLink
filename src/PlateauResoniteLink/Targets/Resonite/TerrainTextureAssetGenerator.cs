@@ -24,19 +24,19 @@ internal interface ITerrainTextureAssetGenerator
 }
 
 internal sealed record GeneratedTerrainTexture(
-    ResoniteRawTextureImport TextureImport,
+    ITextureImportSource TextureSource,
     TextureUvRect OccupiedUvRect,
     TerrainTextureSource? UsedSource = null,
     IReadOnlyList<TerrainTextureSource>? UsedSources = null)
 {
     public GeneratedTerrainTexture(
-        ResoniteRawTextureImport textureImport,
+        ITextureImportSource textureSource,
         ResoniteFloat2 canvasScale,
         ResoniteFloat2 canvasOffset,
         TerrainTextureSource? usedSource = null,
         IReadOnlyList<TerrainTextureSource>? usedSources = null)
         : this(
-            textureImport,
+            textureSource,
             TextureUvRect.FromScaleOffsetValue(
                 new ScalarPair(canvasScale.X, canvasScale.Y),
                 new ScalarPair(canvasOffset.X, canvasOffset.Y)),
@@ -262,7 +262,7 @@ internal sealed class TerrainTextureAssetGenerator(
                 canvasWidth,
                 canvasHeight);
         generatedTexture = new GeneratedTerrainTexture(
-            CreateRawTextureImport(canvasImage),
+            CreateTextureSource(canvasImage, usedSource),
             occupiedUvRect,
             usedSource,
             usedSources.Distinct().ToArray());
@@ -404,15 +404,13 @@ internal sealed class TerrainTextureAssetGenerator(
             }));
     }
 
-    private static ResoniteRawTextureImport CreateRawTextureImport(Image<Rgba32> image)
+    private static ITextureImportSource CreateTextureSource(Image<Rgba32> image, TerrainTextureSource usedSource)
     {
-        byte[] rawBytes = new byte[image.Width * image.Height * 4];
-        image.CopyPixelDataTo(rawBytes);
-        return new ResoniteRawTextureImport(
-            image.Width,
-            image.Height,
-            "sRGB",
-            rawBytes);
+        return TextureImportSourceFactory.CreateGeneratedImageFromClone(
+            image,
+            $"terrain:{usedSource.IdentityKey}:{image.Width}x{image.Height}",
+            $"terrain:{usedSource.GetType().Name}",
+            ResoniteTextureColorProfiles.Srgb);
     }
 
     private sealed record CachedTerrainTexture(

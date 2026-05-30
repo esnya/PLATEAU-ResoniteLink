@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 using GeographicLib;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
@@ -406,7 +407,7 @@ public sealed class ResoniteSceneAnchorResolverTests
             throw new NotSupportedException();
         }
 
-        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

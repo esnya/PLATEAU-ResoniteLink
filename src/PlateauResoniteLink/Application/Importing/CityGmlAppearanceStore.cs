@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Threading;
 
 using System.Xml.Linq;
 
@@ -190,17 +188,15 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
     {
         if (!texturePayloadsByResolvedPath.TryGetValue(resolvedTexturePath, out TexturePayload? texturePayload))
         {
-            using Stream stream = datasetSource.OpenReadAsync(resolvedTexturePath, CancellationToken.None)
-                .AsTask()
-                .GetAwaiter()
-                .GetResult();
-            using MemoryStream encodedPayloadStream = new();
-            stream.CopyTo(encodedPayloadStream);
             texturePayload = new TexturePayload(
                 null,
                 null,
                 "sRGB",
-                encodedPayloadStream.ToArray(),
+                TextureImportSourceFactory.CreateDatasetEncodedImage(
+                    datasetSource,
+                    resolvedTexturePath,
+                    "sRGB",
+                    $"dataset:{resolvedTexturePath}"),
                 $"dataset:{resolvedTexturePath}",
                 TexturePayloadFormat.EncodedImage);
             texturePayloadsByResolvedPath[resolvedTexturePath] = texturePayload;

@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using SixLabors.ImageSharp;
@@ -22,6 +23,13 @@ internal static class ResoniteTextureImportFactory
 
         using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(absolutePath, cancellationToken);
         return CreateRawFromImage(image, colorProfile);
+    }
+
+    public static ITextureImportSource CreateSourceFromFile(
+        string absolutePath,
+        string colorProfile = ResoniteTextureColorProfiles.Srgb)
+    {
+        return TextureImportSourceFactory.CreateFileImage(absolutePath, colorProfile);
     }
 
     public static async Task<ResoniteRawTextureImport> CreateRawFromStreamAsync(
@@ -59,6 +67,12 @@ internal static class ResoniteTextureImportFactory
         };
     }
 
+    public static ITextureImportSource CreateSourceFromPayload(ResoniteTexturePayload payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        return payload.Source;
+    }
+
     public static ResoniteTexturePayload CreatePayloadFromImage(
         Image<Rgba32> image,
         string colorProfile = ResoniteTextureColorProfiles.Srgb,
@@ -67,13 +81,14 @@ internal static class ResoniteTextureImportFactory
         ArgumentNullException.ThrowIfNull(image);
         ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
 
-        byte[] rawBytes = new byte[image.Width * image.Height * 4];
-        image.CopyPixelDataTo(rawBytes);
+        RawTexturePayload rawPayload = TextureImportSourceFactory.CreateRawPayloadFromImage(
+            image,
+            colorProfile);
         return new ResoniteTexturePayload(
             image.Width,
             image.Height,
             colorProfile,
-            rawBytes,
+            rawPayload.Bytes,
             identity ?? Guid.NewGuid().ToString("N"),
             ResoniteTexturePayloadFormat.RawRgba32);
     }

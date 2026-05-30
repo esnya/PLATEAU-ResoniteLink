@@ -116,7 +116,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
         return new PreparedTextureReference(
             TexturePayload: null,
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            TextureImport: terrainTexture.TextureImport,
+            TextureSource: terrainTexture.TextureSource,
             TerrainMeshCode: terrainMeshCode,
             TerrainOverlay: terrainTextureOverlay,
             GeneratedTerrainTexture: terrainTexture);
@@ -201,7 +201,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
             new PreparedTextureReference(
                 TexturePayload: material.TexturePayload,
                 TextureSourceKind: material.TextureSourceKind,
-                TextureImport: ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
+                TextureSource: ResoniteTextureImportFactory.CreateSourceFromPayload(material.TexturePayload),
                 TerrainMeshCode: null,
                 TerrainOverlay: null));
     }

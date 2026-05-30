@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
@@ -139,7 +140,7 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
             throw new NotSupportedException();
         }
 
-        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ITextureImportSource textureSource, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
@@ -150,5 +151,4 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
         }
     }
 }
-
 
