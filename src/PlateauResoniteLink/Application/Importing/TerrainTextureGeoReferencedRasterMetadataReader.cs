@@ -19,6 +19,16 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
 {
     private const int GeographicTypeGeoKey = 2048;
     private const int ProjectedCSTypeGeoKey = 3072;
+
+    public static async Task<GeoReferencedRasterMetadata?> TryReadMetadataAsync(
+        TerrainTextureGeoReferencedRasterSource source,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        await using Stream stream = await source.OpenReadAsync(cancellationToken);
+        return await TryReadMetadataAsync(stream, cancellationToken);
+    }
+
     public static async Task<GeoReferencedRasterMetadata?> TryReadMetadataAsync(
         string sourcePath,
         CancellationToken cancellationToken)
@@ -41,6 +51,56 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
 
         ExifProfile? exifProfile = imageInfo.Metadata.ExifProfile;
         GeoTiffTagSnapshot? tiffTags = await GeoTiffTagReader.TryReadAsync(sourcePath, cancellationToken);
+
+        double[]? tiePoints = TryGetDoubleArray(exifProfile, ExifTag.ModelTiePoint)
+            ?? tiffTags?.ModelTiePoint;
+        double[]? pixelScale = TryGetDoubleArray(exifProfile, ExifTag.PixelScale)
+            ?? tiffTags?.PixelScale;
+        double[]? modelTransform = TryGetDoubleArray(exifProfile, ExifTag.ModelTransform)
+            ?? tiffTags?.ModelTransform;
+        ushort[]? geoKeyDirectory = TryGetUnsignedShortArray(exifProfile, "GeoKeyDirectoryTag")
+            ?? tiffTags?.GeoKeyDirectory;
+        double[]? geoDoubleParams = TryGetNamedDoubleArray(exifProfile, "GeoDoubleParamsTag")
+            ?? tiffTags?.GeoDoubleParams;
+        string? geoAsciiParams = TryGetNamedString(exifProfile, "GeoAsciiParamsTag")
+            ?? tiffTags?.GeoAsciiParams;
+
+        return TryCreateMetadata(
+            imageInfo.Width,
+            imageInfo.Height,
+            tiePoints,
+            pixelScale,
+            modelTransform,
+            geoKeyDirectory,
+            geoDoubleParams,
+            geoAsciiParams);
+    }
+
+    public static async Task<GeoReferencedRasterMetadata?> TryReadMetadataAsync(
+        Stream stream,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (!stream.CanSeek)
+        {
+            return null;
+        }
+
+        ImageInfo imageInfo;
+        try
+        {
+            stream.Seek(0, SeekOrigin.Begin);
+            imageInfo = await Image.IdentifyAsync(stream, cancellationToken)
+                ?? throw new InvalidOperationException("Failed to identify raster stream.");
+        }
+        catch (UnknownImageFormatException)
+        {
+            return null;
+        }
+
+        ExifProfile? exifProfile = imageInfo.Metadata.ExifProfile;
+        stream.Seek(0, SeekOrigin.Begin);
+        GeoTiffTagSnapshot? tiffTags = await GeoTiffTagReader.TryReadAsync(stream, cancellationToken);
 
         double[]? tiePoints = TryGetDoubleArray(exifProfile, ExifTag.ModelTiePoint)
             ?? tiffTags?.ModelTiePoint;

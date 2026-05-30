@@ -39,7 +39,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     }
 
     [Fact]
-    public async Task TryResolveRasterSourceAsyncDoesNotReuseFallbackMaterializationAcrossDistinctBoundsKeys()
+    public async Task TryResolveRasterSourceAsyncReusesDatasetRasterMaterializationAcrossDistinctBoundsKeys()
     {
         using TemporaryDirectory datasetRoot = new();
         RecordingDatasetContentSource datasetSource = CreateDatasetSource(datasetRoot.Path);
@@ -58,7 +58,8 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
             secondBounds,
             CancellationToken.None);
 
-        Assert.Equal(4, datasetSource.EnsureLocalFileCallCount);
+        Assert.Equal(2, datasetSource.EnsureLocalFileCallCount);
+        Assert.Equal(0, datasetSource.OpenReadCallCount);
     }
 
     [Fact]
@@ -82,6 +83,64 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
             CancellationToken.None);
 
         Assert.Equal(2, datasetSource.EnsureLocalFileCallCount);
+        Assert.Equal(0, datasetSource.OpenReadCallCount);
+    }
+
+    [Fact]
+    public async Task TryResolveRasterSourceAsyncMaterializesDatasetRasterOnceForMetadataAndImageRead()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        LocalFileReadableDatasetContentSource datasetSource = CreateLocalFileReadableDatasetSource(datasetRoot.Path);
+        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        GeographicRectangle bounds = new(35.0, 35.1, 139.0, 139.1);
+
+        TerrainTextureGeoReferencedRasterSource? result = await catalog.TryResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "local", bounds),
+            "local",
+            bounds,
+            CancellationToken.None);
+
+        TerrainTextureGeoReferencedRasterSource resolvedResult = Assert.IsType<TerrainTextureGeoReferencedRasterSource>(result);
+        Assert.Equal("EPSG:4326", resolvedResult.Metadata?.CoordinateSystemIdentifier);
+        Assert.Equal(1, datasetSource.EnsureLocalFileCallCount);
+        Assert.Equal(0, datasetSource.OpenReadCallCount);
+
+        await using Stream _ = await resolvedResult.OpenReadAsync(CancellationToken.None);
+
+        Assert.Equal(1, datasetSource.EnsureLocalFileCallCount);
+        Assert.Equal(0, datasetSource.OpenReadCallCount);
+    }
+
+    [Fact]
+    public async Task TryResolveRasterSourceAsyncSharesConcurrentDatasetRasterMaterializationAcrossBoundsKeys()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        SucceedingGateableDatasetContentSource datasetSource = CreateSucceedingGateableDatasetSource(datasetRoot.Path);
+        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        GeographicRectangle firstBounds = new(35.0, 35.01, 139.0, 139.01);
+        GeographicRectangle secondBounds = new(35.02, 35.03, 139.02, 139.03);
+
+        Task<TerrainTextureGeoReferencedRasterSource?> firstCall = catalog.TryResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", firstBounds),
+            "dem-fallback",
+            firstBounds,
+            CancellationToken.None);
+        await datasetSource.OpenReadStarted.Task.WaitAsync(CancellationToken.None);
+        Task<TerrainTextureGeoReferencedRasterSource?> secondCall = catalog.TryResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", secondBounds),
+            "dem-fallback",
+            secondBounds,
+            CancellationToken.None);
+
+        datasetSource.ReleaseOpenRead.TrySetResult();
+
+        TerrainTextureGeoReferencedRasterSource? firstResult = await firstCall;
+        TerrainTextureGeoReferencedRasterSource? secondResult = await secondCall;
+
+        Assert.NotNull(firstResult);
+        Assert.NotNull(secondResult);
+        Assert.Equal(1, datasetSource.EnsureLocalFileCallCount);
+        Assert.Equal(0, datasetSource.OpenReadCallCount);
     }
 
     [Fact]
@@ -98,7 +157,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
             "dem-fallback",
             bounds,
             firstCallerCancellation.Token);
-        await datasetSource.EnsureLocalFileStarted.Task.WaitAsync(CancellationToken.None);
+        await datasetSource.OpenReadStarted.Task.WaitAsync(CancellationToken.None);
         Task<TerrainTextureGeoReferencedRasterSource?> secondCall = catalog.TryResolveRasterSourceAsync(
             new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
             "dem-fallback",
@@ -106,7 +165,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
             CancellationToken.None);
 
         await firstCallerCancellation.CancelAsync();
-        datasetSource.ReleaseEnsureLocalFile.TrySetResult();
+        datasetSource.ReleaseOpenRead.TrySetResult();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await firstCall);
         TerrainTextureGeoReferencedRasterSource? secondResult = await secondCall;
@@ -120,6 +179,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
             CancellationToken.None);
         Assert.Same(secondResult, thirdResult);
         Assert.Equal(1, datasetSource.EnsureLocalFileCallCount);
+        Assert.Equal(0, datasetSource.OpenReadCallCount);
     }
 
     [Fact]
@@ -136,15 +196,16 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
             "dem-fallback",
             bounds,
             firstCallerCancellation.Token);
-        await datasetSource.EnsureLocalFileStarted.Task.WaitAsync(CancellationToken.None);
+        await datasetSource.OpenReadStarted.Task.WaitAsync(CancellationToken.None);
 
         await firstCallerCancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await firstCall);
-        datasetSource.ReleaseEnsureLocalFile.TrySetResult();
+        datasetSource.ReleaseOpenRead.TrySetResult();
         await datasetSource.BackgroundCompletion.Task.WaitAsync(CancellationToken.None);
 
         await AssertEventuallyRetriesFaultedBackgroundTaskAsync(catalog, datasetSource, bounds);
         Assert.Equal(2, datasetSource.EnsureLocalFileCallCount);
+        Assert.Equal(0, datasetSource.OpenReadCallCount);
     }
 
     private static async Task AssertEventuallyRetriesFaultedBackgroundTaskAsync(
@@ -155,10 +216,10 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         for (int attempt = 0; attempt < 50; attempt++)
         {
             await Assert.ThrowsAnyAsync<IOException>(async () => await catalog.TryResolveRasterSourceAsync(
-                new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
-                "dem-fallback",
-                bounds,
-                CancellationToken.None));
+                    new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, "dem-fallback", bounds),
+                    "dem-fallback",
+                    bounds,
+                    CancellationToken.None));
 
             if (datasetSource.EnsureLocalFileCallCount == 2)
             {
@@ -205,6 +266,22 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
                     2048, 0, 1, 4326,
                 ]));
         return new SucceedingGateableDatasetContentSource(datasetRoot, [Path.GetFileName(rasterPath)]);
+    }
+
+    private static LocalFileReadableDatasetContentSource CreateLocalFileReadableDatasetSource(string datasetRoot)
+    {
+        string rasterPath = Path.Combine(datasetRoot, "local.tif");
+        File.WriteAllBytes(
+            rasterPath,
+            CreateClassicLittleEndianGeoTiffBytes(
+                modelTiePoint: [0.0, 0.0, 0.0, 139.0, 35.1, 0.0],
+                pixelScale: [0.01, 0.01, 0.0],
+                geoKeyDirectory:
+                [
+                    1, 1, 0, 1,
+                    2048, 0, 1, 4326,
+                ]));
+        return new LocalFileReadableDatasetContentSource(datasetRoot, [Path.GetFileName(rasterPath)]);
     }
 
     private static byte[] CreateClassicLittleEndianGeoTiffBytes(
@@ -319,6 +396,8 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     {
         public string SourcePath { get; } = sourcePath;
 
+        public int OpenReadCallCount { get; private set; }
+
         public int EnsureLocalFileCallCount { get; private set; }
 
         public IReadOnlyList<string> EnumerateFiles() => files;
@@ -327,9 +406,15 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
 
         public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage(
+            "Reliability",
+            "CA2000:Dispose objects before losing scope",
+            Justification = "The catalog owns disposal of the returned stream during metadata probing.")]
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            OpenReadCallCount++;
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<Stream>(File.OpenRead(Path.Combine(SourcePath, relativePath)));
         }
 
         public Task<string> EnsureLocalFileAsync(
@@ -338,7 +423,8 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
             CancellationToken cancellationToken = default)
         {
             EnsureLocalFileCallCount++;
-            _ = outputRoot;
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.Equal(Path.GetDirectoryName(SourcePath), outputRoot);
             return Task.FromResult(Path.Combine(SourcePath, relativePath));
         }
     }
@@ -349,11 +435,13 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     {
         public string SourcePath { get; } = sourcePath;
 
+        public int OpenReadCallCount { get; private set; }
+
         public int EnsureLocalFileCallCount { get; private set; }
 
-        public TaskCompletionSource EnsureLocalFileStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource OpenReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public TaskCompletionSource ReleaseEnsureLocalFile { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseOpenRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TaskCompletionSource BackgroundCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -363,9 +451,25 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
 
         public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
 
-        public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
+        [System.Diagnostics.CodeAnalysis.SuppressMessage(
+            "Reliability",
+            "CA2000:Dispose objects before losing scope",
+            Justification = "The catalog owns disposal of the returned stream during metadata probing.")]
+        public async ValueTask<Stream> OpenReadAsync(
+            string relativePath,
+            CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            OpenReadCallCount++;
+            OpenReadStarted.TrySetResult();
+            try
+            {
+                await ReleaseOpenRead.Task.WaitAsync(cancellationToken);
+                throw new IOException("Simulated raster open failure.");
+            }
+            finally
+            {
+                BackgroundCompletion.TrySetResult();
+            }
         }
 
         public async Task<string> EnsureLocalFileAsync(
@@ -374,12 +478,11 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
             CancellationToken cancellationToken = default)
         {
             EnsureLocalFileCallCount++;
-            _ = outputRoot;
-            EnsureLocalFileStarted.TrySetResult();
+            OpenReadStarted.TrySetResult();
             try
             {
-                await ReleaseEnsureLocalFile.Task.WaitAsync(cancellationToken);
-                throw new IOException("Simulated ensure-local-file failure.");
+                await ReleaseOpenRead.Task.WaitAsync(cancellationToken);
+                throw new IOException("Simulated raster materialization failure.");
             }
             finally
             {
@@ -394,11 +497,13 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     {
         public string SourcePath { get; } = sourcePath;
 
+        public int OpenReadCallCount { get; private set; }
+
         public int EnsureLocalFileCallCount { get; private set; }
 
-        public TaskCompletionSource EnsureLocalFileStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource OpenReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public TaskCompletionSource ReleaseEnsureLocalFile { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseOpenRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public IReadOnlyList<string> EnumerateFiles() => files;
 
@@ -406,21 +511,68 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
 
         public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
 
-        public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
+        public async ValueTask<Stream> OpenReadAsync(
+            string relativePath,
+            CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            OpenReadCallCount++;
+            OpenReadStarted.TrySetResult();
+            await ReleaseOpenRead.Task.WaitAsync(cancellationToken);
+            return File.OpenRead(Path.Combine(SourcePath, relativePath));
         }
 
-        public async Task<string> EnsureLocalFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)
         {
             EnsureLocalFileCallCount++;
-            _ = outputRoot;
-            EnsureLocalFileStarted.TrySetResult();
-            await ReleaseEnsureLocalFile.Task.WaitAsync(cancellationToken);
+            OpenReadStarted.TrySetResult();
+            return WaitAndReturnLocalFileAsync(relativePath, cancellationToken);
+        }
+
+        private async Task<string> WaitAndReturnLocalFileAsync(
+            string relativePath,
+            CancellationToken cancellationToken)
+        {
+            await ReleaseOpenRead.Task.WaitAsync(cancellationToken);
             return Path.Combine(SourcePath, relativePath);
+        }
+    }
+
+    private sealed class LocalFileReadableDatasetContentSource(
+        string sourcePath,
+        IReadOnlyList<string> files) : IPlateauDatasetContentSource
+    {
+        public string SourcePath { get; } = sourcePath;
+
+        public int OpenReadCallCount { get; private set; }
+
+        public int EnsureLocalFileCallCount { get; private set; }
+
+        public IReadOnlyList<string> EnumerateFiles() => files;
+
+        public bool FileExists(string relativePath) => files.Contains(relativePath, StringComparer.OrdinalIgnoreCase);
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
+
+        public ValueTask<Stream> OpenReadAsync(
+            string relativePath,
+            CancellationToken cancellationToken = default)
+        {
+            OpenReadCallCount++;
+            throw new InvalidOperationException("Raster source should prefer the local file content source.");
+        }
+
+        public Task<string> EnsureLocalFileAsync(
+            string relativePath,
+            string outputRoot,
+            CancellationToken cancellationToken = default)
+        {
+            EnsureLocalFileCallCount++;
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.Equal(Path.GetDirectoryName(SourcePath), outputRoot);
+            return Task.FromResult(Path.Combine(SourcePath, relativePath));
         }
     }
 }

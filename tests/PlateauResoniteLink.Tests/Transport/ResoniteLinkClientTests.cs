@@ -13,6 +13,8 @@ using ResoniteLink;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
+
 namespace PlateauResoniteLink.Tests.Transport;
 
 public sealed class ResoniteLinkClientTests
@@ -59,11 +61,11 @@ public sealed class ResoniteLinkClientTests
 
         using ResoniteLinkClient client = new(transport);
         Uri importedTexture = await client.ImportTextureAsync(
-            new ResoniteRawTextureImport(
-                Width: 1,
-                Height: 1,
-                ColorProfile: ResoniteTextureColorProfiles.Srgb,
-                RawRgba32Bytes: [255, 0, 0, 255]),
+            CreateRawTextureSource(
+                width: 1,
+                height: 1,
+                colorProfile: ResoniteTextureColorProfiles.Srgb,
+                rawRgba32Bytes: [255, 0, 0, 255]),
             CancellationToken.None);
 
         Assert.Equal(new Uri("file:///tmp/albedo.png"), importedTexture);
@@ -120,17 +122,19 @@ public sealed class ResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task CreateRawFromFileAsyncThrowsWhenLocalFileIsMissing()
+    public async Task CreateSourceFromFileThrowsWhenMaterializedForMissingLocalFile()
     {
         string texturePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
         FileNotFoundException exception = await Assert.ThrowsAsync<FileNotFoundException>(
-            async () => await ResoniteTextureImportFactory.CreateRawFromFileAsync(texturePath, cancellationToken: CancellationToken.None));
+            async () => await TextureImportSourceMaterializer.MaterializeRawAsync(
+                ResoniteTextureImportFactory.CreateSourceFromFile(texturePath),
+                CancellationToken.None));
 
         Assert.Contains(Path.GetFileName(texturePath), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task CreateRawFromFileAsyncLoadsImageWhenRunningUnderWsl()
+    public async Task CreateSourceFromFileLoadsImageWhenMaterialized()
     {
         using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", "Ubuntu-24.04");
         using TemporaryDirectory temporaryDirectory = new();
@@ -140,14 +144,14 @@ public sealed class ResoniteLinkClientTests
             await image.SaveAsPngAsync(texturePath);
         }
 
-        ResoniteRawTextureImport importedTexture = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
-            texturePath,
-            cancellationToken: CancellationToken.None);
+        RawTexturePayload importedTexture = await TextureImportSourceMaterializer.MaterializeRawAsync(
+            ResoniteTextureImportFactory.CreateSourceFromFile(texturePath),
+            CancellationToken.None);
 
         Assert.Equal(1, importedTexture.Width);
         Assert.Equal(1, importedTexture.Height);
         Assert.Equal(ResoniteTextureColorProfiles.Srgb, importedTexture.ColorProfile);
-        Assert.Equal([255, 0, 0, 255], importedTexture.RawRgba32Bytes);
+        Assert.Equal([255, 0, 0, 255], importedTexture.Bytes);
     }
 
     [Fact]
@@ -161,11 +165,11 @@ public sealed class ResoniteLinkClientTests
             gateWaitLogThreshold: TimeSpan.Zero);
 
         Task<Uri> importTask = client.ImportTextureAsync(
-            new ResoniteRawTextureImport(
-                Width: 1,
-                Height: 1,
-                RawRgba32Bytes: [255, 0, 0, 255],
-                ColorProfile: ResoniteTextureColorProfiles.Srgb),
+            CreateRawTextureSource(
+                width: 1,
+                height: 1,
+                rawRgba32Bytes: [255, 0, 0, 255],
+                colorProfile: ResoniteTextureColorProfiles.Srgb),
             CancellationToken.None);
 
         await transport.ImportTextureStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -216,11 +220,11 @@ public sealed class ResoniteLinkClientTests
             _ => throw new InvalidOperationException("Progress sink failed."));
 
         Uri texture = await client.ImportTextureAsync(
-            new ResoniteRawTextureImport(
-                Width: 1,
-                Height: 1,
-                RawRgba32Bytes: [255, 0, 0, 255],
-                ColorProfile: ResoniteTextureColorProfiles.Srgb),
+            CreateRawTextureSource(
+                width: 1,
+                height: 1,
+                rawRgba32Bytes: [255, 0, 0, 255],
+                colorProfile: ResoniteTextureColorProfiles.Srgb),
             CancellationToken.None);
 
         ResoniteTransportSlotCreationResult slot = await client.AddSlotAsync(

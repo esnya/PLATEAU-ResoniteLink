@@ -598,7 +598,7 @@ public sealed class StreamingImportedSceneSourceTests
         Assert.Single(cityObjects);
         TerrainTextureOverlay appliedOverlay = Assert.IsType<TerrainTextureOverlay>(geometryProjector.LastOverlayByPackage["dem"]);
         TerrainTextureGeoReferencedRasterSource rasterSource = Assert.Single(appliedOverlay.EnumerateGeoReferencedRasterSources());
-        Assert.Equal("C:\\ortho\\terrain.tif", rasterSource.SourcePath);
+        Assert.Equal("terrain.tif", rasterSource.ContentSource.Description);
     }
 
     [Fact]

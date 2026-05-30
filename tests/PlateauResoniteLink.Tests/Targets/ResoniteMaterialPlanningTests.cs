@@ -5,12 +5,15 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
+
+using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
@@ -64,7 +67,7 @@ public sealed class ResoniteMaterialPlanningTests
         int metallicImportIndex = int.Parse(
             metallicAsset.AssetUri.Segments[^1].TrimEnd('/'),
             CultureInfo.InvariantCulture);
-        ResoniteRawTextureImport metallicTexture = client.ImportedRawTextures[metallicImportIndex];
+        RawTexturePayload metallicTexture = ImportedRgba32Textures(client)[metallicImportIndex];
         Assert.Equal(ResoniteTextureColorProfiles.Linear, metallicTexture.ColorProfile);
         Assert.Contains(
             plannedAsset.Textures,
@@ -85,7 +88,7 @@ public sealed class ResoniteMaterialPlanningTests
             uvMaterial,
             bundledTextureImportTasks,
             CancellationToken.None);
-        int importCountAfterUv = client.ImportedRawTextures.Count;
+        int importCountAfterUv = ImportedRgba32Textures(client).Count;
 
         _ = await planning.PlanCommonMaterialAssetAsync(
             client,
@@ -93,7 +96,7 @@ public sealed class ResoniteMaterialPlanningTests
             bundledTextureImportTasks,
             CancellationToken.None);
 
-        Assert.Equal(importCountAfterUv, client.ImportedRawTextures.Count);
+        Assert.Equal(importCountAfterUv, ImportedRgba32Textures(client).Count);
     }
 
     [Fact]
@@ -110,7 +113,7 @@ public sealed class ResoniteMaterialPlanningTests
             baseMaterial,
             bundledTextureImportTasks,
             CancellationToken.None);
-        int importCountAfterBase = client.ImportedRawTextures.Count;
+        int importCountAfterBase = ImportedRgba32Textures(client).Count;
 
         PlannedDedicatedMaterialAsset colorVariantPlannedAsset = await planning.PlanCommonMaterialAssetAsync(
             client,
@@ -118,7 +121,7 @@ public sealed class ResoniteMaterialPlanningTests
             bundledTextureImportTasks,
             CancellationToken.None);
 
-        Assert.Equal(importCountAfterBase + 3, client.ImportedRawTextures.Count);
+        Assert.Equal(importCountAfterBase + 3, ImportedRgba32Textures(client).Count);
         Assert.NotEqual(
             GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
             GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Albedo));
@@ -150,7 +153,7 @@ public sealed class ResoniteMaterialPlanningTests
             baseMaterial,
             bundledTextureImportTasks,
             CancellationToken.None);
-        int importCountAfterBase = client.ImportedRawTextures.Count;
+        int importCountAfterBase = ImportedRgba32Textures(client).Count;
 
         PlannedDedicatedMaterialAsset colorVariantPlannedAsset = await planning.PlanCommonMaterialAssetAsync(
             client,
@@ -158,7 +161,7 @@ public sealed class ResoniteMaterialPlanningTests
             bundledTextureImportTasks,
             CancellationToken.None);
 
-        Assert.Equal(importCountAfterBase + 2, client.ImportedRawTextures.Count);
+        Assert.Equal(importCountAfterBase + 2, ImportedRgba32Textures(client).Count);
         Assert.NotEqual(
             GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
             GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Albedo));
@@ -242,7 +245,7 @@ public sealed class ResoniteMaterialPlanningTests
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextures = new()
         {
             [overlay] = new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
+                CreateRawTextureSource(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.0, 0.0)),
         };
@@ -328,7 +331,7 @@ public sealed class ResoniteMaterialPlanningTests
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextures = new()
         {
             [overlay] = new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
+                CreateRawTextureSource(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.0, 0.0)),
         };

@@ -16,6 +16,8 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
+using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
+
 namespace PlateauResoniteLink.Tests.Targets;
 
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
@@ -516,7 +518,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoOnly);
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(
+                CreateRawTextureSource(
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
@@ -663,7 +665,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoOnly);
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(
+                CreateRawTextureSource(
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
@@ -741,7 +743,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(
+                CreateRawTextureSource(
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
@@ -816,7 +818,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(
+                CreateRawTextureSource(
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
@@ -882,7 +884,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
             _ => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(
+                CreateRawTextureSource(
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,

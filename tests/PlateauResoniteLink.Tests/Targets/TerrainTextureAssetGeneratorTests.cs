@@ -372,12 +372,13 @@ public sealed class TerrainTextureAssetGeneratorTests
         using TemporaryDirectory cacheRoot = new();
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
         PersistentTerrainTileCache persistentCache = new(cacheRoot.Path);
-        await persistentCache.WriteTileBytesAsync(
+        using MemoryStream corruptTileContent = new([1, 2, 3, 4]);
+        await persistentCache.WriteTileAsync(
             overlay.UrlTemplate,
             overlay.ZoomLevel,
             0,
             0,
-            [1, 2, 3, 4],
+            corruptTileContent,
             CancellationToken.None);
 
         using FakeMapTileHandler handler = new();

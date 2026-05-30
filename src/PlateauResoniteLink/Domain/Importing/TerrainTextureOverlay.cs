@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Domain.Importing;
 
@@ -40,18 +43,57 @@ public sealed record GeoReferencedRasterMetadata(
             $"georaster-meta-crs-{CoordinateSystemIdentifier ?? "none"}-pixel-{TerrainTextureDescriptorFormatting.FormatRounded(PixelWidthMeters)}x{TerrainTextureDescriptorFormatting.FormatRounded(PixelHeightMeters)}-bounds-{TerrainTextureDescriptorFormatting.FormatBounds(GeographicBounds)}");
 }
 
-public sealed record TerrainTextureGeoReferencedRasterSource(
-    string SourcePath,
-    GeoReferencedRasterMetadata? Metadata = null) : TerrainTextureSource
+public interface ITerrainTextureRasterContentSource
+{
+    string IdentityKey { get; }
+
+    string Description { get; }
+
+    ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken);
+}
+
+public sealed record LocalTerrainTextureRasterContentSource(string SourcePath) : ITerrainTextureRasterContentSource
 {
     public string SourcePath { get; init; } = string.IsNullOrWhiteSpace(SourcePath)
         ? throw new ArgumentException("Terrain texture raster source path must be provided.", nameof(SourcePath))
         : SourcePath;
 
+    public string IdentityKey => $"file:{Path.GetFullPath(SourcePath)}";
+
+    public string Description => Path.GetFileName(SourcePath.Replace('\\', '/'));
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "The caller owns the returned stream and disposes it after raster decoding.")]
+    public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult<Stream>(File.OpenRead(SourcePath));
+    }
+}
+
+public sealed record TerrainTextureGeoReferencedRasterSource(
+    ITerrainTextureRasterContentSource ContentSource,
+    GeoReferencedRasterMetadata? Metadata = null) : TerrainTextureSource
+{
+    public TerrainTextureGeoReferencedRasterSource(
+        string sourcePath,
+        GeoReferencedRasterMetadata? metadata = null)
+        : this(new LocalTerrainTextureRasterContentSource(sourcePath), metadata)
+    {
+    }
+
+    public ITerrainTextureRasterContentSource ContentSource { get; init; } =
+        ContentSource ?? throw new ArgumentNullException(nameof(ContentSource));
+
     public GeoReferencedRasterMetadata? Metadata { get; init; } = Metadata;
 
     public override string IdentityKey =>
-        string.Create(CultureInfo.InvariantCulture, $"georaster-{SourcePath}-meta-{Metadata?.IdentityKey ?? "none"}");
+        string.Create(CultureInfo.InvariantCulture, $"georaster-{ContentSource.IdentityKey}-meta-{Metadata?.IdentityKey ?? "none"}");
+
+    public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken) =>
+        ContentSource.OpenReadAsync(cancellationToken);
 }
 
 public sealed record TerrainTextureOverlay

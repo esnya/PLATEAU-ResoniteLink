@@ -145,17 +145,17 @@ internal sealed class TerrainTextureTileSourceReader(
         string tileUrl = WebMercatorTileMath.FormatTileUrl(tileSource.UrlTemplate, tileSource.ZoomLevel, tileX, tileY);
         if (persistentTileCache is not null)
         {
-            byte[]? cachedBytes = await persistentTileCache.TryReadTileBytesAsync(
+            await using Stream? cachedStream = await persistentTileCache.TryOpenTileReadAsync(
                 tileSource.UrlTemplate,
                 tileSource.ZoomLevel,
                 tileX,
                 tileY,
                 cancellationToken);
-            if (cachedBytes is not null)
+            if (cachedStream is not null)
             {
                 try
                 {
-                    return await LoadTileImageAsync(cachedBytes, cancellationToken);
+                    return await LoadTileImageAsync(cachedStream, cancellationToken);
                 }
                 catch (UnknownImageFormatException)
                 {
@@ -185,19 +185,24 @@ internal sealed class TerrainTextureTileSourceReader(
                     return null;
                 }
 
-                byte[] encodedBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                await using Stream responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
                 if (persistentTileCache is not null)
                 {
-                    await TryWritePersistentTileBytesAsync(
+                    using MemoryStream retainedContent = new();
+                    await responseStream.CopyToAsync(retainedContent, cancellationToken);
+                    retainedContent.Position = 0;
+                    await TryWritePersistentTileAsync(
                         tileSource.UrlTemplate,
                         tileSource.ZoomLevel,
                         tileX,
                         tileY,
-                        encodedBytes,
+                        retainedContent,
                         cancellationToken);
+                    retainedContent.Position = 0;
+                    return await LoadTileImageAsync(retainedContent, cancellationToken);
                 }
 
-                return await LoadTileImageAsync(encodedBytes, cancellationToken);
+                return await LoadTileImageAsync(responseStream, cancellationToken);
             }
             catch (HttpRequestException) when (attempt < MaxTileDownloadAttempts)
             {
@@ -208,12 +213,12 @@ internal sealed class TerrainTextureTileSourceReader(
         return null;
     }
 
-    private async Task TryWritePersistentTileBytesAsync(
+    private async Task TryWritePersistentTileAsync(
         string urlTemplate,
         int zoomLevel,
         int tileX,
         int tileY,
-        byte[] encodedBytes,
+        Stream encodedContent,
         CancellationToken cancellationToken)
     {
         if (persistentTileCache is null)
@@ -223,12 +228,12 @@ internal sealed class TerrainTextureTileSourceReader(
 
         try
         {
-            await persistentTileCache.WriteTileBytesAsync(
+            await persistentTileCache.WriteTileAsync(
                 urlTemplate,
                 zoomLevel,
                 tileX,
                 tileY,
-                encodedBytes,
+                encodedContent,
                 cancellationToken);
         }
         catch (IOException)
@@ -240,11 +245,10 @@ internal sealed class TerrainTextureTileSourceReader(
     }
 
     private static async Task<Image<Rgba32>> LoadTileImageAsync(
-        byte[] encodedBytes,
+        Stream encodedContent,
         CancellationToken cancellationToken)
     {
-        using MemoryStream stream = new(encodedBytes, writable: false);
-        return await Image.LoadAsync<Rgba32>(stream, cancellationToken);
+        return await Image.LoadAsync<Rgba32>(encodedContent, cancellationToken);
     }
 
     private static bool IsTransientStatusCode(int statusCode)

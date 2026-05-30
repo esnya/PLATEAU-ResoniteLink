@@ -8,7 +8,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
@@ -138,16 +137,21 @@ internal static class SceneSinkRecordingClientCanonicalDump
 
         JsonArray textures = [];
         List<JsonObject> textureNodes = [];
-        for (int index = 0; index < client.ImportedRawTextures.Count; index++)
+        for (int index = 0; index < client.ImportedTexturePayloads.Count; index++)
         {
-            ResoniteRawTextureImport texture = client.ImportedRawTextures[index];
+            RawTexturePayload texture = client.ImportedTexturePayloads[index];
+            if (texture.Format != RawTexturePayloadFormat.Rgba32)
+            {
+                continue;
+            }
+
             textureNodes.Add(new JsonObject
             {
                 ["uri"] = CreateTextureToken(texture),
                 ["width"] = texture.Width,
                 ["height"] = texture.Height,
                 ["colorProfile"] = texture.ColorProfile,
-                ["payloadHash"] = HashBytes(texture.RawRgba32Bytes),
+                ["payloadHash"] = HashBytes(texture.Bytes),
             });
         }
 
@@ -158,15 +162,20 @@ internal static class SceneSinkRecordingClientCanonicalDump
 
         JsonArray hdrTextures = [];
         List<JsonObject> hdrTextureNodes = [];
-        for (int index = 0; index < client.ImportedRawHdrTextures.Count; index++)
+        for (int index = 0; index < client.ImportedTexturePayloads.Count; index++)
         {
-            ResoniteRawHdrTextureImport texture = client.ImportedRawHdrTextures[index];
+            RawTexturePayload texture = client.ImportedTexturePayloads[index];
+            if (texture.Format != RawTexturePayloadFormat.RgbaFloat32)
+            {
+                continue;
+            }
+
             hdrTextureNodes.Add(new JsonObject
             {
                 ["uri"] = CreateHdrTextureToken(texture),
                 ["width"] = texture.Width,
                 ["height"] = texture.Height,
-                ["payloadHash"] = HashBytes(texture.RawRgbaFloatBytes),
+                ["payloadHash"] = HashBytes(texture.Bytes),
             });
         }
 
@@ -387,20 +396,6 @@ internal static class SceneSinkRecordingClientCanonicalDump
             $"mesh:{mesh.VertexCount}:{mesh.Submeshes.Count}:{HashBytes(mesh.RawBinaryPayload)}");
     }
 
-    private static string CreateTextureToken(ResoniteRawTextureImport texture)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"texture:{texture.Width}x{texture.Height}:{texture.ColorProfile}:{HashBytes(texture.RawRgba32Bytes)}");
-    }
-
-    private static string CreateHdrTextureToken(ResoniteRawHdrTextureImport texture)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"hdr-texture:{texture.Width}x{texture.Height}:{HashBytes(texture.RawRgbaFloatBytes)}");
-    }
-
     private static string CreateTextureToken(RawTexturePayload texture)
     {
         return texture.Format == RawTexturePayloadFormat.RgbaFloat32
@@ -410,6 +405,13 @@ internal static class SceneSinkRecordingClientCanonicalDump
             : string.Create(
                 CultureInfo.InvariantCulture,
                 $"texture:{texture.Width}x{texture.Height}:{texture.ColorProfile}:{HashBytes(texture.Bytes)}");
+    }
+
+    private static string CreateHdrTextureToken(RawTexturePayload texture)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"hdr-texture:{texture.Width}x{texture.Height}:{HashBytes(texture.Bytes)}");
     }
 
     private static string HashBytes(byte[]? bytes)

@@ -278,15 +278,50 @@ internal static class PlateauDatasetContentSourceFactory
             }
 
             await using Stream sourceStream = await OpenReadAsync(normalizedPath, cancellationToken);
-            await using FileStream destinationStream = new(
-                destinationPath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.None,
-                bufferSize: 16 * 1024,
-                useAsync: true);
-            await sourceStream.CopyToAsync(destinationStream, cancellationToken);
+            string temporaryPath = $"{destinationPath}.{Guid.NewGuid():N}.tmp";
+            try
+            {
+                await using (FileStream destinationStream = new(
+                    temporaryPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 16 * 1024,
+                    useAsync: true))
+                {
+                    await sourceStream.CopyToAsync(destinationStream, cancellationToken);
+                }
+
+                try
+                {
+                    File.Move(temporaryPath, destinationPath);
+                }
+                catch (IOException) when (File.Exists(destinationPath))
+                {
+                    TryDeleteFile(temporaryPath);
+                }
+            }
+            catch
+            {
+                TryDeleteFile(temporaryPath);
+                throw;
+            }
+
             return destinationPath;
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
 
         private static string ResolveLocalFilePath(string archiveCacheRoot, string normalizedRelativePath)

@@ -12,6 +12,8 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
+using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
+
 namespace PlateauResoniteLink.Tests.Targets;
 
 public sealed class CanonicalSceneDumpSinkTests
@@ -85,7 +87,7 @@ public sealed class CanonicalSceneDumpSinkTests
     {
         using SceneSinkRecordingClient client = new();
         Uri textureUri = await client.ImportTextureAsync(
-            new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 255]),
+            CreateRawTextureSource(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 255]),
             CancellationToken.None);
         ResoniteTransportSlotCreationResult slot = await client.AddSlotAsync(new AddSlot
         {
