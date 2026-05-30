@@ -160,17 +160,17 @@ internal sealed class TerrainTextureAssetGenerator(
         TerrainTextureGeoReferencedRasterSource rasterSource,
         CancellationToken cancellationToken)
     {
-        string sourcePath = Path.GetFullPath(rasterSource.SourcePath);
-        GeoReferencedRasterMetadata? metadata = rasterSource.Metadata
-            ?? await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(sourcePath, cancellationToken);
-        if (metadata is null || !metadata.IsUsable)
-        {
-            return null;
-        }
-
         try
         {
-            using Image<Rgba32> sourceImage = await Image.LoadAsync<Rgba32>(sourcePath, cancellationToken);
+            GeoReferencedRasterMetadata? metadata = rasterSource.Metadata
+                ?? await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(rasterSource, cancellationToken);
+            if (metadata is null || !metadata.IsUsable)
+            {
+                return null;
+            }
+
+            await using Stream sourceStream = await rasterSource.OpenReadAsync(cancellationToken);
+            using Image<Rgba32> sourceImage = await Image.LoadAsync<Rgba32>(sourceStream, cancellationToken);
             Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(
                 sourceImage,
                 metadata,
@@ -399,7 +399,7 @@ internal sealed class TerrainTextureAssetGenerator(
             sources.Select(static source => source switch
             {
                 TerrainTextureTileSource tileSource => $"tile:{tileSource.ZoomLevel}:{tileSource.UrlTemplate}",
-                TerrainTextureGeoReferencedRasterSource rasterSource => $"georaster:{rasterSource.SourcePath}",
+                TerrainTextureGeoReferencedRasterSource rasterSource => $"georaster:{rasterSource.ContentSource.Description}",
                 _ => source.GetType().Name,
             }));
     }

@@ -52,10 +52,15 @@ internal static class GeoTiffTagReader
         }
     }
 
-    private static async Task<GeoTiffTagSnapshot?> TryReadAsync(
-        FileStream stream,
+    internal static async Task<GeoTiffTagSnapshot?> TryReadAsync(
+        Stream stream,
         CancellationToken cancellationToken)
     {
+        if (!stream.CanSeek)
+        {
+            return null;
+        }
+
         byte[] classicHeader = new byte[8];
         if (!await TryReadExactAsync(stream, 0, classicHeader, cancellationToken))
         {
@@ -161,7 +166,7 @@ internal static class GeoTiffTagReader
     }
 
     private static async Task<GeoTiffTagSnapshot?> TryReadClassicAsync(
-        FileStream stream,
+        Stream stream,
         bool littleEndian,
         uint ifdOffset,
         CancellationToken cancellationToken)
@@ -200,7 +205,7 @@ internal static class GeoTiffTagReader
     }
 
     private static async Task<GeoTiffTagSnapshot?> TryReadBigTiffAsync(
-        FileStream stream,
+        Stream stream,
         bool littleEndian,
         CancellationToken cancellationToken)
     {
@@ -273,7 +278,7 @@ internal static class GeoTiffTagReader
     }
 
     private static async Task TryReadClassicEntryAsync(
-        FileStream stream,
+        Stream stream,
         ReadOnlyMemory<byte> entryBytes,
         bool littleEndian,
         Dictionary<ushort, object> values,
@@ -329,7 +334,7 @@ internal static class GeoTiffTagReader
     }
 
     private static async Task TryReadBigTiffEntryAsync(
-        FileStream stream,
+        Stream stream,
         ReadOnlyMemory<byte> entryBytes,
         bool littleEndian,
         Dictionary<ushort, object> values,
@@ -405,7 +410,7 @@ internal static class GeoTiffTagReader
     }
 
     private static async Task<object?> TryReadEntryValueAsync(
-        FileStream stream,
+        Stream stream,
         ushort type,
         ulong count,
         ulong valueOrOffset,
@@ -462,7 +467,7 @@ internal static class GeoTiffTagReader
     }
 
     private static async Task<bool> TryReadExactAsync(
-        FileStream stream,
+        Stream stream,
         long offset,
         Memory<byte> buffer,
         CancellationToken cancellationToken)

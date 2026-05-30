@@ -14,19 +14,22 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
     private readonly string? directRasterPath;
     private readonly string? singleRelativeRasterPath;
     private readonly IPlateauDatasetContentSource? contentSource;
-    private readonly string outputRoot;
+    private readonly string? outputRoot;
     private readonly IReadOnlyList<string> orderedRelativeRasterPaths;
     private readonly IReadOnlyDictionary<string, string> relativeRasterPathsByStem;
     private readonly object cachedRasterSourceTaskGate = new();
     private readonly Dictionary<DemTerrainRasterCacheKey, Task<TerrainTextureGeoReferencedRasterSource?>> cachedRasterSourceTasksByCacheKey =
         [];
+    private readonly object cachedLocalRasterFileTaskGate = new();
+    private readonly Dictionary<string, Task<string>> cachedLocalRasterFileTasksByRelativePath =
+        new(StringComparer.OrdinalIgnoreCase);
 
     private DemTerrainGeoReferencedRasterCatalog(
         string? directRasterPath,
         string? singleRelativeRasterPath,
         IPlateauDatasetContentSource? contentSource,
         string sourceScopePath,
-        string outputRoot,
+        string? outputRoot,
         IReadOnlyList<string> orderedRelativeRasterPaths,
         IReadOnlyDictionary<string, string> relativeRasterPathsByStem)
     {
@@ -62,7 +65,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
                 singleRelativeRasterPath: null,
                 contentSource: null,
                 sourceScopePath: fullSourcePath,
-                outputRoot: Path.GetDirectoryName(fullSourcePath) ?? fullSourcePath,
+                outputRoot: null,
                 orderedRelativeRasterPaths: [],
                 relativeRasterPathsByStem: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
         }
@@ -154,10 +157,10 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken)
     {
-        foreach (string rasterPath in await ResolveCandidateRasterPathsAsync(meshCode, cancellationToken))
+        foreach (TerrainTextureGeoReferencedRasterSource rasterSource in ResolveCandidateRasterSources(meshCode))
         {
             GeoReferencedRasterMetadata? metadata = await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
-                rasterPath,
+                rasterSource,
                 cancellationToken);
             if (metadata is null
                 || !metadata.IsUsable
@@ -166,7 +169,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
                 continue;
             }
 
-            return new TerrainTextureGeoReferencedRasterSource(rasterPath, metadata);
+            return rasterSource with { Metadata = metadata };
         }
 
         return null;
@@ -191,13 +194,11 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         }
     }
 
-    private async Task<IReadOnlyList<string>> ResolveCandidateRasterPathsAsync(
-        string meshCode,
-        CancellationToken cancellationToken)
+    private TerrainTextureGeoReferencedRasterSource[] ResolveCandidateRasterSources(string meshCode)
     {
         if (directRasterPath is not null)
         {
-            return [directRasterPath];
+            return [new TerrainTextureGeoReferencedRasterSource(directRasterPath)];
         }
 
         if (contentSource is null)
@@ -227,13 +228,86 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
             }
         }
 
-        List<string> localPaths = [];
-        foreach (string relativePath in relativePaths)
+        return relativePaths
+            .Select(relativePath => new TerrainTextureGeoReferencedRasterSource(
+                new DatasetTerrainTextureRasterContentSource(
+                    $"dataset:{contentSource.SourcePath}:{relativePath}",
+                    relativePath,
+                    EnsureLocalRasterFileAsync)))
+            .ToArray();
+    }
+
+    private Task<string> EnsureLocalRasterFileAsync(string relativePath, CancellationToken cancellationToken)
+    {
+        if (contentSource is null || outputRoot is null)
         {
-            localPaths.Add(await contentSource.EnsureLocalFileAsync(relativePath, outputRoot, cancellationToken));
+            return Task.FromException<string>(
+                new InvalidOperationException("Dataset raster sources require a dataset content source and local-file cache root."));
         }
 
-        return localPaths;
+        Task<string> localFilePathTask;
+        lock (cachedLocalRasterFileTaskGate)
+        {
+            if (!cachedLocalRasterFileTasksByRelativePath.TryGetValue(relativePath, out localFilePathTask!))
+            {
+                localFilePathTask = contentSource.EnsureLocalFileAsync(relativePath, outputRoot, CancellationToken.None);
+                cachedLocalRasterFileTasksByRelativePath[relativePath] = localFilePathTask;
+                _ = localFilePathTask.ContinueWith(
+                    completedTask => RemoveFaultedLocalRasterFileTask(relativePath, completedTask),
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
+        }
+
+        return cancellationToken.CanBeCanceled
+            ? localFilePathTask.WaitAsync(cancellationToken)
+            : localFilePathTask;
+    }
+
+    private void RemoveFaultedLocalRasterFileTask(string relativePath, Task<string> completedTask)
+    {
+        if (!completedTask.IsFaulted && !completedTask.IsCanceled)
+        {
+            return;
+        }
+
+        lock (cachedLocalRasterFileTaskGate)
+        {
+            if (cachedLocalRasterFileTasksByRelativePath.TryGetValue(relativePath, out Task<string>? cachedTask)
+                && ReferenceEquals(cachedTask, completedTask))
+            {
+                cachedLocalRasterFileTasksByRelativePath.Remove(relativePath);
+            }
+        }
+    }
+
+    private sealed class DatasetTerrainTextureRasterContentSource(
+        string identityKey,
+        string relativePath,
+        Func<string, CancellationToken, Task<string>> ensureLocalFileAsync) : ITerrainTextureRasterContentSource
+    {
+        public string IdentityKey => identityKey;
+
+        public string Description => relativePath;
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage(
+            "Reliability",
+            "CA2000:Dispose objects before losing scope",
+            Justification = "The caller owns the returned stream and disposes it after raster decoding.")]
+        public async ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string localFilePath = await ensureLocalFileAsync(relativePath, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return new FileStream(
+                localFilePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 16 * 1024,
+                useAsync: true);
+        }
     }
 
     private static bool IsSupportedArchive(string path)
