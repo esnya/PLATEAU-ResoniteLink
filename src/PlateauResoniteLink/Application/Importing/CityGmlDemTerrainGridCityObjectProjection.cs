@@ -116,6 +116,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         width = heightSamples.Width;
         height = heightSamples.Height;
         double[] localHeights = heightSamples.LocalHeights;
+        TerrainGridSampleCoverage[] sampleCoverage = heightSamples.SampleCoverage;
         double minHeight = localHeights.Min();
         double maxHeight = localHeights.Max();
 
@@ -168,6 +169,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
                 MinHeight: minHeight,
                 MaxHeight: maxHeight,
                 HeightSamples: localHeights,
+                SampleCoverage: sampleCoverage,
                 UvScale: heightMapUvScale,
                 UvOffset: heightMapUvOffset),
             Materials: materials,
@@ -270,6 +272,11 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         double clippedMaxX = Math.Max(westPosition.X, eastPosition.X);
         double clippedMinZ = Math.Min(southPosition.Z, northPosition.Z);
         double clippedMaxZ = Math.Max(southPosition.Z, northPosition.Z);
+
+        clippedMinX = Math.Max(clippedMinX, rawMinX);
+        clippedMaxX = Math.Min(clippedMaxX, rawMaxX);
+        clippedMinZ = Math.Max(clippedMinZ, rawMinZ);
+        clippedMaxZ = Math.Min(clippedMaxZ, rawMaxZ);
 
         if ((clippedMaxX - clippedMinX) <= 1e-6 || (clippedMaxZ - clippedMinZ) <= 1e-6)
         {

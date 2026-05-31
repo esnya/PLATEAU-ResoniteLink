@@ -466,6 +466,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     heightMap.MinHeight,
                     heightMap.MaxHeight,
                     heightMap.HeightSamples,
+                    CreateMeasuredTerrainGridCoverage(heightMap.HeightSamples.Count),
                     heightMap.UvScale is null ? null : ToContractFloat2(heightMap.UvScale),
                     heightMap.UvOffset is null ? null : ToContractFloat2(heightMap.UvOffset)),
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
@@ -487,6 +488,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                         dynamicTerrain.GridMesh.MinHeight,
                         dynamicTerrain.GridMesh.MaxHeight,
                         dynamicTerrain.GridMesh.HeightSamples,
+                        CreateMeasuredTerrainGridCoverage(dynamicTerrain.GridMesh.HeightSamples.Count),
                         dynamicTerrain.GridMesh.UvScale is null ? null : ToContractFloat2(dynamicTerrain.GridMesh.UvScale),
                         dynamicTerrain.GridMesh.UvOffset is null ? null : ToContractFloat2(dynamicTerrain.GridMesh.UvOffset))),
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
@@ -534,6 +536,9 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 new Float2(vertex.UV0.X, vertex.UV0.Y),
                 vertex.Color is null ? null : new ColorRgba(vertex.Color.R, vertex.Color.G, vertex.Color.B, vertex.Color.A))).ToArray(),
             mesh.Submeshes.Select(static submesh => new MeshSubmesh(submesh.Index, submesh.TriangleVertexIndices)).ToArray());
+
+    private static TerrainGridSampleCoverage[] CreateMeasuredTerrainGridCoverage(int count)
+        => Enumerable.Repeat(TerrainGridSampleCoverage.Measured, count).ToArray();
 
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
         => new(

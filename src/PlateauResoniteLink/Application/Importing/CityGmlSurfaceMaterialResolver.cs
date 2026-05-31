@@ -13,6 +13,7 @@ internal static class CityGmlSurfaceMaterialResolver
     internal static readonly MaterialDepthOffset TerrainAlignedDepthOffset = new(-10.0, -10.0);
 
     private static readonly ColorRgba DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
+    private static readonly ColorRgba DefaultDemGroundMaterialColor = new(181.0 / 255.0, 176.0 / 255.0, 166.0 / 255.0, 1.0);
     private static readonly ColorRgba DefaultVegetationMaterialColor = new(0.32, 0.58, 0.24, 1.0);
 
     internal static ResolvedSurfaceMaterial[] ResolveSurfaces(
@@ -203,8 +204,11 @@ internal static class CityGmlSurfaceMaterialResolver
         ParsedSurface surface = face.Surface;
         if (surface.UsesGeneratedDemTexture)
         {
+            ConstructionFace resolvedFace = demTerrainTextureOverlay is null
+                ? face with { Surface = surface with { BaseColor = DefaultDemGroundMaterialColor } }
+                : face;
             return new ResolvedSurfaceMaterial(
-                face,
+                resolvedFace,
                 new ResolvedMaterial(
                     MaterialType.Standard,
                     TexturePayload: null,

@@ -90,6 +90,70 @@ public sealed class DemTerrainGridChunkBoundaryAlignmentPolicyTests
         Assert.NotEqual(left.Transform.Position.Y, aligned[0].Transform.Position.Y);
     }
 
+    [Fact]
+    public void AlignUsesMeasuredCoverageInsteadOfSeaLevelSentinel()
+    {
+        ImportedCityObject left = CreateTerrainGridCityObject(
+            "left-dem",
+            new Float3(0.0, 1.0, 0.0),
+            width: 2,
+            height: 2,
+            sizeX: 2.0,
+            sizeZ: 2.0,
+            [1.0, 0.0, 1.0, 0.0],
+            [Measured, Measured, Measured, Measured]);
+        ImportedCityObject right = CreateTerrainGridCityObject(
+            "right-dem",
+            new Float3(2.0, 9.0, 0.0),
+            width: 2,
+            height: 2,
+            sizeX: 2.0,
+            sizeZ: 2.0,
+            [4.0, 9.0, 4.0, 9.0],
+            [Measured, Measured, Measured, Measured]);
+
+        ImportedCityObject[] aligned = DemTerrainGridChunkBoundaryAlignmentPolicy.Align([left, right]);
+
+        TerrainGridGeometry alignedLeft = Assert.IsType<TerrainGridGeometry>(aligned[0].Geometry);
+        TerrainGridGeometry alignedRight = Assert.IsType<TerrainGridGeometry>(aligned[1].Geometry);
+        Assert.Equal(2.0, alignedLeft.HeightSamples[1], 6);
+        Assert.Equal(2.0, alignedLeft.HeightSamples[3], 6);
+        Assert.Equal(2.0, alignedRight.HeightSamples[0], 6);
+        Assert.Equal(2.0, alignedRight.HeightSamples[2], 6);
+    }
+
+    [Fact]
+    public void AlignDoesNotRaiseNoSurfaceBoundarySamplesToMeasuredHeight()
+    {
+        ImportedCityObject left = CreateTerrainGridCityObject(
+            "left-dem",
+            new Float3(0.0, 10.0, 0.0),
+            width: 2,
+            height: 2,
+            sizeX: 2.0,
+            sizeZ: 2.0,
+            [1.0, 10.0, 1.0, 10.0],
+            [Measured, Measured, Measured, Measured]);
+        ImportedCityObject right = CreateTerrainGridCityObject(
+            "right-dem",
+            new Float3(2.0, 2.0, 0.0),
+            width: 2,
+            height: 2,
+            sizeX: 2.0,
+            sizeZ: 2.0,
+            [0.0, 2.0, 0.0, 2.0],
+            [NoSurface, Measured, NoSurface, Measured]);
+
+        ImportedCityObject[] aligned = DemTerrainGridChunkBoundaryAlignmentPolicy.Align([left, right]);
+
+        TerrainGridGeometry alignedLeft = Assert.IsType<TerrainGridGeometry>(aligned[0].Geometry);
+        TerrainGridGeometry alignedRight = Assert.IsType<TerrainGridGeometry>(aligned[1].Geometry);
+        Assert.Equal(10.0, alignedLeft.HeightSamples[1], 6);
+        Assert.Equal(10.0, alignedLeft.HeightSamples[3], 6);
+        Assert.Equal(0.0, alignedRight.HeightSamples[0], 6);
+        Assert.Equal(0.0, alignedRight.HeightSamples[2], 6);
+    }
+
     private static ImportedCityObject CreateDynamicTerrainCityObject(
         string slotKey,
         Float3 position,
@@ -128,7 +192,8 @@ public sealed class DemTerrainGridChunkBoundaryAlignmentPolicyTests
         int height,
         double sizeX,
         double sizeZ,
-        IReadOnlyList<double> heightSamples)
+        IReadOnlyList<double> heightSamples,
+        IReadOnlyList<TerrainGridSampleCoverage>? sampleCoverage = null)
     {
         MaterialBinding material = new(
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
@@ -151,8 +216,18 @@ public sealed class DemTerrainGridChunkBoundaryAlignmentPolicyTests
                 Size: new Float2(sizeX, sizeZ),
                 MinHeight: heightSamples.Min(),
                 MaxHeight: heightSamples.Max(),
-                HeightSamples: heightSamples),
+                HeightSamples: heightSamples,
+                SampleCoverage: sampleCoverage ?? CreateMeasuredCoverage(heightSamples.Count)),
             Materials: [material],
             SourceFileRelativePath: $"udx/dem/53394525/{slotKey}.gml");
     }
+
+    private static TerrainGridSampleCoverage[] CreateMeasuredCoverage(int count)
+    {
+        return Enumerable.Repeat(TerrainGridSampleCoverage.Measured, count).ToArray();
+    }
+
+    private const TerrainGridSampleCoverage Measured = TerrainGridSampleCoverage.Measured;
+
+    private const TerrainGridSampleCoverage NoSurface = TerrainGridSampleCoverage.NoSurface;
 }

@@ -95,6 +95,7 @@ internal static class CityGmlParsedCityObjectProjection
                      terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshCodeBounds,
+                     AllowMissingGeneratedDemOverlayCoverage(terrainAlignedParsedCityObject),
                      progressReporter,
                      cancellationToken))
         {
@@ -206,7 +207,8 @@ internal static class CityGmlParsedCityObjectProjection
                  in TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
                      terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
-                     requestedMeshCodeBounds))
+                     requestedMeshCodeBounds,
+                     AllowMissingGeneratedDemOverlayCoverage(terrainAlignedParsedCityObject)))
         {
             if (!TerrainOverlayMaterialSourcePartitioner.IsPartitionCompatibleWithRequest(
                     partitionedCityObject.CityObject.ActualMeshCode,
@@ -242,6 +244,12 @@ internal static class CityGmlParsedCityObjectProjection
                 yield return material;
             }
         }
+    }
+
+    private static bool AllowMissingGeneratedDemOverlayCoverage(
+        ParsedCityObject parsedCityObject)
+    {
+        return string.Equals(parsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static ImportedCityObject ProjectTerrainMeshModeCityObject(
