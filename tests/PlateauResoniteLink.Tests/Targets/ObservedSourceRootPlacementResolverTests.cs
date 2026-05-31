@@ -42,6 +42,36 @@ public sealed class ObservedSourceRootPlacementResolverTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TryResolveProjectsFromAnyPositionedSiblingSourceRoot()
+    {
+        ObservedSourceRootPlacement? placement = ObservedSourceRootPlacementResolver.TryResolve(
+            "plateau_tokyo23ku_bldg_53394527",
+            "53394527",
+            [
+                CreateSlot("sibling-root", "plateau_tokyo23ku_bldg_53394525", new ResoniteFloat3(20.0, 1.0, 30.0)),
+            ]);
+        ResoniteFloat3 expected = ResonitePlacementPolicy.Add(
+            new ResoniteFloat3(20.0, 1.0, 30.0),
+            ResonitePlacementPolicy.ComputeMeshCodeOffset("53394525", "53394527"));
+
+        Assert.Equal(expected, placement?.Position);
+        Assert.Equal("53394525", placement?.ReferenceMeshCode);
+        Assert.Equal("sibling-root", placement?.SlotId);
+    }
+
+    [Fact]
+    public void TryResolveRejectsObservedSourceRootWithoutPosition()
+    {
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => ObservedSourceRootPlacementResolver.TryResolve(
+                "plateau_tokyo23ku_bldg_53394525",
+                "53394525",
+                [CreateSlotWithoutPosition("source-root", "plateau_tokyo23ku_bldg_53394525")]));
+
+        Assert.Contains("did not expose a Position", exception.Message, StringComparison.Ordinal);
+    }
+
     private static Slot CreateSlot(string id, string name, ResoniteFloat3 position)
     {
         return new Slot
@@ -57,6 +87,15 @@ public sealed class ObservedSourceRootPlacementResolverTests
                     z = (float)position.Z,
                 },
             },
+        };
+    }
+
+    private static Slot CreateSlotWithoutPosition(string id, string name)
+    {
+        return new Slot
+        {
+            ID = id,
+            Name = new Field_string { Value = name },
         };
     }
 }

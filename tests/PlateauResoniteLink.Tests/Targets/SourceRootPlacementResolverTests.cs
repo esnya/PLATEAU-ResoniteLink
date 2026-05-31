@@ -1,3 +1,5 @@
+using System;
+
 using PlateauResoniteLink.Targets.Resonite;
 
 using ResoniteLink;
@@ -40,6 +42,19 @@ public sealed class SourceRootPlacementResolverTests
             placement.RootPosition);
     }
 
+    [Fact]
+    public void ResolveRejectsObservedSourceRootWithoutPosition()
+    {
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => SourceRootPlacementResolver.Resolve(
+                "plateau_tokyo23ku_bldg_53394525",
+                "53394525",
+                new ResoniteLocalOrigin(35.0, 139.0, 0.0),
+                [CreateSlotWithoutPosition("source-root", "plateau_tokyo23ku_bldg_53394525")]));
+
+        Assert.Contains("did not expose a Position", exception.Message, StringComparison.Ordinal);
+    }
+
     private static Slot CreateSlot(string id, string name, ResoniteFloat3 position)
     {
         return new Slot
@@ -55,6 +70,15 @@ public sealed class SourceRootPlacementResolverTests
                     z = (float)position.Z,
                 },
             },
+        };
+    }
+
+    private static Slot CreateSlotWithoutPosition(string id, string name)
+    {
+        return new Slot
+        {
+            ID = id,
+            Name = new Field_string { Value = name },
         };
     }
 }

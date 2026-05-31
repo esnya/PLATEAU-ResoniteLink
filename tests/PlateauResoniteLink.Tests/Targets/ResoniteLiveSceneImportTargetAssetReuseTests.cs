@@ -652,6 +652,54 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncPositionsInitialSourceFileRootsRelativeToSelectedDataCenter()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteLocalOrigin selectedDataCenter = RequireMergedMeshCodeCenter([MeshCode, SecondaryMeshCode]);
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            selectedDataCenter,
+            packageNames: ["bldg"],
+            sourceFiles: [PrimarySourceFile, SecondarySourceFile],
+            requestedMeshCodes: [MeshCode, SecondaryMeshCode]);
+        using SceneSinkRecordingClient client = new();
+        ResoniteFloat3 primaryWorldPosition = new(12.0, 0.0, 34.0);
+        ResoniteFloat3 secondaryWorldPosition = new(56.0, 0.0, 78.0);
+
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            metadata,
+            [
+                CreateBundledTriangleCityObject(
+                    "selected-center-primary",
+                    actualMeshCode: MeshCode,
+                    sourceFileRelativePath: PrimarySourceFile,
+                    worldPosition: primaryWorldPosition),
+                CreateBundledTriangleCityObject(
+                    "selected-center-secondary",
+                    actualMeshCode: SecondaryMeshCode,
+                    sourceFileRelativePath: SecondarySourceFile,
+                    worldPosition: secondaryWorldPosition),
+            ],
+            client);
+
+        Slot primaryRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
+        Slot secondaryRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
+        Slot primaryObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject selected-center-primary");
+        Slot secondaryObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject selected-center-secondary");
+
+        AssertNear(ComputeOriginOffset(selectedDataCenter, MeshCode), GetSlotPosition(primaryRoot), 0.2);
+        AssertNear(ComputeOriginOffset(selectedDataCenter, SecondaryMeshCode), GetSlotPosition(secondaryRoot), 0.2);
+        AssertNear(primaryWorldPosition, GetAccumulatedPosition(client, primaryObjectSlot), 0.2);
+        AssertNear(secondaryWorldPosition, GetAccumulatedPosition(client, secondaryObjectSlot), 0.2);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncCreatesIndependentSourceFileRootAcrossRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -1741,6 +1789,26 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             currentCenter.Longitude,
             currentCenter.Altitude);
         return new ResoniteFloat3(eun.x, 0.0, eun.y);
+    }
+
+    private static ResoniteFloat3 ComputeOriginOffset(ResoniteLocalOrigin referenceCenter, string meshCode)
+    {
+        return ResonitePlacementPolicy.ComputeOriginOffset(referenceCenter, RequireMeshCodeCenter(meshCode));
+    }
+
+    private static ResoniteLocalOrigin RequireMergedMeshCodeCenter(IReadOnlyList<string> meshCodes)
+    {
+        List<(double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude)> bounds = [];
+        foreach (string meshCode in meshCodes)
+        {
+            Assert.True(PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) meshBounds));
+            bounds.Add(meshBounds);
+        }
+
+        return new ResoniteLocalOrigin(
+            (bounds.Min(static bound => bound.SouthLatitude) + bounds.Max(static bound => bound.NorthLatitude)) / 2.0,
+            (bounds.Min(static bound => bound.WestLongitude) + bounds.Max(static bound => bound.EastLongitude)) / 2.0,
+            0.0);
     }
 
     private static ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)
