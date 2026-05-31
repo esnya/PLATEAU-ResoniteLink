@@ -19,7 +19,6 @@ internal static class DemTerrainGridChunkBoundaryAlignmentPolicy
         TerrainGridChunkAlignmentState[] chunkStates = states
             .Select(static state => state!)
             .ToArray();
-        const double seaLevelWorldHeightTolerance = 1e-6;
         Dictionary<DemBoundarySampleKey, List<BoundaryHeightSampleReference>> sampleReferencesByKey = [];
         foreach (TerrainGridChunkAlignmentState state in chunkStates)
         {
@@ -45,27 +44,17 @@ internal static class DemTerrainGridChunkBoundaryAlignmentPolicy
             }
 
             foundSharedBoundary = true;
-            double worldHeightSum = 0.0;
-            int sampleCount = 0;
-            double nonSeaLevelWorldHeightSum = 0.0;
-            int nonSeaLevelSampleCount = 0;
-            foreach (BoundaryHeightSampleReference reference in references)
+            BoundaryHeightSampleReference[] referencesToAlign = references
+                .Where(static reference => reference.State.SampleCoverage[reference.SampleIndex] == TerrainGridSampleCoverage.Measured)
+                .ToArray();
+            if (referencesToAlign.Length == 0)
             {
-                double worldHeight = reference.State.BaseHeight + reference.State.HeightSamples[reference.SampleIndex];
-                bool isSeaLevelFallbackCandidate = Math.Abs(worldHeight) <= seaLevelWorldHeightTolerance;
-                worldHeightSum += worldHeight;
-                sampleCount++;
-                if (!isSeaLevelFallbackCandidate)
-                {
-                    nonSeaLevelWorldHeightSum += worldHeight;
-                    nonSeaLevelSampleCount++;
-                }
+                continue;
             }
 
-            double alignedWorldHeight = nonSeaLevelSampleCount > 0
-                ? nonSeaLevelWorldHeightSum / nonSeaLevelSampleCount
-                : worldHeightSum / sampleCount;
-            foreach (BoundaryHeightSampleReference reference in references)
+            double alignedWorldHeight = referencesToAlign
+                .Average(static reference => reference.State.BaseHeight + reference.State.HeightSamples[reference.SampleIndex]);
+            foreach (BoundaryHeightSampleReference reference in referencesToAlign)
             {
                 reference.State.HeightSamples[reference.SampleIndex] = alignedWorldHeight - reference.State.BaseHeight;
             }
@@ -138,6 +127,12 @@ internal static class DemTerrainGridChunkBoundaryAlignmentPolicy
             CityObject = cityObject;
             Geometry = geometry;
             HeightSamples = heightSamples;
+            SampleCoverage = geometry.SampleCoverage.ToArray();
+            if (SampleCoverage.Length != heightSamples.Length)
+            {
+                throw new InvalidOperationException(
+                    $"Terrain grid sample coverage count {SampleCoverage.Length} does not match height sample count {heightSamples.Length}.");
+            }
             BaseHeight = cityObject.Transform.Position.Y - geometry.MaxHeight;
         }
 
@@ -146,6 +141,8 @@ internal static class DemTerrainGridChunkBoundaryAlignmentPolicy
         public TerrainGridGeometry Geometry { get; }
 
         public double[] HeightSamples { get; }
+
+        public TerrainGridSampleCoverage[] SampleCoverage { get; }
 
         public double BaseHeight { get; }
 

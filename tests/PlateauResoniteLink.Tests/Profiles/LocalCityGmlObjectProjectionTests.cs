@@ -2422,7 +2422,183 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public async Task DemTerrainGridModeExtendsBoundaryConnectedMissingSamplesWithoutSeaLevelDrop()
+    public void DemTerrainStaticModeDoesNotRequireGeneratedDemOverlayCoverage()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        ParsedSurface generatedSurface = (CreateParsedSurface(
+                "dem-generated",
+                ParsedSurfaceSemantic.Ground,
+                CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 1.0, minRatio: 0.1, maxRatio: 0.9, reverseWinding: false)) with
+        {
+            UsesGeneratedDemTexture = true,
+        });
+        ParsedCityObject cityObject = CreateParsedCityObject("dem", [generatedSurface], referenceSystem);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", 0.0);
+        TerrainTextureOverlay unrelatedOverlay = CreateThirdMeshOverlay("53394526");
+        PlateauImportRequest request = new(
+            Dataset: "test-dataset",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("C:\\dataset"),
+            TerrainMeshMode: TerrainMeshMode.Static);
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            origin,
+            new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            [unrelatedOverlay],
+            requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+
+        ImportedCityObject result = Assert.Single(projected);
+        Assert.IsType<TriangleMeshGeometry>(result.Geometry);
+        Assert.DoesNotContain(result.Materials, static material => material.TerrainOverlay is not null);
+        MaterialBinding material = Assert.Single(result.Materials);
+        Assert.Equal(181.0 / 255.0, material.BaseColor.R, precision: 6);
+        Assert.Equal(176.0 / 255.0, material.BaseColor.G, precision: 6);
+        Assert.Equal(166.0 / 255.0, material.BaseColor.B, precision: 6);
+    }
+
+    [Fact]
+    public void DemTerrainGridModeDoesNotRequireGeneratedDemOverlayCoverage()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        ParsedSurface generatedSurface = (CreateParsedSurface(
+                "dem-generated",
+                ParsedSurfaceSemantic.Ground,
+                CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 1.0, minRatio: 0.1, maxRatio: 0.9, reverseWinding: false)) with
+        {
+            UsesGeneratedDemTexture = true,
+        });
+        ParsedCityObject cityObject = CreateParsedCityObject("dem", [generatedSurface], referenceSystem);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", 0.0);
+        TerrainTextureOverlay unrelatedOverlay = CreateThirdMeshOverlay("53394526");
+        PlateauImportRequest request = new(
+            Dataset: "test-dataset",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("C:\\dataset"),
+            TerrainMeshMode: TerrainMeshMode.Grid);
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            origin,
+            new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            [unrelatedOverlay],
+            requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+
+        ImportedCityObject result = Assert.Single(projected);
+        Assert.IsType<TerrainGridGeometry>(result.Geometry);
+        Assert.DoesNotContain(result.Materials, static material => material.TerrainOverlay is not null);
+        MaterialBinding material = Assert.Single(result.Materials);
+        Assert.Equal(181.0 / 255.0, material.BaseColor.R, precision: 6);
+        Assert.Equal(176.0 / 255.0, material.BaseColor.G, precision: 6);
+        Assert.Equal(166.0 / 255.0, material.BaseColor.B, precision: 6);
+    }
+
+    [Fact]
+    public void DemTerrainStaticModePreservesCoveredGeneratedDemOverlayPartitions()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        ParsedSurface coveredSurface = (CreateParsedSurface(
+                "dem-covered",
+                ParsedSurfaceSemantic.Ground,
+                CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 1.0, minRatio: 0.1, maxRatio: 0.2, reverseWinding: false)) with
+        {
+            UsesGeneratedDemTexture = true,
+        });
+        ParsedSurface uncoveredSurface = (CreateParsedSurface(
+                "dem-uncovered",
+                ParsedSurfaceSemantic.Ground,
+                CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 1.0, minRatio: 0.1, maxRatio: 0.2, reverseWinding: false)) with
+        {
+            UsesGeneratedDemTexture = true,
+        });
+        ParsedCityObject cityObject = CreateParsedCityObject("dem", [coveredSurface, uncoveredSurface], referenceSystem);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", 0.0);
+        TerrainTextureOverlay coveredOverlay = CreateThirdMeshOverlay("53394525");
+        PlateauImportRequest request = new(
+            Dataset: "test-dataset",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("C:\\dataset"),
+            TerrainMeshMode: TerrainMeshMode.Static);
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            origin,
+            new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            [coveredOverlay],
+            requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+
+        Assert.Equal(2, projected.Length);
+        Assert.Contains(projected, static cityObject => cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
+        ImportedCityObject uncoveredCityObject = Assert.Single(
+            projected,
+            static cityObject => cityObject.Materials.All(static material => material.TerrainOverlay is null));
+        MaterialBinding uncoveredMaterial = Assert.Single(uncoveredCityObject.Materials);
+        Assert.Equal(181.0 / 255.0, uncoveredMaterial.BaseColor.R, precision: 6);
+        Assert.Equal(176.0 / 255.0, uncoveredMaterial.BaseColor.G, precision: 6);
+        Assert.Equal(166.0 / 255.0, uncoveredMaterial.BaseColor.B, precision: 6);
+    }
+
+    [Fact]
+    public void DemTerrainStaticModeKeepsUncoveredPartOfPartiallyCoveredGeneratedDemSurface()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        (double south, double north, double west, double east) = GetMeshBounds("53394525");
+        (double _, double _, double eastWest, double eastEast) = GetMeshBounds("53394526");
+        ParsedSurface generatedSurface = (CreateParsedSurface(
+                "dem-partial",
+                ParsedSurfaceSemantic.Ground,
+                [
+                    new(south + ((north - south) * 0.1), west + ((east - west) * 0.25), 1.0),
+                    new(south + ((north - south) * 0.1), eastWest + ((eastEast - eastWest) * 0.25), 1.0),
+                    new(south + ((north - south) * 0.2), eastWest + ((eastEast - eastWest) * 0.25), 1.0),
+                    new(south + ((north - south) * 0.2), west + ((east - west) * 0.25), 1.0),
+                    new(south + ((north - south) * 0.1), west + ((east - west) * 0.25), 1.0),
+                ]) with
+        {
+            UsesGeneratedDemTexture = true,
+        });
+        ParsedCityObject cityObject = CreateParsedCityObject("dem", [generatedSurface], referenceSystem);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", 0.0);
+        TerrainTextureOverlay coveredOverlay = CreateThirdMeshOverlay("53394525");
+        PlateauImportRequest request = new(
+            Dataset: "test-dataset",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("C:\\dataset"),
+            TerrainMeshMode: TerrainMeshMode.Static);
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            origin,
+            new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
+            [coveredOverlay],
+            requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+
+        Assert.Equal(2, projected.Length);
+        Assert.Contains(projected, static cityObject => cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
+        ImportedCityObject uncoveredCityObject = Assert.Single(
+            projected,
+            static cityObject => cityObject.Materials.All(static material => material.TerrainOverlay is null));
+        MaterialBinding uncoveredMaterial = Assert.Single(uncoveredCityObject.Materials);
+        Assert.Equal(181.0 / 255.0, uncoveredMaterial.BaseColor.R, precision: 6);
+        Assert.Equal(176.0 / 255.0, uncoveredMaterial.BaseColor.G, precision: 6);
+        Assert.Equal(166.0 / 255.0, uncoveredMaterial.BaseColor.B, precision: 6);
+        Assert.All(projected, static cityObject => Assert.NotEmpty(((TriangleMeshGeometry)cityObject.Geometry).Mesh.Vertices));
+    }
+
+    [Fact]
+    public async Task DemTerrainGridModeKeepsSurfaceCoveredBoundarySamplesMeasured()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
@@ -2458,11 +2634,29 @@ public sealed class LocalCityGmlObjectProjectionTests
         double[] rightEdge = Enumerable.Range(0, geometry.Height)
             .Select(index => geometry.HeightSamples[(index * geometry.Width) + (geometry.Width - 1)])
             .ToArray();
+        TerrainGridSampleCoverage[] topCoverage = Enumerable.Range(0, geometry.Width)
+            .Select(index => geometry.SampleCoverage![index])
+            .ToArray();
+        TerrainGridSampleCoverage[] bottomCoverage = Enumerable.Range(0, geometry.Width)
+            .Select(index => geometry.SampleCoverage![((geometry.Height - 1) * geometry.Width) + index])
+            .ToArray();
+        TerrainGridSampleCoverage[] leftCoverage = Enumerable.Range(0, geometry.Height)
+            .Select(index => geometry.SampleCoverage![index * geometry.Width])
+            .ToArray();
+        TerrainGridSampleCoverage[] rightCoverage = Enumerable.Range(0, geometry.Height)
+            .Select(index => geometry.SampleCoverage![(index * geometry.Width) + (geometry.Width - 1)])
+            .ToArray();
 
-        Assert.True(bottomEdge.Min() > -1.0, $"Bottom edge dropped to sea-level fallback: min={bottomEdge.Min():F6}");
-        Assert.True(leftEdge.Min() > -1.0, $"Left edge dropped to sea-level fallback: min={leftEdge.Min():F6}");
-        Assert.True(rightEdge.Min() > -1.0, $"Right edge dropped to sea-level fallback: min={rightEdge.Min():F6}");
-        Assert.True(topEdge.Min() > -1.0, $"Top edge dropped to sea-level fallback: min={topEdge.Min():F6}");
+        double[] boundarySamples = [.. topEdge, .. bottomEdge, .. leftEdge, .. rightEdge];
+        Assert.True(geometry.HeightSamples.Max() > 0.0, "Measured DEM surface heights were unexpectedly lost.");
+        Assert.True(boundarySamples.Min() > -1.0, $"Surface-covered boundary dropped to sea-level fallback: min={boundarySamples.Min():F6}");
+        Assert.NotNull(geometry.SampleCoverage);
+        Assert.Equal(geometry.Width * geometry.Height, geometry.SampleCoverage.Count);
+        Assert.Contains(geometry.SampleCoverage, static coverage => coverage == TerrainGridSampleCoverage.Measured);
+        Assert.Contains(topCoverage, static coverage => coverage == TerrainGridSampleCoverage.Measured);
+        Assert.Contains(bottomCoverage, static coverage => coverage == TerrainGridSampleCoverage.Measured);
+        Assert.Contains(leftCoverage, static coverage => coverage == TerrainGridSampleCoverage.Measured);
+        Assert.Contains(rightCoverage, static coverage => coverage == TerrainGridSampleCoverage.Measured);
     }
 
     [Fact]

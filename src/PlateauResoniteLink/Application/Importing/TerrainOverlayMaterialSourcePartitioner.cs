@@ -15,6 +15,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         ParsedCityObject cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
+        bool allowMissingGeneratedDemOverlayCoverage = false,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
@@ -23,6 +24,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                      cityObject,
                      demTerrainTextureOverlays,
                      requestedMeshCodeBounds,
+                     allowMissingGeneratedDemOverlayCoverage,
                      progressReporter,
                      cancellationToken))
         {

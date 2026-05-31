@@ -66,9 +66,16 @@ public sealed record TerrainGridGeometry(
     double MinHeight,
     double MaxHeight,
     IReadOnlyList<double> HeightSamples,
+    IReadOnlyList<TerrainGridSampleCoverage> SampleCoverage,
     Float2? UvScale = null,
     Float2? UvOffset = null)
     : ConstructionGeometry;
+
+public enum TerrainGridSampleCoverage
+{
+    Measured = 0,
+    NoSurface = 1,
+}
 
 public sealed record DynamicTerrainGeometry(
     TriangleMeshGeometry StaticMesh,
