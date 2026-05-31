@@ -19,7 +19,7 @@ internal static class ObservedSourceRootPlacementResolver
         ObservedSourceRootPlacement[] exactSourceRoots = directSourceRoots
             .Where(slot => string.Equals(slot.Name?.Value, sourceFileSlotName, StringComparison.Ordinal))
             .Select(slot => new ObservedSourceRootPlacement(
-                GetSlotPositionOrDefault(slot),
+                GetRequiredSourceRootPosition(slot),
                 ReferenceMeshCode: rootMeshCode,
                 SlotId: slot.ID ?? string.Empty))
             .ToArray();
@@ -39,7 +39,7 @@ internal static class ObservedSourceRootPlacementResolver
                 && rootMeshCode.StartsWith(candidate.MeshCode, StringComparison.Ordinal))
             .Select(candidate => new ObservedSourceRootPlacement(
                 ResonitePlacementPolicy.Add(
-                    GetSlotPositionOrDefault(candidate.Slot),
+                    GetRequiredSourceRootPosition(candidate.Slot),
                     ResonitePlacementPolicy.ComputeMeshCodeOffset(candidate.MeshCode, rootMeshCode)),
                 ReferenceMeshCode: candidate.MeshCode,
                 SlotId: candidate.Slot.ID ?? string.Empty))
@@ -54,7 +54,7 @@ internal static class ObservedSourceRootPlacementResolver
                 .Where(static candidate => candidate.Slot is not null)
                 .Select(candidate => new ObservedSourceRootPlacement(
                     ResonitePlacementPolicy.Add(
-                        GetSlotPositionOrDefault(candidate.Slot),
+                        GetRequiredSourceRootPosition(candidate.Slot),
                         ResonitePlacementPolicy.ComputeMeshCodeOffset(candidate.MeshCode, rootMeshCode)),
                     ReferenceMeshCode: candidate.MeshCode,
                     SlotId: candidate.Slot.ID ?? string.Empty))
@@ -101,11 +101,13 @@ internal static class ObservedSourceRootPlacementResolver
             && Math.Abs(left.Z - right.Z) <= tolerance;
     }
 
-    private static ResoniteFloat3 GetSlotPositionOrDefault(Slot slot)
+    private static ResoniteFloat3 GetRequiredSourceRootPosition(Slot slot)
     {
         if (slot.Position is not Field_float3 position)
         {
-            return new ResoniteFloat3(0.0, 0.0, 0.0);
+            throw new InvalidOperationException(
+                $"Observed source-file root '{slot.Name?.Value ?? slot.ID ?? "<unnamed>"}' did not expose a Position. "
+                + "Append placement requires positioned source-file roots.");
         }
 
         return new ResoniteFloat3(position.Value.x, position.Value.y, position.Value.z);

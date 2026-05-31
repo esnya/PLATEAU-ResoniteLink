@@ -38,12 +38,14 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
         string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
         IEnumerable<string> relativePaths = GetRelativeGmlPaths(datasetRoot);
 
-        LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
+        LocalCityGmlSourceFileDiscoveryResult discoveryResult = LocalCityGmlSourceFileDiscovery.Discover(
             relativePaths,
             "53394525",
-            ["waterbody", "tran", "dem"]).SourceFiles.ToArray();
+            ["waterbody", "tran", "dem"]);
+        LocalCityGmlSourceFileDescriptor[] result = discoveryResult.SourceFiles.ToArray();
 
         Assert.Equal(["dem", "tran"], result.Select(static file => file.PackageName).ToArray());
+        Assert.Equal(["53394525"], discoveryResult.SelectedMeshCodes);
         Assert.Contains(
             result,
             static file =>

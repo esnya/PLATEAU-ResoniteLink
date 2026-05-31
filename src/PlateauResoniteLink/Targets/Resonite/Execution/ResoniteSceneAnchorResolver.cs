@@ -60,7 +60,7 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
             return new SceneAnchor(
                 new ResoniteSlotLocator(completionSourceFileRoot.ID ?? datasetRootSlot.Value),
                 completionMeshCode,
-                GetSlotPositionOrDefault(completionSourceFileRoot),
+                GetRequiredSourceRootPosition(completionSourceFileRoot),
                 new ResoniteSlotLocator(completionSourceFileRoot.ID ?? datasetRootSlot.Value));
         }
 
@@ -78,7 +78,7 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
                 new ResoniteSlotLocator(referenceSourceFileRoot.Slot.ID ?? datasetRootSlot.Value),
                 completionMeshCode,
                 Add(
-                    GetSlotPositionOrDefault(referenceSourceFileRoot.Slot),
+                    GetRequiredSourceRootPosition(referenceSourceFileRoot.Slot),
                     ComputeMeshCodeOffset(referenceSourceFileRoot.MeshCode, completionMeshCode)),
                 new ResoniteSlotLocator(referenceSourceFileRoot.Slot.ID ?? datasetRootSlot.Value));
         }
@@ -117,6 +117,18 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         }
 
         return new ResoniteFloat3(0.0, 0.0, 0.0);
+    }
+
+    private static ResoniteFloat3 GetRequiredSourceRootPosition(Slot slot)
+    {
+        if (slot.Position is Field_float3 position)
+        {
+            return new ResoniteFloat3(position.Value.x, position.Value.y, position.Value.z);
+        }
+
+        throw new InvalidOperationException(
+            $"Source-file root '{slot.Name?.Value ?? slot.ID ?? "<unnamed>"}' did not expose a Position. "
+            + "Append anchor recovery requires positioned source-file roots.");
     }
 
     private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)

@@ -67,6 +67,32 @@ public sealed class LocalCityGmlDocumentReaderTests
         Assert.Equal(0, datasetSource.OpenReadCallCount);
     }
 
+    [Fact]
+    public async Task ReadAsyncUsesSelectedMeshCodesForDiscoveryOriginWhenExactRequestMatchesParentSourceFiles()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+        LocalCityGmlDocumentReader reader = new(
+            new DefaultPlateauDatasetContentSourceFactory(
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector());
+
+        ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                CityGmlSource: DatasetLocation.Local(fixturePath),
+                PackageNames: ["dem", "tran"]
+));
+
+        GeodeticCoordinate expectedOrigin = MeshCodeBounds.TryParse("53394525")!.GetGeodeticCenter();
+        Assert.Equal(["53394525"], readResult.DocumentSet.SelectedMeshCodes);
+        Assert.Equal(expectedOrigin.Latitude, readResult.DiscoveryContext.GlobalOriginPoint.Latitude, 12);
+        Assert.Equal(expectedOrigin.Longitude, readResult.DiscoveryContext.GlobalOriginPoint.Longitude, 12);
+        Assert.Equal(expectedOrigin.Altitude, readResult.DiscoveryContext.GlobalOriginPoint.Altitude, 12);
+    }
+
     private sealed class StubDatasetContentSourceFactory(IPlateauDatasetContentSource datasetSource) : IPlateauDatasetContentSourceFactory
     {
         public Task<IPlateauDatasetContentSource> CreateAsync(

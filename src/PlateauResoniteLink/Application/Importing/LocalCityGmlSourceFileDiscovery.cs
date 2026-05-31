@@ -307,6 +307,12 @@ internal static class LocalCityGmlSourceFileDiscovery
                 {
                     yield return candidateMeshCode;
                 }
+                else if (RequestedValue.Length == 8
+                    && candidateMeshCode.Length == 6
+                    && string.Equals(candidateMeshCode, RequestedValue[..6], StringComparison.Ordinal))
+                {
+                    yield return RequestedValue;
+                }
 
                 yield break;
             }

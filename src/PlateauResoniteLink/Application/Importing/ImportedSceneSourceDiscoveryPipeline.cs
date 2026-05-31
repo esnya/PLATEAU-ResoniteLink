@@ -34,8 +34,6 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(
             localSource.LocalSourcePath!,
             cancellationToken);
-        MeshCodeBounds? requestedMeshCodeBoundsForExactSelector =
-            MeshCodeBounds.TryParse(request.MeshCode);
         Stopwatch totalStopwatch = Stopwatch.StartNew();
         Stopwatch scanStopwatch = Stopwatch.StartNew();
         LocalCityGmlSourceFileDiscoveryResult discoveryResult = LocalCityGmlSourceFileDiscovery.Discover(
@@ -50,9 +48,8 @@ internal static class ImportedSceneSourceDiscoveryPipeline
                 descriptor.MatchedMeshCode,
                 descriptor.RequiresMeshCodeBoundsFilter))
             .ToArray();
-        MeshCodeBounds[] requestedMeshCodeBounds = requestedMeshCodeBoundsForExactSelector is null
-            ? MeshCodeBounds.CreateManyFromSelectedMeshCodes(discoveryResult.SelectedMeshCodes)
-            : [requestedMeshCodeBoundsForExactSelector];
+        MeshCodeBounds[] requestedMeshCodeBounds =
+            MeshCodeBounds.CreateManyFromSelectedMeshCodes(discoveryResult.SelectedMeshCodes);
         MeshCodeBounds? effectiveRequestedMeshCodeBounds =
             MeshCodeBounds.TryMerge(requestedMeshCodeBounds);
         scanStopwatch.Stop();
