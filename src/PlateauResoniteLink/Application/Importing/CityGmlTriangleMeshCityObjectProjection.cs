@@ -134,12 +134,12 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay)
     {
         if (demTerrainTextureOverlay is null
-            || TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, demTerrainTextureOverlay) is not { } terrainMeshCode
-            || MeshCodeBounds.TryParse(terrainMeshCode) is not { } meshCodeBounds)
+            || TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, demTerrainTextureOverlay) is not { } terrainMeshCode)
         {
             return null;
         }
 
+        JisRegionalMeshBounds meshCodeBounds = terrainMeshCode.Bounds;
         return CreateDemUvProjection(
             meshCodeBounds.WestLongitude,
             meshCodeBounds.EastLongitude,

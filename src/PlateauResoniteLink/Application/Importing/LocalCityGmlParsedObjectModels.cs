@@ -48,4 +48,5 @@ internal sealed record ParsedCityObject(
     int? FloorsAboveGround = null,
     double? MeasuredHeightMeters = null,
     BuildingAttributeContext? BuildingAttributes = null,
-    double? GeometryHeightMeters = null);
+    double? GeometryHeightMeters = null,
+    string? SourceMeshCode = null);

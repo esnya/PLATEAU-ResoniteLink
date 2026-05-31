@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
@@ -198,12 +199,14 @@ public sealed class ResoniteMaterialComponentPolicyTests
             DepthOffset: null,
             SubmeshIndices: [0],
             TextureOffset: new ResoniteFloat2(0.125, 0.75),
-            TerrainOverlay: new TerrainTextureOverlay(
+            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(
+                ThirdRegionalMeshCode.Parse("53394525"),
+                new TerrainTextureOverlay(
                 PackageName: "dem",
                 UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
                 ZoomLevel: 17,
                 GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
-                MaxTextureSize: 512),
+                    MaxTextureSize: 512)),
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(

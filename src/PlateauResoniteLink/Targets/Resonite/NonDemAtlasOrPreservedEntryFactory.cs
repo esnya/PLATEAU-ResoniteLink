@@ -93,7 +93,7 @@ internal sealed class NonDemAtlasOrPreservedEntryFactory(
             TextureScale = null,
             TextureOffset = null,
             Family = null,
-            TerrainOverlay = null,
+            TerrainOverlayMaterial = null,
             AssetScope = ResoniteMaterialAssetScope.Common,
             SubmeshIndices = [submeshIndex],
             CommonMaterial = material.DepthOffset is null

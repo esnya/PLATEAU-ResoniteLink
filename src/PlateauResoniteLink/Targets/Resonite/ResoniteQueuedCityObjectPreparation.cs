@@ -109,10 +109,10 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
             cancellationToken);
         PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask.WaitAsync(cancellationToken);
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay = preparedTextures
-            .Where(static texture => texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
+            .OfType<PreparedTerrainOverlayTextureReference>()
             .ToDictionary(
-                static texture => texture.TerrainOverlay!,
-                static texture => texture.GeneratedTerrainTexture!);
+                static texture => texture.Overlay,
+                static texture => texture.GeneratedTerrainTexture);
         cityObject = ResoniteCityObjectPreparation.ApplyTerrainTextureCanvasUv(
             cityObject,
             preparedTerrainTextureDataByOverlay,

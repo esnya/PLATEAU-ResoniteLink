@@ -40,19 +40,19 @@ internal sealed class ResoniteQueuedTexturePreparer(
         ArgumentNullException.ThrowIfNull(routedClient);
         ArgumentNullException.ThrowIfNull(cityObject);
 
-        (string TerrainMeshCode, TerrainTextureOverlay TerrainOverlay)[] distinctTerrainOverlays = cityObject.Materials
+        (ThirdRegionalMeshCode TerrainMeshCode, TerrainTextureOverlay TerrainOverlay)[] distinctTerrainOverlays = cityObject.Materials
             .Select((material, materialIndex) => (Material: material, MaterialIndex: materialIndex))
-            .Where(static entry => entry.Material.TerrainOverlay is not null && entry.Material.TerrainMeshCode is not null)
+            .Where(static entry => entry.Material.TerrainOverlayMaterial is not null)
             .Select(entry => (
                 TerrainMeshCode: ResoniteTerrainOverlayMaterialContract.ValidateMeshCode(
                     cityObject,
                     entry.MaterialIndex,
                     entry.Material,
-                    entry.Material.TerrainMeshCode!,
-                    entry.Material.TerrainOverlay!),
-                TerrainOverlay: entry.Material.TerrainOverlay!))
+                    entry.Material.TerrainOverlayMaterial!.MeshCode,
+                    entry.Material.TerrainOverlayMaterial.Overlay),
+                TerrainOverlay: entry.Material.TerrainOverlayMaterial!.Overlay))
             .Distinct()
-            .OrderBy(static entry => entry.TerrainMeshCode, StringComparer.Ordinal)
+            .OrderBy(static entry => entry.TerrainMeshCode.Value, StringComparer.Ordinal)
             .ThenBy(static entry => entry.TerrainOverlay.PackageName, StringComparer.Ordinal)
             .ThenBy(static entry => entry.TerrainOverlay.GeographicBounds.MinLatitude)
             .ThenBy(static entry => entry.TerrainOverlay.GeographicBounds.MinLongitude)
@@ -82,7 +82,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
         LiveSendRunState state,
         IResoniteLinkClient routedClient,
         Action<string>? progressReporter,
-        string terrainMeshCode,
+        ThirdRegionalMeshCode terrainMeshCode,
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
@@ -112,13 +112,10 @@ internal sealed class ResoniteQueuedTexturePreparer(
             }
         }
 
-        return new PreparedTextureReference(
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            TextureSource: terrainTexture.TextureSource,
-            TerrainMeshCode: terrainMeshCode,
-            TerrainOverlay: terrainTextureOverlay,
-            GeneratedTerrainTexture: terrainTexture);
+        return new PreparedTerrainOverlayTextureReference(
+            terrainMeshCode,
+            terrainTextureOverlay,
+            terrainTexture);
     }
 
     private static TerrainTextureSource[] GetTrackedTerrainTextureSources(
@@ -197,12 +194,10 @@ internal sealed class ResoniteQueuedTexturePreparer(
         ArgumentNullException.ThrowIfNull(material.TexturePayload);
 
         return Task.FromResult<PreparedTextureReference?>(
-            new PreparedTextureReference(
+            new PreparedMaterialTextureReference(
                 TexturePayload: material.TexturePayload,
                 TextureSourceKind: material.TextureSourceKind,
-                TextureSource: ResoniteTextureImportFactory.CreateSourceFromPayload(material.TexturePayload),
-                TerrainMeshCode: null,
-                TerrainOverlay: null));
+                TextureSource: ResoniteTextureImportFactory.CreateSourceFromPayload(material.TexturePayload)));
     }
 
     private static void ReportProgress(Action<string>? progressReporter, string message)

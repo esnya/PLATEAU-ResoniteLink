@@ -1,6 +1,3 @@
-using System.Globalization;
-using System.Linq;
-
 namespace PlateauResoniteLink.Domain.Importing;
 
 public static class PlateauMeshCode
@@ -27,56 +24,17 @@ public static class PlateauMeshCode
     {
         bounds = default;
 
-        if (string.IsNullOrWhiteSpace(meshCode)
-            || (meshCode.Length != 6 && meshCode.Length != 8)
-            || !meshCode.All(char.IsDigit))
+        if (!JisRegionalMeshCodeCalculator.TryGetBounds(meshCode, out JisRegionalMeshBounds? jisBounds)
+            || meshCode.Length == 4)
         {
             return false;
         }
 
-        int firstLatitudeIndex = int.Parse(meshCode[..2], CultureInfo.InvariantCulture);
-        int firstLongitudeIndex = int.Parse(meshCode[2..4], CultureInfo.InvariantCulture);
-
-        double southLatitude = firstLatitudeIndex / 1.5;
-        double westLongitude = 100.0 + firstLongitudeIndex;
-        double latitudeSpan = 40.0 / 60.0;
-        double longitudeSpan = 1.0;
-
-        if (meshCode.Length >= 6)
-        {
-            int secondLatitudeIndex = int.Parse(meshCode[4].ToString(), CultureInfo.InvariantCulture);
-            int secondLongitudeIndex = int.Parse(meshCode[5].ToString(), CultureInfo.InvariantCulture);
-            if (secondLatitudeIndex > 7 || secondLongitudeIndex > 7)
-            {
-                return false;
-            }
-
-            latitudeSpan /= 8.0;
-            longitudeSpan /= 8.0;
-            southLatitude += secondLatitudeIndex * latitudeSpan;
-            westLongitude += secondLongitudeIndex * longitudeSpan;
-        }
-
-        if (meshCode.Length >= 8)
-        {
-            int thirdLatitudeIndex = int.Parse(meshCode[6].ToString(), CultureInfo.InvariantCulture);
-            int thirdLongitudeIndex = int.Parse(meshCode[7].ToString(), CultureInfo.InvariantCulture);
-            if (thirdLatitudeIndex > 9 || thirdLongitudeIndex > 9)
-            {
-                return false;
-            }
-
-            latitudeSpan /= 10.0;
-            longitudeSpan /= 10.0;
-            southLatitude += thirdLatitudeIndex * latitudeSpan;
-            westLongitude += thirdLongitudeIndex * longitudeSpan;
-        }
-
         bounds = (
-            SouthLatitude: southLatitude,
-            NorthLatitude: southLatitude + latitudeSpan,
-            WestLongitude: westLongitude,
-            EastLongitude: westLongitude + longitudeSpan);
+            SouthLatitude: jisBounds!.SouthLatitude,
+            NorthLatitude: jisBounds.NorthLatitude,
+            WestLongitude: jisBounds.WestLongitude,
+            EastLongitude: jisBounds.EastLongitude);
         return true;
     }
 }

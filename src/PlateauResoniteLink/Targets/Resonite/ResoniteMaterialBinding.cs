@@ -17,7 +17,11 @@ public sealed record ResoniteMaterialBinding(
     string? Family = null,
     ResoniteFloat2? TextureOffset = null,
     ResoniteMaterialAssetScope AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
-    TerrainTextureOverlay? TerrainOverlay = null,
+    TerrainOverlayMaterialBinding? TerrainOverlayMaterial = null,
     int? BundledVariantIndex = null,
-    string? TerrainMeshCode = null,
-    DefaultCommonMaterialMember? CommonMaterial = null);
+    DefaultCommonMaterialMember? CommonMaterial = null)
+{
+    public TerrainTextureOverlay? TerrainOverlay => TerrainOverlayMaterial?.Overlay;
+
+    public string? TerrainMeshCode => TerrainOverlayMaterial?.MeshCode.Value;
+}

@@ -93,7 +93,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             BundledVariantIndex: 0,
             AssetScope: ResoniteMaterialAssetScope.Common);
 
-        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
         Assert.Equal("variant-0", slotName);
         Assert.DoesNotContain(' ', slotName);
@@ -115,7 +115,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             BundledVariantIndex: 0,
             AssetScope: ResoniteMaterialAssetScope.Common);
 
-        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
         Assert.Equal("variant-0", slotName);
         Assert.DoesNotContain("scale", slotName, StringComparison.Ordinal);
@@ -138,7 +138,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             BundledVariantIndex: 1,
             AssetScope: ResoniteMaterialAssetScope.Common);
 
-        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
         Assert.Equal("variant-1", slotName);
         Assert.DoesNotContain("scale", slotName, StringComparison.Ordinal);
@@ -205,7 +205,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             BundledVariantIndex: null,
             AssetScope: ResoniteMaterialAssetScope.Common);
 
-        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
         Assert.Equal("uv", slotName);
         Assert.DoesNotContain("offset", slotName, StringComparison.Ordinal);
@@ -228,7 +228,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             BundledVariantIndex: null,
             AssetScope: ResoniteMaterialAssetScope.Common);
 
-        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
         Assert.Equal("uv", slotName);
     }
@@ -292,7 +292,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Family: null,
             AssetScope: ResoniteMaterialAssetScope.Common);
 
-        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
         Assert.Equal("uv", slotName);
     }
@@ -311,8 +311,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TerrainOverlay: overlay,
-            TerrainMeshCode: "53394525",
+            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
             Family: null,
             AssetScope: ResoniteMaterialAssetScope.Common,
             CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv);

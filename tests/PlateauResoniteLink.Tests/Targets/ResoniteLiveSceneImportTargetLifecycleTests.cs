@@ -356,8 +356,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 Projection: ResoniteMaterialProjection.Uv,
                 DepthOffset: terrainAlignedDepthOffset,
                 SubmeshIndices: [0],
-                AssetScope: ResoniteMaterialAssetScope.Common),
-            useCommonMaterialAssets: true);
+                AssetScope: ResoniteMaterialAssetScope.Common));
         bool terrainAlignedGenericSlotExistedWhenSendWorkersStarted = false;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         await using ResoniteLiveSceneImportTarget importTarget = new(
@@ -432,8 +431,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 Projection: ResoniteMaterialProjection.Uv,
                 DepthOffset: new ResoniteMaterialDepthOffset(-10.0, -10.0),
                 SubmeshIndices: [0],
-                AssetScope: ResoniteMaterialAssetScope.Common),
-            useCommonMaterialAssets: true);
+                AssetScope: ResoniteMaterialAssetScope.Common));
         bool materialSlotExistedWhenSendWorkersStarted = false;
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
@@ -1134,8 +1132,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     ResoniteMaterialProjection.Uv,
                     null,
                     [0],
-                    TerrainOverlay: overlay,
-                    TerrainMeshCode: "53394525"),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay)),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: sourceFileRelativePath);

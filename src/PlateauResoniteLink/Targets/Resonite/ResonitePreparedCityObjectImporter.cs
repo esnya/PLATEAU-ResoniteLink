@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -152,12 +153,9 @@ internal sealed class ResonitePreparedCityObjectImporter(
         PreparedCityObject preparedCityObject)
     {
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> generatedTerrainTexturesByOverlay = [];
-        foreach (PreparedTextureReference texture in preparedCityObject.Textures)
+        foreach (PreparedTerrainOverlayTextureReference texture in preparedCityObject.Textures.OfType<PreparedTerrainOverlayTextureReference>())
         {
-            if (texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
-            {
-                generatedTerrainTexturesByOverlay.TryAdd(texture.TerrainOverlay, texture.GeneratedTerrainTexture);
-            }
+            generatedTerrainTexturesByOverlay.TryAdd(texture.Overlay, texture.GeneratedTerrainTexture);
         }
 
         return generatedTerrainTexturesByOverlay;

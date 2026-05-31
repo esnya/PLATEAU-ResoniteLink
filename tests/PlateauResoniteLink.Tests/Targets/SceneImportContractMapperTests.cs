@@ -63,8 +63,7 @@ public sealed class SceneImportContractMapperTests
                 DepthOffset: null,
                 SubmeshIndices: [0],
                 ReuseScope: MaterialReuseScope.Shared,
-                TerrainOverlay: overlay,
-                TerrainMeshCode: "53394525",
+                TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
                 CommonMaterial: commonMaterial),
         ];
 
@@ -98,8 +97,7 @@ public sealed class SceneImportContractMapperTests
                 DepthOffset: null,
                 SubmeshIndices: [0],
                 ReuseScope: MaterialReuseScope.Shared,
-                TerrainOverlay: overlay,
-                TerrainMeshCode: "53394525"),
+                TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay)),
         ];
 
         ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));

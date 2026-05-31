@@ -275,6 +275,8 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             SubmeshIndices: [0],
             TextureScale: textureScale,
             TextureOffset: textureOffset,
-            TerrainOverlay: terrainOverlay);
+            TerrainOverlayMaterial: terrainOverlay is null
+                ? null
+                : new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), terrainOverlay));
     }
 }

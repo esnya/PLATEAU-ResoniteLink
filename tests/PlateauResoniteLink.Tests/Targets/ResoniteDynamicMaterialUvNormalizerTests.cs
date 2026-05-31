@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
@@ -294,6 +295,8 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             TextureScale: textureScale,
             TextureOffset: textureOffset,
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-            TerrainOverlay: terrainOverlay);
+            TerrainOverlayMaterial: terrainOverlay is null
+                ? null
+                : new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), terrainOverlay));
     }
 }

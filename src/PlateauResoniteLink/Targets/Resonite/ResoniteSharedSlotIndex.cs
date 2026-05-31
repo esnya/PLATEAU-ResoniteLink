@@ -207,7 +207,6 @@ internal sealed class ResoniteSharedSlotIndex(
             sourceFileSlotName,
             rootMeshCode,
             requestLocalOrigin,
-            SceneAnchor,
             slotSnapshotIndex.GetObservedDatasetSourceRoots());
     }
 

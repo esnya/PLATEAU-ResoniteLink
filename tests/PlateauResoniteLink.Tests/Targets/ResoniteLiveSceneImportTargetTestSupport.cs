@@ -510,9 +510,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             binding.Family,
             binding.TextureOffset is null ? null : ToContractFloat2(binding.TextureOffset),
             binding.AssetScope == ResoniteMaterialAssetScope.Common ? MaterialReuseScope.Shared : MaterialReuseScope.PerObject,
-            binding.TerrainOverlay,
+            binding.TerrainOverlayMaterial,
             binding.BundledVariantIndex,
-            binding.TerrainMeshCode,
             binding.CommonMaterial);
     }
 
