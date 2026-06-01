@@ -608,10 +608,13 @@ public sealed class PlateauImportServiceTests
             ResolveCallCount++;
             LastWorkRoot = workRoot;
             ValidatedLocalDatasetLocation localSource = Assert.IsType<ValidatedLocalDatasetLocation>(resolvedRequest.CityGmlSource);
+            ValidatedLocalDatasetLocation? localDemTextureSource = resolvedRequest.DemTextureSource is null
+                ? null
+                : Assert.IsType<ValidatedLocalDatasetLocation>(resolvedRequest.DemTextureSource);
             return Task.FromResult(ResolvedLocalPlateauImportRequest.Create(
                 resolvedRequest,
                 localSource,
-                resolvedRequest.DemTextureSource));
+                localDemTextureSource));
         }
     }
 

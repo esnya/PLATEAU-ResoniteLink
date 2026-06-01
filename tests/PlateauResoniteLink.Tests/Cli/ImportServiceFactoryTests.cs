@@ -87,7 +87,10 @@ public sealed class ImportServiceFactoryTests
             CancellationToken cancellationToken = default)
         {
             ValidatedLocalDatasetLocation localSource = Assert.IsType<ValidatedLocalDatasetLocation>(request.CityGmlSource);
-            return Task.FromResult(ResolvedLocalPlateauImportRequest.Create(request, localSource, request.DemTextureSource));
+            ValidatedLocalDatasetLocation? localDemTextureSource = request.DemTextureSource is null
+                ? null
+                : Assert.IsType<ValidatedLocalDatasetLocation>(request.DemTextureSource);
+            return Task.FromResult(ResolvedLocalPlateauImportRequest.Create(request, localSource, localDemTextureSource));
         }
     }
 

@@ -17,10 +17,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
     [Fact]
     public void ComposeMapsDocumentSetBoundaryIntoImportedSceneMetadata()
     {
-        ResolvedLocalPlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlLocalSourcePath: "/tmp/plateau");
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create();
         PlateauImportRequest importRequest = request.ToImportRequest();
 
         TerrainTextureOverlay overlay = new(
@@ -71,12 +68,9 @@ public sealed class DefaultImportedSceneSourceComposerTests
     [Fact]
     public async Task ComposedStreamingSourcePreflightValidatesExplicitDemTextureSource()
     {
-        ResolvedLocalPlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlLocalSourcePath: "/tmp/plateau",
-            PackageNames: ["dem"],
-            DemTextureSource: DatasetLocation.Local("/tmp/plateau/ortho.tif"));
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
+            packageNames: ["dem"],
+            demTextureLocalSourcePath: "C:\\tmp\\plateau\\ortho.tif");
         PlateauImportRequest importRequest = request.ToImportRequest();
         ImportedSceneSourceSnapshot readResult = new(
             new ImportedSceneSourceDataset(

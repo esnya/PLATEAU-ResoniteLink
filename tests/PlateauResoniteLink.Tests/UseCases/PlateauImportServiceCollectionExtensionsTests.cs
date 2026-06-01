@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.UseCases;
 
@@ -16,10 +17,8 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     [Fact]
     public async Task AddImportedSceneSourceServicesUsesCustomComposerWhenFactoryCreatesSourceFromReader()
     {
-        ResolvedLocalPlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"));
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
+            cityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"));
         ImportedSceneSourceSnapshot expectedReadResult = new(
             new ImportedSceneSourceDataset(
                 new StubDatasetContentSource(request.CityGmlLocalSourcePath),
