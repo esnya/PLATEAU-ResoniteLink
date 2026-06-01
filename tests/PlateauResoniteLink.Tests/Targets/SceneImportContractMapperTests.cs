@@ -14,7 +14,12 @@ public sealed class SceneImportContractMapperTests
             new(
                 BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
                 MaterialType: MaterialType.Standard,
-                TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
+                TexturePayload: new TexturePayload(
+                    2,
+                    2,
+                    "sRGB",
+                    TextureImportSourceFactory.CreateEncodedImageInMemory("sRGB", [1, 2, 3, 4], "dataset:texture"),
+                    "dataset:texture"),
                 TextureSourceKind: TextureSourceKind.Dataset,
                 Projection: MaterialProjection.Uv,
                 DepthOffset: new MaterialDepthOffset(-1.5, 2.5),

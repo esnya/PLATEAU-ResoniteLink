@@ -105,12 +105,11 @@ public enum TexturePayloadFormat
 public sealed record TexturePayload
 {
     public TexturePayload(
-        int? width,
-        int? height,
+        int width,
+        int height,
         string? colorProfile,
         byte[] binaryPayload,
-        string? identity = null,
-        TexturePayloadFormat format = TexturePayloadFormat.RawRgba32)
+        string? identity = null)
     {
         Width = width;
         Height = height;
@@ -118,14 +117,13 @@ public sealed record TexturePayload
         ArgumentNullException.ThrowIfNull(binaryPayload);
         BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
         Identity = identity;
-        Format = format;
-        Source = TextureImportSourceFactory.CreateInMemory(
+        Format = TexturePayloadFormat.RawRgba32;
+        Source = TextureImportSourceFactory.CreateRawRgba32InMemory(
             width,
             height,
             colorProfile,
             binaryPayload,
-            identity ?? Guid.NewGuid().ToString("N"),
-            format);
+            identity ?? Guid.NewGuid().ToString("N"));
     }
 
     public TexturePayload(
@@ -133,8 +131,7 @@ public sealed record TexturePayload
         int? height,
         string? colorProfile,
         ITextureImportSource source,
-        string? identity = null,
-        TexturePayloadFormat format = TexturePayloadFormat.EncodedImage)
+        string? identity = null)
     {
         Width = width;
         Height = height;
@@ -142,7 +139,7 @@ public sealed record TexturePayload
         ArgumentNullException.ThrowIfNull(source);
         BinaryPayload = [];
         Identity = identity ?? source.Identity;
-        Format = format;
+        Format = TexturePayloadFormat.EncodedImage;
         Source = source;
     }
 
