@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using PlateauResoniteLink.Domain.Importing;
+
 namespace PlateauResoniteLink.Application.Importing;
 
 public sealed record SceneImportExecutionPlan
