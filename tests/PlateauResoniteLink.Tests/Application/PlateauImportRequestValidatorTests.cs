@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -14,6 +15,72 @@ public sealed class PlateauImportRequestValidatorTests
     {
         Assert.Throws<ArgumentException>(() => DatasetLocation.Local(" "));
         Assert.Throws<ArgumentNullException>(() => DatasetLocation.Remote(null!));
+        Assert.Throws<ArgumentException>(() => new ValidatedLocalDatasetLocation(" "));
+        Assert.Throws<ArgumentNullException>(() => new ValidatedRemoteDatasetLocation(null!));
+    }
+
+    [Fact]
+    public void PlateauImportRequestRequiresCityGmlSource()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new PlateauImportRequest("tokyo23ku", "53394525", null!));
+
+        PlateauImportRequest request = new("tokyo23ku", "53394525", DatasetLocation.Local("C:/dataset"));
+        Assert.Throws<ArgumentNullException>(() => request with { CityGmlSource = null! });
+    }
+
+    [Fact]
+    public void ValidatedPlateauImportRequestRequiresValidatedPayload()
+    {
+        ValidatedLocalDatasetLocation source = new("C:/dataset");
+        Regex meshCodePattern = new(@"\A53394525\z");
+
+        Assert.Throws<ArgumentException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: " ",
+                MeshCode: "53394525",
+                MeshCodePattern: meshCodePattern,
+                CityGmlSource: source));
+        Assert.Throws<ArgumentException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: " ",
+                MeshCodePattern: meshCodePattern,
+                CityGmlSource: source));
+        Assert.Throws<ArgumentNullException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                MeshCodePattern: null!,
+                CityGmlSource: source));
+        Assert.Throws<ArgumentNullException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                MeshCodePattern: meshCodePattern,
+                CityGmlSource: null!));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                MeshCodePattern: meshCodePattern,
+                CityGmlSource: source,
+                TerrainGridMetersPerVertex: 0));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                MeshCodePattern: meshCodePattern,
+                CityGmlSource: source,
+                TerrainGridMaxResolution: 1));
+
+        ValidatedPlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: meshCodePattern,
+            CityGmlSource: source);
+
+        Assert.Throws<ArgumentNullException>(() => request with { CityGmlSource = null! });
     }
 
     [Fact]
