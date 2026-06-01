@@ -118,152 +118,175 @@ internal sealed record PlannedDynamicTerrainMeshBundle(
     public PlannedWorldElementReference InitialMeshTarget => GridMeshTarget;
 }
 
-internal abstract record PlannedSlotTargetReference
+internal readonly record struct PlannedSlotTargetReference
 {
-    private PlannedSlotTargetReference()
+    private PlannedSlotTargetReference(
+        PlannedSlotTargetReferenceKind kind,
+        ResoniteSlotLocator canonicalSlotLocator,
+        BatchPlanSlotLocator plannedSlotLocator)
     {
+        Kind = kind;
+        CanonicalSlotLocator = canonicalSlotLocator;
+        PlannedSlotLocator = plannedSlotLocator;
     }
 
-    public abstract TResult Match<TResult>(
+    public PlannedSlotTargetReferenceKind Kind { get; }
+
+    public ResoniteSlotLocator CanonicalSlotLocator { get; }
+
+    public BatchPlanSlotLocator PlannedSlotLocator { get; }
+
+    public TResult Match<TResult>(
         Func<ResoniteSlotLocator, TResult> canonicalSlot,
-        Func<BatchPlanSlotLocator, TResult> batchSlot);
+        Func<BatchPlanSlotLocator, TResult> plannedSlot)
+    {
+        return Kind switch
+        {
+            PlannedSlotTargetReferenceKind.CanonicalSlot => canonicalSlot(CanonicalSlotLocator),
+            PlannedSlotTargetReferenceKind.PlannedSlot => plannedSlot(PlannedSlotLocator),
+            _ => throw new InvalidOperationException("Planned slot target reference has no assigned target."),
+        };
+    }
 
     public static PlannedSlotTargetReference CanonicalSlot(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new CanonicalSlotTarget(locator);
+        return new PlannedSlotTargetReference(
+            PlannedSlotTargetReferenceKind.CanonicalSlot,
+            locator,
+            default);
     }
 
     public static PlannedSlotTargetReference PlannedSlot(BatchPlanSlotLocator locator)
     {
-        return new BatchSlotTarget(locator);
-    }
-
-    internal sealed record CanonicalSlotTarget(ResoniteSlotLocator Locator) : PlannedSlotTargetReference
-    {
-        public override TResult Match<TResult>(
-            Func<ResoniteSlotLocator, TResult> canonicalSlot,
-            Func<BatchPlanSlotLocator, TResult> batchSlot)
-        {
-            return canonicalSlot(Locator);
-        }
-    }
-
-    internal sealed record BatchSlotTarget(BatchPlanSlotLocator Locator) : PlannedSlotTargetReference
-    {
-        public override TResult Match<TResult>(
-            Func<ResoniteSlotLocator, TResult> canonicalSlot,
-            Func<BatchPlanSlotLocator, TResult> batchSlot)
-        {
-            return batchSlot(Locator);
-        }
+        return new PlannedSlotTargetReference(
+            PlannedSlotTargetReferenceKind.PlannedSlot,
+            default,
+            locator);
     }
 }
 
-internal abstract record PlannedWorldElementReference
+internal enum PlannedSlotTargetReferenceKind
 {
-    private PlannedWorldElementReference()
+    Unspecified = 0,
+    CanonicalSlot = 1,
+    PlannedSlot = 2,
+}
+
+internal readonly record struct PlannedWorldElementReference
+{
+    private PlannedWorldElementReference(
+        PlannedWorldElementReferenceKind kind,
+        ResoniteSlotLocator canonicalSlotLocator,
+        ResoniteComponentLocator canonicalComponentLocator,
+        BatchPlanSlotLocator plannedSlotLocator,
+        BatchPlanComponentLocator plannedComponentLocator,
+        BatchPlanFieldLocator plannedFieldLocator)
     {
+        Kind = kind;
+        CanonicalSlotLocator = canonicalSlotLocator;
+        CanonicalComponentLocator = canonicalComponentLocator;
+        PlannedSlotLocator = plannedSlotLocator;
+        PlannedComponentLocator = plannedComponentLocator;
+        PlannedFieldLocator = plannedFieldLocator;
     }
 
-    public abstract TResult Match<TResult>(
+    public PlannedWorldElementReferenceKind Kind { get; }
+
+    public ResoniteSlotLocator CanonicalSlotLocator { get; }
+
+    public ResoniteComponentLocator CanonicalComponentLocator { get; }
+
+    public BatchPlanSlotLocator PlannedSlotLocator { get; }
+
+    public BatchPlanComponentLocator PlannedComponentLocator { get; }
+
+    public BatchPlanFieldLocator PlannedFieldLocator { get; }
+
+    public TResult Match<TResult>(
         Func<ResoniteSlotLocator, TResult> canonicalSlot,
         Func<ResoniteComponentLocator, TResult> canonicalComponent,
-        Func<BatchPlanSlotLocator, TResult> batchSlot,
-        Func<BatchPlanComponentLocator, TResult> batchComponent,
-        Func<BatchPlanFieldLocator, TResult> batchField);
+        Func<BatchPlanSlotLocator, TResult> plannedSlot,
+        Func<BatchPlanComponentLocator, TResult> plannedComponent,
+        Func<BatchPlanFieldLocator, TResult> plannedField)
+    {
+        return Kind switch
+        {
+            PlannedWorldElementReferenceKind.CanonicalSlot => canonicalSlot(CanonicalSlotLocator),
+            PlannedWorldElementReferenceKind.CanonicalComponent => canonicalComponent(CanonicalComponentLocator),
+            PlannedWorldElementReferenceKind.PlannedSlot => plannedSlot(PlannedSlotLocator),
+            PlannedWorldElementReferenceKind.PlannedComponent => plannedComponent(PlannedComponentLocator),
+            PlannedWorldElementReferenceKind.PlannedField => plannedField(PlannedFieldLocator),
+            _ => throw new InvalidOperationException("Planned world element reference has no assigned target."),
+        };
+    }
 
     public static PlannedWorldElementReference Canonical(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new CanonicalSlotElement(locator);
+        return new PlannedWorldElementReference(
+            PlannedWorldElementReferenceKind.CanonicalSlot,
+            locator,
+            default,
+            default,
+            default,
+            default);
     }
 
     public static PlannedWorldElementReference Canonical(ResoniteComponentLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new CanonicalComponentElement(locator);
+        return new PlannedWorldElementReference(
+            PlannedWorldElementReferenceKind.CanonicalComponent,
+            default,
+            locator,
+            default,
+            default,
+            default);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanSlotLocator locator)
     {
-        return new BatchSlotElement(locator);
+        return new PlannedWorldElementReference(
+            PlannedWorldElementReferenceKind.PlannedSlot,
+            default,
+            default,
+            locator,
+            default,
+            default);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanComponentLocator locator)
     {
-        return new BatchComponentElement(locator);
+        return new PlannedWorldElementReference(
+            PlannedWorldElementReferenceKind.PlannedComponent,
+            default,
+            default,
+            default,
+            locator,
+            default);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanFieldLocator locator)
     {
-        return new BatchFieldElement(locator);
+        return new PlannedWorldElementReference(
+            PlannedWorldElementReferenceKind.PlannedField,
+            default,
+            default,
+            default,
+            default,
+            locator);
     }
+}
 
-    internal sealed record CanonicalSlotElement(ResoniteSlotLocator Locator) : PlannedWorldElementReference
-    {
-        public override TResult Match<TResult>(
-            Func<ResoniteSlotLocator, TResult> canonicalSlot,
-            Func<ResoniteComponentLocator, TResult> canonicalComponent,
-            Func<BatchPlanSlotLocator, TResult> batchSlot,
-            Func<BatchPlanComponentLocator, TResult> batchComponent,
-            Func<BatchPlanFieldLocator, TResult> batchField)
-        {
-            return canonicalSlot(Locator);
-        }
-    }
-
-    internal sealed record CanonicalComponentElement(ResoniteComponentLocator Locator) : PlannedWorldElementReference
-    {
-        public override TResult Match<TResult>(
-            Func<ResoniteSlotLocator, TResult> canonicalSlot,
-            Func<ResoniteComponentLocator, TResult> canonicalComponent,
-            Func<BatchPlanSlotLocator, TResult> batchSlot,
-            Func<BatchPlanComponentLocator, TResult> batchComponent,
-            Func<BatchPlanFieldLocator, TResult> batchField)
-        {
-            return canonicalComponent(Locator);
-        }
-    }
-
-    internal sealed record BatchSlotElement(BatchPlanSlotLocator Locator) : PlannedWorldElementReference
-    {
-        public override TResult Match<TResult>(
-            Func<ResoniteSlotLocator, TResult> canonicalSlot,
-            Func<ResoniteComponentLocator, TResult> canonicalComponent,
-            Func<BatchPlanSlotLocator, TResult> batchSlot,
-            Func<BatchPlanComponentLocator, TResult> batchComponent,
-            Func<BatchPlanFieldLocator, TResult> batchField)
-        {
-            return batchSlot(Locator);
-        }
-    }
-
-    internal sealed record BatchComponentElement(BatchPlanComponentLocator Locator) : PlannedWorldElementReference
-    {
-        public override TResult Match<TResult>(
-            Func<ResoniteSlotLocator, TResult> canonicalSlot,
-            Func<ResoniteComponentLocator, TResult> canonicalComponent,
-            Func<BatchPlanSlotLocator, TResult> batchSlot,
-            Func<BatchPlanComponentLocator, TResult> batchComponent,
-            Func<BatchPlanFieldLocator, TResult> batchField)
-        {
-            return batchComponent(Locator);
-        }
-    }
-
-    internal sealed record BatchFieldElement(BatchPlanFieldLocator Locator) : PlannedWorldElementReference
-    {
-        public override TResult Match<TResult>(
-            Func<ResoniteSlotLocator, TResult> canonicalSlot,
-            Func<ResoniteComponentLocator, TResult> canonicalComponent,
-            Func<BatchPlanSlotLocator, TResult> batchSlot,
-            Func<BatchPlanComponentLocator, TResult> batchComponent,
-            Func<BatchPlanFieldLocator, TResult> batchField)
-        {
-            return batchField(Locator);
-        }
-    }
+internal enum PlannedWorldElementReferenceKind
+{
+    Unspecified = 0,
+    CanonicalSlot = 1,
+    CanonicalComponent = 2,
+    PlannedSlot = 3,
+    PlannedComponent = 4,
+    PlannedField = 5,
 }
 
 internal abstract record PlannedMember;
