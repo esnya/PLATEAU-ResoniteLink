@@ -271,7 +271,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
-        PlannedDedicatedMaterialAsset dedicatedMaterial = new(
+        PlannedDedicatedMaterialAsset dedicatedMaterial = new PlannedPreservedSlotDedicatedMaterialAsset(
             new ResoniteMaterialBinding(
                 BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
@@ -281,7 +281,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 DepthOffset: null,
                 SubmeshIndices: [0]),
             [new PlannedTextureAsset(new TextureIdentity("albedo"), new Uri("resdb:///texture/albedo"))],
-            PreserveDedicatedMaterialSlot: true,
             DedicatedMaterialSlotName: "material-000-pbs-uv-uv");
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("existing-material-id"));
         PlannedSceneObjectEmission emissionPlan = new(
@@ -339,7 +338,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
-        PlannedDedicatedMaterialAsset dedicatedMaterial = new(
+        PlannedDedicatedMaterialAsset dedicatedMaterial = new PlannedInlineDedicatedMaterialAsset(
             new ResoniteMaterialBinding(
                 BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
@@ -354,8 +353,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new PlannedTextureAsset(new TextureIdentity("height"), new Uri("resdb:///texture/height")),
                 new PlannedTextureAsset(new TextureIdentity("metallic"), new Uri("resdb:///texture/metallic")),
                 new PlannedTextureAsset(new TextureIdentity("emission"), new Uri("resdb:///texture/emission")),
-            ],
-            PreserveDedicatedMaterialSlot: false);
+            ]);
         PlannedSceneObjectEmission emissionPlan = new(
             new PlannedTriangleMeshGeometryAsset(
                 new GeometryIdentity("geom"),

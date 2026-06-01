@@ -475,15 +475,13 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
     {
         ResoniteMaterialBinding material = plannedMaterial.Material;
         PlannedSlotTargetReference materialContainerTarget = meshAssetSlotTarget;
-        if (plannedMaterial.PreserveDedicatedMaterialSlot)
+        if (plannedMaterial is PlannedPreservedSlotDedicatedMaterialAsset preservedSlotMaterial)
         {
             BatchPlanSlotLocator materialSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
-            string materialSlotName = plannedMaterial.DedicatedMaterialSlotName
-                ?? throw new InvalidOperationException("Dedicated material slot preservation requires a planned material-index slot name.");
             slotEmissions.Add(new PlannedBatchSlotEmission(
                 materialSlotId,
                 meshAssetSlotTarget,
-                materialSlotName,
+                preservedSlotMaterial.DedicatedMaterialSlotName,
                 null,
                 null));
             materialContainerTarget = PlannedSlotTargetReference.PlannedSlot(materialSlotId);
