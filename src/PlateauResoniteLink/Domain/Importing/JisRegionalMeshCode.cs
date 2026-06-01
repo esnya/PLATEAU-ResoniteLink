@@ -127,14 +127,14 @@ internal static class JisRegionalMeshCodeCalculator
 
     internal static JisRegionalMeshBounds GetBounds(string meshCode)
     {
-        return TryGetBounds(meshCode, out JisRegionalMeshBounds? bounds)
-            ? bounds!
+        return TryGetBounds(meshCode, out JisRegionalMeshBounds bounds)
+            ? bounds
             : throw new ArgumentException("JIS X 0410 regional mesh code is invalid.", nameof(meshCode));
     }
 
-    internal static bool TryGetBounds(string meshCode, out JisRegionalMeshBounds? bounds)
+    internal static bool TryGetBounds(string? meshCode, out JisRegionalMeshBounds bounds)
     {
-        bounds = null;
+        bounds = new JisRegionalMeshBounds(0.0, 0.0, 0.0, 0.0);
 
         if (string.IsNullOrWhiteSpace(meshCode)
             || (meshCode.Length != 4 && meshCode.Length != 6 && meshCode.Length != 8)

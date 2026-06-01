@@ -5,6 +5,42 @@ namespace PlateauResoniteLink.Tests.Domain;
 public sealed class PlateauMeshCodeTests
 {
     [Fact]
+    public void PlateauRegionalMeshCodeParsesSecondLevelMeshAsSuccessType()
+    {
+        bool parsed = PlateauRegionalMeshCode.TryParse("533945", out PlateauRegionalMeshCode? meshCode);
+
+        Assert.True(parsed);
+        PlateauRegionalMeshCode.Second secondMeshCode = Assert.IsType<PlateauRegionalMeshCode.Second>(meshCode);
+        Assert.Equal("533945", secondMeshCode.Value);
+        Assert.Equal(35.708333333333343, secondMeshCode.Center.Latitude, 9);
+        Assert.Equal(139.6875, secondMeshCode.Center.Longitude, 9);
+    }
+
+    [Fact]
+    public void PlateauRegionalMeshCodeParsesThirdLevelMeshAsSuccessType()
+    {
+        bool parsed = PlateauRegionalMeshCode.TryParse("53394525", out PlateauRegionalMeshCode? meshCode);
+
+        Assert.True(parsed);
+        PlateauRegionalMeshCode.Third thirdMeshCode = Assert.IsType<PlateauRegionalMeshCode.Third>(meshCode);
+        Assert.Equal("53394525", thirdMeshCode.Value);
+        Assert.Equal(35.6875, thirdMeshCode.Center.Latitude, 9);
+        Assert.Equal(139.69375, thirdMeshCode.Center.Longitude, 9);
+    }
+
+    [Theory]
+    [InlineData("5339")]
+    [InlineData("533948")]
+    [InlineData("5339452A")]
+    public void PlateauRegionalMeshCodeRejectsNonConcreteOrInvalidMeshCodes(string meshCode)
+    {
+        bool parsed = PlateauRegionalMeshCode.TryParse(meshCode, out PlateauRegionalMeshCode? parsedMeshCode);
+
+        Assert.False(parsed);
+        Assert.Null(parsedMeshCode);
+    }
+
+    [Fact]
     public void TryGetBoundsReturnsExpectedBoundsForValidThirdLevelMesh()
     {
         bool parsed = PlateauMeshCode.TryGetBounds(
