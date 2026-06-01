@@ -116,14 +116,14 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         PlannedSlotTargetReference target,
         Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId)
     {
-        return target switch
+        return target.Kind switch
         {
-            PlannedSlotTargetReference.Canonical canonical => canonical.Locator.Value,
-            PlannedSlotTargetReference.Planned planned
-                when pendingSlotsByPlanId.TryGetValue(planned.Locator, out ResoniteBatchOperations.PendingBatchSlot pendingSlot)
+            PlannedSlotTargetReferenceKind.Canonical => target.CanonicalLocator.Value,
+            PlannedSlotTargetReferenceKind.Planned
+                when pendingSlotsByPlanId.TryGetValue(target.PlannedLocator, out ResoniteBatchOperations.PendingBatchSlot pendingSlot)
                 => pendingSlot.LocalId.Value,
-            PlannedSlotTargetReference.Planned => throw new InvalidOperationException("Batch slot target did not resolve to a planned slot."),
-            _ => throw new InvalidOperationException($"Unsupported planned slot target type '{target.GetType().Name}'."),
+            PlannedSlotTargetReferenceKind.Planned => throw new InvalidOperationException("Batch slot target did not resolve to a planned slot."),
+            _ => throw new InvalidOperationException($"Unsupported planned slot target kind '{target.Kind}'."),
         };
     }
 
@@ -134,21 +134,21 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
         ResoniteBatchOperations.BatchActionBuilder batchBuilder)
     {
-        return target switch
+        return target.Kind switch
         {
-            PlannedWorldElementReference.CanonicalSlot canonicalSlot => canonicalSlot.Locator.Value,
-            PlannedWorldElementReference.CanonicalComponent canonicalComponent => canonicalComponent.Locator.Value,
-            PlannedWorldElementReference.PlannedSlot plannedSlot
-                when pendingSlotsByPlanId.TryGetValue(plannedSlot.Locator, out ResoniteBatchOperations.PendingBatchSlot pendingSlot)
+            PlannedWorldElementReferenceKind.CanonicalSlot => target.CanonicalSlot.Value,
+            PlannedWorldElementReferenceKind.CanonicalComponent => target.CanonicalComponent.Value,
+            PlannedWorldElementReferenceKind.PlannedSlot
+                when pendingSlotsByPlanId.TryGetValue(target.PlannedSlot, out ResoniteBatchOperations.PendingBatchSlot pendingSlot)
                 => pendingSlot.LocalId.Value,
-            PlannedWorldElementReference.PlannedComponent plannedComponent
-                when pendingComponentsByPlanId.TryGetValue(plannedComponent.Locator, out ResoniteBatchOperations.PendingBatchComponent pendingComponent)
+            PlannedWorldElementReferenceKind.PlannedComponent
+                when pendingComponentsByPlanId.TryGetValue(target.PlannedComponent, out ResoniteBatchOperations.PendingBatchComponent pendingComponent)
                 => pendingComponent.LocalId.Value,
-            PlannedWorldElementReference.PlannedField plannedField
-                => ResolveFieldId(plannedField.Locator, pendingFieldsByPlanId, batchBuilder).Value,
-            PlannedWorldElementReference.PlannedSlot => throw new InvalidOperationException("Batch world element reference did not resolve to a planned slot."),
-            PlannedWorldElementReference.PlannedComponent => throw new InvalidOperationException("Batch world element reference did not resolve to a planned component."),
-            _ => throw new InvalidOperationException($"Unsupported planned world element reference type '{target.GetType().Name}'."),
+            PlannedWorldElementReferenceKind.PlannedField
+                => ResolveFieldId(target.PlannedField, pendingFieldsByPlanId, batchBuilder).Value,
+            PlannedWorldElementReferenceKind.PlannedSlot => throw new InvalidOperationException("Batch world element reference did not resolve to a planned slot."),
+            PlannedWorldElementReferenceKind.PlannedComponent => throw new InvalidOperationException("Batch world element reference did not resolve to a planned component."),
+            _ => throw new InvalidOperationException($"Unsupported planned world element reference kind '{target.Kind}'."),
         };
     }
 

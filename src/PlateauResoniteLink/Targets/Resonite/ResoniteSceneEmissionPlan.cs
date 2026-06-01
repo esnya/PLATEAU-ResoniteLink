@@ -118,69 +118,108 @@ internal sealed record PlannedDynamicTerrainMeshBundle(
     public PlannedWorldElementReference InitialMeshTarget => GridMeshTarget;
 }
 
-internal abstract record PlannedSlotTargetReference
+internal enum PlannedSlotTargetReferenceKind
 {
-    private PlannedSlotTargetReference()
+    Unspecified = 0,
+    Canonical = 1,
+    Planned = 2,
+}
+
+internal readonly record struct PlannedSlotTargetReference
+{
+    private PlannedSlotTargetReference(
+        PlannedSlotTargetReferenceKind kind,
+        ResoniteSlotLocator canonicalSlot,
+        BatchPlanSlotLocator plannedSlot)
     {
+        Kind = kind;
+        CanonicalLocator = canonicalSlot;
+        PlannedLocator = plannedSlot;
     }
 
-    internal sealed record Canonical(ResoniteSlotLocator Locator) : PlannedSlotTargetReference;
+    public PlannedSlotTargetReferenceKind Kind { get; }
 
-    internal sealed record Planned(BatchPlanSlotLocator Locator) : PlannedSlotTargetReference;
+    public ResoniteSlotLocator CanonicalLocator { get; }
+
+    public BatchPlanSlotLocator PlannedLocator { get; }
 
     public static PlannedSlotTargetReference CanonicalSlot(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new Canonical(locator);
+        return new PlannedSlotTargetReference(PlannedSlotTargetReferenceKind.Canonical, locator, default);
     }
 
     public static PlannedSlotTargetReference PlannedSlot(BatchPlanSlotLocator locator)
     {
-        return new Planned(locator);
+        return new PlannedSlotTargetReference(PlannedSlotTargetReferenceKind.Planned, default, locator);
     }
 }
 
-internal abstract record PlannedWorldElementReference
+internal enum PlannedWorldElementReferenceKind
 {
-    private PlannedWorldElementReference()
+    Unspecified = 0,
+    CanonicalSlot = 1,
+    CanonicalComponent = 2,
+    PlannedSlot = 3,
+    PlannedComponent = 4,
+    PlannedField = 5,
+}
+
+internal readonly record struct PlannedWorldElementReference
+{
+    private PlannedWorldElementReference(
+        PlannedWorldElementReferenceKind kind,
+        ResoniteSlotLocator canonicalSlot,
+        ResoniteComponentLocator canonicalComponent,
+        BatchPlanSlotLocator plannedSlot,
+        BatchPlanComponentLocator plannedComponent,
+        BatchPlanFieldLocator plannedField)
     {
+        Kind = kind;
+        CanonicalSlot = canonicalSlot;
+        CanonicalComponent = canonicalComponent;
+        PlannedSlot = plannedSlot;
+        PlannedComponent = plannedComponent;
+        PlannedField = plannedField;
     }
 
-    internal sealed record CanonicalSlot(ResoniteSlotLocator Locator) : PlannedWorldElementReference;
+    public PlannedWorldElementReferenceKind Kind { get; }
 
-    internal sealed record CanonicalComponent(ResoniteComponentLocator Locator) : PlannedWorldElementReference;
+    public ResoniteSlotLocator CanonicalSlot { get; }
 
-    internal sealed record PlannedSlot(BatchPlanSlotLocator Locator) : PlannedWorldElementReference;
+    public ResoniteComponentLocator CanonicalComponent { get; }
 
-    internal sealed record PlannedComponent(BatchPlanComponentLocator Locator) : PlannedWorldElementReference;
+    public BatchPlanSlotLocator PlannedSlot { get; }
 
-    internal sealed record PlannedField(BatchPlanFieldLocator Locator) : PlannedWorldElementReference;
+    public BatchPlanComponentLocator PlannedComponent { get; }
+
+    public BatchPlanFieldLocator PlannedField { get; }
 
     public static PlannedWorldElementReference Canonical(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new CanonicalSlot(locator);
+        return new PlannedWorldElementReference(PlannedWorldElementReferenceKind.CanonicalSlot, locator, default, default, default, default);
     }
 
     public static PlannedWorldElementReference Canonical(ResoniteComponentLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new CanonicalComponent(locator);
+        return new PlannedWorldElementReference(PlannedWorldElementReferenceKind.CanonicalComponent, default, locator, default, default, default);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanSlotLocator locator)
     {
-        return new PlannedSlot(locator);
+        return new PlannedWorldElementReference(PlannedWorldElementReferenceKind.PlannedSlot, default, default, locator, default, default);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanComponentLocator locator)
     {
-        return new PlannedComponent(locator);
+        return new PlannedWorldElementReference(PlannedWorldElementReferenceKind.PlannedComponent, default, default, default, locator, default);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanFieldLocator locator)
     {
-        return new PlannedField(locator);
+        return new PlannedWorldElementReference(PlannedWorldElementReferenceKind.PlannedField, default, default, default, default, locator);
     }
 }
 
