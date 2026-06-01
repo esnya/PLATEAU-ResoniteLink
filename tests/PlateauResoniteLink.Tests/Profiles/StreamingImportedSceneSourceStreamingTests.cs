@@ -168,7 +168,9 @@ public sealed class StreamingImportedSceneSourceStreamingTests
         return new ParsedSourceFileResult(
             sourceFile,
             cityObjects,
-            cityObjects.Length == 0 ? null : cityObjects[0].ReferenceSystem,
+            cityObjects.Length == 0
+                ? CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697")
+                : cityObjects[0].ReferenceSystem,
             string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? DemSourceDiscoverySupport.CreateTerrainHeightTriangles(cityObjects)
                 : [],
