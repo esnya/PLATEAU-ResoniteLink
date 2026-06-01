@@ -1,5 +1,3 @@
-using System;
-
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -7,13 +5,13 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class NonDemSourceFileBatchingTests
 {
     [Fact]
-    public void CreateKeyNormalizesPackageNameAndRequiresSourceFileScope()
+    public void CreateKeyUsesRequiredSourceFileScopeFromScopedTriangleCityObject()
     {
-        ResoniteConstructionCityObject cityObject = CreateCityObject() with
+        NonDemSourceScopedTriangleCityObject cityObject = CreateScopedCityObject(CreateCityObject() with
         {
             PackageName = "BLDG",
             SourceFileRelativePath = "udx/bldg/53394525_bldg_6697_op.gml",
-        };
+        });
 
         NonDemSourceFileBatchKey key = NonDemSourceFileBatching.CreateKey(
             cityObject,
@@ -21,9 +19,6 @@ public sealed class NonDemSourceFileBatchingTests
 
         Assert.Equal("bldg", key.PackageName);
         Assert.Equal("udx/bldg/53394525_bldg_6697_op.gml", key.SourceFileRelativePath);
-        Assert.Throws<InvalidOperationException>(() => NonDemSourceFileBatching.CreateKey(
-            cityObject with { SourceFileRelativePath = null },
-            NonDemCityObjectBakePolicies.Default));
     }
 
     [Fact]
@@ -83,5 +78,11 @@ public sealed class NonDemSourceFileBatchingTests
                 ],
                 [new ResoniteMeshSubmesh(0, [0, 1, 2])]),
             []);
+    }
+
+    private static NonDemSourceScopedTriangleCityObject CreateScopedCityObject(ResoniteConstructionCityObject cityObject)
+    {
+        Assert.True(NonDemSourceScopedTriangleCityObject.TryCreate(cityObject, out NonDemSourceScopedTriangleCityObject? scopedCityObject));
+        return scopedCityObject;
     }
 }

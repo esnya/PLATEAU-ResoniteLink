@@ -60,6 +60,45 @@ public static class ResoniteDynamicMaterialUvNormalizer
         };
     }
 
+    internal static NonDemSourceScopedTriangleCityObject Normalize(NonDemSourceScopedTriangleCityObject cityObject)
+    {
+        ArgumentNullException.ThrowIfNull(cityObject);
+
+        if (!cityObject.Materials.Any(ShouldNormalizeTextureTransform))
+        {
+            return cityObject;
+        }
+
+        Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex = cityObject.Materials
+            .SelectMany(material => material.SubmeshIndices.Select(submeshIndex => (submeshIndex, material)))
+            .ToDictionary(static pair => pair.submeshIndex, static pair => pair.material);
+
+        List<ResoniteMeshVertex> normalizedVertices = [];
+        List<ResoniteMeshSubmesh> normalizedSubmeshes = [];
+        foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes)
+        {
+            materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material);
+            List<int> normalizedTriangleVertexIndices = new(submesh.TriangleVertexIndices.Count);
+            foreach (int sourceIndex in submesh.TriangleVertexIndices)
+            {
+                ResoniteMeshVertex sourceVertex = cityObject.Mesh.Vertices[sourceIndex];
+                ResoniteFloat2 normalizedUv = material is not null && ShouldNormalizeTextureTransform(material)
+                    ? ApplyTextureTransform(sourceVertex.UV0, material)
+                    : sourceVertex.UV0;
+                normalizedVertices.Add(sourceVertex with { UV0 = normalizedUv });
+                normalizedTriangleVertexIndices.Add(normalizedVertices.Count - 1);
+            }
+
+            normalizedSubmeshes.Add(submesh with { TriangleVertexIndices = normalizedTriangleVertexIndices });
+        }
+
+        return cityObject.WithMeshAndMaterials(
+            new ResoniteImportedMesh(normalizedVertices, normalizedSubmeshes),
+            cityObject.Materials
+                .Select(NormalizeMaterialBinding)
+                .ToArray());
+    }
+
     public static ResoniteMaterialBinding NormalizeMaterialBinding(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);

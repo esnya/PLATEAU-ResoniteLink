@@ -23,7 +23,7 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
         NonDemBufferedCityObject bufferedCityObject,
         CancellationToken cancellationToken)
     {
-        ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
+        NonDemSourceScopedTriangleCityObject cityObject = bufferedCityObject.CityObject;
         NonDemCityObjectBakePolicy policy = bufferedCityObject.Policy;
         if (!NonDemCityObjectBakeMaterialClassifier.TryCreateMaterialBySubmeshIndex(cityObject, out _))
         {
@@ -31,7 +31,7 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
                 $"Non-DEM bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
         }
 
-        ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+        NonDemSourceScopedTriangleCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         if (!NonDemCityObjectBakeMaterialClassifier.TryCreateMaterialBySubmeshIndex(normalizedCityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
         {
             throw new InvalidOperationException(

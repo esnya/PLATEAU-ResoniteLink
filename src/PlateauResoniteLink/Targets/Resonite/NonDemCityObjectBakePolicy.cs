@@ -14,13 +14,13 @@ internal enum NonDemMaterialBakeCategory
 
 internal sealed record NonDemCityObjectBakePolicy(
     string Name,
-    Func<ResoniteConstructionCityObject, bool> CanBufferCityObject,
+    Func<NonDemSourceScopedTriangleCityObject, bool> CanBufferCityObject,
     bool RequireAtlasCandidateMaterial,
     bool PreserveVertexColorMaterials,
     bool PreserveTexturelessMaterials,
     bool PreserveCommonMaterials)
 {
-    public bool CanBuffer(ResoniteConstructionCityObject cityObject)
+    public bool CanBuffer(NonDemSourceScopedTriangleCityObject cityObject)
     {
         return CanBufferCityObject(cityObject);
     }
@@ -31,8 +31,7 @@ internal static class NonDemCityObjectBakePolicies
     internal static readonly NonDemCityObjectBakePolicy Default = new(
         Name: "non-dem",
         CanBufferCityObject: static cityObject =>
-            cityObject.Geometry is ResoniteTriangleMeshGeometry
-            && cityObject.Transform.Rotation is null
+            cityObject.Transform.Rotation is null
             && !string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase),
         RequireAtlasCandidateMaterial: false,
         PreserveVertexColorMaterials: true,

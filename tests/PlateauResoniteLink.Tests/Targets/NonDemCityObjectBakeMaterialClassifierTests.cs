@@ -44,13 +44,13 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
         };
 
         Assert.False(NonDemCityObjectBakeMaterialClassifier.CanBufferCityObjectMaterials(
-            CreateCityObject([CreateTexturelessMaterial()]),
+            CreateScopedCityObject([CreateTexturelessMaterial()]),
             requireAtlasCandidate));
         Assert.True(NonDemCityObjectBakeMaterialClassifier.CanBufferCityObjectMaterials(
-            CreateCityObject([CreateDatasetTextureMaterial()]),
+            CreateScopedCityObject([CreateDatasetTextureMaterial()]),
             requireAtlasCandidate));
         Assert.False(NonDemCityObjectBakeMaterialClassifier.CanBufferCityObjectMaterials(
-            CreateCityObject([CreateTexturelessMaterial()]),
+            CreateScopedCityObject([CreateTexturelessMaterial()]),
             requireAtlasCandidate with
             {
                 RequireAtlasCandidateMaterial = false,
@@ -68,8 +68,19 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
             ]);
 
         Assert.False(NonDemCityObjectBakeMaterialClassifier.TryCreateMaterialBySubmeshIndex(
-            cityObject,
+            CreateScopedCityObject(cityObject),
             out _));
+    }
+
+    private static NonDemSourceScopedTriangleCityObject CreateScopedCityObject(IReadOnlyList<ResoniteMaterialBinding> materials)
+    {
+        return CreateScopedCityObject(CreateCityObject(materials));
+    }
+
+    private static NonDemSourceScopedTriangleCityObject CreateScopedCityObject(ResoniteConstructionCityObject cityObject)
+    {
+        Assert.True(NonDemSourceScopedTriangleCityObject.TryCreate(cityObject, out NonDemSourceScopedTriangleCityObject? scopedCityObject));
+        return scopedCityObject;
     }
 
     private static ResoniteConstructionCityObject CreateCityObject(IReadOnlyList<ResoniteMaterialBinding> materials)
@@ -97,7 +108,8 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
                         new ResoniteFloat2(0.0, 1.0)),
                 ],
                 [new ResoniteMeshSubmesh(0, [0, 1, 2])]),
-            materials);
+            materials,
+            SourceFileRelativePath: "udx/bldg/53394525_bldg_6697_op.gml");
     }
 
     private static ResoniteMaterialBinding CreateDatasetTextureMaterial()

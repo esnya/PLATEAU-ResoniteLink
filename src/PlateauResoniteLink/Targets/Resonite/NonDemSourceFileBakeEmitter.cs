@@ -105,7 +105,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
         if (passThroughCandidates.Count == 1)
         {
             NonDemCityObjectBakeCandidate passThroughCandidate = passThroughCandidates[0];
-            await onBakedCityObject(passThroughCandidate.CityObject, cancellationToken);
+            await onBakedCityObject(passThroughCandidate.CityObject.CityObject, cancellationToken);
             candidateImageDisposer.Dispose(passThroughCandidate);
             emittedCount++;
         }
@@ -163,7 +163,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
     {
         try
         {
-            await onBakedCityObject(fallbackCandidate.CityObject, cancellationToken);
+            await onBakedCityObject(fallbackCandidate.CityObject.CityObject, cancellationToken);
             return 1;
         }
         finally
