@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 using PlateauResoniteLink.Domain.Importing;
@@ -8,6 +9,16 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed record NonDemMaterialAtlasTile(Image<Rgba32> Image, Rgba32 BackgroundColor);
+
+internal sealed record NonDemRenderedAtlas(
+    NonDemAtlasLayout<NonDemAtlasBatchEntry> Layout,
+    Image<Rgba32> Image) : IDisposable
+{
+    public void Dispose()
+    {
+        Image.Dispose();
+    }
+}
 
 internal sealed record NonDemAtlasOrPreservedEntry(
     NonDemAtlasBatchEntry? AtlasEntry,

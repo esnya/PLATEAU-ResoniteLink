@@ -6,9 +6,6 @@ using System.Threading;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed record NonDemBakedGeometry(
@@ -22,8 +19,7 @@ internal interface INonDemBakedGeometryComposer
         NonDemSourceFileBatchKey sourceFileKey,
         IReadOnlyList<NonDemCityObjectBakeCandidate> candidates,
         int batchIndex,
-        NonDemAtlasLayout<NonDemAtlasBatchEntry>? layout,
-        Image<Rgba32>? atlasImage,
+        NonDemRenderedAtlas? atlas,
         CancellationToken cancellationToken);
 }
 
@@ -33,8 +29,7 @@ internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
         NonDemSourceFileBatchKey sourceFileKey,
         IReadOnlyList<NonDemCityObjectBakeCandidate> candidates,
         int batchIndex,
-        NonDemAtlasLayout<NonDemAtlasBatchEntry>? layout,
-        Image<Rgba32>? atlasImage,
+        NonDemRenderedAtlas? atlas,
         CancellationToken cancellationToken)
     {
         ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(candidates);
@@ -42,8 +37,9 @@ internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
         List<ResoniteMeshSubmesh> submeshes = [];
         List<ResoniteMaterialBinding> materials = [];
 
-        if (layout is not null)
+        if (atlas is not null)
         {
+            NonDemAtlasLayout<NonDemAtlasBatchEntry> layout = atlas.Layout;
             string textureIdentity = NonDemSourceFileBatching.CreateAtlasTextureIdentity(sourceFileKey, batchIndex);
             List<int> atlasTriangleIndices = [];
             foreach (NonDemAtlasPlacement<NonDemAtlasBatchEntry> placement in layout.Placements
@@ -64,7 +60,7 @@ internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     TexturePayload: ResoniteTextureImportFactory.CreatePayloadFromImage(
-                        atlasImage ?? throw new InvalidOperationException("Non-DEM atlas image is required when an atlas layout exists."),
+                        atlas.Image,
                         identity: textureIdentity),
                     CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv));
         }
