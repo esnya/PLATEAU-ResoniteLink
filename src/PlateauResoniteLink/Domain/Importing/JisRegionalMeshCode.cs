@@ -116,8 +116,6 @@ public readonly record struct ThirdRegionalMeshCode
 
 internal static class JisRegionalMeshCodeCalculator
 {
-    private static readonly JisRegionalMeshBounds EmptyBounds = new(0.0, 0.0, 0.0, 0.0);
-
     internal static bool IsValid(string? meshCode, int length)
     {
         return meshCode is not null
@@ -128,35 +126,21 @@ internal static class JisRegionalMeshCodeCalculator
 
     internal static JisRegionalMeshBounds GetBounds(FirstRegionalMeshCode meshCode)
     {
-        return CalculateBounds(meshCode.Value, out JisRegionalMeshBounds bounds)
-            ? bounds
-            : throw new InvalidOperationException("A valid first regional mesh code did not produce bounds.");
+        return CalculateFirstBounds(meshCode.Value);
     }
 
     internal static JisRegionalMeshBounds GetBounds(SecondRegionalMeshCode meshCode)
     {
-        return CalculateBounds(meshCode.Value, out JisRegionalMeshBounds bounds)
-            ? bounds
-            : throw new InvalidOperationException("A valid second regional mesh code did not produce bounds.");
+        return CalculateSecondBounds(meshCode.Value);
     }
 
     internal static JisRegionalMeshBounds GetBounds(ThirdRegionalMeshCode meshCode)
     {
-        return CalculateBounds(meshCode.Value, out JisRegionalMeshBounds bounds)
-            ? bounds
-            : throw new InvalidOperationException("A valid third regional mesh code did not produce bounds.");
+        return CalculateThirdBounds(meshCode.Value);
     }
 
-    private static bool CalculateBounds(string meshCode, out JisRegionalMeshBounds bounds)
+    private static JisRegionalMeshBounds CalculateFirstBounds(string meshCode)
     {
-        bounds = EmptyBounds;
-
-        if ((meshCode.Length != 4 && meshCode.Length != 6 && meshCode.Length != 8)
-            || !meshCode.All(static character => character is >= '0' and <= '9'))
-        {
-            return false;
-        }
-
         int firstLatitudeIndex = ToTwoDigitNumber(meshCode[0], meshCode[1]);
         int firstLongitudeIndex = ToTwoDigitNumber(meshCode[2], meshCode[3]);
 
@@ -165,42 +149,41 @@ internal static class JisRegionalMeshCodeCalculator
         double latitudeSpan = 40.0 / 60.0;
         double longitudeSpan = 1.0;
 
-        if (meshCode.Length >= 6)
-        {
-            int secondLatitudeIndex = ToDigit(meshCode[4]);
-            int secondLongitudeIndex = ToDigit(meshCode[5]);
-            if (secondLatitudeIndex > 7 || secondLongitudeIndex > 7)
-            {
-                return false;
-            }
-
-            latitudeSpan /= 8.0;
-            longitudeSpan /= 8.0;
-            southLatitude += secondLatitudeIndex * latitudeSpan;
-            westLongitude += secondLongitudeIndex * longitudeSpan;
-        }
-
-        if (meshCode.Length >= 8)
-        {
-            int thirdLatitudeIndex = ToDigit(meshCode[6]);
-            int thirdLongitudeIndex = ToDigit(meshCode[7]);
-            if (thirdLatitudeIndex > 9 || thirdLongitudeIndex > 9)
-            {
-                return false;
-            }
-
-            latitudeSpan /= 10.0;
-            longitudeSpan /= 10.0;
-            southLatitude += thirdLatitudeIndex * latitudeSpan;
-            westLongitude += thirdLongitudeIndex * longitudeSpan;
-        }
-
-        bounds = new JisRegionalMeshBounds(
+        return new JisRegionalMeshBounds(
             southLatitude,
             southLatitude + latitudeSpan,
             westLongitude,
             westLongitude + longitudeSpan);
-        return true;
+    }
+
+    private static JisRegionalMeshBounds CalculateSecondBounds(string meshCode)
+    {
+        JisRegionalMeshBounds firstBounds = CalculateFirstBounds(meshCode);
+        double latitudeSpan = (firstBounds.NorthLatitude - firstBounds.SouthLatitude) / 8.0;
+        double longitudeSpan = (firstBounds.EastLongitude - firstBounds.WestLongitude) / 8.0;
+        double southLatitude = firstBounds.SouthLatitude + (ToDigit(meshCode[4]) * latitudeSpan);
+        double westLongitude = firstBounds.WestLongitude + (ToDigit(meshCode[5]) * longitudeSpan);
+
+        return new JisRegionalMeshBounds(
+            southLatitude,
+            southLatitude + latitudeSpan,
+            westLongitude,
+            westLongitude + longitudeSpan);
+    }
+
+    private static JisRegionalMeshBounds CalculateThirdBounds(string meshCode)
+    {
+        JisRegionalMeshBounds secondBounds = CalculateSecondBounds(meshCode);
+        double latitudeSpan = (secondBounds.NorthLatitude - secondBounds.SouthLatitude) / 10.0;
+        double longitudeSpan = (secondBounds.EastLongitude - secondBounds.WestLongitude) / 10.0;
+        double southLatitude = secondBounds.SouthLatitude + (ToDigit(meshCode[6]) * latitudeSpan);
+        double westLongitude = secondBounds.WestLongitude + (ToDigit(meshCode[7]) * longitudeSpan);
+
+        return new JisRegionalMeshBounds(
+            southLatitude,
+            southLatitude + latitudeSpan,
+            westLongitude,
+            westLongitude + longitudeSpan);
     }
 
     private static int ToTwoDigitNumber(char tens, char ones)
