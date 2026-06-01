@@ -41,24 +41,24 @@ internal static class CityGmlSurfaceProjectionPolicy
             return [];
         }
 
-        SurfaceProjectionInfo[] candidates = surfaces
-            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
-            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
-            .ToArray();
+        SurfaceProjectionInfo[] candidates = CreateSurfaceProjectionInfos(
+            surfaces,
+            cityObjectOrigin,
+            cityObjectCartesian);
 
         if (candidates.Length == 0)
         {
             return [];
         }
 
-        double objectMinimumY = candidates.Min(static info => info.MinimumY!.Value);
-        double objectMaximumY = candidates.Max(static info => info.MaximumY!.Value);
+        double objectMinimumY = candidates.Min(static info => info.MinimumY);
+        double objectMaximumY = candidates.Max(static info => info.MaximumY);
 
         return candidates
             .Where(static info => !info.IsGeneratedLod1RoofSurface)
             .Where(static info => info.IsNearHorizontal)
-            .Where(info => info.MaximumY!.Value <= objectMinimumY + BuildingBottomCullBandMeters)
-            .Where(info => objectMaximumY > info.MaximumY!.Value + BuildingBottomCullBandMeters)
+            .Where(info => info.MaximumY <= objectMinimumY + BuildingBottomCullBandMeters)
+            .Where(info => objectMaximumY > info.MaximumY + BuildingBottomCullBandMeters)
             .Select(static info => info.PolygonId)
             .ToHashSet(StringComparer.Ordinal);
     }
@@ -74,10 +74,10 @@ internal static class CityGmlSurfaceProjectionPolicy
             return null;
         }
 
-        SurfaceProjectionInfo[] surfaceInfos = surfaces
-            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
-            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
-            .ToArray();
+        SurfaceProjectionInfo[] surfaceInfos = CreateSurfaceProjectionInfos(
+            surfaces,
+            cityObjectOrigin,
+            cityObjectCartesian);
         if (surfaceInfos.Length == 0)
         {
             return null;
@@ -118,43 +118,63 @@ internal static class CityGmlSurfaceProjectionPolicy
         return ComputePolygonNormal(positions);
     }
 
-    private static SurfaceProjectionInfo CreateSurfaceProjectionInfo(
-        ParsedSurface surface,
+    private static SurfaceProjectionInfo[] CreateSurfaceProjectionInfos(
+        IEnumerable<ParsedSurface> surfaces,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
+        List<SurfaceProjectionInfo> infos = [];
+        foreach (ParsedSurface surface in surfaces)
+        {
+            if (TryCreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian, out SurfaceProjectionInfo info))
+            {
+                infos.Add(info);
+            }
+        }
+
+        return [.. infos];
+    }
+
+    private static bool TryCreateSurfaceProjectionInfo(
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian,
+        out SurfaceProjectionInfo info)
+    {
+        info = default;
         Float3[] positions = surface.Vertices
             .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         if (positions.Length == 0)
         {
-            return new SurfaceProjectionInfo(surface.PolygonId, null, null, false, IsGeneratedLod1RoofSurface(surface.PolygonId));
+            return false;
         }
 
         Float3? normal = ComputePolygonNormal(positions);
         bool isNearHorizontal = normal is not null && Math.Abs(normal.Y) >= 0.98;
 
-        return new SurfaceProjectionInfo(
+        info = new SurfaceProjectionInfo(
             surface.PolygonId,
             positions.Min(static position => position.Y),
             positions.Max(static position => position.Y),
             isNearHorizontal,
             IsGeneratedLod1RoofSurface(surface.PolygonId));
+        return true;
     }
 
     private static (double MinimumY, double MaximumY) ResolveFacadeUvVerticalRange(
         IReadOnlyList<SurfaceProjectionInfo> contextSurfaceInfos,
         IReadOnlyList<SurfaceProjectionInfo> allSurfaceInfos)
     {
-        double minimumY = contextSurfaceInfos.Min(static info => info.MinimumY!.Value);
-        double maximumY = contextSurfaceInfos.Max(static info => info.MaximumY!.Value);
+        double minimumY = contextSurfaceInfos.Min(static info => info.MinimumY);
+        double maximumY = contextSurfaceInfos.Max(static info => info.MaximumY);
         if (maximumY - minimumY > 1e-6 || contextSurfaceInfos.Count == allSurfaceInfos.Count)
         {
             return (minimumY, maximumY);
         }
 
-        double fallbackMinimumY = allSurfaceInfos.Min(static info => info.MinimumY!.Value);
-        double fallbackMaximumY = allSurfaceInfos.Max(static info => info.MaximumY!.Value);
+        double fallbackMinimumY = allSurfaceInfos.Min(static info => info.MinimumY);
+        double fallbackMaximumY = allSurfaceInfos.Max(static info => info.MaximumY);
         return fallbackMaximumY - fallbackMinimumY > maximumY - minimumY
             ? (fallbackMinimumY, fallbackMaximumY)
             : (minimumY, maximumY);
@@ -215,8 +235,8 @@ internal static class CityGmlSurfaceProjectionPolicy
 
     private readonly record struct SurfaceProjectionInfo(
         string PolygonId,
-        double? MinimumY,
-        double? MaximumY,
+        double MinimumY,
+        double MaximumY,
         bool IsNearHorizontal,
         bool IsGeneratedLod1RoofSurface);
 }
