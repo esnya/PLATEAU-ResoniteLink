@@ -35,6 +35,7 @@ public sealed class DemSourceDiscoverySupportTests
 
         CachedSourceFileDescriptor cachedSourceFile = Assert.Single(result.CachedDemSourceFiles);
         Assert.Equal("udx/dem/53394525/sample.gml", cachedSourceFile.RelativePath);
+        Assert.Equal(CoordinateReferenceSystem.Parse("EPSG:4326"), cachedSourceFile.ReferenceSystem);
         Assert.Equal(3, result.TerrainTriangles.Length);
         Assert.Equal(1, result.ParsedCityObjectCount);
     }
