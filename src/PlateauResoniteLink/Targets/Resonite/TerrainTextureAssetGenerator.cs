@@ -57,32 +57,41 @@ internal sealed record GeneratedTerrainTexture
     }
 
     public GeneratedTerrainTexture(
-        ITextureImportSource TextureSource,
-        TextureUvRect OccupiedUvRect,
-        TerrainTextureSource UsedSource,
-        IReadOnlyList<TerrainTextureSource> UsedSources)
+        ITextureImportSource textureSource,
+        TextureUvRect occupiedUvRect,
+        TerrainTextureSource usedSource,
+        IReadOnlyList<TerrainTextureSource> usedSources)
     {
-        ArgumentNullException.ThrowIfNull(TextureSource);
-        ArgumentNullException.ThrowIfNull(UsedSource);
-        ArgumentNullException.ThrowIfNull(UsedSources);
-        if (UsedSources.Count == 0)
+        ArgumentNullException.ThrowIfNull(textureSource);
+        ArgumentNullException.ThrowIfNull(usedSource);
+        ArgumentNullException.ThrowIfNull(usedSources);
+
+        TerrainTextureSource[] trackedSources = usedSources.Distinct().ToArray();
+        if (trackedSources.Length == 0)
         {
-            throw new ArgumentException("Generated terrain texture must track at least one source.", nameof(UsedSources));
+            throw new ArgumentException("Generated terrain texture must track at least one source.", nameof(usedSources));
         }
 
-        this.TextureSource = TextureSource;
-        this.OccupiedUvRect = OccupiedUvRect;
-        this.UsedSource = UsedSource;
-        this.UsedSources = UsedSources;
+        if (!trackedSources.Contains(usedSource))
+        {
+            throw new ArgumentException(
+                "Generated terrain texture identity source must be included in the tracked source collection.",
+                nameof(usedSources));
+        }
+
+        TextureSource = textureSource;
+        OccupiedUvRect = occupiedUvRect;
+        UsedSource = usedSource;
+        UsedSources = trackedSources;
     }
 
-    public ITextureImportSource TextureSource { get; init; }
+    public ITextureImportSource TextureSource { get; }
 
-    public TextureUvRect OccupiedUvRect { get; init; }
+    public TextureUvRect OccupiedUvRect { get; }
 
-    public TerrainTextureSource UsedSource { get; init; }
+    public TerrainTextureSource UsedSource { get; }
 
-    public IReadOnlyList<TerrainTextureSource> UsedSources { get; init; }
+    public IReadOnlyList<TerrainTextureSource> UsedSources { get; }
 }
 
 internal sealed class TerrainTextureAssetGenerator(
