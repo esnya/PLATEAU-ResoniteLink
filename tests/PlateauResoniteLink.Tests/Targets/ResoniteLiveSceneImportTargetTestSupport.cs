@@ -541,13 +541,22 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         => Enumerable.Repeat(TerrainGridSampleCoverage.Measured, count).ToArray();
 
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
-        => new(
-            payload.Width,
-            payload.Height,
-            payload.ColorProfile,
-            payload.BinaryPayload.AsSpan().ToArray(),
-            payload.Identity,
-            (TexturePayloadFormat)payload.Format);
+        => payload.Format switch
+        {
+            ResoniteTexturePayloadFormat.RawRgba32 => new TexturePayload(
+                payload.Width ?? throw new InvalidOperationException("Raw texture payload requires width."),
+                payload.Height ?? throw new InvalidOperationException("Raw texture payload requires height."),
+                payload.ColorProfile,
+                payload.BinaryPayload.AsSpan().ToArray(),
+                payload.Identity),
+            ResoniteTexturePayloadFormat.EncodedImage => new TexturePayload(
+                payload.Width,
+                payload.Height,
+                payload.ColorProfile,
+                payload.Source,
+                payload.Identity),
+            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.Format, "Unsupported texture payload format."),
+        };
 
 }
 

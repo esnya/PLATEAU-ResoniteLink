@@ -39,7 +39,6 @@ internal static class ResoniteTextureImportFactory
             image.Height,
             colorProfile,
             rawPayload.Bytes,
-            identity ?? Guid.NewGuid().ToString("N"),
-            ResoniteTexturePayloadFormat.RawRgba32);
+            identity ?? Guid.NewGuid().ToString("N"));
     }
 }

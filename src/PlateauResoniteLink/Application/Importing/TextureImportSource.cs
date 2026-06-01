@@ -218,28 +218,30 @@ internal sealed class GeneratedTextureImportSource(
 
 internal static class TextureImportSourceFactory
 {
-    public static ITextureImportSource CreateInMemory(
-        int? width,
-        int? height,
+    public static ITextureImportSource CreateInMemoryRaw(
+        int width,
+        int height,
         string? colorProfile,
         byte[] bytes,
-        string identity,
-        TexturePayloadFormat sourceFormat)
+        string identity)
     {
-        return sourceFormat switch
-        {
-            TexturePayloadFormat.RawRgba32 => new InMemoryRawTextureImportSource(
-                width ?? throw new ArgumentException("Raw RGBA texture import source requires width.", nameof(width)),
-                height ?? throw new ArgumentException("Raw RGBA texture import source requires height.", nameof(height)),
-                colorProfile,
-                bytes,
-                identity),
-            TexturePayloadFormat.EncodedImage => new InMemoryEncodedTextureImportSource(
-                colorProfile,
-                bytes,
-                identity),
-            _ => throw new ArgumentOutOfRangeException(nameof(sourceFormat), sourceFormat, "Unsupported texture payload format."),
-        };
+        return new InMemoryRawTextureImportSource(
+            width,
+            height,
+            colorProfile,
+            bytes,
+            identity);
+    }
+
+    public static ITextureImportSource CreateInMemoryEncodedImage(
+        string? colorProfile,
+        byte[] bytes,
+        string identity)
+    {
+        return new InMemoryEncodedTextureImportSource(
+            colorProfile,
+            bytes,
+            identity);
     }
 
     public static ITextureImportSource CreateDatasetEncodedImage(
