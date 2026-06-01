@@ -54,6 +54,89 @@ public sealed class StreamingImportedSceneSourceStreamingTests
     }
 
     [Fact]
+    public async Task ReadCityObjectsAsync_UsesCurrentParsedObjectReferenceSystemForDescriptor()
+    {
+        CoordinateReferenceSystem firstReferenceSystem =
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        CoordinateReferenceSystem secondReferenceSystem =
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6668");
+        GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
+        RecordingGeometryProjector geometryProjector = new();
+
+        SourceFilePipeline bldgPipeline = CreatePipeline(
+            new SourceFileDescriptor("udx/bldg/53394525/building.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false),
+            [
+                CreateParsedCityObject("bldg", "first-building", "First Building", firstReferenceSystem, lodLevel: 1),
+                CreateParsedCityObject("bldg", "second-building", "Second Building", secondReferenceSystem, lodLevel: 1),
+            ],
+            streamFactory: static (sourceFile, cityObjects, beforeYield, cancellationToken) =>
+                StreamSingleParsedCityObjectAsync(sourceFile, cityObjects, beforeYield, cancellationToken));
+
+        StreamingImportedSceneSource source = CreateSource(
+            firstReferenceSystem,
+            globalOriginPoint,
+            [bldgPipeline],
+            geometryProjector);
+
+        List<ImportedCityObject> yieldedObjects = [];
+        await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
+        {
+            yieldedObjects.Add(cityObject);
+        }
+
+        Assert.Equal(2, yieldedObjects.Count);
+        Assert.Collection(
+            geometryProjector.CallRecords,
+            first =>
+            {
+                Assert.Equal(firstReferenceSystem.SrsName, first.SourceFileReferenceSystem.SrsName);
+                Assert.Equal(firstReferenceSystem.SrsName, first.CityObjectReferenceSystem.SrsName);
+            },
+            second =>
+            {
+                Assert.Equal(secondReferenceSystem.SrsName, second.SourceFileReferenceSystem.SrsName);
+                Assert.Equal(secondReferenceSystem.SrsName, second.CityObjectReferenceSystem.SrsName);
+            });
+    }
+
+    [Fact]
+    public async Task ReadCityObjectsAsync_RejectsIncompatibleReferenceSystemAfterFirstStreamedObject()
+    {
+        CoordinateReferenceSystem firstReferenceSystem =
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        CoordinateReferenceSystem secondReferenceSystem =
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6696");
+        GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
+
+        SourceFilePipeline bldgPipeline = CreatePipeline(
+            new SourceFileDescriptor("udx/bldg/53394525/building.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false),
+            [
+                CreateParsedCityObject("bldg", "first-building", "First Building", firstReferenceSystem, lodLevel: 1),
+                CreateParsedCityObject("bldg", "second-building", "Second Building", secondReferenceSystem, lodLevel: 1),
+            ],
+            streamFactory: static (sourceFile, cityObjects, beforeYield, cancellationToken) =>
+                StreamSingleParsedCityObjectAsync(sourceFile, cityObjects, beforeYield, cancellationToken));
+
+        StreamingImportedSceneSource source = CreateSource(
+            firstReferenceSystem,
+            globalOriginPoint,
+            [bldgPipeline]);
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
+            async () =>
+            {
+                await foreach (ImportedCityObject _ in source.ReadCityObjectsAsync())
+                {
+                }
+            });
+
+        Assert.Contains(
+            "Mixed CityGML coordinate reference systems are not supported",
+            exception.Errors.Single(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ReadCityObjectsAsync_CompletesAfterDelayedDemPipelineIsReleased()
     {
         CoordinateReferenceSystem referenceSystem =
@@ -199,8 +282,10 @@ public sealed class StreamingImportedSceneSourceStreamingTests
     private static StreamingImportedSceneSource CreateSource(
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
-        IReadOnlyList<SourceFilePipeline> sourceFilePipelines)
+        IReadOnlyList<SourceFilePipeline> sourceFilePipelines,
+        RecordingGeometryProjector? geometryProjector = null)
     {
+        _ = referenceSystem;
         string[] packageNames = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.PackageName)
             .Distinct(StringComparer.Ordinal)
@@ -236,7 +321,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             metadata,
             request,
             readResult,
-            new RecordingGeometryProjector(),
+            geometryProjector ?? new RecordingGeometryProjector(),
             new StubDemTextureSourcePolicy(),
             new PassthroughImportedObjectUnitOptimizer());
     }
@@ -300,8 +385,11 @@ public sealed class StreamingImportedSceneSourceStreamingTests
     private sealed class RecordingGeometryProjector : ICityGmlGeometryProjector
     {
         private readonly ConcurrentQueue<string> calls = [];
+        private readonly ConcurrentQueue<ReferenceSystemCallRecord> callRecords = [];
 
         public IReadOnlyCollection<string> Calls => calls.ToArray();
+
+        public IReadOnlyCollection<ReferenceSystemCallRecord> CallRecords => callRecords.ToArray();
 
         public IEnumerable<ImportedCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
@@ -331,6 +419,9 @@ public sealed class StreamingImportedSceneSourceStreamingTests
                 }
 
                 calls.Enqueue(cityObject.PackageName);
+                callRecords.Enqueue(new ReferenceSystemCallRecord(
+                    sourceFile.ReferenceSystem,
+                    cityObject.ReferenceSystem));
                 yield return new ImportedCityObject(
                     cityObject.SlotKey,
                     cityObject.DisplayName,
@@ -351,6 +442,10 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             }
         }
     }
+
+    private sealed record ReferenceSystemCallRecord(
+        CoordinateReferenceSystem SourceFileReferenceSystem,
+        CoordinateReferenceSystem CityObjectReferenceSystem);
 
     private sealed class EmptyDatasetContentSource : IPlateauDatasetContentSource
     {

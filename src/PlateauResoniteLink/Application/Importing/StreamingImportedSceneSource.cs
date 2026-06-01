@@ -218,17 +218,19 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             parsedCount++;
             fileWarningStatistics.Add(parsedCityObject);
             x3DMaterialWarningStatistics.Add(parsedCityObject);
-            resolvedReferenceSystem ??= ResolveReferenceSystem(parsedCityObject.ReferenceSystem);
+            CoordinateReferenceSystem parsedReferenceSystem = parsedCityObject.ReferenceSystem;
+            CoordinateReferenceSystem resolvedObjectReferenceSystem = ResolveReferenceSystem(parsedReferenceSystem);
+            resolvedReferenceSystem ??= resolvedObjectReferenceSystem;
             globalCartesian ??= CreateGlobalCartesian(resolvedReferenceSystem);
             if (isDemSourceFile)
             {
-                demProjectionSource ??= new StreamingDemProjectionSource(sourceFile.SourceFile, resolvedReferenceSystem);
+                demProjectionSource ??= new StreamingDemProjectionSource(sourceFile.SourceFile);
                 demProjectionSource.Add(parsedCityObject);
                 continue;
             }
 
             foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
-                         new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject], resolvedReferenceSystem),
+                         new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject], parsedReferenceSystem),
                          resolvedReferenceSystem,
                          globalOriginPoint,
                          globalCartesian,
@@ -281,20 +283,22 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                 + $"(parsed_city_objects={parsedCount}, yielded={yieldedCount}, elapsed={fileStopwatch.Elapsed.TotalSeconds:F3}s)."));
     }
 
-    private sealed class StreamingDemProjectionSource(
-        SourceFileDescriptor sourceFile,
-        CoordinateReferenceSystem referenceSystem)
+    private sealed class StreamingDemProjectionSource(SourceFileDescriptor sourceFile)
     {
         private readonly List<ParsedCityObject> cityObjects = [];
+        private CoordinateReferenceSystem? referenceSystem;
 
         public SourceFileDescriptor SourceFile { get; } = sourceFile;
 
-        public CoordinateReferenceSystem ReferenceSystem { get; } = referenceSystem;
+        public CoordinateReferenceSystem ReferenceSystem => referenceSystem
+            ?? CoordinateReferenceSystem.Parse((string?)null);
 
         public IReadOnlyList<ParsedCityObject> CityObjects => cityObjects;
 
         public void Add(ParsedCityObject cityObject)
         {
+            referenceSystem ??= cityObject.ReferenceSystem;
+            ValidateCompatibleReferenceSystem(referenceSystem, cityObject.ReferenceSystem);
             cityObjects.Add(cityObject);
         }
     }
