@@ -167,9 +167,34 @@ internal sealed class ResoniteQueuedCityObjectWorker(
     }
 }
 
-internal sealed record LiveSendWorkerContext(
-    Uri Endpoint,
-    int ConnectionCount,
-    Func<IResoniteLinkClient> GetRoutedClient,
-    ResoniteLinkSendDiagnostics Diagnostics,
-    Action<string>? ProgressReporter);
+internal sealed record LiveSendWorkerContext
+{
+    public LiveSendWorkerContext(
+        Uri Endpoint,
+        int ConnectionCount,
+        Func<IResoniteLinkClient> GetRoutedClient,
+        ResoniteLinkSendDiagnostics Diagnostics,
+        Action<string>? ProgressReporter)
+    {
+        ArgumentNullException.ThrowIfNull(Endpoint);
+        ArgumentOutOfRangeException.ThrowIfLessThan(ConnectionCount, 1);
+        ArgumentNullException.ThrowIfNull(GetRoutedClient);
+        ArgumentNullException.ThrowIfNull(Diagnostics);
+
+        this.Endpoint = Endpoint;
+        this.ConnectionCount = ConnectionCount;
+        this.GetRoutedClient = GetRoutedClient;
+        this.Diagnostics = Diagnostics;
+        this.ProgressReporter = ProgressReporter;
+    }
+
+    public Uri Endpoint { get; }
+
+    public int ConnectionCount { get; }
+
+    public Func<IResoniteLinkClient> GetRoutedClient { get; }
+
+    public ResoniteLinkSendDiagnostics Diagnostics { get; }
+
+    public Action<string>? ProgressReporter { get; }
+}
