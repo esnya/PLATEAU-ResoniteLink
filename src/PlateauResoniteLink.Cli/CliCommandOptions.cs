@@ -1,3 +1,8 @@
 namespace PlateauResoniteLink.Cli;
 
-public abstract record CliCommandOptions;
+public abstract class CliCommandOptions
+{
+    private protected CliCommandOptions()
+    {
+    }
+}

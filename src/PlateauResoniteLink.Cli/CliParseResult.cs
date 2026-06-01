@@ -1,24 +1,89 @@
+using System;
+
 namespace PlateauResoniteLink.Cli;
 
-public sealed record CliParseResult(
-    CliCommandOptions? Command,
-    string? Error,
-    bool ShowHelp)
+public abstract class CliParseResult
 {
-    public ImportCommandOptions? Options => Command as ImportCommandOptions;
+    private CliParseResult()
+    {
+    }
 
     public static CliParseResult Failure(string error)
     {
-        return new CliParseResult(null, error, ShowHelp: false);
+        return new FailureResult(error);
     }
 
     public static CliParseResult Help()
     {
-        return new CliParseResult(null, null, ShowHelp: true);
+        return HelpResult.Instance;
     }
 
-    public static CliParseResult Success(CliCommandOptions command)
+    public static CliParseResult Success(ImportCommandOptions command)
     {
-        return new CliParseResult(command, null, ShowHelp: false);
+        return new ImportSuccessResult(command);
+    }
+
+    public static CliParseResult Success(SearchCommandOptions command)
+    {
+        return new SearchSuccessResult(command);
+    }
+
+    public static CliParseResult Success(StatsCommandOptions command)
+    {
+        return new StatsSuccessResult(command);
+    }
+
+    public sealed class ImportSuccessResult : CliParseResult
+    {
+        public ImportSuccessResult(ImportCommandOptions command)
+        {
+            Command = command ?? throw new ArgumentNullException(nameof(command));
+        }
+
+        public ImportCommandOptions Command { get; }
+    }
+
+    public sealed class SearchSuccessResult : CliParseResult
+    {
+        public SearchSuccessResult(SearchCommandOptions command)
+        {
+            Command = command ?? throw new ArgumentNullException(nameof(command));
+        }
+
+        public SearchCommandOptions Command { get; }
+    }
+
+    public sealed class StatsSuccessResult : CliParseResult
+    {
+        public StatsSuccessResult(StatsCommandOptions command)
+        {
+            Command = command ?? throw new ArgumentNullException(nameof(command));
+        }
+
+        public StatsCommandOptions Command { get; }
+    }
+
+    public sealed class FailureResult : CliParseResult
+    {
+        public FailureResult(string error)
+        {
+            if (string.IsNullOrWhiteSpace(error))
+            {
+                throw new ArgumentException("CLI parse failure message must be provided.", nameof(error));
+            }
+
+            Error = error;
+        }
+
+        public string Error { get; }
+    }
+
+    public sealed class HelpResult : CliParseResult
+    {
+        public static HelpResult Instance { get; } = new();
+
+        private HelpResult()
+        {
+        }
     }
 }

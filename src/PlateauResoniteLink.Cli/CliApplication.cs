@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
@@ -45,25 +46,19 @@ public sealed class CliApplication
     {
         CliParseResult parseResult = CliArgumentsParser.Parse(args);
 
-        if (parseResult.ShowHelp)
-        {
-            await standardOutput.WriteLineAsync(CliArgumentsParser.HelpText);
-            return 0;
-        }
-
-        if (parseResult.Error is not null)
-        {
-            await standardError.WriteLineAsync(parseResult.Error);
-            await standardError.WriteLineAsync();
-            await standardError.WriteLineAsync(CliArgumentsParser.HelpText);
-            return 1;
-        }
-
         try
         {
-            switch (parseResult.Command)
+            switch (parseResult)
             {
-                case ImportCommandOptions options:
+                case CliParseResult.HelpResult:
+                    await standardOutput.WriteLineAsync(CliArgumentsParser.HelpText);
+                    return 0;
+                case CliParseResult.FailureResult failure:
+                    await standardError.WriteLineAsync(failure.Error);
+                    await standardError.WriteLineAsync();
+                    await standardError.WriteLineAsync(CliArgumentsParser.HelpText);
+                    return 1;
+                case CliParseResult.ImportSuccessResult { Command: ImportCommandOptions options }:
                     {
                         Action<string> reporter = CreateReporter(options.VerboseLogging);
                         PlateauImportService effectiveImportService = importServiceFactory.Create(options, reporter);
@@ -97,7 +92,7 @@ public sealed class CliApplication
 
                         return 0;
                     }
-                case SearchCommandOptions options:
+                case CliParseResult.SearchSuccessResult { Command: SearchCommandOptions options }:
                     {
                         DatasetSearchResult result = await datasetInspectionService.SearchAsync(
                             options.CityGmlSourcePath,
@@ -107,7 +102,7 @@ public sealed class CliApplication
                         await WriteSearchResultAsync(result, options.OutputFormat, cancellationToken);
                         return 0;
                     }
-                case StatsCommandOptions options:
+                case CliParseResult.StatsSuccessResult { Command: StatsCommandOptions options }:
                     {
                         DatasetStatsResult result = await datasetInspectionService.GetStatsAsync(
                             options.CityGmlSourcePath,
@@ -117,7 +112,7 @@ public sealed class CliApplication
                         return 0;
                     }
                 default:
-                    throw new InvalidOperationException("CLI parse succeeded without a supported command payload.");
+                    throw new UnreachableException();
             }
         }
         catch (PlateauImportValidationException exception)

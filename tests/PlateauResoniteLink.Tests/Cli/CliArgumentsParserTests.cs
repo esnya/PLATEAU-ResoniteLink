@@ -19,16 +19,14 @@ public sealed class CliArgumentsParserTests
                 "--resonitelink-port", "12345",
             ]);
 
-        Assert.Null(result.Error);
-        Assert.False(result.ShowHelp);
-        Assert.NotNull(result.Options);
-        Assert.Equal("tokyo23ku", result.Options.Request.Dataset);
-        Assert.Equal("53394525", result.Options.Request.MeshCode);
-        Assert.Equal(DatasetSourceKind.Local, result.Options.Request.CityGmlSourceKind);
-        Assert.Equal("/data/plateau", result.Options.Request.CityGmlLocalSourcePath);
-        Assert.Null(result.Options.Request.DemTextureSource);
-        Assert.Equal(CliTestData.DocumentedDefaultPackageNames, result.Options.Request.PackageNames);
-        Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
+        ImportCommandOptions options = AssertImportSuccess(result);
+        Assert.Equal("tokyo23ku", options.Request.Dataset);
+        Assert.Equal("53394525", options.Request.MeshCode);
+        Assert.Equal(DatasetSourceKind.Local, options.Request.CityGmlSourceKind);
+        Assert.Equal("/data/plateau", options.Request.CityGmlLocalSourcePath);
+        Assert.Null(options.Request.DemTextureSource);
+        Assert.Equal(CliTestData.DocumentedDefaultPackageNames, options.Request.PackageNames);
+        Assert.Equal(new Uri("ws://localhost:12345/"), options.ResoniteLinkUri);
     }
 
     [Fact]
@@ -43,9 +41,7 @@ public sealed class CliArgumentsParserTests
                 "--resonitelink-port", "12345",
             ]);
 
-        Assert.Equal("Unknown command 'bogus'.", result.Error);
-        Assert.False(result.ShowHelp);
-        Assert.Null(result.Options);
+        Assert.Equal("Unknown command 'bogus'.", AssertFailure(result).Error);
     }
 
     [Fact]
@@ -61,11 +57,11 @@ public sealed class CliArgumentsParserTests
                 "--resonitelink-url", "ws://localhost:12345/",
             ]);
 
-        Assert.Null(result.Error);
-        Assert.Equal(DatasetSourceKind.Remote, result.Options!.Request.CityGmlSourceKind);
-        Assert.Equal(new Uri("https://example.invalid/plateau.zip"), result.Options.Request.CityGmlServerUri);
-        Assert.Equal(DatasetSourceKind.Remote, result.Options.Request.DemTextureSourceKind);
-        Assert.Equal(new Uri("https://example.invalid/53394525.tif"), result.Options.Request.DemTextureServerUri);
+        ImportCommandOptions options = AssertImportSuccess(result);
+        Assert.Equal(DatasetSourceKind.Remote, options.Request.CityGmlSourceKind);
+        Assert.Equal(new Uri("https://example.invalid/plateau.zip"), options.Request.CityGmlServerUri);
+        Assert.Equal(DatasetSourceKind.Remote, options.Request.DemTextureSourceKind);
+        Assert.Equal(new Uri("https://example.invalid/53394525.tif"), options.Request.DemTextureServerUri);
     }
 
     [Fact]
@@ -79,7 +75,7 @@ public sealed class CliArgumentsParserTests
                 "--resonitelink-port", "12345",
             ]);
 
-        Assert.Equal("Specify --citygml-source.", result.Error);
+        Assert.Equal("Specify --citygml-source.", AssertFailure(result).Error);
     }
 
     [Fact]
@@ -94,9 +90,9 @@ public sealed class CliArgumentsParserTests
                 "--canonical-scene-dump", "out/scene.json",
             ]);
 
-        Assert.Null(result.Error);
-        Assert.Null(result.Options!.ResoniteLinkUri);
-        Assert.Equal("out/scene.json", result.Options.CanonicalSceneDumpPath);
+        ImportCommandOptions options = AssertImportSuccess(result);
+        Assert.Null(options.ResoniteLinkUri);
+        Assert.Equal("out/scene.json", options.CanonicalSceneDumpPath);
     }
 
     [Fact]
@@ -114,7 +110,7 @@ public sealed class CliArgumentsParserTests
 
         Assert.Equal(
             "Do not specify --resonitelink-port or --resonitelink-url when --canonical-scene-dump is used.",
-            result.Error);
+            AssertFailure(result).Error);
     }
 
     [Fact]
@@ -129,7 +125,7 @@ public sealed class CliArgumentsParserTests
                 "--canonical-scene-dump", " ",
             ]);
 
-        Assert.Equal("Specify a non-empty --canonical-scene-dump path.", result.Error);
+        Assert.Equal("Specify a non-empty --canonical-scene-dump path.", AssertFailure(result).Error);
     }
 
     [Fact]
@@ -145,8 +141,8 @@ public sealed class CliArgumentsParserTests
                 "--resonitelink-port", "12345",
             ]);
 
-        Assert.Null(result.Error);
-        Assert.Equal(["tran", "waterbody", "tran", "brid"], result.Options!.Request.PackageNames);
+        ImportCommandOptions options = AssertImportSuccess(result);
+        Assert.Equal(["tran", "waterbody", "tran", "brid"], options.Request.PackageNames);
     }
 
     [Fact]
@@ -161,8 +157,8 @@ public sealed class CliArgumentsParserTests
                 "--resonitelink-port", "12345",
             ]);
 
-        Assert.Null(result.Error);
-        Assert.Equal("5339452[56]", result.Options!.Request.MeshCode);
+        ImportCommandOptions options = AssertImportSuccess(result);
+        Assert.Equal("5339452[56]", options.Request.MeshCode);
     }
 
     [Fact]
@@ -178,7 +174,7 @@ public sealed class CliArgumentsParserTests
                 "--unexpected", "value",
             ]);
 
-        Assert.Equal("Unknown option '--unexpected'.", result.Error);
+        Assert.Equal("Unknown option '--unexpected'.", AssertFailure(result).Error);
     }
 
     [Fact]
@@ -193,8 +189,7 @@ public sealed class CliArgumentsParserTests
                 "--format", "json",
             ]);
 
-        Assert.Null(result.Error);
-        SearchCommandOptions command = Assert.IsType<SearchCommandOptions>(result.Command);
+        SearchCommandOptions command = AssertSuccess<SearchCommandOptions>(result);
         Assert.Equal("/data/plateau.zip", command.CityGmlSourcePath);
         Assert.Equal("5339452[56]", command.MeshCode);
         Assert.Equal(["bldg", "tran"], command.PackageNames);
@@ -211,8 +206,7 @@ public sealed class CliArgumentsParserTests
                 "--packages", "dem,bldg",
             ]);
 
-        Assert.Null(result.Error);
-        StatsCommandOptions command = Assert.IsType<StatsCommandOptions>(result.Command);
+        StatsCommandOptions command = AssertSuccess<StatsCommandOptions>(result);
         Assert.Equal("/data/plateau", command.CityGmlSourcePath);
         Assert.Equal(["dem", "bldg"], command.PackageNames);
     }
@@ -232,10 +226,10 @@ public sealed class CliArgumentsParserTests
                 "--terrain-grid-max-resolution", "512",
             ]);
 
-        Assert.Null(result.Error);
-        Assert.Equal(TerrainMeshMode.Grid, result.Options!.Request.TerrainMeshMode);
-        Assert.Equal(4.5, result.Options.Request.TerrainGridMetersPerVertex, 6);
-        Assert.Equal(512, result.Options.Request.TerrainGridMaxResolution);
+        ImportCommandOptions options = AssertImportSuccess(result);
+        Assert.Equal(TerrainMeshMode.Grid, options.Request.TerrainMeshMode);
+        Assert.Equal(4.5, options.Request.TerrainGridMetersPerVertex, 6);
+        Assert.Equal(512, options.Request.TerrainGridMaxResolution);
     }
 
     [Fact]
@@ -251,8 +245,8 @@ public sealed class CliArgumentsParserTests
                 "--terrain-mesh", "dynamic",
             ]);
 
-        Assert.Null(result.Error);
-        Assert.Equal(TerrainMeshMode.Dynamic, result.Options!.Request.TerrainMeshMode);
+        ImportCommandOptions options = AssertImportSuccess(result);
+        Assert.Equal(TerrainMeshMode.Dynamic, options.Request.TerrainMeshMode);
     }
 
     [Fact]
@@ -270,4 +264,26 @@ public sealed class CliArgumentsParserTests
         Assert.Contains("--geotiff-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
     }
 
+    private static ImportCommandOptions AssertImportSuccess(CliParseResult result)
+    {
+        return Assert.IsType<CliParseResult.ImportSuccessResult>(result).Command;
+    }
+
+    private static TCommand AssertSuccess<TCommand>(CliParseResult result)
+        where TCommand : CliCommandOptions
+    {
+        CliCommandOptions command = result switch
+        {
+            CliParseResult.ImportSuccessResult import => import.Command,
+            CliParseResult.SearchSuccessResult search => search.Command,
+            CliParseResult.StatsSuccessResult stats => stats.Command,
+            _ => throw new InvalidOperationException("Expected successful CLI parse result."),
+        };
+        return Assert.IsType<TCommand>(command);
+    }
+
+    private static CliParseResult.FailureResult AssertFailure(CliParseResult result)
+    {
+        return Assert.IsType<CliParseResult.FailureResult>(result);
+    }
 }
