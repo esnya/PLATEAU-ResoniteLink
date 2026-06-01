@@ -116,18 +116,12 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         PlannedSlotTargetReference target,
         Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId)
     {
-        if (target.Canonical is ResoniteSlotLocator canonical)
+        return target switch
         {
-            return canonical.Value;
-        }
-
-        if (target.Planned is BatchPlanSlotLocator planned
-            && pendingSlotsByPlanId.TryGetValue(planned, out ResoniteBatchOperations.PendingBatchSlot pendingSlot))
-        {
-            return pendingSlot.LocalId.Value;
-        }
-
-        throw new InvalidOperationException("Batch slot target did not resolve to a planned or canonical slot.");
+            PlannedSlotTargetReference.CanonicalSlotTarget canonicalSlot => canonicalSlot.Locator.Value,
+            PlannedSlotTargetReference.PlannedSlotTarget plannedSlot => pendingSlotsByPlanId[plannedSlot.Locator].LocalId.Value,
+            _ => throw new InvalidOperationException("Batch slot target did not resolve to an executable target."),
+        };
     }
 
     private static string ResolveWorldElementId(
@@ -137,34 +131,15 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
         ResoniteBatchOperations.BatchActionBuilder batchBuilder)
     {
-        if (target.CanonicalSlot is ResoniteSlotLocator canonicalSlot)
+        return target switch
         {
-            return canonicalSlot.Value;
-        }
-
-        if (target.CanonicalComponent is ResoniteComponentLocator canonicalComponent)
-        {
-            return canonicalComponent.Value;
-        }
-
-        if (target.PlannedSlot is BatchPlanSlotLocator plannedSlot
-            && pendingSlotsByPlanId.TryGetValue(plannedSlot, out ResoniteBatchOperations.PendingBatchSlot pendingSlot))
-        {
-            return pendingSlot.LocalId.Value;
-        }
-
-        if (target.PlannedComponent is BatchPlanComponentLocator plannedComponent
-            && pendingComponentsByPlanId.TryGetValue(plannedComponent, out ResoniteBatchOperations.PendingBatchComponent pendingComponent))
-        {
-            return pendingComponent.LocalId.Value;
-        }
-
-        if (target.PlannedField is BatchPlanFieldLocator plannedField)
-        {
-            return ResolveFieldId(plannedField, pendingFieldsByPlanId, batchBuilder).Value;
-        }
-
-        throw new InvalidOperationException("Batch world element reference did not resolve to a planned or canonical entity.");
+            PlannedWorldElementReference.CanonicalSlotElement canonicalSlot => canonicalSlot.Locator.Value,
+            PlannedWorldElementReference.CanonicalComponentElement canonicalComponent => canonicalComponent.Locator.Value,
+            PlannedWorldElementReference.PlannedSlotElement plannedSlot => pendingSlotsByPlanId[plannedSlot.Locator].LocalId.Value,
+            PlannedWorldElementReference.PlannedComponentElement plannedComponent => pendingComponentsByPlanId[plannedComponent.Locator].LocalId.Value,
+            PlannedWorldElementReference.PlannedFieldElement plannedField => ResolveFieldId(plannedField.Locator, pendingFieldsByPlanId, batchBuilder).Value,
+            _ => throw new InvalidOperationException("Batch world element reference did not resolve to an executable target."),
+        };
     }
 
     private static Dictionary<string, Member> TranslateMembers(
