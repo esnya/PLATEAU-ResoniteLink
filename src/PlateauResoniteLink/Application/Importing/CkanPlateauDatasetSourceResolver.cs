@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -63,14 +64,17 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
         bool invalidateLocalFileCache,
         CancellationToken cancellationToken)
     {
-        ValidatedLocalDatasetLocation? resolvedSource = await ResolveOptionalLocalDatasetLocationAsync(
-            source,
-            workRoot,
-            resourcePrefix,
-            invalidateLocalFileCache,
-            cancellationToken);
-        return resolvedSource
-            ?? throw new InvalidOperationException("The normalized CityGML source must resolve to a local dataset location.");
+        return source switch
+        {
+            ValidatedLocalDatasetLocation localSource => localSource,
+            ValidatedRemoteDatasetLocation remoteSource => await ResolveRemoteDatasetLocationAsync(
+                remoteSource,
+                workRoot,
+                resourcePrefix,
+                invalidateLocalFileCache,
+                cancellationToken),
+            _ => throw new UnreachableException("Validated dataset locations are restricted to local and remote locations."),
+        };
     }
 
     private async Task<ValidatedLocalDatasetLocation?> ResolveOptionalLocalDatasetLocationAsync(
@@ -80,12 +84,31 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
         bool invalidateLocalFileCache,
         CancellationToken cancellationToken)
     {
-        if (source is null || source is ValidatedLocalDatasetLocation)
+        if (source is null)
         {
-            return source as ValidatedLocalDatasetLocation;
+            return null;
         }
 
-        ValidatedRemoteDatasetLocation remoteSource = (ValidatedRemoteDatasetLocation)source;
+        return source switch
+        {
+            ValidatedLocalDatasetLocation localSource => localSource,
+            ValidatedRemoteDatasetLocation remoteSource => await ResolveRemoteDatasetLocationAsync(
+                remoteSource,
+                workRoot,
+                resourcePrefix,
+                invalidateLocalFileCache,
+                cancellationToken),
+            _ => throw new UnreachableException("Validated dataset locations are restricted to local and remote locations."),
+        };
+    }
+
+    private async Task<ValidatedLocalDatasetLocation> ResolveRemoteDatasetLocationAsync(
+        ValidatedRemoteDatasetLocation remoteSource,
+        string workRoot,
+        string resourcePrefix,
+        bool invalidateLocalFileCache,
+        CancellationToken cancellationToken)
+    {
         string resourcePath = RemoteDatasetResourceLayout.GetRemoteResourcePath(
             workRoot,
             remoteSource.ServerUri,

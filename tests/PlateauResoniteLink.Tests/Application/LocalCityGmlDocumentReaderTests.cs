@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Application;
 
@@ -24,12 +25,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlLodSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
-            new ResolvedLocalPlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394525",
-                CityGmlLocalSourcePath: fixturePath,
-                PackageNames: ["bldg"]
-));
+            CreateResolvedRequest(fixturePath, ["bldg"]));
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
 
         Assert.Equal(fixturePath, documentSet.DatasetSource.SourcePath);
@@ -53,12 +49,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlLodSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
-            new ResolvedLocalPlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394525",
-                CityGmlLocalSourcePath: datasetSource.SourcePath,
-                PackageNames: ["dem"]
-));
+            CreateResolvedRequest(datasetSource.SourcePath, ["dem"]));
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
 
         Assert.Equal(["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"], documentSet.RelativeSourceFiles);
@@ -79,12 +70,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlLodSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
-            new ResolvedLocalPlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394525",
-                CityGmlLocalSourcePath: fixturePath,
-                PackageNames: ["dem", "tran"]
-));
+            CreateResolvedRequest(fixturePath, ["dem", "tran"]));
 
         GeodeticCoordinate expectedOrigin = MeshCodeBounds.TryParse("53394525")!.GetGeodeticCenter();
         Assert.Equal(["53394525"], readResult.DocumentSet.SelectedMeshCodes);
@@ -102,6 +88,15 @@ public sealed class LocalCityGmlDocumentReaderTests
             Assert.Equal(datasetSource.SourcePath, sourcePath);
             return Task.FromResult(datasetSource);
         }
+    }
+
+    private static ResolvedLocalPlateauImportRequest CreateResolvedRequest(
+        string cityGmlLocalSourcePath,
+        IReadOnlyList<string> packageNames)
+    {
+        return ResolvedLocalPlateauImportRequestTestFactory.Create(
+            cityGmlLocalSourcePath: cityGmlLocalSourcePath,
+            packageNames: packageNames);
     }
 
     private sealed class CountingDatasetContentSource(

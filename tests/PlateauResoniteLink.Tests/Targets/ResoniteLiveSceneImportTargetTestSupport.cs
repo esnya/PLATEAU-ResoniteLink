@@ -214,28 +214,22 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             throw new ArgumentException("Metadata request must include a local CityGML source path.", nameof(metadataRequest));
         }
 
-        DatasetLocation? resolvedDemTextureSource = metadataRequest.DemTextureSource;
+        ValidatedLocalDatasetLocation? resolvedDemTextureSource = metadataRequest.DemTextureLocalSourcePath is { } metadataDemTexturePath
+            ? new ValidatedLocalDatasetLocation(metadataDemTexturePath)
+            : null;
         if (normalizedRequest.DemTextureSource is not null)
         {
             string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource.ToDatasetLocation(), workDirectory, "source-ortho");
-            resolvedDemTextureSource = resolvedDemTexturePath is null
-                ? metadataRequest.DemTextureSource
-                : DatasetLocation.Local(resolvedDemTexturePath);
+            if (resolvedDemTexturePath is not null)
+            {
+                resolvedDemTextureSource = new ValidatedLocalDatasetLocation(resolvedDemTexturePath);
+            }
         }
 
-        return new ResolvedLocalPlateauImportRequest(
-            normalizedRequest.Dataset,
-            normalizedRequest.MeshCode,
-            resolvedSourcePath,
-            resolvedDemTextureSource,
-            normalizedRequest.PackageNames,
-            normalizedRequest.GlobalExcludeLodLevels,
-            normalizedRequest.ExcludeLodLevelsByPackage,
-            normalizedRequest.PackagePatterns,
-            normalizedRequest.IncludeMarkingAlways,
-            normalizedRequest.TerrainMeshMode,
-            normalizedRequest.TerrainGridMetersPerVertex,
-            normalizedRequest.TerrainGridMaxResolution);
+        return ResolvedLocalPlateauImportRequest.Create(
+            normalizedRequest,
+            new ValidatedLocalDatasetLocation(resolvedSourcePath),
+            resolvedDemTextureSource);
     }
 
     private static string? ResolveLocalPath(
