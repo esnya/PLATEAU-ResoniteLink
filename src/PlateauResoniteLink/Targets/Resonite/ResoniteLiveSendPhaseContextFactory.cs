@@ -18,9 +18,6 @@ internal sealed class ResoniteLiveSendPhaseContextFactory : IResoniteLiveSendPha
     public LiveSendRunStartContext CreateRunStartContext(LiveSendRunExecutionContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(context.Endpoint);
-        ArgumentNullException.ThrowIfNull(context.ClientSession);
-        ArgumentNullException.ThrowIfNull(context.Diagnostics);
 
         return new LiveSendRunStartContext(
             context.Endpoint,
@@ -32,8 +29,6 @@ internal sealed class ResoniteLiveSendPhaseContextFactory : IResoniteLiveSendPha
     public LiveSendEnqueueContext CreateEnqueueContext(LiveSendRunExecutionContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentOutOfRangeException.ThrowIfLessThan(context.ConnectionCount, 1);
-        ArgumentNullException.ThrowIfNull(context.ClientSession);
 
         return new LiveSendEnqueueContext(
             context.ConnectionCount,
@@ -46,8 +41,6 @@ internal sealed class ResoniteLiveSendPhaseContextFactory : IResoniteLiveSendPha
         LiveSendEnqueueContext enqueueContext)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(context.Endpoint);
-        ArgumentNullException.ThrowIfNull(context.Diagnostics);
         ArgumentNullException.ThrowIfNull(enqueueContext);
 
         return new LiveSendFinalizationContext(
