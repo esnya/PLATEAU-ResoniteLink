@@ -24,7 +24,8 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             ],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
-            SharedAcrossMeshCodes: false);
+            SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty);
 
         ResolvedSurfaceMaterial? representativeSurface = CityGmlSurfaceMaterialResolver.EnumerateSurfaces(
                 ConstructionCityObjectDraft.FromParsedCityObject(cityObject),
@@ -161,7 +162,8 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             Surfaces: surfaces,
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/bldg/53394525/sample.gml",
-            SharedAcrossMeshCodes: false);
+            SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty);
     }
 
     private static TerrainTextureOverlay CreateOverlay(string meshCode)

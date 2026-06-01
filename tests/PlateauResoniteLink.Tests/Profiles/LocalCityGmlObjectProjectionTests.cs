@@ -3615,7 +3615,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             SharedAcrossMeshCodes: false,
             FloorsAboveGround: floorsAboveGround,
             MeasuredHeightMeters: measuredHeightMeters,
-            BuildingAttributes: buildingAttributes);
+            BuildingAttributes: buildingAttributes ?? BuildingAttributeContext.Empty);
     }
 
     private static BuildingAttributeContext CreateBuildingAttributes(

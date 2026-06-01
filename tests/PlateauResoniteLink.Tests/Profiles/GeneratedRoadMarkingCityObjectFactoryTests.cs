@@ -153,6 +153,7 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
             new CoordinateReferenceSystem("local", Geocentric: null, CompatibilityKey: "local"),
             "udx/tran/road.gml",
             SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty,
             TerrainAligned: true);
     }
 
