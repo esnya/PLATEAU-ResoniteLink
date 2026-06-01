@@ -4,8 +4,15 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public abstract record ValidatedDatasetLocation(DatasetSourceKind SourceKind)
+public abstract record ValidatedDatasetLocation
 {
+    private protected ValidatedDatasetLocation(DatasetSourceKind sourceKind)
+    {
+        SourceKind = sourceKind;
+    }
+
+    public DatasetSourceKind SourceKind { get; }
+
     public abstract DatasetLocation ToDatasetLocation();
 }
 
