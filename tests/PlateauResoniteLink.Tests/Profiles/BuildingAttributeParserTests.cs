@@ -49,9 +49,9 @@ public sealed class BuildingAttributeParserTests
 
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
-        Assert.Equal(BuildingMetricValueKind.Missing, attributes.MeasuredHeightMeters.Kind);
-        Assert.Equal(BuildingMetricValueKind.Missing, attributes.StoreysAboveGround.Kind);
-        Assert.Equal(BuildingMetricValueKind.Missing, attributes.StoreysBelowGround.Kind);
+        Assert.IsType<MissingBuildingMetricValue>(attributes.MeasuredHeightMeters);
+        Assert.IsType<MissingBuildingMetricValue>(attributes.StoreysAboveGround);
+        Assert.IsType<MissingBuildingMetricValue>(attributes.StoreysBelowGround);
     }
 
     [Fact]
@@ -70,12 +70,12 @@ public sealed class BuildingAttributeParserTests
 
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
-        Assert.Equal(BuildingMetricValueKind.Invalid, attributes.MeasuredHeightMeters.Kind);
-        Assert.Equal("12", attributes.MeasuredHeightMeters.Raw);
-        Assert.Equal(BuildingMetricValueKind.Known, attributes.BuildingFootprintArea.Kind);
-        Assert.Equal(160.5, attributes.BuildingFootprintArea.Value);
-        Assert.Equal(BuildingMetricValueKind.Known, attributes.BuildingHeight.Kind);
-        Assert.Equal(9.25, attributes.BuildingHeight.Value);
+        InvalidBuildingMetricValue measuredHeight = Assert.IsType<InvalidBuildingMetricValue>(attributes.MeasuredHeightMeters);
+        Assert.Equal("12", measuredHeight.Raw);
+        KnownBuildingMetricValue footprintArea = Assert.IsType<KnownBuildingMetricValue>(attributes.BuildingFootprintArea);
+        Assert.Equal(160.5, footprintArea.Value);
+        KnownBuildingMetricValue buildingHeight = Assert.IsType<KnownBuildingMetricValue>(attributes.BuildingHeight);
+        Assert.Equal(9.25, buildingHeight.Value);
     }
 
     [Fact]

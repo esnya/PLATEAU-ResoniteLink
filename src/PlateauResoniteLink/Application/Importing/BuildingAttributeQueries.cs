@@ -9,13 +9,13 @@ internal static class BuildingAttributeQueries
 {
     internal static int? TryGetKnownPositiveInteger(BuildingMetricValue metric)
     {
-        if (metric.Kind != BuildingMetricValueKind.Known || !metric.Value.HasValue)
+        if (metric is not KnownBuildingMetricValue known)
         {
             return null;
         }
 
-        int value = (int)Math.Round(metric.Value.Value, MidpointRounding.AwayFromZero);
-        return Math.Abs(metric.Value.Value - value) < 1e-9
+        int value = (int)Math.Round(known.Value, MidpointRounding.AwayFromZero);
+        return Math.Abs(known.Value - value) < 1e-9
             && (value == 0 || FacadeFloorMetrics.IsUsableFloorCount(value))
                 ? value
                 : null;
@@ -23,8 +23,8 @@ internal static class BuildingAttributeQueries
 
     internal static double? TryGetKnownPositiveMetric(BuildingMetricValue metric)
     {
-        return metric.Kind == BuildingMetricValueKind.Known && metric.Value is > 0.0
-            ? metric.Value
+        return metric is KnownBuildingMetricValue { Value: > 0.0 } known
+            ? known.Value
             : null;
     }
 
