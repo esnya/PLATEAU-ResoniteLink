@@ -68,11 +68,12 @@ internal sealed class PlateauImportService(
                     "import",
                     $"Setup will use {this.commonMaterials.Count} codebase-reachable common materials."));
 
+            LocalDatasetLocation resolvedCityGmlSource = (LocalDatasetLocation)resolvedRequest.CityGmlSource;
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
                 resolvedRequest,
                 metadata,
-                resolvedRequest.CityGmlLocalSourcePath!,
+                resolvedCityGmlSource.LocalSourcePath,
                 datasetWorkRoot,
                 this.commonMaterials);
 

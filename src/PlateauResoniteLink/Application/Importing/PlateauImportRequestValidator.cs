@@ -137,12 +137,6 @@ public static class PlateauImportRequestValidator
         switch (normalizedRequest.CityGmlSource)
         {
             case LocalDatasetLocation localSource:
-                if (string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
-                {
-                    validationErrors.Add("The --citygml-source value is required.");
-                    break;
-                }
-
                 if (!Directory.Exists(localSource.LocalSourcePath)
                     && !File.Exists(localSource.LocalSourcePath))
                 {
@@ -167,12 +161,6 @@ public static class PlateauImportRequestValidator
                 validatedCityGmlSource = new ValidatedLocalDatasetLocation(localSource.LocalSourcePath);
                 break;
             case RemoteDatasetLocation remoteSource:
-                if (remoteSource.ServerUri is null)
-                {
-                    validationErrors.Add("The --citygml-source value is required.");
-                    break;
-                }
-
                 if (!remoteSource.ServerUri.IsAbsoluteUri)
                 {
                     validationErrors.Add("The --citygml-source value must be an absolute URI.");
@@ -194,12 +182,6 @@ public static class PlateauImportRequestValidator
             switch (normalizedRequest.DemTextureSource)
             {
                 case LocalDatasetLocation localSource:
-                    if (string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
-                    {
-                        validationErrors.Add("The --geotiff-source value must not be empty.");
-                        break;
-                    }
-
                     if (!File.Exists(localSource.LocalSourcePath))
                     {
                         validationErrors.Add($"The GeoTIFF source path '{localSource.LocalSourcePath}' must point to an existing file.");
@@ -216,12 +198,6 @@ public static class PlateauImportRequestValidator
                     validatedDemTextureSource = new ValidatedLocalDatasetLocation(localSource.LocalSourcePath);
                     break;
                 case RemoteDatasetLocation remoteSource:
-                    if (remoteSource.ServerUri is null)
-                    {
-                        validationErrors.Add("The --geotiff-source value must not be empty.");
-                        break;
-                    }
-
                     if (!remoteSource.ServerUri.IsAbsoluteUri)
                     {
                         validationErrors.Add("The --geotiff-source value must be an absolute URI.");
@@ -383,13 +359,8 @@ public static class PlateauImportRequestValidator
     {
         return source switch
         {
-            LocalDatasetLocation localSource => new LocalDatasetLocation(
-                string.IsNullOrWhiteSpace(localSource.LocalSourcePath)
-                    ? null
-                    : localSource.LocalSourcePath.Trim()),
-            RemoteDatasetLocation remoteSource => remoteSource.ServerUri is null
-                ? new RemoteDatasetLocation(null)
-                : remoteSource,
+            LocalDatasetLocation localSource => new LocalDatasetLocation(localSource.LocalSourcePath.Trim()),
+            RemoteDatasetLocation remoteSource => remoteSource,
             _ => source,
         };
     }

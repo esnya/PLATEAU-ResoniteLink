@@ -51,8 +51,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
     {
         ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
 
-        if (source is not LocalDatasetLocation localSource
-            || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
+        if (source is not LocalDatasetLocation localSource)
         {
             return null;
         }

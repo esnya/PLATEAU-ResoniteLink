@@ -10,16 +10,10 @@ namespace PlateauResoniteLink.Tests.Application;
 public sealed class PlateauImportRequestValidatorTests
 {
     [Fact]
-    public void ValidateRequiresCityGmlSource()
+    public void DatasetLocationFactoriesRequireSourcePayload()
     {
-        PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlSource: DatasetLocation.Remote(null));
-
-        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
-
-        Assert.Contains("The --citygml-source value is required.", errors);
+        Assert.Throws<ArgumentException>(() => DatasetLocation.Local(" "));
+        Assert.Throws<ArgumentNullException>(() => DatasetLocation.Remote(null!));
     }
 
     [Fact]
