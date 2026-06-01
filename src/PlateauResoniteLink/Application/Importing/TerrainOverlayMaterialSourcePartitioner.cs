@@ -81,7 +81,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         }
 
         double cityObjectMinAltitude = CityObjectAltitudeMetricsResolver.GetMinimumAltitude(cityObjectVertices);
-        TerrainMaterialSourceMeshCode materialSourceMeshCode = TerrainMaterialSourceMeshCode.Parse(
+        TerrainMaterialSourceMeshCode materialSourceMeshCode = TerrainMaterialSourceMeshCode.ParseRequired(
             string.IsNullOrWhiteSpace(cityObject.SourceMeshCode)
                 ? cityObject.ActualMeshCode
                 : cityObject.SourceMeshCode);
@@ -293,36 +293,46 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
     }
 
-    private readonly record struct TerrainMaterialSourceMeshCode(
-        ThirdRegionalMeshCode? ThirdMeshCode,
-        SecondRegionalMeshCode? SecondMeshCode)
+    private abstract record TerrainMaterialSourceMeshCode
     {
-        public bool IsThirdRegionalMesh => ThirdMeshCode.HasValue;
+        public abstract bool IsThirdRegionalMesh { get; }
 
-        public static TerrainMaterialSourceMeshCode Parse(string meshCode)
+        public static TerrainMaterialSourceMeshCode ParseRequired(string meshCode)
         {
             if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
             {
-                return new TerrainMaterialSourceMeshCode(thirdMeshCode, SecondMeshCode: null);
+                return new Third(thirdMeshCode);
             }
 
             if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode secondMeshCode))
             {
-                return new TerrainMaterialSourceMeshCode(ThirdMeshCode: null, secondMeshCode);
+                return new Second(secondMeshCode);
             }
 
-            return new TerrainMaterialSourceMeshCode(ThirdMeshCode: null, SecondMeshCode: null);
+            throw new PlateauImportValidationException(
+                [$"Terrain overlay material source mesh-code '{meshCode}' must be a valid second- or third-level mesh-code."]);
         }
 
-        public bool Contains(ThirdRegionalMeshCode overlayMeshCode)
-        {
-            if (ThirdMeshCode is { } thirdMeshCode)
-            {
-                return thirdMeshCode == overlayMeshCode;
-            }
+        public abstract bool Contains(ThirdRegionalMeshCode overlayMeshCode);
 
-            return SecondMeshCode is { } secondMeshCode
-                && secondMeshCode == overlayMeshCode.Parent;
+        private sealed record Third(ThirdRegionalMeshCode MeshCode) : TerrainMaterialSourceMeshCode
+        {
+            public override bool IsThirdRegionalMesh => true;
+
+            public override bool Contains(ThirdRegionalMeshCode overlayMeshCode)
+            {
+                return MeshCode == overlayMeshCode;
+            }
+        }
+
+        private sealed record Second(SecondRegionalMeshCode MeshCode) : TerrainMaterialSourceMeshCode
+        {
+            public override bool IsThirdRegionalMesh => false;
+
+            public override bool Contains(ThirdRegionalMeshCode overlayMeshCode)
+            {
+                return MeshCode == overlayMeshCode.Parent;
+            }
         }
     }
 }
