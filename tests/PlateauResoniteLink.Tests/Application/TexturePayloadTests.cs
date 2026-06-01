@@ -31,4 +31,13 @@ public sealed class TexturePayloadTests
         Assert.Equal(1, rawPayload.Height);
         Assert.Equal<byte>([1, 2, 3, 4], rawPayload.Bytes);
     }
+
+    [Fact]
+    public void RawConstructorKeepsGeneratedIdentityConsistentWithSource()
+    {
+        TexturePayload payload = new(1, 1, "sRGB", [1, 2, 3, 4]);
+
+        Assert.False(string.IsNullOrWhiteSpace(payload.Identity));
+        Assert.Equal(payload.Identity, payload.Source.Identity);
+    }
 }

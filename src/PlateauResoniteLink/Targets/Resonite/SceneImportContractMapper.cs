@@ -157,8 +157,7 @@ internal static class SceneImportContractMapper
             payload.Width ?? throw new ArgumentException("Raw texture payload must include width.", nameof(payload)),
             payload.Height ?? throw new ArgumentException("Raw texture payload must include height.", nameof(payload)),
             payload.ColorProfile,
-            rawSource,
-            payload.Identity);
+            rawSource);
     }
 
     private static ResoniteMaterialType ToInternal(MaterialType materialType)

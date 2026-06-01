@@ -116,15 +116,16 @@ public sealed record TexturePayload
         ColorProfile = colorProfile;
         ArgumentNullException.ThrowIfNull(binaryPayload);
         ImmutableArray<byte> immutablePayload = ImmutableArray.CreateRange(binaryPayload);
+        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
         BinaryPayload = immutablePayload;
-        Identity = identity;
+        Identity = effectiveIdentity;
         Format = TexturePayloadFormat.RawRgba32;
         Source = TextureImportSourceFactory.CreateRawRgba32InMemory(
             width,
             height,
             colorProfile,
             immutablePayload,
-            identity ?? Guid.NewGuid().ToString("N"));
+            effectiveIdentity);
     }
 
     public TexturePayload(

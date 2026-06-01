@@ -32,4 +32,13 @@ public sealed class ResoniteTexturePayloadTests
         Assert.Equal(1, rawPayload.Height);
         Assert.Equal<byte>([4, 3, 2, 1], rawPayload.Bytes);
     }
+
+    [Fact]
+    public void RawConstructorKeepsGeneratedIdentityConsistentWithSource()
+    {
+        ResoniteTexturePayload payload = new(1, 1, "sRGB", [4, 3, 2, 1]);
+
+        Assert.False(string.IsNullOrWhiteSpace(payload.Identity));
+        Assert.Equal(payload.Identity, payload.Source.Identity);
+    }
 }
