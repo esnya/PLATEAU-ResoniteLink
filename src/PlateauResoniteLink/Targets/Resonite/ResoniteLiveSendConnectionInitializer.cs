@@ -25,12 +25,8 @@ internal sealed class ResoniteLiveSendConnectionInitializer : IResoniteLiveSendC
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(request.SetupInfo);
-        ArgumentNullException.ThrowIfNull(request.ConnectionRequest);
         ArgumentNullException.ThrowIfNull(runPlan);
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(context.Endpoint);
-        ArgumentNullException.ThrowIfNull(context.ClientSession);
 
         ReportProgress(
             context,
