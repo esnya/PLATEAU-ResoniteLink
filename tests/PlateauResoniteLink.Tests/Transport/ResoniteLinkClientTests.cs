@@ -378,7 +378,7 @@ public sealed class ResoniteLinkClientTests
         }
     }
 
-    private sealed class InstrumentedTextureImportSource : IRawTexturePayloadSource
+    private sealed class InstrumentedTextureImportSource : IRgba32RawTexturePayloadSource
     {
         public int MaterializeCallCount { get; private set; }
 
@@ -390,11 +390,11 @@ public sealed class ResoniteLinkClientTests
 
         public long? EstimatedByteLength => 4;
 
-        public ValueTask<RawTexturePayload> MaterializeRawAsync(CancellationToken cancellationToken)
+        public ValueTask<Rgba32RawTexturePayload> MaterializeRgba32Async(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             MaterializeCallCount++;
-            return ValueTask.FromResult(new RawTexturePayload(
+            return ValueTask.FromResult(new Rgba32RawTexturePayload(
                 1,
                 1,
                 ResoniteTextureColorProfiles.Srgb,

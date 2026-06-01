@@ -9,7 +9,7 @@ public sealed class ResoniteTexturePayloadTests
     {
         byte[] source = [4, 3, 2, 1];
 
-        ResoniteTexturePayload payload = new(1, 1, "sRGB", source, "dataset:texture");
+        RawRgba32ResoniteTexturePayload payload = new(1, 1, "sRGB", source, "dataset:texture");
         source[0] = 9;
 
         Assert.Equal<byte>([4, 3, 2, 1], payload.BinaryPayload);

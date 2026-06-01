@@ -747,7 +747,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
 
     private static TexturePayload CreateTexturePayload(string identity)
     {
-        return new TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], identity);
+        return new RawRgba32TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], identity);
     }
 
     private static double ComputeParsedNormalY(ParsedSurface surface)

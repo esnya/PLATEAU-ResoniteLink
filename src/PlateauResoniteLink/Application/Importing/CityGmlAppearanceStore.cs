@@ -188,7 +188,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
     {
         if (!texturePayloadsByResolvedPath.TryGetValue(resolvedTexturePath, out TexturePayload? texturePayload))
         {
-            texturePayload = new TexturePayload(
+            texturePayload = new EncodedImageTexturePayload(
                 null,
                 null,
                 "sRGB",
@@ -197,8 +197,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
                     resolvedTexturePath,
                     "sRGB",
                     $"dataset:{resolvedTexturePath}"),
-                $"dataset:{resolvedTexturePath}",
-                TexturePayloadFormat.EncodedImage);
+                $"dataset:{resolvedTexturePath}");
             texturePayloadsByResolvedPath[resolvedTexturePath] = texturePayload;
         }
 

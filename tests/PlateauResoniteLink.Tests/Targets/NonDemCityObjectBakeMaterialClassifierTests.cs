@@ -102,7 +102,7 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
     {
         return CreateTexturelessMaterial() with
         {
-            TexturePayload = new ResoniteTexturePayload(
+            TexturePayload = new RawRgba32ResoniteTexturePayload(
                 width: 1,
                 height: 1,
                 colorProfile: null,
