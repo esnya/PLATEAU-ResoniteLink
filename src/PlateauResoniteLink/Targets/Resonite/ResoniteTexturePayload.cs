@@ -51,7 +51,9 @@ public sealed record ResoniteTexturePayload
         ColorProfile = colorProfile;
         ArgumentNullException.ThrowIfNull(source);
         BinaryPayload = [];
-        Identity = identity ?? source.Identity;
+        string resolvedIdentity = identity ?? source.Identity;
+        ArgumentException.ThrowIfNullOrWhiteSpace(resolvedIdentity, nameof(identity));
+        Identity = resolvedIdentity;
         Format = format;
         Source = source;
     }

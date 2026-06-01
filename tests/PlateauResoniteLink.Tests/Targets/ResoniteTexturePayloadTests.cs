@@ -1,3 +1,6 @@
+using System;
+
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -13,5 +16,36 @@ public sealed class ResoniteTexturePayloadTests
         source[0] = 9;
 
         Assert.Equal<byte>([4, 3, 2, 1], payload.BinaryPayload);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void SourceBackedConstructorRejectsBlankResolvedIdentity(string identity)
+    {
+        FakeTextureImportSource source = new(identity);
+
+        Assert.Throws<ArgumentException>(() => new ResoniteTexturePayload(
+            width: 1,
+            height: 1,
+            colorProfile: "sRGB",
+            source: source));
+        Assert.Throws<ArgumentException>(() => new ResoniteTexturePayload(
+            width: 1,
+            height: 1,
+            colorProfile: "sRGB",
+            source: new FakeTextureImportSource("source:texture"),
+            identity: identity));
+    }
+
+    private sealed class FakeTextureImportSource(string identity) : ITextureImportSource
+    {
+        public string Identity { get; } = identity;
+
+        public string Description => "fake texture";
+
+        public string? ColorProfile => "sRGB";
+
+        public long? EstimatedByteLength => null;
     }
 }
