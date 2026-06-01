@@ -63,16 +63,20 @@ public sealed class ObservedSourceRootPlacementResolverTests
     [Fact]
     public void TryResolveRejectsObservedSourceRootWithoutPosition()
     {
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
-            () => ObservedSourceRootPlacementResolver.TryResolve(
-                "plateau_tokyo23ku_bldg_53394525",
-                "53394525",
-                [CreateSlotWithoutPosition("source-root", "plateau_tokyo23ku_bldg_53394525")]));
+        bool created = ObservedSourceRootSlot.TryCreate(
+            CreateRawSlotWithoutPosition("source-root", "plateau_tokyo23ku_bldg_53394525"),
+            out _);
 
-        Assert.Contains("did not expose a Position", exception.Message, StringComparison.Ordinal);
+        Assert.False(created);
     }
 
-    private static Slot CreateSlot(string id, string name, ResoniteFloat3 position)
+    private static ObservedSourceRootSlot CreateSlot(string id, string name, ResoniteFloat3 position)
+    {
+        Assert.True(ObservedSourceRootSlot.TryCreate(CreateRawSlot(id, name, position), out ObservedSourceRootSlot sourceRoot));
+        return sourceRoot;
+    }
+
+    private static Slot CreateRawSlot(string id, string name, ResoniteFloat3 position)
     {
         return new Slot
         {
@@ -90,7 +94,7 @@ public sealed class ObservedSourceRootPlacementResolverTests
         };
     }
 
-    private static Slot CreateSlotWithoutPosition(string id, string name)
+    private static Slot CreateRawSlotWithoutPosition(string id, string name)
     {
         return new Slot
         {

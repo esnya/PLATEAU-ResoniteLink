@@ -145,7 +145,7 @@ public sealed class ResoniteSceneAnchorResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsyncRejectsCompletionSourceFileRootWhenPositionIsMissing()
+    public async Task ResolveAsyncFallsBackToDatasetRootWhenCompletionSourceFileRootIsNotPositioned()
     {
         const string datasetRootSlotId = "dataset-root";
         const string completionMeshCode = "53394525";
@@ -172,14 +172,16 @@ public sealed class ResoniteSceneAnchorResolverTests
 
         ResoniteSceneAnchorResolver resolver = new();
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => resolver.ResolveAsync(
-                client,
-                new ResoniteSlotLocator(datasetRootSlotId),
-                completionMeshCode,
-                CancellationToken.None));
+        SceneAnchor anchor = await resolver.ResolveAsync(
+            client,
+            new ResoniteSlotLocator(datasetRootSlotId),
+            completionMeshCode,
+            CancellationToken.None);
 
-        Assert.Contains("did not expose a Position", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(new ResoniteSlotLocator(datasetRootSlotId), anchor.LocationSlot);
+        Assert.Equal(completionMeshCode, anchor.MeshCode);
+        Assert.Null(anchor.ReferenceSourceFileRoot);
+        Assert.Equal(new ResoniteFloat3(0.0, 0.0, 0.0), anchor.Position);
     }
 
     [Fact]

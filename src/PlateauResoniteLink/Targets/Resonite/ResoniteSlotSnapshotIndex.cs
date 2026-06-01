@@ -12,7 +12,7 @@ internal sealed class ResoniteSlotSnapshotIndex(CreatedSlot datasetRootSlot)
     private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<SlotIndexKey, CreatedSlot> sharedSlotIndex = new();
     private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
-    private Slot[]? observedDatasetSourceRoots;
+    private ObservedSourceRootSlot[]? observedDatasetSourceRoots;
 
     public void IndexSetupHierarchy(ResoniteSceneSetupState setupState)
     {
@@ -55,7 +55,7 @@ internal sealed class ResoniteSlotSnapshotIndex(CreatedSlot datasetRootSlot)
         createdSlotIds[createdSlot.Locator.Value] = 0;
     }
 
-    public IReadOnlyList<Slot> GetObservedDatasetSourceRoots()
+    public IReadOnlyList<ObservedSourceRootSlot> GetObservedDatasetSourceRoots()
     {
         return observedDatasetSourceRoots ??= EnumerateObservedDatasetSourceRoots().ToArray();
     }
@@ -84,12 +84,17 @@ internal sealed class ResoniteSlotSnapshotIndex(CreatedSlot datasetRootSlot)
         }
     }
 
-    private IEnumerable<Slot> EnumerateObservedDatasetSourceRoots()
+    private IEnumerable<ObservedSourceRootSlot> EnumerateObservedDatasetSourceRoots()
     {
         return observedSlotSnapshotsById.Values
             .Where(slot => string.Equals(slot.Parent?.TargetID, datasetRootSlot.Locator.Value, StringComparison.Ordinal))
             .Where(slot => string.IsNullOrWhiteSpace(slot.ID) || !createdSlotIds.ContainsKey(slot.ID!))
-            .Where(static slot => !string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal));
+            .Where(static slot => !string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal))
+            .Select(static slot => ObservedSourceRootSlot.TryCreate(slot, out ObservedSourceRootSlot sourceRoot)
+                ? (SourceRoot: sourceRoot, HasPosition: true)
+                : default)
+            .Where(static candidate => candidate.HasPosition)
+            .Select(static candidate => candidate.SourceRoot);
     }
 
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)

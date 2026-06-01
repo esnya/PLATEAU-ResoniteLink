@@ -30,9 +30,9 @@ public sealed class ResoniteSlotSnapshotIndexTests
             CreateSlot(
                 "dataset-root",
                 "PLATEAU tokyo23ku",
-                null,
+                children:
                 [
-                    CreateSlot("existing-root", "plateau_tokyo23ku_bldg_53394525", "dataset-root"),
+                    CreateSlot("existing-root", "plateau_tokyo23ku_bldg_53394525", "dataset-root", new ResoniteFloat3(1.0, 2.0, 3.0)),
                     CreateSlot("assets-root", "Assets", "dataset-root"),
                 ]),
             CommonMaterialCatalog.Create().Map(static member => new ResoniteCommonMaterialAsset(
@@ -51,14 +51,16 @@ public sealed class ResoniteSlotSnapshotIndexTests
         index.MarkCreated(createdRoot);
         index.IndexCreatedSharedSlot(datasetRoot.Locator, createdRoot, new ResoniteFloat3(1.0, 2.0, 3.0));
 
-        Slot observedRoot = Assert.Single(index.GetObservedDatasetSourceRoots());
-        Assert.Equal("existing-root", observedRoot.ID);
+        ObservedSourceRootSlot observedRoot = Assert.Single(index.GetObservedDatasetSourceRoots());
+        Assert.Equal("existing-root", observedRoot.SlotId);
+        Assert.Equal("53394525", observedRoot.MeshCode);
     }
 
     private static Slot CreateSlot(
         string id,
         string name,
         string? parentId = null,
+        ResoniteFloat3? position = null,
         Slot[]? children = null)
     {
         return new Slot
@@ -66,6 +68,15 @@ public sealed class ResoniteSlotSnapshotIndexTests
             ID = id,
             Name = new Field_string { Value = name },
             Parent = parentId is null ? null : new Reference { TargetID = parentId },
+            Position = position is null ? null : new Field_float3
+            {
+                Value = new float3
+                {
+                    x = (float)position.X,
+                    y = (float)position.Y,
+                    z = (float)position.Z,
+                },
+            },
             Children = children?.ToList(),
         };
     }

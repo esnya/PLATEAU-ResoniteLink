@@ -47,40 +47,40 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
             datasetRootSlot,
             1,
             cancellationToken);
-        Slot[] sourceFileRoots = datasetRootSnapshot.Root?.Children?
+        ObservedSourceRootSlot[] sourceFileRoots = datasetRootSnapshot.Root?.Children?
             .Where(static child => !string.Equals(child.Name?.Value, "Assets", StringComparison.Ordinal))
-            .Where(static child => ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(child.Name?.Value ?? string.Empty, out _))
+            .Select(static child => ObservedSourceRootSlot.TryCreate(child, out ObservedSourceRootSlot sourceRoot)
+                ? (SourceRoot: sourceRoot, HasPosition: true)
+                : default)
+            .Where(static candidate => candidate.HasPosition)
+            .Select(static candidate => candidate.SourceRoot)
             .ToArray()
             ?? [];
-        Slot? completionSourceFileRoot = sourceFileRoots.FirstOrDefault(
-            child => ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(child.Name?.Value ?? string.Empty, out string meshCode)
-                && string.Equals(meshCode, completionMeshCode, StringComparison.Ordinal));
-        if (completionSourceFileRoot is not null)
+        ObservedSourceRootSlot completionSourceFileRoot = sourceFileRoots.FirstOrDefault(
+            child => string.Equals(child.MeshCode, completionMeshCode, StringComparison.Ordinal));
+        if (!string.IsNullOrEmpty(completionSourceFileRoot.SlotName))
         {
             return new SceneAnchor(
-                new ResoniteSlotLocator(completionSourceFileRoot.ID ?? datasetRootSlot.Value),
+                new ResoniteSlotLocator(completionSourceFileRoot.SlotId),
                 completionMeshCode,
-                GetRequiredSourceRootPosition(completionSourceFileRoot),
-                new ResoniteSlotLocator(completionSourceFileRoot.ID ?? datasetRootSlot.Value));
+                completionSourceFileRoot.Position,
+                new ResoniteSlotLocator(completionSourceFileRoot.SlotId));
         }
 
-        (Slot Slot, string MeshCode) referenceSourceFileRoot = sourceFileRoots
-            .Select(static child => ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(child.Name?.Value ?? string.Empty, out string meshCode)
-                ? (Slot: child, MeshCode: meshCode)
-                : default)
-            .Where(static candidate => candidate.Slot is not null)
+        (ObservedSourceRootSlot Slot, string MeshCode) referenceSourceFileRoot = sourceFileRoots
+            .Select(static child => (Slot: child, MeshCode: child.MeshCode))
             .OrderBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
-            .ThenBy(static candidate => candidate.Slot.ID ?? string.Empty, StringComparer.Ordinal)
+            .ThenBy(static candidate => candidate.Slot.SlotId, StringComparer.Ordinal)
             .FirstOrDefault();
-        if (referenceSourceFileRoot.Slot is not null)
+        if (!string.IsNullOrEmpty(referenceSourceFileRoot.Slot.SlotName))
         {
             return new SceneAnchor(
-                new ResoniteSlotLocator(referenceSourceFileRoot.Slot.ID ?? datasetRootSlot.Value),
+                new ResoniteSlotLocator(referenceSourceFileRoot.Slot.SlotId),
                 completionMeshCode,
                 Add(
-                    GetRequiredSourceRootPosition(referenceSourceFileRoot.Slot),
+                    referenceSourceFileRoot.Slot.Position,
                     ComputeMeshCodeOffset(referenceSourceFileRoot.MeshCode, completionMeshCode)),
-                new ResoniteSlotLocator(referenceSourceFileRoot.Slot.ID ?? datasetRootSlot.Value));
+                new ResoniteSlotLocator(referenceSourceFileRoot.Slot.SlotId));
         }
 
         return new SceneAnchor(
@@ -117,18 +117,6 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         }
 
         return new ResoniteFloat3(0.0, 0.0, 0.0);
-    }
-
-    private static ResoniteFloat3 GetRequiredSourceRootPosition(Slot slot)
-    {
-        if (slot.Position is Field_float3 position)
-        {
-            return new ResoniteFloat3(position.Value.x, position.Value.y, position.Value.z);
-        }
-
-        throw new InvalidOperationException(
-            $"Source-file root '{slot.Name?.Value ?? slot.ID ?? "<unnamed>"}' did not expose a Position. "
-            + "Append anchor recovery requires positioned source-file roots.");
     }
 
     private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
