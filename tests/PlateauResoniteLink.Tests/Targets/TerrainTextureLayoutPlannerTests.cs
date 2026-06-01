@@ -12,6 +12,7 @@ public sealed class TerrainTextureLayoutPlannerTests
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 1,
             GeographicBounds: new GeographicRectangle(
@@ -40,6 +41,7 @@ public sealed class TerrainTextureLayoutPlannerTests
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 1,
             GeographicBounds: new GeographicRectangle(

@@ -366,6 +366,7 @@ public sealed class DemTerrainOverlayAssignmentTests
         ParsedCityObject cityObject = CreateCityObject(surface);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0000, 35.0200, 139.0000, 139.0200),
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize,
             Sources: [new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 18)]);
@@ -442,6 +443,7 @@ public sealed class DemTerrainOverlayAssignmentTests
     {
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0000, 35.0200, westLongitude, eastLongitude),
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize,
             Sources: [new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 18)]);

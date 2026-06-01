@@ -505,6 +505,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
@@ -579,6 +580,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
@@ -652,6 +654,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
@@ -734,6 +737,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: rasterSource,
@@ -805,6 +809,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: new TerrainTextureTileSource(
@@ -873,6 +878,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 1.0));
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: CreateThirdMeshBounds(),
             MaxTextureSize: 512,
             PrimarySource: rasterSource,

@@ -107,12 +107,10 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
 
     public async Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
         DemTerrainRasterCacheKey cacheKey,
-        string meshCode,
+        ThirdRegionalMeshCode meshCode,
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
-
         Task<TerrainTextureGeoReferencedRasterSource?> resolveTask;
         lock (cachedRasterSourceTaskGate)
         {
@@ -153,7 +151,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
     }
 
     private async Task<TerrainTextureGeoReferencedRasterSource?> ResolveRasterSourceCoreAsync(
-        string meshCode,
+        ThirdRegionalMeshCode meshCode,
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken)
     {
@@ -194,7 +192,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         }
     }
 
-    private TerrainTextureGeoReferencedRasterSource[] ResolveCandidateRasterSources(string meshCode)
+    private TerrainTextureGeoReferencedRasterSource[] ResolveCandidateRasterSources(ThirdRegionalMeshCode meshCode)
     {
         if (directRasterPath is not null)
         {
@@ -208,7 +206,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
 
         List<string> relativePaths = [];
         HashSet<string> seenRelativePaths = new(StringComparer.OrdinalIgnoreCase);
-        if (relativeRasterPathsByStem.TryGetValue(meshCode, out string? exactMatchPath)
+        if (relativeRasterPathsByStem.TryGetValue(meshCode.Value, out string? exactMatchPath)
             && seenRelativePaths.Add(exactMatchPath))
         {
             relativePaths.Add(exactMatchPath);

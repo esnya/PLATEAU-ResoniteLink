@@ -115,11 +115,7 @@ internal static class CityGmlSurfaceMaterialResolver
                 materialResolver)
             .GroupBy(
                 resolvedSurface => MaterialGroupingPolicy.CreateKey(
-                    TerrainOverlayMeshCodeResolver.ResolveMaterialMeshCodeSource(
-                        cityObject.ActualMeshCode,
-                        requestedMeshCode,
-                        requestedMeshCodeBounds,
-                        resolvedSurface.Material.TerrainOverlay),
+                    resolvedSurface.Material.TerrainOverlay?.MeshCode.Value ?? cityObject.ActualMeshCode,
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
@@ -129,11 +125,8 @@ internal static class CityGmlSurfaceMaterialResolver
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
-                string terrainMaterialMeshCodeSource = TerrainOverlayMeshCodeResolver.ResolveMaterialMeshCodeSource(
-                    cityObject.ActualMeshCode,
-                    requestedMeshCode,
-                    requestedMeshCodeBounds,
-                    representativeSurface.Material.TerrainOverlay);
+                string terrainMaterialMeshCodeSource =
+                    representativeSurface.Material.TerrainOverlay?.MeshCode.Value ?? cityObject.ActualMeshCode;
                 return CreateMaterialBinding(
                     terrainMaterialMeshCodeSource,
                     representativeSurface,
@@ -147,15 +140,7 @@ internal static class CityGmlSurfaceMaterialResolver
         ResolvedSurfaceMaterial representativeSurface,
         int materialIndex)
     {
-        ThirdRegionalMeshCode? terrainMeshCode = representativeSurface.Material.TerrainOverlay is null
-            ? null
-            : TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, representativeSurface.Material.TerrainOverlay)
-                ?? throw TerrainOverlayDiagnostics.CreateMeshCodeMismatchException(
-                    "material-binding",
-                    actualMeshCode,
-                    requestedMeshCode: null,
-                    requestedMeshCodeBounds: null,
-                    representativeSurface.Material.TerrainOverlay);
+        ThirdRegionalMeshCode? terrainMeshCode = representativeSurface.Material.TerrainOverlay?.MeshCode;
         TerrainOverlayMaterialBinding? terrainOverlayMaterial = representativeSurface.Material.TerrainOverlay is null
             ? null
             : new TerrainOverlayMaterialBinding(
@@ -318,7 +303,6 @@ internal static class CityGmlSurfaceMaterialResolver
         LocalCartesian? cityObjectCartesian)
     {
         if (demTerrainTextureOverlay is null
-            || TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, demTerrainTextureOverlay) is null
             || face.Surface.TexturePayload is not null
             || !PlateauPackageCatalog.IsBuildingPackage(packageName)
             || !RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(

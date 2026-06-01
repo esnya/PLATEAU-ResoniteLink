@@ -100,6 +100,7 @@ public sealed record TerrainTextureOverlay
 {
     public TerrainTextureOverlay(
         string PackageName,
+        ThirdRegionalMeshCode MeshCode,
         GeographicRectangle GeographicBounds,
         int MaxTextureSize,
         IReadOnlyList<TerrainTextureSource> Sources,
@@ -108,6 +109,7 @@ public sealed record TerrainTextureOverlay
         this.PackageName = string.IsNullOrWhiteSpace(PackageName)
             ? throw new ArgumentException("Terrain texture package name must be provided.", nameof(PackageName))
             : PackageName.ToLowerInvariant();
+        this.MeshCode = MeshCode;
         this.GeographicBounds = GeographicBounds;
         this.MaxTextureSize = MaxTextureSize > 0
             ? MaxTextureSize
@@ -120,6 +122,7 @@ public sealed record TerrainTextureOverlay
 
     public TerrainTextureOverlay(
         string PackageName,
+        ThirdRegionalMeshCode MeshCode,
         GeographicRectangle GeographicBounds,
         int MaxTextureSize,
         TerrainTextureSource PrimarySource,
@@ -127,6 +130,7 @@ public sealed record TerrainTextureOverlay
         TerrainTextureLicenseMode LicenseMode = TerrainTextureLicenseMode.Unknown)
         : this(
             PackageName,
+            MeshCode,
             GeographicBounds,
             MaxTextureSize,
             FallbackSource is null ? [PrimarySource] : [PrimarySource, FallbackSource],
@@ -136,6 +140,7 @@ public sealed record TerrainTextureOverlay
 
     public TerrainTextureOverlay(
         string PackageName,
+        ThirdRegionalMeshCode MeshCode,
         string UrlTemplate,
         int ZoomLevel,
         GeographicRectangle GeographicBounds,
@@ -144,6 +149,7 @@ public sealed record TerrainTextureOverlay
         TerrainTextureLicenseMode LicenseMode = TerrainTextureLicenseMode.Unknown)
         : this(
             PackageName,
+            MeshCode,
             GeographicBounds,
             MaxTextureSize,
             string.IsNullOrWhiteSpace(FallbackUrlTemplate)
@@ -154,6 +160,8 @@ public sealed record TerrainTextureOverlay
     }
 
     public string PackageName { get; init; }
+
+    public ThirdRegionalMeshCode MeshCode { get; init; }
 
     public GeographicRectangle GeographicBounds { get; init; }
 
@@ -193,6 +201,7 @@ public sealed record TerrainTextureOverlay
         return ReferenceEquals(this, other)
             || (other is not null
                 && string.Equals(PackageName, other.PackageName, StringComparison.Ordinal)
+                && MeshCode.Equals(other.MeshCode)
                 && GeographicBounds.Equals(other.GeographicBounds)
                 && MaxTextureSize == other.MaxTextureSize
                 && LicenseMode == other.LicenseMode
@@ -203,6 +212,7 @@ public sealed record TerrainTextureOverlay
     {
         HashCode hash = new();
         hash.Add(PackageName, StringComparer.Ordinal);
+        hash.Add(MeshCode);
         hash.Add(GeographicBounds);
         hash.Add(MaxTextureSize);
         hash.Add((int)LicenseMode);

@@ -16,16 +16,6 @@ internal static class MaterialGroupingPolicy
     {
         if (material.TerrainOverlay is not null)
         {
-            if (TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, material.TerrainOverlay) is null)
-            {
-                throw TerrainOverlayDiagnostics.CreateMeshCodeMismatchException(
-                    "material-grouping",
-                    actualMeshCode,
-                    requestedMeshCode: null,
-                    requestedMeshCodeBounds: null,
-                    material.TerrainOverlay);
-            }
-
             return new MaterialGroupingKey(
                 material.MaterialType,
                 TexturePayloadIdentity: null,

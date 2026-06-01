@@ -101,6 +101,7 @@ public sealed class TerrainTextureAssetGeneratorTests
             MaxLongitude: WebMercatorTileMath.PixelXToLongitude(350, 1));
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 1,
             GeographicBounds: bounds,
@@ -153,6 +154,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 1,
             GeographicBounds: new GeographicRectangle(
@@ -416,6 +418,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(
                 MinLatitude: 0.0,
                 MaxLatitude: WebMercatorTileMath.MaxLatitude,
@@ -452,6 +455,7 @@ public sealed class TerrainTextureAssetGeneratorTests
             MaxLongitude: WebMercatorTileMath.PixelXToLongitude(WebMercatorTileMath.TileSizePixels, primaryZoomLevel));
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: bounds,
             MaxTextureSize: 4096,
             PrimarySource: new TerrainTextureTileSource("https://primary.example/{z}/{x}/{y}.png", primaryZoomLevel),
@@ -474,6 +478,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(
                 MinLatitude: WebMercatorTileMath.PixelYToLatitude(2 * WebMercatorTileMath.TileSizePixels, 1),
                 MaxLatitude: WebMercatorTileMath.PixelYToLatitude(0, 1),
@@ -506,6 +511,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(
                 MinLatitude: WebMercatorTileMath.PixelYToLatitude(2 * WebMercatorTileMath.TileSizePixels, 1),
                 MaxLatitude: WebMercatorTileMath.PixelYToLatitude(0, 1),
@@ -535,6 +541,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeographicRectangle requestedBounds = new(35.0, 35.01, 139.0, 139.02);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: requestedBounds,
             MaxTextureSize: 16,
             Sources:
@@ -578,6 +585,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: urlTemplate,
             ZoomLevel: 1,
             GeographicBounds: new GeographicRectangle(

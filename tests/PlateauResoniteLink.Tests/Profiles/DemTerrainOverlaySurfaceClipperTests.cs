@@ -29,6 +29,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
             UsesGeneratedDemTexture: true);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 18,
             GeographicBounds: new GeographicRectangle(
@@ -71,12 +72,14 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
         [
             new(
                 PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
                 UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
                 ZoomLevel: 18,
                 GeographicBounds: new GeographicRectangle(35.0000, 35.0100, 139.0000, 139.0100),
                 MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize),
             new(
                 PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
                 UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
                 ZoomLevel: 18,
                 GeographicBounds: new GeographicRectangle(35.0000, 35.0100, 139.0100, 139.0200),
@@ -112,6 +115,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
             UsesGeneratedDemTexture: true);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 18,
             GeographicBounds: new GeographicRectangle(
@@ -152,12 +156,14 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
         [
             new(
                 PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
                 UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
                 ZoomLevel: 18,
                 GeographicBounds: new GeographicRectangle(35.0000, 35.0100, 139.0000, boundaryLongitude),
                 MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize),
             new(
                 PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
                 UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
                 ZoomLevel: 18,
                 GeographicBounds: new GeographicRectangle(35.0000, 35.0100, boundaryLongitude, 139.0200),
@@ -201,6 +207,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
             UsesGeneratedDemTexture: true);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 18,
             GeographicBounds: new GeographicRectangle(
@@ -245,6 +252,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
             UsesGeneratedDemTexture: true);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 18,
             GeographicBounds: new GeographicRectangle(

@@ -203,6 +203,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
                 ThirdRegionalMeshCode.Parse("53394525"),
                 new TerrainTextureOverlay(
                 PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
                 UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
                 ZoomLevel: 17,
                 GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),

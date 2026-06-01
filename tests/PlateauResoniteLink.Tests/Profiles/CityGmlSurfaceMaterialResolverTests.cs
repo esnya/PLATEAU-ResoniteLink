@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
@@ -40,7 +39,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
     }
 
     [Fact]
-    public void CreateMaterialBindingReportsMissingRequestedMeshCodeWhenOverlayDoesNotMatchActualMeshCode()
+    public void CreateMaterialBindingUsesTerrainOverlayMeshCodeWithoutMatchingActualMeshCode()
     {
         ResolvedSurfaceMaterial representativeSurface = new(
             CreateSurface(),
@@ -55,15 +54,13 @@ public sealed class CityGmlSurfaceMaterialResolverTests
                 TerrainOverlay: CreateOverlay("53394525")),
             depthOffset: null);
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
-            () => CityGmlSurfaceMaterialResolver.CreateMaterialBinding(
-                "53394600",
-                representativeSurface,
-                materialIndex: 0));
+        MaterialBinding binding = CityGmlSurfaceMaterialResolver.CreateMaterialBinding(
+            "53394600",
+            representativeSurface,
+            materialIndex: 0);
 
-        Assert.Contains("phase='material-binding'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("actual_mesh_code='53394600'", exception.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("requested_mesh_code=", exception.Message, StringComparison.Ordinal);
+        Assert.Equal("53394525", binding.TerrainMeshCode);
+        Assert.Same(representativeSurface.Material.TerrainOverlay, binding.TerrainOverlay);
     }
 
     [Fact]
@@ -175,6 +172,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
 
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse(meshCode),
             UrlTemplate: $"https://terrain.example/{meshCode}/{{z}}/{{x}}/{{y}}.png",
             ZoomLevel: 18,
             GeographicBounds: new GeographicRectangle(

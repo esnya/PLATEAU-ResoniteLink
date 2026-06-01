@@ -195,7 +195,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
         IReadOnlyList<TerrainTextureOverlay> overlays = policy.CreateMapTileFallbackOverlays(
             [
                 new DemTerrainOverlayRegion(
-                    "53394525",
+                    ThirdRegionalMeshCode.Parse("53394525"),
                     new GeographicRectangle(35.0, 35.01, 139.0, 139.01)),
             ]);
 
@@ -242,13 +242,13 @@ public sealed class DefaultDemTextureSourcePolicyTests
 
         public Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
             DemTerrainRasterCacheKey cacheKey,
-            string meshCode,
+            ThirdRegionalMeshCode meshCode,
             GeographicRectangle overlayBounds,
             CancellationToken cancellationToken)
         {
             _ = cacheKey;
             _ = overlayBounds;
-            rasterSourcesByMeshCode.TryGetValue(meshCode, out TerrainTextureGeoReferencedRasterSource? rasterSource);
+            rasterSourcesByMeshCode.TryGetValue(meshCode.Value, out TerrainTextureGeoReferencedRasterSource? rasterSource);
             return Task.FromResult(rasterSource);
         }
     }

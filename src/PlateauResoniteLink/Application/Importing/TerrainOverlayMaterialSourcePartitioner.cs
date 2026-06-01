@@ -65,12 +65,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             return TerrainOverlayMeshCodeResolver.IsRequestedOverlay(terrainOverlay, requestedMeshCodeBounds);
         }
 
-        return TerrainOverlayMeshCodeResolver.ResolveForOverlay(
-                actualMeshCode,
-                requestedMeshCode,
-                requestedMeshCodeBounds,
-                terrainOverlay)
-            is not null;
+        return true;
     }
 
     private static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> PartitionBuildingByTerrainOverlayMaterialSource(
@@ -125,7 +120,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             ParsedSurface terrainMaterialSurface = PrepareTerrainOverlayMaterialSurface(face);
 
             TerrainTextureOverlay[] materialSourceOverlays = demTerrainTextureOverlays
-                .Where(overlay => TerrainOverlayMeshCodeResolver.ResolveMeshCode(materialSourceMeshCode, overlay) is not null)
+                .Where(overlay => IsOverlayInMaterialSourceMeshCode(materialSourceMeshCode, overlay))
                 .ToArray();
             TerrainTextureOverlay[] candidateOverlays = materialSourceOverlays.Length == 0
                 ? demTerrainTextureOverlays
@@ -207,17 +202,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         {
             if (terrainMaterialGroups.Length == 1)
             {
-                ThirdRegionalMeshCode terrainMeshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
-                        materialSourceMeshCode,
-                        materialSourceMeshCode,
-                        requestedMeshCodeBounds,
-                        terrainMaterialGroups[0].Key)
-                    ?? throw CreateTerrainOverlayMeshCodeMismatchException(
-                        "non-dem-terrain-single-partition",
-                        materialSourceMeshCode,
-                        materialSourceMeshCode,
-                        requestedMeshCodeBounds,
-                        terrainMaterialGroups[0].Key);
+                ThirdRegionalMeshCode terrainMeshCode = terrainMaterialGroups[0].Key.MeshCode;
                 yield return (
                     cityObject with
                     {
@@ -243,17 +228,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         foreach (IGrouping<TerrainTextureOverlay, (ParsedSurface Surface, TerrainTextureOverlay Overlay)> group in terrainMaterialGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ThirdRegionalMeshCode terrainMeshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
-                    materialSourceMeshCode,
-                    materialSourceMeshCode,
-                    requestedMeshCodeBounds,
-                    group.Key)
-                ?? throw CreateTerrainOverlayMeshCodeMismatchException(
-                    "non-dem-terrain-partition",
-                    materialSourceMeshCode,
-                    materialSourceMeshCode,
-                    requestedMeshCodeBounds,
-                    group.Key);
+            ThirdRegionalMeshCode terrainMeshCode = group.Key.MeshCode;
             yield return (
                 cityObject with
                 {
@@ -303,6 +278,16 @@ internal static class TerrainOverlayMaterialSourcePartitioner
     {
         return meshCode.Length == 8
             && meshCode.All(static character => character is >= '0' and <= '9');
+    }
+
+    private static bool IsOverlayInMaterialSourceMeshCode(
+        string materialSourceMeshCode,
+        TerrainTextureOverlay terrainOverlay)
+    {
+        return materialSourceMeshCode.Length == 8
+            ? string.Equals(terrainOverlay.MeshCode.Value, materialSourceMeshCode, StringComparison.Ordinal)
+            : materialSourceMeshCode.Length == 6
+                && string.Equals(terrainOverlay.MeshCode.Parent.Value, materialSourceMeshCode, StringComparison.Ordinal);
     }
 
     private static bool CanUseTerrainOverlayMaterialSource(

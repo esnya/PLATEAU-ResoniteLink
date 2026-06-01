@@ -102,6 +102,7 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
     {
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(
                 meshBounds.SouthLatitude,
                 meshBounds.NorthLatitude,

@@ -45,6 +45,7 @@ public sealed class SceneImportContractMapperTests
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
             MaxTextureSize: 512,
             Sources:
@@ -80,6 +81,7 @@ public sealed class SceneImportContractMapperTests
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
             MaxTextureSize: 512,
             Sources:

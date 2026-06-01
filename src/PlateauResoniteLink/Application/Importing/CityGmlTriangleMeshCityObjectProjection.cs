@@ -40,7 +40,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         List<MeshVertex> vertices = [];
         List<MeshSubmesh> submeshes = [];
         List<MaterialBinding> materials = [];
-        DemUvProjection? demUvProjection = TryCreateDemUvProjection(cityObject.ActualMeshCode, demTerrainTextureOverlay);
+        DemUvProjection? demUvProjection = TryCreateDemUvProjection(demTerrainTextureOverlay);
 
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
@@ -129,17 +129,14 @@ internal static class CityGmlTriangleMeshCityObjectProjection
             surfaces.SelectMany(static surface => surface.Vertices));
     }
 
-    private static DemUvProjection? TryCreateDemUvProjection(
-        string actualMeshCode,
-        TerrainTextureOverlay? demTerrainTextureOverlay)
+    private static DemUvProjection? TryCreateDemUvProjection(TerrainTextureOverlay? demTerrainTextureOverlay)
     {
-        if (demTerrainTextureOverlay is null
-            || TerrainOverlayMeshCodeResolver.ResolveMeshCode(actualMeshCode, demTerrainTextureOverlay) is not { } terrainMeshCode)
+        if (demTerrainTextureOverlay is null)
         {
             return null;
         }
 
-        JisRegionalMeshBounds meshCodeBounds = terrainMeshCode.Bounds;
+        JisRegionalMeshBounds meshCodeBounds = demTerrainTextureOverlay.MeshCode.Bounds;
         return CreateDemUvProjection(
             meshCodeBounds.WestLongitude,
             meshCodeBounds.EastLongitude,

@@ -1,5 +1,3 @@
-using System;
-
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
@@ -134,7 +132,7 @@ public sealed class MaterialGroupingPolicyTests
     }
 
     [Fact]
-    public void CreateKeyRejectsTerrainOverlayThatDoesNotMatchActualMeshCode()
+    public void CreateKeyUsesOverlayMeshCodeWithoutMatchingActualMeshCode()
     {
         TerrainTextureOverlay overlay = CreateOverlay("53394525");
         ResolvedMaterial material = new(
@@ -147,20 +145,44 @@ public sealed class MaterialGroupingPolicyTests
             MaterialReuseScope.Shared,
             TerrainOverlay: overlay);
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
-            () => MaterialGroupingPolicy.CreateKey(
-                "53394600",
-                material,
-                depthOffset: null,
-                textureScale: null,
-                color: new ColorRgba(1.0, 1.0, 1.0, 1.0)));
+        MaterialGroupingKey key = MaterialGroupingPolicy.CreateKey(
+            "53394600",
+            material,
+            depthOffset: null,
+            textureScale: null,
+            color: new ColorRgba(1.0, 1.0, 1.0, 1.0));
 
-        Assert.Contains("phase='material-grouping'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("actual_mesh_code='53394600'", exception.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("requested_mesh_code=", exception.Message, StringComparison.Ordinal);
+        Assert.Null(key.TerrainOverlay);
+        Assert.Equal(MaterialReuseScope.PerObject, key.ReuseScope);
     }
 
-    private static TerrainTextureOverlay CreateOverlay(string meshCode)
+    [Fact]
+    public void CreateKeyUsesTypedOverlayMeshCodeForRoundedOverlayBounds()
+    {
+        TerrainTextureOverlay overlay = CreateOverlay(
+            "53391410",
+            new GeographicRectangle(35.45, 35.458333, 139.4875, 139.5));
+        ResolvedMaterial material = new(
+            MaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind.Bundled,
+            MaterialProjection.Uv,
+            Family: null,
+            TextureScale: null,
+            MaterialReuseScope.Shared,
+            TerrainOverlay: overlay);
+
+        MaterialGroupingKey key = MaterialGroupingPolicy.CreateKey(
+            "533914",
+            material,
+            depthOffset: null,
+            textureScale: null,
+            color: new ColorRgba(1.0, 1.0, 1.0, 1.0));
+
+        Assert.Null(key.TerrainOverlay);
+    }
+
+    private static TerrainTextureOverlay CreateOverlay(string meshCode, GeographicRectangle? geographicBounds = null)
     {
         Assert.True(PlateauMeshCode.TryGetBounds(
             meshCode,
@@ -168,9 +190,10 @@ public sealed class MaterialGroupingPolicyTests
 
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse(meshCode),
             UrlTemplate: $"https://terrain.example/{meshCode}/{{z}}/{{x}}/{{y}}.png",
             ZoomLevel: 18,
-            GeographicBounds: new GeographicRectangle(
+            GeographicBounds: geographicBounds ?? new GeographicRectangle(
                 bounds.SouthLatitude,
                 bounds.NorthLatitude,
                 bounds.WestLongitude,

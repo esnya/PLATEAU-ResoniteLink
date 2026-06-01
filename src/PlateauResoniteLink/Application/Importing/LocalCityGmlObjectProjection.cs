@@ -29,9 +29,9 @@ internal static class LocalCityGmlObjectProjection
         IReadOnlyList<string> requestedMeshCodes)
     {
         return DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
-                DemTerrainBounds.FromMeshCodeBounds(demBounds),
-                requestedMeshCodes)
-            .Select(static region => DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.GeographicBounds))
+            DemTerrainBounds.FromMeshCodeBounds(demBounds),
+            requestedMeshCodes)
+            .Select(static region => DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.MeshCode, region.GeographicBounds))
             .ToArray();
     }
 

@@ -1374,7 +1374,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectParsedCityObjectFailsExplicitlyForNonThirdMeshDemOverlay()
+    public void ProjectParsedCityObjectUsesTypedMeshCodeForDemOverlayMaterial()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         IReadOnlyList<GeodeticPoint> vertices =
@@ -1386,6 +1386,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             vertices.Max(static vertex => vertex.Longitude));
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://terrain.example/non-third/{z}/{x}/{y}.png",
             ZoomLevel: 17,
             GeographicBounds: nonThirdMeshBounds,
@@ -1404,7 +1405,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             MeshCode: "53394525",
             CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+        ImportedCityObject projected = Assert.Single(
             LocalCityGmlObjectProjection.ProjectParsedCityObject(
                 cityObject,
                 CreateMeshCenterPoint("53394525", altitudeMeters: 8.0),
@@ -1413,13 +1414,15 @@ public sealed class LocalCityGmlObjectProjectionTests
                 requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
                 terrainHeightSampler: null,
                 request,
-                new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray());
+                new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
 
-        Assert.Contains("third-level mesh-code", exception.Message, StringComparison.Ordinal);
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal("53394525", material.TerrainMeshCode);
     }
 
     [Fact]
-    public void ProjectParsedCityObjectFailsExplicitlyForNonThirdMeshBuildingOverlay()
+    public void ProjectParsedCityObjectUsesTypedMeshCodeForBuildingOverlayMaterial()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         IReadOnlyList<GeodeticPoint> vertices =
@@ -1431,6 +1434,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             vertices.Max(static vertex => vertex.Longitude));
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://terrain.example/non-third-building/{z}/{x}/{y}.png",
             ZoomLevel: 17,
             GeographicBounds: nonThirdMeshBounds,
@@ -1446,7 +1450,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             MeshCode: "53394525",
             CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+        ImportedCityObject projected = Assert.Single(
             LocalCityGmlObjectProjection.ProjectParsedCityObject(
                 cityObject,
                 CreateMeshCenterPoint("53394525", altitudeMeters: 8.0),
@@ -1455,9 +1459,11 @@ public sealed class LocalCityGmlObjectProjectionTests
                 requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
                 terrainHeightSampler: null,
                 request,
-                new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray());
+                new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
 
-        Assert.Contains("third-level mesh-code", exception.Message, StringComparison.Ordinal);
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Same(overlay, material.TerrainOverlay);
+        Assert.Equal("53394525", material.TerrainMeshCode);
     }
 
     [Fact]
@@ -1497,7 +1503,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectDoesNotUseDemTerrainMaterialWhenOverlayBoundsDoNotMatchThirdMesh()
+    public void ProjectCityObjectUsesProvidedTerrainOverlayMeshCodeForTexturelessRoof()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay mismatchedOverlay = CreateThirdMeshOverlay("53394526");
@@ -1518,9 +1524,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
 
         MaterialBinding material = Assert.Single(projected.Materials);
-        Assert.Null(material.TerrainOverlay);
-        Assert.Null(material.TerrainMeshCode);
-        Assert.NotEqual(TextureSourceKind.Dataset, material.TextureSourceKind);
+        Assert.Same(mismatchedOverlay, material.TerrainOverlay);
+        Assert.Equal("53394526", material.TerrainMeshCode);
+        Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
     }
 
     [Fact]
@@ -3827,6 +3833,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         (double south, double north, double west, double east) = GetMeshBounds(meshCode);
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse(meshCode),
             UrlTemplate: $"https://terrain.example/{meshCode}/{{z}}/{{x}}/{{y}}.png",
             ZoomLevel: 17,
             GeographicBounds: new GeographicRectangle(south, north, west, east),
