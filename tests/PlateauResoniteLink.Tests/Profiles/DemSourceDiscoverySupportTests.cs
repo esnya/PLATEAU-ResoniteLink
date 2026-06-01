@@ -130,6 +130,7 @@ public sealed class DemSourceDiscoverySupportTests
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
             SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty,
             TerrainAligned: false,
             GeodeticOriginOverride: null);
     }
@@ -156,6 +157,7 @@ public sealed class DemSourceDiscoverySupportTests
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/empty-geometry.gml",
             SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty,
             TerrainAligned: false,
             GeodeticOriginOverride: null);
     }

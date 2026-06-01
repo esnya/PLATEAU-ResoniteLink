@@ -422,7 +422,8 @@ public sealed class DemTerrainOverlayAssignmentTests
             Surfaces: [surface],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
-            SharedAcrossMeshCodes: false);
+            SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty);
     }
 
     private static ParsedSurface CreateGeneratedSurface(

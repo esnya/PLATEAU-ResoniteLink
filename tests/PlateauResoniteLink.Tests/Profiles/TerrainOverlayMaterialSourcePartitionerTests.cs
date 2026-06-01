@@ -58,6 +58,32 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
         Assert.Equal(ParsedSurfaceSemantic.Wall, noWallSide.Semantic);
     }
 
+    [Fact]
+    public void PartitionParsedCityObjectRejectsInvalidTerrainMaterialSourceMeshCodeBeforeOverlayFallback()
+    {
+        MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("53394525")!;
+        ParsedCityObject cityObject = new(
+            SlotKey: "bldg-invalid-mesh",
+            DisplayName: "Invalid mesh building",
+            PackageName: "bldg",
+            ActualMeshCode: "not-a-mesh",
+            LodLevel: 2,
+            Surfaces: [CreateHorizontalSurface("roof", altitude: 10.0, meshBounds: meshBounds)],
+            ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
+            SourceFileRelativePath: "udx/bldg/not-a-mesh/bldg.gml",
+            SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] });
+
+        PlateauImportValidationException exception = Assert.Throws<PlateauImportValidationException>(
+            () => TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
+                    cityObject,
+                    [CreateOverlay(meshBounds)],
+                    [meshBounds])
+                .ToArray());
+        string error = Assert.Single(exception.Errors);
+        Assert.Contains("must be a valid second- or third-level mesh-code", error);
+    }
+
     private static ParsedSurface CreateHorizontalSurface(string polygonId, double altitude, MeshCodeBounds meshBounds)
     {
         return new ParsedSurface(

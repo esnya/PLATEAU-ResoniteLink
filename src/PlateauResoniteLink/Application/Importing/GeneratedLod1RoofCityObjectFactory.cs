@@ -90,7 +90,6 @@ internal static class GeneratedLod1RoofCityObjectFactory
     private static bool IsNoWallBuilding(ParsedCityObject cityObject)
     {
         return cityObject.LodLevel >= 1
-            && cityObject.BuildingAttributes is not null
             && NoWallBuildingClassCodes.Any(code => BuildingAttributePredicates.HasExactCityGmlClassCode(cityObject.BuildingAttributes, code));
     }
 
@@ -491,7 +490,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
             length,
             width,
             geometryHeight,
-            cityObject.BuildingAttributes ?? BuildingAttributeContext.Empty,
+            cityObject.BuildingAttributes,
             firstEdgeIsLongAxis);
         return true;
     }

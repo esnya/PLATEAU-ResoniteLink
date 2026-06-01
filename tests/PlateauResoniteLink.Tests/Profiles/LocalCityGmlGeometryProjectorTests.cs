@@ -51,7 +51,8 @@ public sealed class LocalCityGmlGeometryProjectorTests
                     Surfaces: [],
                     ReferenceSystem: sourceReferenceSystem,
                     SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
-                    SharedAcrossMeshCodes: false),
+                    SharedAcrossMeshCodes: false,
+                    BuildingAttributes: BuildingAttributeContext.Empty),
             ],
             sourceReferenceSystem);
 
