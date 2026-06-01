@@ -101,7 +101,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
             CancellationToken.None);
 
         TerrainTextureGeoReferencedRasterSource resolvedResult = Assert.IsType<TerrainTextureGeoReferencedRasterSource>(result);
-        Assert.Equal("EPSG:4326", resolvedResult.Metadata?.CoordinateSystemIdentifier);
+        Assert.Equal("EPSG:4326", resolvedResult.Metadata.CoordinateSystemIdentifier);
         Assert.Equal(1, datasetSource.EnsureLocalFileCallCount);
         Assert.Equal(0, datasetSource.OpenReadCallCount);
 
@@ -170,7 +170,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await firstCall);
         TerrainTextureGeoReferencedRasterSource? secondResult = await secondCall;
         TerrainTextureGeoReferencedRasterSource resolvedSecondResult = Assert.IsType<TerrainTextureGeoReferencedRasterSource>(secondResult);
-        Assert.Equal("EPSG:4326", resolvedSecondResult.Metadata?.CoordinateSystemIdentifier);
+        Assert.Equal("EPSG:4326", resolvedSecondResult.Metadata.CoordinateSystemIdentifier);
 
         TerrainTextureGeoReferencedRasterSource? thirdResult = await catalog.TryResolveRasterSourceAsync(
             new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),

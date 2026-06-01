@@ -167,7 +167,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
         {
             TerrainTextureGeoReferencedRasterSource rasterSource => string.Create(
                 CultureInfo.InvariantCulture,
-                $"GeoTIFF(source='{rasterSource.ContentSource.Description}', crs='{rasterSource.Metadata?.CoordinateSystemIdentifier ?? "unknown"}')"),
+                $"GeoTIFF(source='{rasterSource.ContentSource.Description}', crs='{rasterSource.Metadata.CoordinateSystemIdentifier}')"),
             TerrainTextureTileSource tileSource when IsGsiFallbackSource(tileSource) => string.Create(
                 CultureInfo.InvariantCulture,
                 $"GSI seamless photo tile(z={tileSource.ZoomLevel})"),

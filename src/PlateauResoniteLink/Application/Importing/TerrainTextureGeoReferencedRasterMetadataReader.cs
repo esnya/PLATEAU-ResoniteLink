@@ -21,7 +21,7 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
     private const int ProjectedCSTypeGeoKey = 3072;
 
     public static async Task<GeoReferencedRasterMetadata?> TryReadMetadataAsync(
-        TerrainTextureGeoReferencedRasterSource source,
+        ITerrainTextureRasterContentSource source,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -161,13 +161,9 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         GeographicRectangle? geographicBounds = TryConvertToGeographicBounds(
             coordinateSystemIdentifier,
             modelBounds);
-        if (geographicBounds is null)
+        if (geographicBounds is null || string.IsNullOrWhiteSpace(coordinateSystemIdentifier))
         {
-            return new GeoReferencedRasterMetadata(
-                modelBounds.ToFallbackGeographicRectangle(),
-                coordinateSystemIdentifier,
-                PixelWidthMeters: 0.0,
-                PixelHeightMeters: 0.0);
+            return null;
         }
 
         return new GeoReferencedRasterMetadata(
@@ -635,11 +631,5 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         double MinX,
         double MinY,
         double MaxX,
-        double MaxY)
-    {
-        public GeographicRectangle ToFallbackGeographicRectangle()
-        {
-            return new GeographicRectangle(MinY, MaxY, MinX, MaxX);
-        }
-    }
+        double MaxY);
 }

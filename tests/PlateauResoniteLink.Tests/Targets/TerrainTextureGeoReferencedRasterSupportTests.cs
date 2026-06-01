@@ -38,7 +38,6 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             geoAsciiParams: null);
 
         Assert.NotNull(metadata);
-        Assert.True(metadata.IsUsable);
         Assert.Equal("EPSG:6676", metadata.CoordinateSystemIdentifier);
         Assert.Equal(1.0, metadata.PixelWidthMeters);
         Assert.Equal(1.0, metadata.PixelHeightMeters);
@@ -49,7 +48,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     }
 
     [Fact]
-    public void TryCreateMetadataReturnsUnusableMetadataWhenCoordinateSystemIsMissing()
+    public void TryCreateMetadataReturnsNullWhenCoordinateSystemIsMissing()
     {
         GeoReferencedRasterMetadata? metadata = TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
             pixelWidth: 10,
@@ -61,9 +60,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             geoDoubleParams: null,
             geoAsciiParams: null);
 
-        Assert.NotNull(metadata);
-        Assert.False(metadata.IsUsable);
-        Assert.Null(metadata.CoordinateSystemIdentifier);
+        Assert.Null(metadata);
     }
 
     [Fact]
@@ -92,7 +89,6 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
 
         Assert.NotNull(metadata);
-        Assert.True(metadata.IsUsable);
         Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
         Assert.InRange(metadata.GeographicBounds.MinLatitude, 35.76, 35.77);
         Assert.InRange(metadata.GeographicBounds.MaxLatitude, 35.77, 35.78);
@@ -126,7 +122,6 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
                 geoDoubleParams: snapshot.GeoDoubleParams,
                 geoAsciiParams: snapshot.GeoAsciiParams));
 
-        Assert.True(metadata.IsUsable);
         Assert.Equal("EPSG:4326", metadata.CoordinateSystemIdentifier);
         Assert.InRange(metadata.GeographicBounds.MinLatitude, 34.9989, 34.9991);
         Assert.InRange(metadata.GeographicBounds.MaxLongitude, 139.0009, 139.0011);
@@ -152,7 +147,6 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
 
         Assert.NotNull(metadata);
-        Assert.True(metadata.IsUsable);
         Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
     }
 
@@ -170,7 +164,6 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
 
         Assert.NotNull(metadata);
-        Assert.True(metadata.IsUsable);
         Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
     }
 
@@ -503,7 +496,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     }
 
     [Fact]
-    public async Task EnsureTextureAsyncSkipsUnsupportedGeoReferencedRasterSource()
+    public async Task EnsureTextureAsyncRejectsUnavailableGeoReferencedRasterSourceWithoutTileFallback()
     {
         GeographicRectangle bounds = new(0.0, WebMercatorTileMath.MaxLatitude, -180.0, 180.0);
         TerrainTextureOverlay overlay = new(
@@ -513,7 +506,9 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             MaxTextureSize: 1024,
             Sources:
             [
-                new TerrainTextureGeoReferencedRasterSource("missing.tif"),
+                new TerrainTextureGeoReferencedRasterSource(
+                    "missing.tif",
+                    new GeoReferencedRasterMetadata(bounds, "EPSG:4326", 1.0, 1.0)),
                 new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 1),
             ]);
 
@@ -521,11 +516,48 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
-        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        await Assert.ThrowsAsync<FileNotFoundException>(
+            async () => await generator.EnsureTextureAsync(overlay, CancellationToken.None));
 
-        Assert.Equal(4, handler.RequestCount);
-        Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
-        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
+        Assert.Equal(0, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncRejectsNonOverlappingGeoReferencedRasterSourceWithoutTileFallback()
+    {
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "terrain.png");
+        using (Image<Rgba32> rasterImage = new(2, 2, new Rgba32(12, 34, 56, 255)))
+        {
+            await rasterImage.SaveAsPngAsync(rasterPath);
+        }
+
+        GeographicRectangle requestedBounds = new(35.0, 35.001, 139.0, 139.001);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
+            GeographicBounds: requestedBounds,
+            MaxTextureSize: 1024,
+            Sources:
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    rasterPath,
+                    new GeoReferencedRasterMetadata(
+                        new GeographicRectangle(36.0, 36.001, 140.0, 140.001),
+                        "EPSG:4326",
+                        1.0,
+                        1.0)),
+                new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 1),
+            ]);
+
+        using TerrainTextureAssetGeneratorTestsProxyMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await generator.EnsureTextureAsync(overlay, CancellationToken.None));
+
+        Assert.Equal(0, handler.RequestCount);
     }
 
     private sealed class NeverCalledMapTileHandler : HttpMessageHandler

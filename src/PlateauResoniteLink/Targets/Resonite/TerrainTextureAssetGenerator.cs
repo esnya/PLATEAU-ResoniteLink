@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -126,6 +127,10 @@ internal sealed class TerrainTextureAssetGenerator(
         return cachedTexture.GeneratedTexture;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "Each non-null TerrainTextureSourceImage is disposed by the using block before the next source is evaluated.")]
     private async Task<CachedTerrainTexture> CreateTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
@@ -144,7 +149,7 @@ internal sealed class TerrainTextureAssetGenerator(
                     terrainTextureOverlay,
                     tileSource,
                     cancellationToken),
-                TerrainTextureGeoReferencedRasterSource rasterSource => await TryCreateTextureFromGeoReferencedRasterSourceAsync(
+                TerrainTextureGeoReferencedRasterSource rasterSource => await CreateTextureFromGeoReferencedRasterSourceAsync(
                     terrainTextureOverlay,
                     rasterSource,
                     cancellationToken),
@@ -210,46 +215,26 @@ internal sealed class TerrainTextureAssetGenerator(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "The returned source image owns and disposes the cropped raster image.")]
-    private static async Task<TerrainTextureSourceImage?> TryCreateTextureFromGeoReferencedRasterSourceAsync(
+    private static async Task<TerrainTextureSourceImage> CreateTextureFromGeoReferencedRasterSourceAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         TerrainTextureGeoReferencedRasterSource rasterSource,
         CancellationToken cancellationToken)
     {
-        try
+        await using Stream sourceStream = await rasterSource.OpenReadAsync(cancellationToken);
+        using Image<Rgba32> sourceImage = await Image.LoadAsync<Rgba32>(sourceStream, cancellationToken);
+        Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(
+            sourceImage,
+            rasterSource.Metadata,
+            terrainTextureOverlay.GeographicBounds);
+        if (cropped is null)
         {
-            GeoReferencedRasterMetadata? metadata = rasterSource.Metadata
-                ?? await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(rasterSource, cancellationToken);
-            if (metadata is null || !metadata.IsUsable)
-            {
-                return null;
-            }
+            throw new InvalidOperationException(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"Geo-referenced raster source '{rasterSource.ContentSource.Description}' does not overlap terrain overlay bounds '{TerrainTextureDescriptorFormatting.FormatBounds(terrainTextureOverlay.GeographicBounds)}'."));
+        }
 
-            await using Stream sourceStream = await rasterSource.OpenReadAsync(cancellationToken);
-            using Image<Rgba32> sourceImage = await Image.LoadAsync<Rgba32>(sourceStream, cancellationToken);
-            Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(
-                sourceImage,
-                metadata,
-                terrainTextureOverlay.GeographicBounds);
-            return cropped is null
-                ? null
-                : new TerrainTextureSourceImage(cropped, null);
-        }
-        catch (UnknownImageFormatException)
-        {
-            return null;
-        }
-        catch (InvalidImageContentException)
-        {
-            return null;
-        }
-        catch (IOException)
-        {
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return null;
-        }
+        return new TerrainTextureSourceImage(cropped, null);
     }
 
     private static GeneratedTerrainTexture CreateGeneratedTexture(
