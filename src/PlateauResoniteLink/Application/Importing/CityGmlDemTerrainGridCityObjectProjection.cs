@@ -18,7 +18,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         Z: 0.0,
         W: Math.Sqrt(0.5));
 
-    internal static bool TryProject(
+    internal static DemTerrainGridProjectionResult Project(
         ParsedCityObject cityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -27,15 +27,13 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver,
         Action<string>? progressReporter,
-        CancellationToken cancellationToken,
-        out ImportedCityObject? heightMapCityObject)
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        heightMapCityObject = null;
 
         if (cityObject.Surfaces.SelectMany(static surface => surface.Vertices).Take(3).Count() < 3)
         {
-            return false;
+            return DemTerrainGridProjectionResult.Skipped.Instance;
         }
 
         GeodeticPoint cityObjectOrigin = ResolveCityObjectOrigin(cityObject);
@@ -48,7 +46,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             : null;
         if (cityObjectCartesian is null)
         {
-            return false;
+            return DemTerrainGridProjectionResult.Skipped.Instance;
         }
 
         ConstructionCityObjectDraft draft = ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
@@ -65,7 +63,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             globalCartesian).Y;
         if (positions.Length < 3)
         {
-            return false;
+            return DemTerrainGridProjectionResult.Skipped.Instance;
         }
 
         DemTerrainGridBounds heightMapBounds = CreateDemTerrainGridBounds(
@@ -86,7 +84,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         double extentZ = maxZ - minZ;
         if (extentX <= 1e-6 || extentZ <= 1e-6)
         {
-            return false;
+            return DemTerrainGridProjectionResult.Skipped.Instance;
         }
 
         int width = Math.Clamp(
@@ -128,7 +126,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             materialResolver);
         if (materials.Length == 0)
         {
-            return false;
+            return DemTerrainGridProjectionResult.Skipped.Instance;
         }
 
         TextureUvRect? heightMapOccupiedUvRect = TryCreateDemTerrainGridOccupiedUvRect(
@@ -151,7 +149,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             Z = slotPosition.Z + centerZ,
         };
 
-        heightMapCityObject = new ImportedCityObject(
+        return new DemTerrainGridProjectionResult.Projected(new ImportedCityObject(
             ObjectKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
@@ -171,8 +169,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
                 UvScale: heightMapUvScale,
                 UvOffset: heightMapUvOffset),
             Materials: materials,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath);
-        return true;
+            SourceFileRelativePath: cityObject.SourceFileRelativePath));
     }
 
     private static TextureUvRect? TryCreateDemTerrainGridOccupiedUvRect(
@@ -374,4 +371,22 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         double MaxX,
         double MinZ,
         double MaxZ);
+}
+
+internal abstract record DemTerrainGridProjectionResult
+{
+    private DemTerrainGridProjectionResult()
+    {
+    }
+
+    public sealed record Projected(ImportedCityObject CityObject) : DemTerrainGridProjectionResult;
+
+    public sealed record Skipped : DemTerrainGridProjectionResult
+    {
+        public static Skipped Instance { get; } = new();
+
+        private Skipped()
+        {
+        }
+    }
 }

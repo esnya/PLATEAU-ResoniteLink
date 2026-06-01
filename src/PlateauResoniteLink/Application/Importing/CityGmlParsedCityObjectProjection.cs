@@ -241,7 +241,7 @@ internal static class CityGmlParsedCityObjectProjection
             return CityGmlTriangleMeshCityObjectProjection.Project(cityObject, globalOriginPoint, globalCartesian, demTerrainTextureOverlay, materialResolver);
         }
 
-        bool hasGrid = CityGmlDemTerrainGridCityObjectProjection.TryProject(
+        DemTerrainGridProjectionResult gridProjection = CityGmlDemTerrainGridCityObjectProjection.Project(
             cityObject,
             globalOriginPoint,
             globalCartesian,
@@ -250,18 +250,18 @@ internal static class CityGmlParsedCityObjectProjection
             requestedMeshCodeBounds,
             materialResolver,
             progressReporter,
-            cancellationToken,
-            out ImportedCityObject? heightMapCityObject);
-        if (!hasGrid)
+            cancellationToken);
+        if (gridProjection is not DemTerrainGridProjectionResult.Projected projectedGrid)
         {
             return request.TerrainMeshMode == TerrainMeshMode.Dynamic
                 ? CreateNonRenderableCityObject(cityObject)
                 : CityGmlTriangleMeshCityObjectProjection.Project(cityObject, globalOriginPoint, globalCartesian, demTerrainTextureOverlay, materialResolver);
         }
 
+        ImportedCityObject heightMapCityObject = projectedGrid.CityObject;
         if (request.TerrainMeshMode == TerrainMeshMode.Grid)
         {
-            return heightMapCityObject!;
+            return heightMapCityObject;
         }
 
         ImportedCityObject staticCityObject = CityGmlTriangleMeshCityObjectProjection.Project(
@@ -274,7 +274,7 @@ internal static class CityGmlParsedCityObjectProjection
         TriangleMeshGeometry rebasedStaticMesh = TriangleMeshTransformRebaser.Rebase(
             staticMesh,
             staticCityObject.Transform,
-            heightMapCityObject!.Transform);
+            heightMapCityObject.Transform);
         return heightMapCityObject with
         {
             Geometry = new DynamicTerrainGeometry(rebasedStaticMesh, AssertTerrainGridGeometry(heightMapCityObject)),
