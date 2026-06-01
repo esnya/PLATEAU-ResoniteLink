@@ -124,6 +124,10 @@ internal abstract record PlannedSlotTargetReference
     {
     }
 
+    public abstract TResult Match<TResult>(
+        Func<ResoniteSlotLocator, TResult> canonicalSlot,
+        Func<BatchPlanSlotLocator, TResult> batchSlot);
+
     public static PlannedSlotTargetReference CanonicalSlot(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
@@ -132,12 +136,28 @@ internal abstract record PlannedSlotTargetReference
 
     public static PlannedSlotTargetReference PlannedSlot(BatchPlanSlotLocator locator)
     {
-        return new PlannedSlotTarget(locator);
+        return new BatchSlotTarget(locator);
     }
 
-    internal sealed record CanonicalSlotTarget(ResoniteSlotLocator Locator) : PlannedSlotTargetReference;
+    internal sealed record CanonicalSlotTarget(ResoniteSlotLocator Locator) : PlannedSlotTargetReference
+    {
+        public override TResult Match<TResult>(
+            Func<ResoniteSlotLocator, TResult> canonicalSlot,
+            Func<BatchPlanSlotLocator, TResult> batchSlot)
+        {
+            return canonicalSlot(Locator);
+        }
+    }
 
-    internal sealed record PlannedSlotTarget(BatchPlanSlotLocator Locator) : PlannedSlotTargetReference;
+    internal sealed record BatchSlotTarget(BatchPlanSlotLocator Locator) : PlannedSlotTargetReference
+    {
+        public override TResult Match<TResult>(
+            Func<ResoniteSlotLocator, TResult> canonicalSlot,
+            Func<BatchPlanSlotLocator, TResult> batchSlot)
+        {
+            return batchSlot(Locator);
+        }
+    }
 }
 
 internal abstract record PlannedWorldElementReference
@@ -145,6 +165,13 @@ internal abstract record PlannedWorldElementReference
     private PlannedWorldElementReference()
     {
     }
+
+    public abstract TResult Match<TResult>(
+        Func<ResoniteSlotLocator, TResult> canonicalSlot,
+        Func<ResoniteComponentLocator, TResult> canonicalComponent,
+        Func<BatchPlanSlotLocator, TResult> batchSlot,
+        Func<BatchPlanComponentLocator, TResult> batchComponent,
+        Func<BatchPlanFieldLocator, TResult> batchField);
 
     public static PlannedWorldElementReference Canonical(ResoniteSlotLocator locator)
     {
@@ -160,28 +187,83 @@ internal abstract record PlannedWorldElementReference
 
     public static PlannedWorldElementReference Planned(BatchPlanSlotLocator locator)
     {
-        return new PlannedSlotElement(locator);
+        return new BatchSlotElement(locator);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanComponentLocator locator)
     {
-        return new PlannedComponentElement(locator);
+        return new BatchComponentElement(locator);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanFieldLocator locator)
     {
-        return new PlannedFieldElement(locator);
+        return new BatchFieldElement(locator);
     }
 
-    internal sealed record CanonicalSlotElement(ResoniteSlotLocator Locator) : PlannedWorldElementReference;
+    internal sealed record CanonicalSlotElement(ResoniteSlotLocator Locator) : PlannedWorldElementReference
+    {
+        public override TResult Match<TResult>(
+            Func<ResoniteSlotLocator, TResult> canonicalSlot,
+            Func<ResoniteComponentLocator, TResult> canonicalComponent,
+            Func<BatchPlanSlotLocator, TResult> batchSlot,
+            Func<BatchPlanComponentLocator, TResult> batchComponent,
+            Func<BatchPlanFieldLocator, TResult> batchField)
+        {
+            return canonicalSlot(Locator);
+        }
+    }
 
-    internal sealed record CanonicalComponentElement(ResoniteComponentLocator Locator) : PlannedWorldElementReference;
+    internal sealed record CanonicalComponentElement(ResoniteComponentLocator Locator) : PlannedWorldElementReference
+    {
+        public override TResult Match<TResult>(
+            Func<ResoniteSlotLocator, TResult> canonicalSlot,
+            Func<ResoniteComponentLocator, TResult> canonicalComponent,
+            Func<BatchPlanSlotLocator, TResult> batchSlot,
+            Func<BatchPlanComponentLocator, TResult> batchComponent,
+            Func<BatchPlanFieldLocator, TResult> batchField)
+        {
+            return canonicalComponent(Locator);
+        }
+    }
 
-    internal sealed record PlannedSlotElement(BatchPlanSlotLocator Locator) : PlannedWorldElementReference;
+    internal sealed record BatchSlotElement(BatchPlanSlotLocator Locator) : PlannedWorldElementReference
+    {
+        public override TResult Match<TResult>(
+            Func<ResoniteSlotLocator, TResult> canonicalSlot,
+            Func<ResoniteComponentLocator, TResult> canonicalComponent,
+            Func<BatchPlanSlotLocator, TResult> batchSlot,
+            Func<BatchPlanComponentLocator, TResult> batchComponent,
+            Func<BatchPlanFieldLocator, TResult> batchField)
+        {
+            return batchSlot(Locator);
+        }
+    }
 
-    internal sealed record PlannedComponentElement(BatchPlanComponentLocator Locator) : PlannedWorldElementReference;
+    internal sealed record BatchComponentElement(BatchPlanComponentLocator Locator) : PlannedWorldElementReference
+    {
+        public override TResult Match<TResult>(
+            Func<ResoniteSlotLocator, TResult> canonicalSlot,
+            Func<ResoniteComponentLocator, TResult> canonicalComponent,
+            Func<BatchPlanSlotLocator, TResult> batchSlot,
+            Func<BatchPlanComponentLocator, TResult> batchComponent,
+            Func<BatchPlanFieldLocator, TResult> batchField)
+        {
+            return batchComponent(Locator);
+        }
+    }
 
-    internal sealed record PlannedFieldElement(BatchPlanFieldLocator Locator) : PlannedWorldElementReference;
+    internal sealed record BatchFieldElement(BatchPlanFieldLocator Locator) : PlannedWorldElementReference
+    {
+        public override TResult Match<TResult>(
+            Func<ResoniteSlotLocator, TResult> canonicalSlot,
+            Func<ResoniteComponentLocator, TResult> canonicalComponent,
+            Func<BatchPlanSlotLocator, TResult> batchSlot,
+            Func<BatchPlanComponentLocator, TResult> batchComponent,
+            Func<BatchPlanFieldLocator, TResult> batchField)
+        {
+            return batchField(Locator);
+        }
+    }
 }
 
 internal abstract record PlannedMember;
@@ -321,7 +403,7 @@ internal sealed record PlannedBatchEmission
         HashSet<BatchPlanSlotLocator> emittedSlots = [];
         foreach (PlannedBatchSlotEmission slotEmission in slotEmissions)
         {
-            if (slotEmission.ParentTarget is PlannedSlotTargetReference.PlannedSlotTarget plannedParent
+            if (slotEmission.ParentTarget is PlannedSlotTargetReference.BatchSlotTarget plannedParent
                 && !emittedSlots.Contains(plannedParent.Locator))
             {
                 throw new InvalidOperationException("Planned slot parent target must reference an earlier planned slot.");
@@ -341,7 +423,7 @@ internal sealed record PlannedBatchEmission
         HashSet<BatchPlanComponentLocator> emittedComponents = [];
         foreach (PlannedBatchComponentEmission componentEmission in componentEmissions)
         {
-            if (componentEmission.ContainerTarget is PlannedSlotTargetReference.PlannedSlotTarget plannedContainer
+            if (componentEmission.ContainerTarget is PlannedSlotTargetReference.BatchSlotTarget plannedContainer
                 && !emittedSlots.Contains(plannedContainer.Locator))
             {
                 throw new InvalidOperationException("Planned component container target must reference an emitted planned slot.");
@@ -371,10 +453,10 @@ internal sealed record PlannedBatchEmission
     {
         switch (target)
         {
-            case PlannedWorldElementReference.PlannedSlotElement plannedSlot
+            case PlannedWorldElementReference.BatchSlotElement plannedSlot
                 when !emittedSlots.Contains(plannedSlot.Locator):
                 throw new InvalidOperationException("Planned world element target must reference an emitted planned slot.");
-            case PlannedWorldElementReference.PlannedComponentElement plannedComponent
+            case PlannedWorldElementReference.BatchComponentElement plannedComponent
                 when !emittedComponents.Contains(plannedComponent.Locator):
                 throw new InvalidOperationException("Planned world element target must reference an earlier planned component.");
         }
