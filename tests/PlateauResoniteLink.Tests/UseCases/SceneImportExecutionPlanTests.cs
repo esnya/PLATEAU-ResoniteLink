@@ -25,11 +25,12 @@ public sealed class SceneImportExecutionPlanTests
         string resolvedSourcePath = RemoteDatasetResourceLayout.GetRemoteResourcePath(
             workRoot,
             remoteCityGmlUri,
-            "source-archive");
+            ResolvedLocalPlateauImportRequest.RemoteCityGmlResourcePrefix);
         ResolvedLocalPlateauImportRequest resolvedRequest = ResolvedLocalPlateauImportRequest.Create(
             validatedRequest,
             new ValidatedLocalDatasetLocation(resolvedSourcePath),
-            demTextureSource: null);
+            demTextureSource: null,
+            workRoot);
         ImportedSceneMetadata metadata = CreateMetadata(resolvedRequest.ToImportRequest());
 
         SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(

@@ -229,7 +229,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return ResolvedLocalPlateauImportRequest.Create(
             normalizedRequest,
             new ValidatedLocalDatasetLocation(resolvedSourcePath),
-            resolvedDemTextureSource);
+            resolvedDemTextureSource,
+            workDirectory);
     }
 
     private static string? ResolveLocalPath(
