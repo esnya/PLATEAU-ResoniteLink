@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -56,7 +57,7 @@ internal static class TextureImportSourceMaterializer
 
 internal sealed class InMemoryRawTextureImportSource : IRawTexturePayloadSource
 {
-    private readonly byte[] bytes;
+    private readonly ImmutableArray<byte> bytes;
 
     public InMemoryRawTextureImportSource(
         int width,
@@ -70,7 +71,27 @@ internal sealed class InMemoryRawTextureImportSource : IRawTexturePayloadSource
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
-        this.bytes = (byte[])bytes.Clone();
+        this.bytes = ImmutableArray.CreateRange(bytes);
+        Identity = identity;
+    }
+
+    public InMemoryRawTextureImportSource(
+        int width,
+        int height,
+        string? colorProfile,
+        ImmutableArray<byte> bytes,
+        string identity)
+    {
+        if (bytes.IsDefault)
+        {
+            throw new ArgumentException("Raw texture bytes must be initialized.", nameof(bytes));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
+        Width = width;
+        Height = height;
+        ColorProfile = colorProfile;
+        this.bytes = bytes;
         Identity = identity;
     }
 
@@ -93,7 +114,7 @@ internal sealed class InMemoryRawTextureImportSource : IRawTexturePayloadSource
             Width,
             Height,
             ColorProfile,
-            (byte[])bytes.Clone()));
+            bytes.AsSpan().ToArray()));
     }
 }
 
@@ -220,6 +241,16 @@ internal static class TextureImportSourceFactory
         int height,
         string? colorProfile,
         byte[] bytes,
+        string identity)
+    {
+        return new InMemoryRawTextureImportSource(width, height, colorProfile, bytes, identity);
+    }
+
+    internal static ITextureImportSource CreateRawRgba32InMemory(
+        int width,
+        int height,
+        string? colorProfile,
+        ImmutableArray<byte> bytes,
         string identity)
     {
         return new InMemoryRawTextureImportSource(width, height, colorProfile, bytes, identity);
