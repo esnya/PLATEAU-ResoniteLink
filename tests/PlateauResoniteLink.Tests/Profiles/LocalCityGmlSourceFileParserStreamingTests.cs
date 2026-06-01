@@ -162,8 +162,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         Assert.NotNull(parsedCityObject.MeasuredHeightMeters);
         Assert.InRange(parsedCityObject.MeasuredHeightMeters!.Value, 11.799999, 11.800001);
 
-        Assert.NotNull(parsedCityObject.BuildingAttributes);
-        BuildingAttributeContext attributes = parsedCityObject.BuildingAttributes!;
+        BuildingAttributeContext attributes = parsedCityObject.BuildingAttributes;
         Assert.NotNull(attributes.RoofShape);
         Assert.Equal(CityGmlRoofShape.Shed, attributes.RoofShape!.Value);
         Assert.Equal("5", attributes.RoofShape.Code);
@@ -269,8 +268,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         CityGmlRoofShape expectedShape = (CityGmlRoofShape)expectedShapeValue;
         ParsedCityObject parsedCityObject = await ParseSingleBuildingWithRoofTypeAsync(roofTypeCode);
 
-        Assert.NotNull(parsedCityObject.BuildingAttributes);
-        BuildingCodeValue<CityGmlRoofShape>? roofShape = parsedCityObject.BuildingAttributes!.RoofShape;
+        BuildingCodeValue<CityGmlRoofShape>? roofShape = parsedCityObject.BuildingAttributes.RoofShape;
         Assert.NotNull(roofShape);
         Assert.Equal(expectedShape, roofShape!.Value);
         Assert.Equal(roofTypeCode, roofShape.Code);
@@ -290,8 +288,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             $"<uro:buildingStructureType>{structureCode}</uro:buildingStructureType>");
         PlateauBuildingStructure expectedStructure = (PlateauBuildingStructure)expectedStructureValue;
 
-        Assert.NotNull(parsedCityObject.BuildingAttributes);
-        BuildingCodeValue<PlateauBuildingStructure> structure = Assert.Single(parsedCityObject.BuildingAttributes!.Structures);
+        BuildingCodeValue<PlateauBuildingStructure> structure = Assert.Single(parsedCityObject.BuildingAttributes.Structures);
         Assert.Equal(expectedStructure, structure.Value);
         Assert.Equal(structureCode, structure.Code);
     }
@@ -309,8 +306,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             $"<uro:detailedUsage>{detailedUsageCode}</uro:detailedUsage>");
         PlateauBuildingUse expectedUse = (PlateauBuildingUse)expectedUseValue;
 
-        Assert.NotNull(parsedCityObject.BuildingAttributes);
-        BuildingCodeValue<PlateauBuildingUse> detailedUse = Assert.Single(parsedCityObject.BuildingAttributes!.DetailedUses);
+        BuildingCodeValue<PlateauBuildingUse> detailedUse = Assert.Single(parsedCityObject.BuildingAttributes.DetailedUses);
         Assert.Equal(expectedUse, detailedUse.Value);
         Assert.Equal(detailedUsageCode, detailedUse.Code);
     }
