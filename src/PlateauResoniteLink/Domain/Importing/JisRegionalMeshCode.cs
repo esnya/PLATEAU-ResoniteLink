@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Linq;
 
 namespace PlateauResoniteLink.Domain.Importing;
@@ -117,12 +116,14 @@ public readonly record struct ThirdRegionalMeshCode
 
 internal static class JisRegionalMeshCodeCalculator
 {
+    private static readonly JisRegionalMeshBounds EmptyBounds = new(0.0, 0.0, 0.0, 0.0);
+
     internal static bool IsValid(string? meshCode, int length)
     {
         return meshCode is not null
             && meshCode.Length == length
             && meshCode.All(static character => character is >= '0' and <= '9')
-            && TryGetBounds(meshCode, out _);
+            && (length < 6 || (ToDigit(meshCode[4]) <= 7 && ToDigit(meshCode[5]) <= 7));
     }
 
     internal static JisRegionalMeshBounds GetBounds(string meshCode)
@@ -134,7 +135,7 @@ internal static class JisRegionalMeshCodeCalculator
 
     internal static bool TryGetBounds(string? meshCode, out JisRegionalMeshBounds bounds)
     {
-        bounds = new JisRegionalMeshBounds(0.0, 0.0, 0.0, 0.0);
+        bounds = EmptyBounds;
 
         if (string.IsNullOrWhiteSpace(meshCode)
             || (meshCode.Length != 4 && meshCode.Length != 6 && meshCode.Length != 8)
@@ -143,8 +144,8 @@ internal static class JisRegionalMeshCodeCalculator
             return false;
         }
 
-        int firstLatitudeIndex = int.Parse(meshCode[..2], CultureInfo.InvariantCulture);
-        int firstLongitudeIndex = int.Parse(meshCode[2..4], CultureInfo.InvariantCulture);
+        int firstLatitudeIndex = ToTwoDigitNumber(meshCode[0], meshCode[1]);
+        int firstLongitudeIndex = ToTwoDigitNumber(meshCode[2], meshCode[3]);
 
         double southLatitude = firstLatitudeIndex / 1.5;
         double westLongitude = 100.0 + firstLongitudeIndex;
@@ -153,8 +154,8 @@ internal static class JisRegionalMeshCodeCalculator
 
         if (meshCode.Length >= 6)
         {
-            int secondLatitudeIndex = int.Parse(meshCode[4].ToString(), CultureInfo.InvariantCulture);
-            int secondLongitudeIndex = int.Parse(meshCode[5].ToString(), CultureInfo.InvariantCulture);
+            int secondLatitudeIndex = ToDigit(meshCode[4]);
+            int secondLongitudeIndex = ToDigit(meshCode[5]);
             if (secondLatitudeIndex > 7 || secondLongitudeIndex > 7)
             {
                 return false;
@@ -168,8 +169,8 @@ internal static class JisRegionalMeshCodeCalculator
 
         if (meshCode.Length >= 8)
         {
-            int thirdLatitudeIndex = int.Parse(meshCode[6].ToString(), CultureInfo.InvariantCulture);
-            int thirdLongitudeIndex = int.Parse(meshCode[7].ToString(), CultureInfo.InvariantCulture);
+            int thirdLatitudeIndex = ToDigit(meshCode[6]);
+            int thirdLongitudeIndex = ToDigit(meshCode[7]);
             if (thirdLatitudeIndex > 9 || thirdLongitudeIndex > 9)
             {
                 return false;
@@ -187,5 +188,15 @@ internal static class JisRegionalMeshCodeCalculator
             westLongitude,
             westLongitude + longitudeSpan);
         return true;
+    }
+
+    private static int ToTwoDigitNumber(char tens, char ones)
+    {
+        return (ToDigit(tens) * 10) + ToDigit(ones);
+    }
+
+    private static int ToDigit(char character)
+    {
+        return character - '0';
     }
 }
