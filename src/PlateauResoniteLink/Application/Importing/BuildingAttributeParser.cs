@@ -166,6 +166,7 @@ internal static class BuildingAttributeParser
         }
 
         return double.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+            && double.IsFinite(value)
             && value > 0.0
                 ? BuildingMetricValue.Known(value)
                 : BuildingMetricValue.Invalid(rawValue);

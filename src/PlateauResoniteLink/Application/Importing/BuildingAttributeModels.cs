@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -49,27 +50,51 @@ internal enum PlateauBuildingStructure
     Other,
 }
 
-internal enum BuildingMetricValueKind
-{
-    Missing = 0,
-    Known,
-    Invalid,
-}
-
 internal sealed record BuildingCodeValue<T>(T Value, string Code);
 
-internal sealed record BuildingMetricValue(BuildingMetricValueKind Kind, double? Value, string? Raw)
+internal abstract record BuildingMetricValue
 {
-    public static BuildingMetricValue Missing { get; } = new(BuildingMetricValueKind.Missing, null, null);
+    public static BuildingMetricValue Missing { get; } = new MissingMetricValue();
 
     public static BuildingMetricValue Known(double value)
     {
-        return new BuildingMetricValue(BuildingMetricValueKind.Known, value, null);
+        return new KnownMetricValue(value);
     }
 
     public static BuildingMetricValue Invalid(string raw)
     {
-        return new BuildingMetricValue(BuildingMetricValueKind.Invalid, null, raw);
+        return new InvalidMetricValue(raw);
+    }
+
+    internal sealed record MissingMetricValue : BuildingMetricValue
+    {
+    }
+
+    internal sealed record KnownMetricValue : BuildingMetricValue
+    {
+        public KnownMetricValue(double value)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+
+            if (!double.IsFinite(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            Value = value;
+        }
+
+        public double Value { get; }
+    }
+
+    internal sealed record InvalidMetricValue : BuildingMetricValue
+    {
+        public InvalidMetricValue(string raw)
+        {
+            Raw = raw ?? throw new ArgumentNullException(nameof(raw));
+        }
+
+        public string Raw { get; }
     }
 }
 

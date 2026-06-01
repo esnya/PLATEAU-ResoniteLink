@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Xml.Linq;
 
@@ -49,9 +50,9 @@ public sealed class BuildingAttributeParserTests
 
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
-        Assert.Equal(BuildingMetricValueKind.Missing, attributes.MeasuredHeightMeters.Kind);
-        Assert.Equal(BuildingMetricValueKind.Missing, attributes.StoreysAboveGround.Kind);
-        Assert.Equal(BuildingMetricValueKind.Missing, attributes.StoreysBelowGround.Kind);
+        Assert.IsType<BuildingMetricValue.MissingMetricValue>(attributes.MeasuredHeightMeters);
+        Assert.IsType<BuildingMetricValue.MissingMetricValue>(attributes.StoreysAboveGround);
+        Assert.IsType<BuildingMetricValue.MissingMetricValue>(attributes.StoreysBelowGround);
     }
 
     [Fact]
@@ -70,12 +71,55 @@ public sealed class BuildingAttributeParserTests
 
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
-        Assert.Equal(BuildingMetricValueKind.Invalid, attributes.MeasuredHeightMeters.Kind);
-        Assert.Equal("12", attributes.MeasuredHeightMeters.Raw);
-        Assert.Equal(BuildingMetricValueKind.Known, attributes.BuildingFootprintArea.Kind);
-        Assert.Equal(160.5, attributes.BuildingFootprintArea.Value);
-        Assert.Equal(BuildingMetricValueKind.Known, attributes.BuildingHeight.Kind);
-        Assert.Equal(9.25, attributes.BuildingHeight.Value);
+        BuildingMetricValue.InvalidMetricValue invalidMeasuredHeight =
+            Assert.IsType<BuildingMetricValue.InvalidMetricValue>(attributes.MeasuredHeightMeters);
+        BuildingMetricValue.KnownMetricValue footprintArea =
+            Assert.IsType<BuildingMetricValue.KnownMetricValue>(attributes.BuildingFootprintArea);
+        BuildingMetricValue.KnownMetricValue buildingHeight =
+            Assert.IsType<BuildingMetricValue.KnownMetricValue>(attributes.BuildingHeight);
+        Assert.Equal("12", invalidMeasuredHeight.Raw);
+        Assert.Equal(160.5, footprintArea.Value);
+        Assert.Equal(9.25, buildingHeight.Value);
+    }
+
+    [Fact]
+    public void ParsePreservesBlankMetricElementsAsInvalidMetrics()
+    {
+        XElement element = XElement.Parse(
+            """
+            <bldg:Building xmlns:bldg="urn:bldg">
+              <bldg:measuredHeight uom="m"> </bldg:measuredHeight>
+            </bldg:Building>
+            """);
+
+        BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
+
+        BuildingMetricValue.InvalidMetricValue invalidMeasuredHeight =
+            Assert.IsType<BuildingMetricValue.InvalidMetricValue>(attributes.MeasuredHeightMeters);
+        Assert.Equal(string.Empty, invalidMeasuredHeight.Raw);
+    }
+
+    [Fact]
+    public void ParsePreservesNonFiniteMetricTextAsInvalidMetrics()
+    {
+        XElement element = XElement.Parse(
+            """
+            <bldg:Building xmlns:bldg="urn:bldg">
+              <bldg:measuredHeight uom="m">Infinity</bldg:measuredHeight>
+              <bldg:BuildingDetailAttribute>
+                <bldg:buildingHeight uom="m">1e309</bldg:buildingHeight>
+              </bldg:BuildingDetailAttribute>
+            </bldg:Building>
+            """);
+
+        BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
+
+        BuildingMetricValue.InvalidMetricValue invalidMeasuredHeight =
+            Assert.IsType<BuildingMetricValue.InvalidMetricValue>(attributes.MeasuredHeightMeters);
+        BuildingMetricValue.InvalidMetricValue invalidBuildingHeight =
+            Assert.IsType<BuildingMetricValue.InvalidMetricValue>(attributes.BuildingHeight);
+        Assert.Equal("Infinity", invalidMeasuredHeight.Raw);
+        Assert.Equal("1e309", invalidBuildingHeight.Raw);
     }
 
     [Fact]
@@ -92,5 +136,14 @@ public sealed class BuildingAttributeParserTests
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
         Assert.Equal(["402101"], attributes.CityGmlFunctionCodes.ToArray());
+    }
+
+    [Fact]
+    public void MetricValueFactoriesRejectInvalidPayloadShapes()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => BuildingMetricValue.Known(double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BuildingMetricValue.Known(double.PositiveInfinity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BuildingMetricValue.Known(-1.0));
+        Assert.Throws<ArgumentNullException>(() => BuildingMetricValue.Invalid(null!));
     }
 }
