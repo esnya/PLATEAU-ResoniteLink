@@ -41,6 +41,9 @@ internal abstract class CommonMaterialDefinition
 
 internal sealed class BundledCommonMaterialDefinition : CommonMaterialDefinition
 {
+    private readonly BundledDefaultMaterialVariant bundledVariant;
+    private readonly string family;
+
     internal BundledCommonMaterialDefinition(
         MaterialProjection projection,
         string memberName,
@@ -48,29 +51,29 @@ internal sealed class BundledCommonMaterialDefinition : CommonMaterialDefinition
         int bundledVariantIndex)
         : base(projection, memberName, depthOffset: null)
     {
-        Family = family;
+        this.family = family;
         VariantIndex = bundledVariantIndex;
-        BundledVariant = BundledDefaultMaterialFamilies.GetVariantDefinition(family, bundledVariantIndex);
+        bundledVariant = BundledDefaultMaterialFamilies.GetVariantDefinition(family, bundledVariantIndex);
     }
 
     public override DefaultCommonMaterialMemberKind Kind => DefaultCommonMaterialMemberKind.Bundled;
 
-    public override string Family { get; }
+    public override string? Family => family;
 
     public override int? BundledVariantIndex => VariantIndex;
 
     public int VariantIndex { get; }
 
-    public override BundledDefaultMaterialVariant BundledVariant { get; }
+    public override BundledDefaultMaterialVariant? BundledVariant => bundledVariant;
 
     internal override MaterialBinding CreateBinding(
         DefaultCommonMaterialMember member,
         IReadOnlyList<int> submeshIndices)
     {
-        Float2 textureScale = ToContract(BundledVariant.TextureSet.TextureScale);
-        Float2? textureOffset = BundledVariant.TextureSet.TextureOffset is null
+        Float2 textureScale = ToContract(bundledVariant.TextureSet.TextureScale);
+        Float2? textureOffset = bundledVariant.TextureSet.TextureOffset is null
             ? null
-            : ToContract(BundledVariant.TextureSet.TextureOffset);
+            : ToContract(bundledVariant.TextureSet.TextureOffset);
 
         return new MaterialBinding(
             BaseColor: CanonicalBaseColor,
@@ -81,7 +84,7 @@ internal sealed class BundledCommonMaterialDefinition : CommonMaterialDefinition
             DepthOffset: null,
             SubmeshIndices: submeshIndices,
             TextureScale: textureScale,
-            Family: Family,
+            Family: family,
             TextureOffset: textureOffset,
             ReuseScope: MaterialReuseScope.Shared,
             BundledVariantIndex: VariantIndex,
