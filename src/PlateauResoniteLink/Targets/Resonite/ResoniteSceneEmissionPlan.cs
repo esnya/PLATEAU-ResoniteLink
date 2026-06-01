@@ -48,12 +48,21 @@ internal sealed record PlannedReusableMaterialAsset(
     ResoniteComponentLocator Target)
     : PlannedMaterialAsset;
 
-internal sealed record PlannedDedicatedMaterialAsset(
+internal abstract record PlannedDedicatedMaterialAsset(
+    ResoniteMaterialBinding Material,
+    IReadOnlyList<PlannedTextureAsset> Textures)
+    : PlannedMaterialAsset;
+
+internal sealed record PlannedInlineDedicatedMaterialAsset(
+    ResoniteMaterialBinding Material,
+    IReadOnlyList<PlannedTextureAsset> Textures)
+    : PlannedDedicatedMaterialAsset(Material, Textures);
+
+internal sealed record PlannedPreservedSlotDedicatedMaterialAsset(
     ResoniteMaterialBinding Material,
     IReadOnlyList<PlannedTextureAsset> Textures,
-    bool PreserveDedicatedMaterialSlot,
-    string? DedicatedMaterialSlotName = null)
-    : PlannedMaterialAsset;
+    string DedicatedMaterialSlotName)
+    : PlannedDedicatedMaterialAsset(Material, Textures);
 
 internal abstract record PlannedRendererMaterialBinding(PlannedMaterialAsset MaterialAsset);
 
