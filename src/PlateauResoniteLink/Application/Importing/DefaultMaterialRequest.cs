@@ -15,7 +15,7 @@ internal sealed record DefaultMaterialRequest(
     string PackageName,
     TexturePayload? TexturePayload,
     bool PreferUvProjection,
-    string? FamilyOverride,
+    DefaultMaterialFamilyOverride? FamilyOverride,
     string VariantSelectionKey,
     BuildingAttributeContext BuildingAttributes,
     int? FloorsAboveGround = null,
