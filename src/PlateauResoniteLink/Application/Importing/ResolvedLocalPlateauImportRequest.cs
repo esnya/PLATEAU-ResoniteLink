@@ -25,7 +25,7 @@ public sealed record ResolvedLocalPlateauImportRequest
         int TerrainGridMaxResolution = 1024)
     {
         ValidatedLocalDatasetLocation cityGmlSource = new(RequireNonEmpty(CityGmlLocalSourcePath, nameof(CityGmlLocalSourcePath)));
-        ValidatedDatasetLocation? validatedDemTextureSource = ToValidatedDatasetLocation(DemTextureSource, nameof(DemTextureSource));
+        ValidatedLocalDatasetLocation? validatedDemTextureSource = ToResolvedDemTextureSource(DemTextureSource, nameof(DemTextureSource));
         ValidatedRequest = CreateResolvedRequest(
             Dataset,
             MeshCode,
@@ -111,6 +111,10 @@ public sealed record ResolvedLocalPlateauImportRequest
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(cityGmlSource);
+        if (demTextureSource is ValidatedRemoteDatasetLocation)
+        {
+            throw new ArgumentException("Resolved local import requests require DEM texture sources to be local when specified.", nameof(demTextureSource));
+        }
 
         return new ResolvedLocalPlateauImportRequest(request, cityGmlSource, demTextureSource);
     }
@@ -131,6 +135,7 @@ public sealed record ResolvedLocalPlateauImportRequest
     {
         string requiredDataset = RequireNonEmpty(dataset, nameof(dataset));
         string requiredMeshCode = RequireNonEmpty(meshCode, nameof(meshCode));
+        string[]? normalizedPackageNames = NormalizePackageNames(packageNames);
         if (!MeshCodeRequestSyntax.TryCreateSelectionRegex(requiredMeshCode, out Regex? meshCodePattern, out string? meshCodeError))
         {
             throw new ArgumentException(meshCodeError, nameof(meshCode));
@@ -147,7 +152,7 @@ public sealed record ResolvedLocalPlateauImportRequest
             meshCodePattern,
             cityGmlSource,
             demTextureSource,
-            packageNames,
+            normalizedPackageNames,
             globalExcludeLodLevels,
             excludeLodLevelsByPackage,
             packagePatterns,
@@ -157,7 +162,7 @@ public sealed record ResolvedLocalPlateauImportRequest
             terrainGridMaxResolution);
     }
 
-    private static ValidatedDatasetLocation? ToValidatedDatasetLocation(
+    private static ValidatedLocalDatasetLocation? ToResolvedDemTextureSource(
         DatasetLocation? source,
         string parameterName)
     {
@@ -165,10 +170,24 @@ public sealed record ResolvedLocalPlateauImportRequest
         {
             null => null,
             LocalDatasetLocation localSource => new ValidatedLocalDatasetLocation(RequireNonEmpty(localSource.LocalSourcePath, parameterName)),
-            RemoteDatasetLocation remoteSource => new ValidatedRemoteDatasetLocation(
-                remoteSource.ServerUri ?? throw new ArgumentException("The server URI must not be null.", parameterName)),
+            RemoteDatasetLocation => throw new ArgumentException("Resolved local import requests require DEM texture sources to be local when specified.", parameterName),
             _ => throw new ArgumentException("Unsupported dataset source location.", parameterName),
         };
+    }
+
+    private static string[]? NormalizePackageNames(IReadOnlyList<string>? packageNames)
+    {
+        if (packageNames is null)
+        {
+            return null;
+        }
+
+        if (packageNames.Count == 0)
+        {
+            throw new ArgumentException("At least one package name is required when packages are specified.", nameof(packageNames));
+        }
+
+        return PlateauPackageCatalog.NormalizeRequestedPackageNames(packageNames);
     }
 
     private static string RequireNonEmpty(string? value, string parameterName)
