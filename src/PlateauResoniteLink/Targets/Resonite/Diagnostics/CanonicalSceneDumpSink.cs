@@ -151,7 +151,7 @@ internal sealed class DeterministicTerrainTextureAssetGenerator : ITerrainTextur
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        TerrainTextureSource? usedSource = terrainTextureOverlay.GetRequiredPrimaryTileSource();
+        TerrainTextureSource usedSource = terrainTextureOverlay.GetRequiredPrimaryTileSource();
         return Task.FromResult(new GeneratedTerrainTexture(
             TextureImportSourceFactory.CreateInMemory(
                 2,
