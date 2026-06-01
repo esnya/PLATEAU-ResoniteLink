@@ -8,13 +8,13 @@ namespace PlateauResoniteLink.Application.Importing;
 
 public sealed record ResolvedLocalPlateauImportRequest
 {
-    private readonly ValidatedDatasetLocation? demTextureSource;
+    private readonly ValidatedLocalDatasetLocation? demTextureSource;
 
     public ResolvedLocalPlateauImportRequest(
         string Dataset,
         string MeshCode,
         string CityGmlLocalSourcePath,
-        DatasetLocation? DemTextureSource = null,
+        LocalDatasetLocation? DemTextureSource = null,
         IReadOnlyList<string>? PackageNames = null,
         IReadOnlySet<int>? GlobalExcludeLodLevels = null,
         IReadOnlyDictionary<string, IReadOnlySet<int>>? ExcludeLodLevelsByPackage = null,
@@ -46,7 +46,7 @@ public sealed record ResolvedLocalPlateauImportRequest
     private ResolvedLocalPlateauImportRequest(
         ValidatedPlateauImportRequest request,
         ValidatedLocalDatasetLocation cityGmlSource,
-        ValidatedDatasetLocation? demTextureSource)
+        ValidatedLocalDatasetLocation? demTextureSource)
     {
         ValidatedRequest = request with
         {
@@ -67,17 +67,11 @@ public sealed record ResolvedLocalPlateauImportRequest
 
     public string CityGmlLocalSourcePath => CityGmlSource.LocalSourcePath;
 
-    public DatasetLocation? DemTextureSource => demTextureSource?.ToDatasetLocation();
+    public LocalDatasetLocation? DemTextureSource => demTextureSource is null
+        ? null
+        : new LocalDatasetLocation(demTextureSource.LocalSourcePath);
 
-    public DatasetSourceKind? DemTextureSourceKind => DemTextureSource?.SourceKind;
-
-    public string? DemTextureLocalSourcePath => DemTextureSource is LocalDatasetLocation localSource
-        ? localSource.LocalSourcePath
-        : null;
-
-    public Uri? DemTextureServerUri => DemTextureSource is RemoteDatasetLocation remoteSource
-        ? remoteSource.ServerUri
-        : null;
+    public string? DemTextureLocalSourcePath => demTextureSource?.LocalSourcePath;
 
     public IReadOnlyList<string>? PackageNames => ValidatedRequest.PackageNames;
 
@@ -107,14 +101,10 @@ public sealed record ResolvedLocalPlateauImportRequest
     internal static ResolvedLocalPlateauImportRequest Create(
         ValidatedPlateauImportRequest request,
         ValidatedLocalDatasetLocation cityGmlSource,
-        ValidatedDatasetLocation? demTextureSource)
+        ValidatedLocalDatasetLocation? demTextureSource)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(cityGmlSource);
-        if (demTextureSource is ValidatedRemoteDatasetLocation)
-        {
-            throw new ArgumentException("Resolved local import requests require DEM texture sources to be local when specified.", nameof(demTextureSource));
-        }
 
         return new ResolvedLocalPlateauImportRequest(request, cityGmlSource, demTextureSource);
     }
@@ -123,7 +113,7 @@ public sealed record ResolvedLocalPlateauImportRequest
         string dataset,
         string meshCode,
         ValidatedLocalDatasetLocation cityGmlSource,
-        ValidatedDatasetLocation? demTextureSource,
+        ValidatedLocalDatasetLocation? demTextureSource,
         IReadOnlyList<string>? packageNames,
         IReadOnlySet<int>? globalExcludeLodLevels,
         IReadOnlyDictionary<string, IReadOnlySet<int>>? excludeLodLevelsByPackage,
@@ -165,16 +155,12 @@ public sealed record ResolvedLocalPlateauImportRequest
     }
 
     private static ValidatedLocalDatasetLocation? ToResolvedDemTextureSource(
-        DatasetLocation? source,
+        LocalDatasetLocation? source,
         string parameterName)
     {
-        return source switch
-        {
-            null => null,
-            LocalDatasetLocation localSource => new ValidatedLocalDatasetLocation(RequireNonEmpty(localSource.LocalSourcePath, parameterName)),
-            RemoteDatasetLocation => throw new ArgumentException("Resolved local import requests require DEM texture sources to be local when specified.", parameterName),
-            _ => throw new ArgumentException("Unsupported dataset source location.", parameterName),
-        };
+        return source is null
+            ? null
+            : new ValidatedLocalDatasetLocation(RequireNonEmpty(source.LocalSourcePath, parameterName));
     }
 
     private static string[]? NormalizePackageNames(IReadOnlyList<string>? packageNames)

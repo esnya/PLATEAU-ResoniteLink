@@ -76,7 +76,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
             MeshCode: "53394525",
             CityGmlLocalSourcePath: "/tmp/plateau",
             PackageNames: ["dem"],
-            DemTextureSource: DatasetLocation.Local("/tmp/plateau/ortho.tif"));
+            DemTextureSource: new LocalDatasetLocation("/tmp/plateau/ortho.tif"));
         PlateauImportRequest importRequest = request.ToImportRequest();
         ImportedSceneSourceSnapshot readResult = new(
             new ImportedSceneSourceDataset(

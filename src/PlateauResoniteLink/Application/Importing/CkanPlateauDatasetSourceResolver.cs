@@ -43,7 +43,7 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
             resourcePrefix: "source-archive",
             invalidateLocalFileCache: true,
             cancellationToken);
-        ValidatedDatasetLocation? resolvedDemTextureSource = await ResolveOptionalRemoteDatasetLocationAsync(
+        ValidatedLocalDatasetLocation? resolvedDemTextureSource = await ResolveOptionalLocalDatasetLocationAsync(
             request.DemTextureSource,
             workRoot,
             resourcePrefix: "source-ortho",
@@ -63,18 +63,17 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
         bool invalidateLocalFileCache,
         CancellationToken cancellationToken)
     {
-        ValidatedDatasetLocation? resolvedSource = await ResolveOptionalRemoteDatasetLocationAsync(
+        ValidatedLocalDatasetLocation? resolvedSource = await ResolveOptionalLocalDatasetLocationAsync(
             source,
             workRoot,
             resourcePrefix,
             invalidateLocalFileCache,
             cancellationToken);
-        return resolvedSource is ValidatedLocalDatasetLocation localSource
-            ? localSource
-            : throw new InvalidOperationException("The normalized CityGML source must resolve to a local dataset location.");
+        return resolvedSource
+            ?? throw new InvalidOperationException("The normalized CityGML source must resolve to a local dataset location.");
     }
 
-    private async Task<ValidatedDatasetLocation?> ResolveOptionalRemoteDatasetLocationAsync(
+    private async Task<ValidatedLocalDatasetLocation?> ResolveOptionalLocalDatasetLocationAsync(
         ValidatedDatasetLocation? source,
         string workRoot,
         string resourcePrefix,
@@ -83,7 +82,7 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
     {
         if (source is null || source is ValidatedLocalDatasetLocation)
         {
-            return source;
+            return source as ValidatedLocalDatasetLocation;
         }
 
         ValidatedRemoteDatasetLocation remoteSource = (ValidatedRemoteDatasetLocation)source;

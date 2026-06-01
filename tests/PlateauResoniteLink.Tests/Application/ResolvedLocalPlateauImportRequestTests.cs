@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
@@ -107,29 +108,33 @@ public sealed class ResolvedLocalPlateauImportRequestTests
     }
 
     [Fact]
-    public void ConstructorRejectsRemoteDemTextureSource()
+    public void ConstructorKeepsLocalDemTextureSource()
     {
-        Assert.Throws<ArgumentException>(
-            () => new ResolvedLocalPlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394525",
-                CityGmlLocalSourcePath: "/tmp/plateau",
-                DemTextureSource: DatasetLocation.Remote(new Uri("https://example.test/ortho.tif"))));
+        ResolvedLocalPlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlLocalSourcePath: "/tmp/plateau",
+            DemTextureSource: new LocalDatasetLocation("/tmp/ortho.tif"));
+
+        LocalDatasetLocation demTextureSource = Assert.IsType<LocalDatasetLocation>(request.DemTextureSource);
+        Assert.Equal("/tmp/ortho.tif", demTextureSource.LocalSourcePath);
     }
 
     [Fact]
-    public void CreateRejectsRemoteDemTextureSource()
+    public void CreateKeepsLocalDemTextureSource()
     {
         ValidatedPlateauImportRequest request = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                CityGmlSource: DatasetLocation.Remote(new Uri("https://example.test/tokyo.zip"))));
+                CityGmlSource: DatasetLocation.Remote(new Uri("https://example.test/tokyo.zip")),
+                DemTextureSource: DatasetLocation.Remote(new Uri("https://example.test/ortho.tif"))));
 
-        Assert.Throws<ArgumentException>(
-            () => ResolvedLocalPlateauImportRequest.Create(
-                request,
-                new ValidatedLocalDatasetLocation("/tmp/plateau"),
-                new ValidatedRemoteDatasetLocation(new Uri("https://example.test/ortho.tif"))));
+        ResolvedLocalPlateauImportRequest resolvedRequest = ResolvedLocalPlateauImportRequest.Create(
+            request,
+            new ValidatedLocalDatasetLocation("/tmp/plateau"),
+            new ValidatedLocalDatasetLocation("/tmp/ortho.tif"));
+
+        Assert.Equal("/tmp/ortho.tif", resolvedRequest.DemTextureLocalSourcePath);
     }
 }

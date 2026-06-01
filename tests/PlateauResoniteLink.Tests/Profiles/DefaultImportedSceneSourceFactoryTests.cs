@@ -127,7 +127,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             MeshCode: "53394525",
             CityGmlLocalSourcePath: "/tmp/plateau",
             PackageNames: ["dem"],
-            DemTextureSource: DatasetLocation.Local("C:\\ortho\\53394525.tif"));
+            DemTextureSource: new LocalDatasetLocation("C:\\ortho\\53394525.tif"));
 
         _ = await factory.CreateAsync(request);
 
