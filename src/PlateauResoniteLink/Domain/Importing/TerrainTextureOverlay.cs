@@ -30,18 +30,26 @@ public sealed record TerrainTextureTileSource(string UrlTemplate, int ZoomLevel)
 
 public sealed record GeoReferencedRasterMetadata(
     GeographicRectangle GeographicBounds,
-    string? CoordinateSystemIdentifier,
+    string CoordinateSystemIdentifier,
     double PixelWidthMeters,
     double PixelHeightMeters)
 {
-    public bool IsUsable => !string.IsNullOrWhiteSpace(CoordinateSystemIdentifier)
-        && PixelWidthMeters > 0.0
-        && PixelHeightMeters > 0.0;
+    public string CoordinateSystemIdentifier { get; init; } = string.IsNullOrWhiteSpace(CoordinateSystemIdentifier)
+        ? throw new ArgumentException("Geo-referenced raster coordinate system identifier must be provided.", nameof(CoordinateSystemIdentifier))
+        : CoordinateSystemIdentifier;
+
+    public double PixelWidthMeters { get; init; } = PixelWidthMeters > 0.0
+        ? PixelWidthMeters
+        : throw new ArgumentOutOfRangeException(nameof(PixelWidthMeters));
+
+    public double PixelHeightMeters { get; init; } = PixelHeightMeters > 0.0
+        ? PixelHeightMeters
+        : throw new ArgumentOutOfRangeException(nameof(PixelHeightMeters));
 
     public string IdentityKey =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"georaster-meta-crs-{CoordinateSystemIdentifier ?? "none"}-pixel-{TerrainTextureDescriptorFormatting.FormatRounded(PixelWidthMeters)}x{TerrainTextureDescriptorFormatting.FormatRounded(PixelHeightMeters)}-bounds-{TerrainTextureDescriptorFormatting.FormatBounds(GeographicBounds)}");
+            $"georaster-meta-crs-{CoordinateSystemIdentifier}-pixel-{TerrainTextureDescriptorFormatting.FormatRounded(PixelWidthMeters)}x{TerrainTextureDescriptorFormatting.FormatRounded(PixelHeightMeters)}-bounds-{TerrainTextureDescriptorFormatting.FormatBounds(GeographicBounds)}");
 }
 
 public interface ITerrainTextureRasterContentSource
@@ -76,11 +84,11 @@ public sealed record LocalTerrainTextureRasterContentSource(string SourcePath) :
 
 public sealed record TerrainTextureGeoReferencedRasterSource(
     ITerrainTextureRasterContentSource ContentSource,
-    GeoReferencedRasterMetadata? Metadata = null) : TerrainTextureSource
+    GeoReferencedRasterMetadata Metadata) : TerrainTextureSource
 {
     public TerrainTextureGeoReferencedRasterSource(
         string sourcePath,
-        GeoReferencedRasterMetadata? metadata = null)
+        GeoReferencedRasterMetadata metadata)
         : this(new LocalTerrainTextureRasterContentSource(sourcePath), metadata)
     {
     }
@@ -88,10 +96,11 @@ public sealed record TerrainTextureGeoReferencedRasterSource(
     public ITerrainTextureRasterContentSource ContentSource { get; init; } =
         ContentSource ?? throw new ArgumentNullException(nameof(ContentSource));
 
-    public GeoReferencedRasterMetadata? Metadata { get; init; } = Metadata;
+    public GeoReferencedRasterMetadata Metadata { get; init; } =
+        Metadata ?? throw new ArgumentNullException(nameof(Metadata));
 
     public override string IdentityKey =>
-        string.Create(CultureInfo.InvariantCulture, $"georaster-{ContentSource.IdentityKey}-meta-{Metadata?.IdentityKey ?? "none"}");
+        string.Create(CultureInfo.InvariantCulture, $"georaster-{ContentSource.IdentityKey}-meta-{Metadata.IdentityKey}");
 
     public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken) =>
         ContentSource.OpenReadAsync(cancellationToken);
