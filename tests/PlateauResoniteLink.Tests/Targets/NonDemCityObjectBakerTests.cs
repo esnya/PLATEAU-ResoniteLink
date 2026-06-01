@@ -893,6 +893,29 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task TryBufferAsyncSkipsNonDemCityObjectsWithoutSourceFileScope()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject cityObject = CreateUvScaledLod2Building(
+            "source-scope-missing",
+            CreatePayload("textures/source-scope-missing.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            "unit-a",
+            new ResoniteFloat2(2.0, 0.5),
+            new ResoniteFloat2(0.25, 0.75)) with
+        {
+            SourceFileRelativePath = null,
+        };
+
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
+
+        Assert.False(result.Buffered);
+        Assert.Empty(result.ReadyCityObjects);
+        Assert.Equal(new ResoniteFloat2(2.0, 0.5), Assert.Single(cityObject.Materials).TextureScale);
+        Assert.Equal(new ResoniteFloat2(0.25, 0.75), Assert.Single(cityObject.Materials).TextureOffset);
+        Assert.Empty(await baker.FlushAllAsync());
+    }
+
+    [Fact]
     public async Task TryBufferAsyncBuffersLodlessNonDemCityObjects()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);

@@ -180,7 +180,7 @@ internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
         double minY = double.PositiveInfinity;
         double minZ = double.PositiveInfinity;
 
-        foreach (ResoniteConstructionCityObject cityObject in candidates.Select(static candidate => candidate.CityObject))
+        foreach (NonDemSourceScopedTriangleCityObject cityObject in candidates.Select(static candidate => candidate.CityObject))
         {
             foreach (ResoniteMeshVertex vertex in cityObject.Mesh.Vertices)
             {
