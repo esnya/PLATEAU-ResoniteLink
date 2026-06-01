@@ -9,9 +9,16 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed record NonDemMaterialAtlasTile(Image<Rgba32> Image, Rgba32 BackgroundColor);
 
-internal sealed record NonDemAtlasOrPreservedEntry(
-    NonDemAtlasBatchEntry? AtlasEntry,
-    NonDemPreservedSubmeshEntry? PreservedEntry);
+internal abstract record NonDemBakeEntry
+{
+    private NonDemBakeEntry()
+    {
+    }
+
+    internal sealed record Atlas(NonDemAtlasBatchEntry Entry) : NonDemBakeEntry;
+
+    internal sealed record Preserved(NonDemPreservedSubmeshEntry Entry) : NonDemBakeEntry;
+}
 
 internal readonly record struct NonDemBufferedCityObject(
     ResoniteConstructionCityObject CityObject,

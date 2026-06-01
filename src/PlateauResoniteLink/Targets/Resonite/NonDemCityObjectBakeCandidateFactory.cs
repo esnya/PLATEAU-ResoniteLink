@@ -14,9 +14,9 @@ internal interface INonDemCityObjectBakeCandidateFactory
 }
 
 internal sealed class NonDemCityObjectBakeCandidateFactory(
-    INonDemAtlasOrPreservedEntryFactory entryFactory) : INonDemCityObjectBakeCandidateFactory
+    INonDemBakeEntryFactory entryFactory) : INonDemCityObjectBakeCandidateFactory
 {
-    private readonly INonDemAtlasOrPreservedEntryFactory entryFactory = entryFactory
+    private readonly INonDemBakeEntryFactory entryFactory = entryFactory
         ?? throw new ArgumentNullException(nameof(entryFactory));
 
     public async Task<NonDemCityObjectBakeCandidate?> CreateAsync(
@@ -55,19 +55,19 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
             {
                 case NonDemMaterialBakeCategory.AtlasCandidate:
                     hadAtlasCandidateMaterial = true;
-                    NonDemAtlasOrPreservedEntry bakeEntry = await entryFactory.CreateAsync(
+                    NonDemBakeEntry bakeEntry = await entryFactory.CreateAsync(
                         normalizedCityObject,
                         submesh,
                         material,
                         cancellationToken);
-                    if (bakeEntry.AtlasEntry is not null)
+                    switch (bakeEntry)
                     {
-                        atlasEntries.Add(bakeEntry.AtlasEntry);
-                    }
-
-                    if (bakeEntry.PreservedEntry is not null)
-                    {
-                        preservedEntries.Add(bakeEntry.PreservedEntry);
+                        case NonDemBakeEntry.Atlas atlas:
+                            atlasEntries.Add(atlas.Entry);
+                            break;
+                        case NonDemBakeEntry.Preserved preserved:
+                            preservedEntries.Add(preserved.Entry);
+                            break;
                     }
 
                     break;
