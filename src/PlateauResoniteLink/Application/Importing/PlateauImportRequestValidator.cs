@@ -215,9 +215,10 @@ public static class PlateauImportRequestValidator
             }
         }
 
-        if (normalizedRequest.TerrainGridMetersPerVertex <= 0)
+        if (!double.IsFinite(normalizedRequest.TerrainGridMetersPerVertex)
+            || normalizedRequest.TerrainGridMetersPerVertex <= 0)
         {
-            validationErrors.Add("The terrain grid meters-per-vertex value must be greater than zero.");
+            validationErrors.Add("The terrain grid meters-per-vertex value must be a finite value greater than zero.");
         }
 
         if (normalizedRequest.TerrainGridMaxResolution < 2)
