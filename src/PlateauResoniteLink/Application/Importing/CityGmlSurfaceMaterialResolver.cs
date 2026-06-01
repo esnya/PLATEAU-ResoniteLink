@@ -277,7 +277,7 @@ internal static class CityGmlSurfaceMaterialResolver
             preferUvProjection,
             FamilyOverride: null,
             VariantSelectionKey: $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}",
-            BuildingAttributes: cityObject.BuildingAttributes,
+            BuildingAttributes: cityObject.BuildingAttributes ?? BuildingAttributeContext.Empty,
             FloorsAboveGround: cityObject.FloorsAboveGround,
             MeasuredHeightMeters: cityObject.MeasuredHeightMeters,
             GeometryHeightMeters: cityObject.GeometryHeightMeters,

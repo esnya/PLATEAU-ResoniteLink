@@ -17,7 +17,7 @@ internal sealed record DefaultMaterialRequest(
     bool PreferUvProjection,
     string? FamilyOverride,
     string VariantSelectionKey,
-    BuildingAttributeContext? BuildingAttributes = null,
+    BuildingAttributeContext BuildingAttributes,
     int? FloorsAboveGround = null,
     double? MeasuredHeightMeters = null,
     double? GeometryHeightMeters = null,
