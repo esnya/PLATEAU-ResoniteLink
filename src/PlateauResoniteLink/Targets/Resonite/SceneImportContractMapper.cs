@@ -139,13 +139,22 @@ internal static class SceneImportContractMapper
 
     private static ResoniteTexturePayload ToInternal(TexturePayload payload)
     {
-        return new ResoniteTexturePayload(
-            payload.Width,
-            payload.Height,
-            payload.ColorProfile,
-            payload.Source,
-            payload.Identity,
-            ToInternal(payload.Format));
+        return payload.Format switch
+        {
+            TexturePayloadFormat.RawRgba32 => new ResoniteTexturePayload(
+                payload.Width ?? throw new InvalidOperationException("Raw texture payload requires width."),
+                payload.Height ?? throw new InvalidOperationException("Raw texture payload requires height."),
+                payload.ColorProfile,
+                payload.BinaryPayload.AsSpan().ToArray(),
+                payload.Identity),
+            TexturePayloadFormat.EncodedImage => new ResoniteTexturePayload(
+                payload.Width,
+                payload.Height,
+                payload.ColorProfile,
+                payload.Source,
+                payload.Identity),
+            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.Format, "Unsupported texture payload format."),
+        };
     }
 
     private static ResoniteMaterialType ToInternal(MaterialType materialType)
@@ -176,16 +185,6 @@ internal static class SceneImportContractMapper
             MaterialProjection.Uv => ResoniteMaterialProjection.Uv,
             MaterialProjection.Triplanar => ResoniteMaterialProjection.Triplanar,
             _ => throw new ArgumentOutOfRangeException(nameof(projection), projection, "Unsupported material projection."),
-        };
-    }
-
-    private static ResoniteTexturePayloadFormat ToInternal(TexturePayloadFormat format)
-    {
-        return format switch
-        {
-            TexturePayloadFormat.RawRgba32 => ResoniteTexturePayloadFormat.RawRgba32,
-            TexturePayloadFormat.EncodedImage => ResoniteTexturePayloadFormat.EncodedImage,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported texture payload format."),
         };
     }
 

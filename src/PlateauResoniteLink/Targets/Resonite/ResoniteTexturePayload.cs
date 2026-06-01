@@ -14,12 +14,11 @@ public enum ResoniteTexturePayloadFormat
 public sealed record ResoniteTexturePayload
 {
     public ResoniteTexturePayload(
-        int? width,
-        int? height,
+        int width,
+        int height,
         string? colorProfile,
         byte[] binaryPayload,
-        string? identity = null,
-        ResoniteTexturePayloadFormat format = ResoniteTexturePayloadFormat.RawRgba32)
+        string? identity = null)
     {
         Width = width;
         Height = height;
@@ -27,14 +26,13 @@ public sealed record ResoniteTexturePayload
         ArgumentNullException.ThrowIfNull(binaryPayload);
         BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
         Identity = identity;
-        Format = format;
-        Source = TextureImportSourceFactory.CreateInMemory(
+        Format = ResoniteTexturePayloadFormat.RawRgba32;
+        Source = TextureImportSourceFactory.CreateInMemoryRaw(
             width,
             height,
             colorProfile,
             binaryPayload,
-            identity ?? Guid.NewGuid().ToString("N"),
-            (TexturePayloadFormat)format);
+            identity ?? Guid.NewGuid().ToString("N"));
     }
 
     public ResoniteTexturePayload(
@@ -42,8 +40,7 @@ public sealed record ResoniteTexturePayload
         int? height,
         string? colorProfile,
         ITextureImportSource source,
-        string? identity = null,
-        ResoniteTexturePayloadFormat format = ResoniteTexturePayloadFormat.EncodedImage)
+        string? identity = null)
     {
         Width = width;
         Height = height;
@@ -51,7 +48,7 @@ public sealed record ResoniteTexturePayload
         ArgumentNullException.ThrowIfNull(source);
         BinaryPayload = [];
         Identity = identity ?? source.Identity;
-        Format = format;
+        Format = ResoniteTexturePayloadFormat.EncodedImage;
         Source = source;
     }
 

@@ -16,13 +16,12 @@ internal static class TextureImportSourceTestFactory
         byte[] rawRgba32Bytes,
         string? identity = null)
     {
-        return TextureImportSourceFactory.CreateInMemory(
+        return TextureImportSourceFactory.CreateInMemoryRaw(
             width,
             height,
             colorProfile,
             rawRgba32Bytes,
-            identity ?? $"test-rgba32:{width}:{height}:{Guid.NewGuid():N}",
-            TexturePayloadFormat.RawRgba32);
+            identity ?? $"test-rgba32:{width}:{height}:{Guid.NewGuid():N}");
     }
 
     public static IReadOnlyList<RawTexturePayload> ImportedRgba32Textures(SceneSinkRecordingClient client)

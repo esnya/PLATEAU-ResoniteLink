@@ -16,7 +16,7 @@ public sealed class SceneImportContractMapperTests
             new PresentationMaterialBinding(
                 BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
                 MaterialType: MaterialType.Standard,
-                TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
+                TexturePayload: CreateEncodedTexturePayload(),
                 TextureSourceKind: TextureSourceKind.Dataset,
                 Projection: MaterialProjection.Uv,
                 DepthOffset: new MaterialDepthOffset(-1.5, 2.5),
@@ -145,10 +145,22 @@ public sealed class SceneImportContractMapperTests
         return new PresentationMaterialBinding(
             BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
             MaterialType: MaterialType.Standard,
-            TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
+            TexturePayload: CreateEncodedTexturePayload(),
             TextureSourceKind: TextureSourceKind.Dataset,
             Projection: MaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0]);
+    }
+
+    private static TexturePayload CreateEncodedTexturePayload()
+    {
+        return new TexturePayload(
+            width: 2,
+            height: 2,
+            colorProfile: "sRGB",
+            source: TextureImportSourceFactory.CreateInMemoryEncodedImage(
+                colorProfile: "sRGB",
+                bytes: [1, 2, 3, 4],
+                identity: "dataset:texture"));
     }
 }
