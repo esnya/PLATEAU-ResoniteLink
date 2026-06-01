@@ -1260,7 +1260,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectParsedCityObjectRejectsUnrequestedTerrainOverlayWithTraceableContext()
+    public void ProjectParsedCityObjectDoesNotUseUnrequestedTerrainOverlay()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay unrequestedOverlay = CreateThirdMeshOverlay("53394526");
@@ -1280,7 +1280,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem", "bldg"]);
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+        ImportedCityObject[] cityObjects =
             LocalCityGmlObjectProjection.ProjectParsedCityObject(
                 cityObject,
                 origin,
@@ -1289,13 +1289,10 @@ public sealed class LocalCityGmlObjectProjectionTests
                 requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
                 terrainHeightSampler: null,
                 request,
-                new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray());
+                new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
 
-        Assert.Contains("phase='non-dem-terrain-candidate'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("actual_mesh_code='53394525'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("requested_mesh_code='53394525'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("overlay=package='dem'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("sources='tile-z17-https://terrain.example/53394526/{z}/{x}/{y}.png'", exception.Message, StringComparison.Ordinal);
+        ImportedCityObject projectedCityObject = Assert.Single(cityObjects);
+        Assert.All(projectedCityObject.Materials, static material => Assert.Null(material.TerrainOverlayMaterial));
     }
 
     [Fact]

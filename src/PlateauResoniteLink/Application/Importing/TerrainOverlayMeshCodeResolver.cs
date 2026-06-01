@@ -12,10 +12,10 @@ internal static class TerrainOverlayMeshCodeResolver
 
     internal static bool IsRequestedOverlay(
         TerrainTextureOverlay terrainOverlay,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds)
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds)
     {
-        return requestedMeshCodeBounds is { Count: > 0 }
-            && requestedMeshCodeBounds.Any(area => BoundsApproximatelyEqual(area, terrainOverlay.MeshCode.Bounds)
+        return requestedMeshCodeBounds.Count == 0
+            || requestedMeshCodeBounds.Any(area => BoundsApproximatelyEqual(area, terrainOverlay.MeshCode.Bounds)
                 || ContainsBounds(area, terrainOverlay.GeographicBounds));
     }
 

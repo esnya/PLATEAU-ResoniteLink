@@ -125,8 +125,6 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             cityObjectOrigin,
             cityObjectCartesian,
             demTerrainTextureOverlay,
-            request.MeshCode,
-            requestedMeshCodeBounds,
             materialResolver);
         if (materials.Length == 0)
         {

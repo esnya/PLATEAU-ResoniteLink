@@ -26,14 +26,18 @@ internal sealed record MeshCodeBounds(
             bounds.EastLongitude);
     }
 
+    public static MeshCodeBounds Parse(string meshCode)
+    {
+        return TryParse(meshCode)
+            ?? throw new ArgumentException("Selected mesh code must be a valid PLATEAU mesh code with resolvable geographic bounds.", nameof(meshCode));
+    }
+
     public static MeshCodeBounds[] CreateManyFromSelectedMeshCodes(IEnumerable<string> meshCodes)
     {
         ArgumentNullException.ThrowIfNull(meshCodes);
 
         return meshCodes
-            .Select(TryParse)
-            .Where(static meshArea => meshArea is not null)
-            .Select(static meshArea => meshArea!)
+            .Select(Parse)
             .Distinct()
             .ToArray();
     }

@@ -103,8 +103,6 @@ internal static class CityGmlSurfaceMaterialResolver
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver)
     {
         return ResolveSurfaces(

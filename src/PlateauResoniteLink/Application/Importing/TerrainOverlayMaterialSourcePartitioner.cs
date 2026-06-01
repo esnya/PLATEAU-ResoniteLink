@@ -14,7 +14,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
     internal static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> PartitionParsedCityObject(
         ParsedCityObject cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         bool allowMissingGeneratedDemOverlayCoverage = false,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
@@ -49,29 +49,10 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         }
     }
 
-    internal static bool IsPartitionCompatibleWithRequest(
-        string actualMeshCode,
-        string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
-        TerrainTextureOverlay? terrainOverlay)
-    {
-        if (terrainOverlay is null)
-        {
-            return true;
-        }
-
-        if (requestedMeshCodeBounds.Count > 0)
-        {
-            return TerrainOverlayMeshCodeResolver.IsRequestedOverlay(terrainOverlay, requestedMeshCodeBounds);
-        }
-
-        return true;
-    }
-
     private static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> PartitionBuildingByTerrainOverlayMaterialSource(
         ParsedCityObject cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
@@ -100,9 +81,10 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         }
 
         double cityObjectMinAltitude = CityObjectAltitudeMetricsResolver.GetMinimumAltitude(cityObjectVertices);
-        string materialSourceMeshCode = string.IsNullOrWhiteSpace(cityObject.SourceMeshCode)
-            ? cityObject.ActualMeshCode
-            : cityObject.SourceMeshCode;
+        TerrainMaterialSourceMeshCode materialSourceMeshCode = TerrainMaterialSourceMeshCode.Parse(
+            string.IsNullOrWhiteSpace(cityObject.SourceMeshCode)
+                ? cityObject.ActualMeshCode
+                : cityObject.SourceMeshCode);
 
         List<ParsedSurface> untexturedSurfaces = [];
         List<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> terrainOverlayMaterialSurfaces = [];
@@ -129,7 +111,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                     .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
                     .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
                     .ToArray()
-                : IsConcreteThirdMeshCode(materialSourceMeshCode)
+                : materialSourceMeshCode.IsThirdRegionalMesh
                     ? materialSourceOverlays
                         .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
                         .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
@@ -141,18 +123,6 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                     .ToArray();
             if (candidateOverlays.Length == 0)
             {
-                TerrainTextureOverlay? overlappingOverlay = demTerrainTextureOverlays
-                    .FirstOrDefault(overlay => TerrainOverlayMeshCodeResolver.BoundsOverlap(surfaceBounds, overlay.GeographicBounds));
-                if (overlappingOverlay is not null)
-                {
-                    throw CreateTerrainOverlayMeshCodeMismatchException(
-                        "non-dem-terrain-candidate",
-                        materialSourceMeshCode,
-                        materialSourceMeshCode,
-                        requestedMeshCodeBounds,
-                        overlappingOverlay);
-                }
-
                 untexturedSurfaces.Add(surface);
                 continue;
             }
@@ -274,20 +244,11 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             : surface with { Semantic = ParsedSurfaceSemantic.Roof };
     }
 
-    private static bool IsConcreteThirdMeshCode(string meshCode)
-    {
-        return meshCode.Length == 8
-            && meshCode.All(static character => character is >= '0' and <= '9');
-    }
-
     private static bool IsOverlayInMaterialSourceMeshCode(
-        string materialSourceMeshCode,
+        TerrainMaterialSourceMeshCode materialSourceMeshCode,
         TerrainTextureOverlay terrainOverlay)
     {
-        return materialSourceMeshCode.Length == 8
-            ? string.Equals(terrainOverlay.MeshCode.Value, materialSourceMeshCode, StringComparison.Ordinal)
-            : materialSourceMeshCode.Length == 6
-                && string.Equals(terrainOverlay.MeshCode.Parent.Value, materialSourceMeshCode, StringComparison.Ordinal);
+        return materialSourceMeshCode.Contains(terrainOverlay.MeshCode);
     }
 
     private static bool CanUseTerrainOverlayMaterialSource(
@@ -332,18 +293,36 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
     }
 
-    private static InvalidOperationException CreateTerrainOverlayMeshCodeMismatchException(
-        string phase,
-        string actualMeshCode,
-        string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
-        TerrainTextureOverlay? terrainOverlay)
+    private readonly record struct TerrainMaterialSourceMeshCode(
+        ThirdRegionalMeshCode? ThirdMeshCode,
+        SecondRegionalMeshCode? SecondMeshCode)
     {
-        return TerrainOverlayDiagnostics.CreateMeshCodeMismatchException(
-            phase,
-            actualMeshCode,
-            requestedMeshCode,
-            requestedMeshCodeBounds,
-            terrainOverlay);
+        public bool IsThirdRegionalMesh => ThirdMeshCode.HasValue;
+
+        public static TerrainMaterialSourceMeshCode Parse(string meshCode)
+        {
+            if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
+            {
+                return new TerrainMaterialSourceMeshCode(thirdMeshCode, SecondMeshCode: null);
+            }
+
+            if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode secondMeshCode))
+            {
+                return new TerrainMaterialSourceMeshCode(ThirdMeshCode: null, secondMeshCode);
+            }
+
+            return new TerrainMaterialSourceMeshCode(ThirdMeshCode: null, SecondMeshCode: null);
+        }
+
+        public bool Contains(ThirdRegionalMeshCode overlayMeshCode)
+        {
+            if (ThirdMeshCode is { } thirdMeshCode)
+            {
+                return thirdMeshCode == overlayMeshCode;
+            }
+
+            return SecondMeshCode is { } secondMeshCode
+                && secondMeshCode == overlayMeshCode.Parent;
+        }
     }
 }

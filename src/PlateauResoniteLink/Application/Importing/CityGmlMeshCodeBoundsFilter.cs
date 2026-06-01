@@ -29,11 +29,10 @@ internal static class CityGmlMeshCodeBoundsFilter
         string actualMeshCode,
         bool sharedAcrossMeshCodes,
         CoordinateReferenceSystem coordinateReferenceSystem,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         IEnumerable<ParsedSurface> surfaces)
     {
-        if (requestedMeshCodeBounds is not { Count: > 0 }
-            || !coordinateReferenceSystem.IsGeographic)
+        if (requestedMeshCodeBounds.Count == 0 || !coordinateReferenceSystem.IsGeographic)
         {
             return true;
         }

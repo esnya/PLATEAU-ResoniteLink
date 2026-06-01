@@ -21,7 +21,7 @@ internal static class CityGmlParsedCityObjectReader
         ICityGmlAppearanceStore appearanceStore,
         ICityGmlLodSelector lodSelector,
         CoordinateReferenceSystem coordinateReferenceSystem,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         LodFilteringStrategy lodFilteringStrategy)
     {
         string objectTypeName = cityObjectElement.Name.LocalName;
