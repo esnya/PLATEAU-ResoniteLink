@@ -144,7 +144,7 @@ internal static class CityGmlSurfaceMaterialResolver
             : new TerrainOverlayMaterialBinding(
                 terrainOverlay.MeshCode,
                 terrainOverlay);
-        ColorRgba baseColor = representativeSurface.Material.TerrainOverlay is null
+        ColorRgba baseColor = terrainOverlay is null
             ? ToContractColor(representativeSurface.Surface.BaseColor)
             : new ColorRgba(1.0, 1.0, 1.0, 1.0);
         DefaultCommonMaterialMember? commonMaterial = DefaultCommonMaterialAssignment.Resolve(
