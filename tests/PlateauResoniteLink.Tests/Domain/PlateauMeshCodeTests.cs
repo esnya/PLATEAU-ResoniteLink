@@ -5,39 +5,38 @@ namespace PlateauResoniteLink.Tests.Domain;
 public sealed class PlateauMeshCodeTests
 {
     [Fact]
-    public void PlateauRegionalMeshCodeParsesSecondLevelMeshAsSuccessType()
+    public void SecondRegionalMeshCodeCarriesBoundsAndCenterAfterParsing()
     {
-        bool parsed = PlateauRegionalMeshCode.TryParse("533945", out PlateauRegionalMeshCode? meshCode);
+        bool parsed = SecondRegionalMeshCode.TryParse("533945", out SecondRegionalMeshCode meshCode);
 
         Assert.True(parsed);
-        PlateauRegionalMeshCode.Second secondMeshCode = Assert.IsType<PlateauRegionalMeshCode.Second>(meshCode);
-        Assert.Equal("533945", secondMeshCode.Value);
-        Assert.Equal(35.708333333333343, secondMeshCode.Center.Latitude, 9);
-        Assert.Equal(139.6875, secondMeshCode.Center.Longitude, 9);
+        Assert.Equal("533945", meshCode.Value);
+        Assert.Equal(35.708333333333343, meshCode.Center.Latitude, 9);
+        Assert.Equal(139.6875, meshCode.Center.Longitude, 9);
     }
 
     [Fact]
-    public void PlateauRegionalMeshCodeParsesThirdLevelMeshAsSuccessType()
+    public void ThirdRegionalMeshCodeCarriesBoundsAndCenterAfterParsing()
     {
-        bool parsed = PlateauRegionalMeshCode.TryParse("53394525", out PlateauRegionalMeshCode? meshCode);
+        bool parsed = ThirdRegionalMeshCode.TryParse("53394525", out ThirdRegionalMeshCode meshCode);
 
         Assert.True(parsed);
-        PlateauRegionalMeshCode.Third thirdMeshCode = Assert.IsType<PlateauRegionalMeshCode.Third>(meshCode);
-        Assert.Equal("53394525", thirdMeshCode.Value);
-        Assert.Equal(35.6875, thirdMeshCode.Center.Latitude, 9);
-        Assert.Equal(139.69375, thirdMeshCode.Center.Longitude, 9);
+        Assert.Equal("53394525", meshCode.Value);
+        Assert.Equal(35.6875, meshCode.Center.Latitude, 9);
+        Assert.Equal(139.69375, meshCode.Center.Longitude, 9);
     }
 
     [Theory]
     [InlineData("5339")]
     [InlineData("533948")]
     [InlineData("5339452A")]
-    public void PlateauRegionalMeshCodeRejectsNonConcreteOrInvalidMeshCodes(string meshCode)
+    public void PlateauMeshCodeRejectsNonConcreteOrInvalidMeshCodes(string meshCode)
     {
-        bool parsed = PlateauRegionalMeshCode.TryParse(meshCode, out PlateauRegionalMeshCode? parsedMeshCode);
+        bool resolved = PlateauMeshCode.TryGetBounds(
+            meshCode,
+            out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) _);
 
-        Assert.False(parsed);
-        Assert.Null(parsedMeshCode);
+        Assert.False(resolved);
     }
 
     [Fact]

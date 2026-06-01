@@ -7,7 +7,13 @@ public sealed record JisRegionalMeshBounds(
     double SouthLatitude,
     double NorthLatitude,
     double WestLongitude,
-    double EastLongitude);
+    double EastLongitude)
+{
+    public GeodeticCoordinate Center => new(
+        Latitude: (SouthLatitude + NorthLatitude) / 2.0,
+        Longitude: (WestLongitude + EastLongitude) / 2.0,
+        Altitude: 0.0);
+}
 
 public readonly record struct FirstRegionalMeshCode
 {
@@ -20,11 +26,13 @@ public readonly record struct FirstRegionalMeshCode
 
     public JisRegionalMeshBounds Bounds => JisRegionalMeshCodeCalculator.GetBounds(this);
 
+    public GeodeticCoordinate Center => Bounds.Center;
+
     public static bool TryParse(string? value, out FirstRegionalMeshCode meshCode)
     {
-        if (JisRegionalMeshCodeCalculator.IsValid(value, 4))
+        if (value is not null && JisRegionalMeshCodeCalculator.IsValid(value, 4))
         {
-            meshCode = new FirstRegionalMeshCode(value!);
+            meshCode = FromValidated(value);
             return true;
         }
 
@@ -40,6 +48,11 @@ public readonly record struct FirstRegionalMeshCode
     }
 
     public override string ToString() => Value;
+
+    internal static FirstRegionalMeshCode FromValidated(string value)
+    {
+        return new FirstRegionalMeshCode(value);
+    }
 }
 
 public readonly record struct SecondRegionalMeshCode
@@ -53,13 +66,15 @@ public readonly record struct SecondRegionalMeshCode
 
     public JisRegionalMeshBounds Bounds => JisRegionalMeshCodeCalculator.GetBounds(this);
 
-    public FirstRegionalMeshCode Parent => FirstRegionalMeshCode.Parse(Value[..4]);
+    public GeodeticCoordinate Center => Bounds.Center;
+
+    public FirstRegionalMeshCode Parent => FirstRegionalMeshCode.FromValidated(Value[..4]);
 
     public static bool TryParse(string? value, out SecondRegionalMeshCode meshCode)
     {
-        if (JisRegionalMeshCodeCalculator.IsValid(value, 6))
+        if (value is not null && JisRegionalMeshCodeCalculator.IsValid(value, 6))
         {
-            meshCode = new SecondRegionalMeshCode(value!);
+            meshCode = FromValidated(value);
             return true;
         }
 
@@ -75,6 +90,11 @@ public readonly record struct SecondRegionalMeshCode
     }
 
     public override string ToString() => Value;
+
+    internal static SecondRegionalMeshCode FromValidated(string value)
+    {
+        return new SecondRegionalMeshCode(value);
+    }
 }
 
 public readonly record struct ThirdRegionalMeshCode
@@ -88,15 +108,17 @@ public readonly record struct ThirdRegionalMeshCode
 
     public JisRegionalMeshBounds Bounds => JisRegionalMeshCodeCalculator.GetBounds(this);
 
-    public SecondRegionalMeshCode Parent => SecondRegionalMeshCode.Parse(Value[..6]);
+    public GeodeticCoordinate Center => Bounds.Center;
 
-    public FirstRegionalMeshCode FirstMesh => FirstRegionalMeshCode.Parse(Value[..4]);
+    public SecondRegionalMeshCode Parent => SecondRegionalMeshCode.FromValidated(Value[..6]);
+
+    public FirstRegionalMeshCode FirstMesh => FirstRegionalMeshCode.FromValidated(Value[..4]);
 
     public static bool TryParse(string? value, out ThirdRegionalMeshCode meshCode)
     {
-        if (JisRegionalMeshCodeCalculator.IsValid(value, 8))
+        if (value is not null && JisRegionalMeshCodeCalculator.IsValid(value, 8))
         {
-            meshCode = new ThirdRegionalMeshCode(value!);
+            meshCode = FromValidated(value);
             return true;
         }
 
@@ -112,6 +134,11 @@ public readonly record struct ThirdRegionalMeshCode
     }
 
     public override string ToString() => Value;
+
+    internal static ThirdRegionalMeshCode FromValidated(string value)
+    {
+        return new ThirdRegionalMeshCode(value);
+    }
 }
 
 internal static class JisRegionalMeshCodeCalculator

@@ -1,82 +1,52 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace PlateauResoniteLink.Domain.Importing;
-
-public abstract record PlateauRegionalMeshCode
-{
-    private PlateauRegionalMeshCode(string value, JisRegionalMeshBounds bounds)
-    {
-        Value = value;
-        Bounds = bounds;
-    }
-
-    public string Value { get; }
-
-    public JisRegionalMeshBounds Bounds { get; }
-
-    public GeodeticCoordinate Center => new(
-        Latitude: (Bounds.SouthLatitude + Bounds.NorthLatitude) / 2.0,
-        Longitude: (Bounds.WestLongitude + Bounds.EastLongitude) / 2.0,
-        Altitude: 0.0);
-
-    public static bool TryParse(string? value, [NotNullWhen(true)] out PlateauRegionalMeshCode? meshCode)
-    {
-        if (SecondRegionalMeshCode.TryParse(value, out SecondRegionalMeshCode secondMeshCode))
-        {
-            meshCode = new Second(secondMeshCode);
-            return true;
-        }
-
-        if (ThirdRegionalMeshCode.TryParse(value, out ThirdRegionalMeshCode thirdMeshCode))
-        {
-            meshCode = new Third(thirdMeshCode);
-            return true;
-        }
-
-        meshCode = null;
-        return false;
-    }
-
-    public sealed record Second(SecondRegionalMeshCode Code)
-        : PlateauRegionalMeshCode(Code.Value, Code.Bounds);
-
-    public sealed record Third(ThirdRegionalMeshCode Code)
-        : PlateauRegionalMeshCode(Code.Value, Code.Bounds);
-
-    public override string ToString() => Value;
-}
 
 public static class PlateauMeshCode
 {
     public static bool TryGetGeodeticCenter(string meshCode, out GeodeticCoordinate center)
     {
-        if (!PlateauRegionalMeshCode.TryParse(meshCode, out PlateauRegionalMeshCode? regionalMeshCode))
+        if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode secondMeshCode))
         {
-            center = new GeodeticCoordinate(0.0, 0.0, 0.0);
-            return false;
+            center = secondMeshCode.Center;
+            return true;
         }
 
-        center = regionalMeshCode.Center;
-        return true;
+        if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
+        {
+            center = thirdMeshCode.Center;
+            return true;
+        }
+
+        center = new GeodeticCoordinate(0.0, 0.0, 0.0);
+        return false;
     }
 
     public static bool TryGetBounds(
         string meshCode,
         out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds)
     {
-        bounds = default;
-
-        if (!PlateauRegionalMeshCode.TryParse(meshCode, out PlateauRegionalMeshCode? regionalMeshCode))
+        if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode secondMeshCode))
         {
-            return false;
+            bounds = ToTuple(secondMeshCode.Bounds);
+            return true;
         }
 
-        JisRegionalMeshBounds jisBounds = regionalMeshCode.Bounds;
-        bounds = (
-            SouthLatitude: jisBounds.SouthLatitude,
-            NorthLatitude: jisBounds.NorthLatitude,
-            WestLongitude: jisBounds.WestLongitude,
-            EastLongitude: jisBounds.EastLongitude);
-        return true;
+        if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
+        {
+            bounds = ToTuple(thirdMeshCode.Bounds);
+            return true;
+        }
+
+        bounds = default;
+        return false;
+    }
+
+    private static (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) ToTuple(
+        JisRegionalMeshBounds bounds)
+    {
+        return (
+            SouthLatitude: bounds.SouthLatitude,
+            NorthLatitude: bounds.NorthLatitude,
+            WestLongitude: bounds.WestLongitude,
+            EastLongitude: bounds.EastLongitude);
     }
 }
