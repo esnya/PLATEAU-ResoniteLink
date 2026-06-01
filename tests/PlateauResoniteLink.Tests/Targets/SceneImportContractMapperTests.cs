@@ -1,3 +1,5 @@
+using System;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
@@ -38,6 +40,26 @@ public sealed class SceneImportContractMapperTests
         Assert.Equal(0.125, mapped.TextureOffset!.Y, 9);
         Assert.Equal(ResoniteMaterialAssetScope.Common, mapped.AssetScope);
         Assert.Equal(3, mapped.BundledVariantIndex);
+    }
+
+    [Theory]
+    [InlineData("materialType")]
+    [InlineData("textureSourceKind")]
+    [InlineData("projection")]
+    [InlineData("texturePayloadFormat")]
+    public void ToInternalMaterialBindingsRejectsUnsupportedContractEnumValues(string invalidField)
+    {
+        MaterialBinding binding = CreateValidBinding() with
+        {
+            MaterialType = invalidField == "materialType" ? (MaterialType)999 : MaterialType.Standard,
+            TextureSourceKind = invalidField == "textureSourceKind" ? (TextureSourceKind)999 : TextureSourceKind.Dataset,
+            Projection = invalidField == "projection" ? (MaterialProjection)999 : MaterialProjection.Uv,
+            TexturePayload = invalidField == "texturePayloadFormat"
+                ? new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", (TexturePayloadFormat)999)
+                : new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => SceneImportContractMapper.ToInternal(binding));
     }
 
     [Fact]
@@ -108,5 +130,17 @@ public sealed class SceneImportContractMapperTests
         Assert.Same(overlay, mapped.TerrainOverlay);
         Assert.Equal("53394525", mapped.TerrainMeshCode);
         Assert.Null(mapped.CommonMaterial);
+    }
+
+    private static MaterialBinding CreateValidBinding()
+    {
+        return new MaterialBinding(
+            BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
+            MaterialType: MaterialType.Standard,
+            TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
+            TextureSourceKind: TextureSourceKind.Dataset,
+            Projection: MaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0]);
     }
 }
