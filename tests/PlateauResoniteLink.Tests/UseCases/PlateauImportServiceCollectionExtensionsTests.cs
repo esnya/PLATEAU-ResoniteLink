@@ -16,13 +16,13 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     [Fact]
     public async Task AddImportedSceneSourceServicesUsesCustomComposerWhenFactoryCreatesSourceFromReader()
     {
-        PlateauImportRequest request = new(
+        ResolvedLocalPlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            CityGmlSource: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDataset")));
+            CityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"));
         ImportedSceneSourceSnapshot expectedReadResult = new(
             new ImportedSceneSourceDataset(
-                new StubDatasetContentSource(request.CityGmlLocalSourcePath!),
+                new StubDatasetContentSource(request.CityGmlLocalSourcePath),
                 [],
                 ["bldg"],
                 [],
@@ -108,10 +108,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
 
     private sealed class CustomCityGmlDocumentReader(ImportedSceneSourceSnapshot? readResult = null) : ICityGmlDocumentReader
     {
-        public PlateauImportRequest? LastRequest { get; private set; }
+        public ResolvedLocalPlateauImportRequest? LastRequest { get; private set; }
 
         public Task<ImportedSceneSourceSnapshot> ReadAsync(
-            PlateauImportRequest request,
+            ResolvedLocalPlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
@@ -123,7 +123,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     private sealed class CustomImportedSceneSourceFactory : IImportedSceneSourceFactory
     {
         public Task<IImportedSceneSource> CreateAsync(
-            PlateauImportRequest request,
+            ResolvedLocalPlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
@@ -151,12 +151,12 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
 
     private sealed class RecordingConstructionComposer(IImportedSceneSource source) : IImportedSceneSourceComposer
     {
-        public PlateauImportRequest? LastRequest { get; private set; }
+        public ResolvedLocalPlateauImportRequest? LastRequest { get; private set; }
 
         public ImportedSceneSourceSnapshot? LastReadResult { get; private set; }
 
         public IImportedSceneSource Compose(
-            PlateauImportRequest request,
+            ResolvedLocalPlateauImportRequest request,
             ImportedSceneSourceSnapshot readResult,
             IImportedObjectUnitOptimizer objectUnitOptimizer,
             Action<string>? progressReporter = null)

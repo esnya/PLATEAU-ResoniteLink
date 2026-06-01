@@ -5,7 +5,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal interface IPlateauDatasetSourceResolver
 {
-    Task<ValidatedPlateauImportRequest> ResolveAsync(
+    Task<ResolvedLocalPlateauImportRequest> ResolveAsync(
         ValidatedPlateauImportRequest request,
         string workRoot,
         CancellationToken cancellationToken = default);

@@ -45,11 +45,11 @@ internal sealed class PlateauImportService(
 
         try
         {
-            PlateauImportRequest resolvedRequest =
-                (await datasetSourceResolver.ResolveAsync(
-                    validatedRequest,
-                    datasetWorkRoot,
-                    cancellationToken)).ToImportRequest();
+            ResolvedLocalPlateauImportRequest resolvedRequest = await datasetSourceResolver.ResolveAsync(
+                validatedRequest,
+                datasetWorkRoot,
+                cancellationToken);
+            PlateauImportRequest resolvedImportRequest = resolvedRequest.ToImportRequest();
             ReportProgress(
                 PlateauLog.Debug("import", $"Resolved CityGML source for '{resolvedRequest.Dataset}' mesh-code '{resolvedRequest.MeshCode}'."));
 
@@ -68,12 +68,11 @@ internal sealed class PlateauImportService(
                     "import",
                     $"Setup will use {this.commonMaterials.Count} codebase-reachable common materials."));
 
-            LocalDatasetLocation resolvedCityGmlSource = (LocalDatasetLocation)resolvedRequest.CityGmlSource;
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
-                resolvedRequest,
+                resolvedImportRequest,
                 metadata,
-                resolvedCityGmlSource.LocalSourcePath,
+                resolvedRequest.CityGmlLocalSourcePath,
                 datasetWorkRoot,
                 this.commonMaterials);
 

@@ -81,12 +81,13 @@ public sealed class ImportServiceFactoryTests
 
     private sealed class StubPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
     {
-        public Task<ValidatedPlateauImportRequest> ResolveAsync(
+        public Task<ResolvedLocalPlateauImportRequest> ResolveAsync(
             ValidatedPlateauImportRequest request,
             string workRoot,
             CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(request);
+            ValidatedLocalDatasetLocation localSource = Assert.IsType<ValidatedLocalDatasetLocation>(request.CityGmlSource);
+            return Task.FromResult(ResolvedLocalPlateauImportRequest.Create(request, localSource, request.DemTextureSource));
         }
     }
 
@@ -134,7 +135,7 @@ public sealed class ImportServiceFactoryTests
         public int CreateCallCount { get; private set; }
 
         public Task<IImportedSceneSource> CreateAsync(
-            PlateauImportRequest request,
+            ResolvedLocalPlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
@@ -143,7 +144,7 @@ public sealed class ImportServiceFactoryTests
             ImportedSceneMetadata metadata = new(
                 "3.0",
                 $"PLATEAU {request.Dataset} {request.MeshCode}",
-                request,
+                request.ToImportRequest(),
                 new PlateauSourceDataset(["bldg"], [], []),
                 new Attribution(
                     new LicenseMetadata(true, "credit", "license", "https://example.invalid")),
