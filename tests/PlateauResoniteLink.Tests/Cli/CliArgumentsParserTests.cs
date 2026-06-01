@@ -232,6 +232,27 @@ public sealed class CliArgumentsParserTests
         Assert.Equal(512, options.Request.TerrainGridMaxResolution);
     }
 
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void ParseRejectsNonFiniteTerrainGridMetersPerVertex(string metersPerVertex)
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+                "--terrain-grid-meters-per-vertex", metersPerVertex,
+            ]);
+
+        Assert.Equal(
+            $"The value '{metersPerVertex}' is not a valid positive terrain grid meters-per-vertex value.",
+            AssertFailure(result).Error);
+    }
+
     [Fact]
     public void ParseParsesTerrainDynamicMode()
     {

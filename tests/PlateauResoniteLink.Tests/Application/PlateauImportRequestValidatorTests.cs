@@ -65,7 +65,7 @@ public sealed class PlateauImportRequestValidatorTests
                 MeshCode: "53394525",
                 MeshCodePattern: meshCodePattern,
                 CityGmlSource: source,
-                TerrainGridMetersPerVertex: 0));
+                TerrainGridMetersPerVertex: double.NaN));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => new ValidatedPlateauImportRequest(
                 Dataset: "tokyo23ku",
@@ -230,7 +230,21 @@ public sealed class PlateauImportRequestValidatorTests
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
-        Assert.Contains("The terrain grid meters-per-vertex value must be greater than zero.", errors);
+        Assert.Contains("The terrain grid meters-per-vertex value must be a finite value greater than zero.", errors);
+    }
+
+    [Fact]
+    public void ValidateRejectsNonFiniteTerrainGridMetersPerVertex()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("C:/dataset"),
+            TerrainGridMetersPerVertex: double.PositiveInfinity);
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains("The terrain grid meters-per-vertex value must be a finite value greater than zero.", errors);
     }
 
     [Theory]

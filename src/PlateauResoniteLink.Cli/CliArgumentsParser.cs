@@ -273,6 +273,7 @@ public static class CliArgumentsParser
                                     System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
                                     System.Globalization.CultureInfo.InvariantCulture,
                                     out terrainGridMetersPerVertex)
+                                || !double.IsFinite(terrainGridMetersPerVertex)
                                 || terrainGridMetersPerVertex <= 0.0)
                             {
                                 return CliParseResult.Failure(
