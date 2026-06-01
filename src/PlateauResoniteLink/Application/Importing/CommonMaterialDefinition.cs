@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 using PlateauResoniteLink.Domain.Importing;
@@ -13,6 +14,8 @@ internal abstract class CommonMaterialDefinition
         string memberName,
         MaterialDepthOffset? depthOffset)
     {
+        ArgumentNullException.ThrowIfNull(memberName);
+
         Projection = projection;
         MemberName = memberName;
         DepthOffset = depthOffset;
@@ -51,6 +54,8 @@ internal sealed class BundledCommonMaterialDefinition : CommonMaterialDefinition
         int bundledVariantIndex)
         : base(projection, memberName, depthOffset: null)
     {
+        ArgumentNullException.ThrowIfNull(family);
+
         this.family = family;
         VariantIndex = bundledVariantIndex;
         bundledVariant = BundledDefaultMaterialFamilies.GetVariantDefinition(family, bundledVariantIndex);
