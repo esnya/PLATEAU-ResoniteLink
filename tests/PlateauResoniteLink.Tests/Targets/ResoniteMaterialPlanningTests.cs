@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.TestSupport;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -230,7 +231,7 @@ public sealed class ResoniteMaterialPlanningTests
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 512);
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -319,7 +320,7 @@ public sealed class ResoniteMaterialPlanningTests
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 512);
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),

@@ -27,7 +27,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
             ZoomLevel: 14,
-            GeographicBounds: new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 1024);
 
         ImportedSceneSourceDataset documentSet = new(
@@ -87,7 +87,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
                         ThirdRegionalMeshCode.Parse("53394525"),
                         "https://example.invalid/discovered/{z}/{x}/{y}.png",
                         18,
-                        new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
+                        ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
                         1024),
                 ],
                 ["53394525"]),

@@ -3,6 +3,7 @@ using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.TestSupport;
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -235,7 +236,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 512);
         ResoniteConstructionCityObject cityObject = CreateTriangleCityObject(
             new ResoniteFloat2(0.5, 0.25),

@@ -98,6 +98,8 @@ public sealed record TerrainTextureGeoReferencedRasterSource(
 
 public sealed record TerrainTextureOverlay
 {
+    private const double MeshBoundsToleranceDegrees = 1e-6;
+
     public TerrainTextureOverlay(
         string PackageName,
         ThirdRegionalMeshCode MeshCode,
@@ -110,7 +112,7 @@ public sealed record TerrainTextureOverlay
             ? throw new ArgumentException("Terrain texture package name must be provided.", nameof(PackageName))
             : PackageName.ToLowerInvariant();
         this.MeshCode = MeshCode;
-        this.GeographicBounds = GeographicBounds;
+        this.GeographicBounds = GeographicBounds ?? throw new ArgumentNullException(nameof(GeographicBounds));
         this.MaxTextureSize = MaxTextureSize > 0
             ? MaxTextureSize
             : throw new ArgumentOutOfRangeException(nameof(MaxTextureSize));
@@ -159,17 +161,17 @@ public sealed record TerrainTextureOverlay
     {
     }
 
-    public string PackageName { get; init; }
+    public string PackageName { get; }
 
-    public ThirdRegionalMeshCode MeshCode { get; init; }
+    public ThirdRegionalMeshCode MeshCode { get; }
 
-    public GeographicRectangle GeographicBounds { get; init; }
+    public GeographicRectangle GeographicBounds { get; }
 
-    public int MaxTextureSize { get; init; }
+    public int MaxTextureSize { get; }
 
-    public IReadOnlyList<TerrainTextureSource> Sources { get; init; }
+    public IReadOnlyList<TerrainTextureSource> Sources { get; }
 
-    public TerrainTextureLicenseMode LicenseMode { get; init; }
+    public TerrainTextureLicenseMode LicenseMode { get; }
 
     public TerrainTextureSource PrimarySource => Sources[0];
 
@@ -195,6 +197,11 @@ public sealed record TerrainTextureOverlay
 
     public IEnumerable<TerrainTextureGeoReferencedRasterSource> EnumerateGeoReferencedRasterSources() =>
         Sources.OfType<TerrainTextureGeoReferencedRasterSource>();
+
+    public void EnsureGeographicBoundsMatchMeshCode()
+    {
+        ValidateMeshBounds(MeshCode, GeographicBounds);
+    }
 
     public bool Equals(TerrainTextureOverlay? other)
     {
@@ -230,6 +237,31 @@ public sealed record TerrainTextureOverlay
             ?? throw new InvalidOperationException(
                 $"Terrain texture source '{source.GetType().Name}' does not provide a web tile URL.");
     }
+
+    private static GeographicRectangle ValidateMeshBounds(
+        ThirdRegionalMeshCode meshCode,
+        GeographicRectangle geographicBounds)
+    {
+        ArgumentNullException.ThrowIfNull(geographicBounds);
+
+        JisRegionalMeshBounds meshBounds = meshCode.Bounds;
+        if (IsClose(geographicBounds.MinLatitude, meshBounds.SouthLatitude)
+            && IsClose(geographicBounds.MaxLatitude, meshBounds.NorthLatitude)
+            && IsClose(geographicBounds.MinLongitude, meshBounds.WestLongitude)
+            && IsClose(geographicBounds.MaxLongitude, meshBounds.EastLongitude))
+        {
+            return geographicBounds;
+        }
+
+        throw new ArgumentException(
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"Terrain texture overlay bounds must match third-level mesh-code '{meshCode.Value}' bounds."),
+            nameof(geographicBounds));
+    }
+
+    private static bool IsClose(double actual, double expected) =>
+        Math.Abs(actual - expected) <= MeshBoundsToleranceDegrees;
 
 }
 

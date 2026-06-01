@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -42,9 +43,14 @@ internal sealed class ResoniteQueuedTexturePreparer(
 
         (ThirdRegionalMeshCode TerrainMeshCode, TerrainTextureOverlay TerrainOverlay)[] distinctTerrainOverlays = cityObject.Materials
             .Where(static material => material.TerrainOverlayMaterial is not null)
-            .Select(entry => (
-                TerrainMeshCode: entry.TerrainOverlayMaterial!.MeshCode,
-                TerrainOverlay: entry.TerrainOverlayMaterial.Overlay))
+            .Select(static entry =>
+            {
+                TerrainOverlayMaterialBinding terrainOverlayMaterial = entry.TerrainOverlayMaterial!;
+                terrainOverlayMaterial.Overlay.EnsureGeographicBoundsMatchMeshCode();
+                return (
+                    TerrainMeshCode: terrainOverlayMaterial.MeshCode,
+                    TerrainOverlay: terrainOverlayMaterial.Overlay);
+            })
             .Distinct()
             .OrderBy(static entry => entry.TerrainMeshCode.Value, StringComparer.Ordinal)
             .ThenBy(static entry => entry.TerrainOverlay.PackageName, StringComparer.Ordinal)

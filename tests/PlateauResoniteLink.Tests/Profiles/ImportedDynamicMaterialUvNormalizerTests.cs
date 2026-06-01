@@ -181,7 +181,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 512);
         ImportedCityObject cityObject = CreateTriangleCityObject(
             new Float2(0.5, 0.25),
@@ -221,7 +221,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 512);
         ImportedCityObject cityObject = CreateTriangleCityObject(
             new Float2(0.5, 0.25),

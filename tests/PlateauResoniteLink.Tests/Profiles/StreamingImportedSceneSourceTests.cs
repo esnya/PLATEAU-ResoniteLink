@@ -106,20 +106,20 @@ public sealed class StreamingImportedSceneSourceTests
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://example.invalid/discovery/{z}/{x}/{y}.png",
             ZoomLevel: 18,
-            GeographicBounds: new GeographicRectangle(35.0, 36.0, 139.0, 140.0),
+            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
             MaxTextureSize: 1024,
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
         TerrainTextureOverlay explicitRasterOverlay = new(
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            GeographicBounds: new GeographicRectangle(36.0, 36.1, 140.0, 140.1),
             MaxTextureSize: 1024,
             Sources:
             [
                 new TerrainTextureGeoReferencedRasterSource(
                     "C:\\ortho\\terrain.tif",
                     new GeoReferencedRasterMetadata(
-                        new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                        ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
                         "EPSG:4326",
                         1.0,
                         1.0)),
@@ -208,7 +208,7 @@ public sealed class StreamingImportedSceneSourceTests
         TerrainTextureOverlay fallbackOverlay = new(
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 1024,
             Sources:
             [
@@ -275,7 +275,7 @@ public sealed class StreamingImportedSceneSourceTests
         TerrainTextureOverlay fallbackOverlay = new(
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 1024,
             Sources:
             [
@@ -350,7 +350,7 @@ public sealed class StreamingImportedSceneSourceTests
             new TerrainTextureOverlay(
                 PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-                GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
                 MaxTextureSize: 1024,
                 Sources:
                 [
@@ -397,7 +397,7 @@ public sealed class StreamingImportedSceneSourceTests
             new TerrainTextureOverlay(
                 PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-                GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
                 MaxTextureSize: 1024,
                 Sources:
                 [
@@ -467,14 +467,14 @@ public sealed class StreamingImportedSceneSourceTests
         TerrainTextureOverlay explicitRasterOverlay = new(
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 1024,
             Sources:
             [
                 new TerrainTextureGeoReferencedRasterSource(
                     "C:\\ortho\\terrain.tif",
                     new GeoReferencedRasterMetadata(
-                        new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                        ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
                         "EPSG:4326",
                         1.0,
                         1.0)),
@@ -517,14 +517,14 @@ public sealed class StreamingImportedSceneSourceTests
         TerrainTextureOverlay explicitRasterOverlay = new(
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 1024,
             Sources:
             [
                 new TerrainTextureGeoReferencedRasterSource(
                     "C:\\ortho\\terrain.tif",
                     new GeoReferencedRasterMetadata(
-                        new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                        ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
                         "EPSG:4326",
                         1.0,
                         1.0)),
@@ -577,14 +577,14 @@ public sealed class StreamingImportedSceneSourceTests
         TerrainTextureOverlay explicitRasterOverlay = new(
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
             MaxTextureSize: 1024,
             Sources:
             [
                 new TerrainTextureGeoReferencedRasterSource(
                     "C:\\ortho\\terrain.tif",
                     new GeoReferencedRasterMetadata(
-                        new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                        ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
                         "EPSG:4326",
                         1.0,
                         1.0)),

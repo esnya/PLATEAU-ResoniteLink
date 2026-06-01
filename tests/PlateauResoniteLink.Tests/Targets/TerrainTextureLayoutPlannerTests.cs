@@ -10,19 +10,13 @@ public sealed class TerrainTextureLayoutPlannerTests
     [Fact]
     public void CreateReturnsTileAndCropLayoutForWorldScaleOverlay()
     {
-        TerrainTextureOverlay overlay = new(
-            PackageName: "dem",
-            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
-            ZoomLevel: 1,
-            GeographicBounds: new GeographicRectangle(
+        TerrainTextureLayoutPlan plan = TerrainTextureLayoutPlanner.Create(
+            new GeographicRectangle(
                 MinLatitude: 0.0,
                 MaxLatitude: WebMercatorTileMath.MaxLatitude,
                 MinLongitude: -180.0,
                 MaxLongitude: 180.0),
-            MaxTextureSize: 512);
-
-        TerrainTextureLayoutPlan plan = TerrainTextureLayoutPlanner.Create(overlay);
+            1);
 
         Assert.Equal(0, plan.MinTileX);
         Assert.Equal(1, plan.MaxTileX);
@@ -39,19 +33,13 @@ public sealed class TerrainTextureLayoutPlannerTests
     [Fact]
     public void CreateRejectsDegenerateOverlayBounds()
     {
-        TerrainTextureOverlay overlay = new(
-            PackageName: "dem",
-            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
-            ZoomLevel: 1,
-            GeographicBounds: new GeographicRectangle(
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => TerrainTextureLayoutPlanner.Create(
+            new GeographicRectangle(
                 MinLatitude: 35.0,
                 MaxLatitude: 35.0,
                 MinLongitude: 139.0,
                 MaxLongitude: 139.0),
-            MaxTextureSize: 512);
-
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => TerrainTextureLayoutPlanner.Create(overlay));
+            1));
 
         Assert.Contains("degenerate geographic bounds", exception.Message, StringComparison.Ordinal);
     }

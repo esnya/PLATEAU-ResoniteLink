@@ -5,6 +5,7 @@ using System.Reflection;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.TestSupport;
 using PlateauResoniteLink.Targets.Resonite;
 
 using ResoniteLink;
@@ -205,7 +206,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
                 UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
                 ZoomLevel: 17,
-                GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                GeographicBounds: ThirdRegionalMeshCode.Parse("53394525").Bounds.ToGeographicRectangle(),
                     MaxTextureSize: 512)),
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
