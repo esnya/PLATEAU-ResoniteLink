@@ -35,7 +35,6 @@ internal sealed record GeneratedTerrainTexture
             TextureUvRect.FromScaleOffsetValue(
                 new ScalarPair(canvasScale.X, canvasScale.Y),
                 new ScalarPair(canvasOffset.X, canvasOffset.Y)),
-            usedSource,
             [usedSource])
     {
     }
@@ -44,14 +43,12 @@ internal sealed record GeneratedTerrainTexture
         ITextureImportSource textureSource,
         ResoniteFloat2 canvasScale,
         ResoniteFloat2 canvasOffset,
-        TerrainTextureSource usedSource,
         IReadOnlyList<TerrainTextureSource> usedSources)
         : this(
             textureSource,
             TextureUvRect.FromScaleOffsetValue(
                 new ScalarPair(canvasScale.X, canvasScale.Y),
                 new ScalarPair(canvasOffset.X, canvasOffset.Y)),
-            usedSource,
             usedSources)
     {
     }
@@ -59,11 +56,9 @@ internal sealed record GeneratedTerrainTexture
     public GeneratedTerrainTexture(
         ITextureImportSource textureSource,
         TextureUvRect occupiedUvRect,
-        TerrainTextureSource usedSource,
         IReadOnlyList<TerrainTextureSource> usedSources)
     {
         ArgumentNullException.ThrowIfNull(textureSource);
-        ArgumentNullException.ThrowIfNull(usedSource);
         ArgumentNullException.ThrowIfNull(usedSources);
 
         TerrainTextureSource[] trackedSources = usedSources.Distinct().ToArray();
@@ -72,16 +67,8 @@ internal sealed record GeneratedTerrainTexture
             throw new ArgumentException("Generated terrain texture must track at least one source.", nameof(usedSources));
         }
 
-        if (!trackedSources.Contains(usedSource))
-        {
-            throw new ArgumentException(
-                "Generated terrain texture identity source must be included in the tracked source collection.",
-                nameof(usedSources));
-        }
-
         TextureSource = textureSource;
         OccupiedUvRect = occupiedUvRect;
-        UsedSource = usedSource;
         UsedSources = trackedSources;
     }
 
@@ -89,7 +76,7 @@ internal sealed record GeneratedTerrainTexture
 
     public TextureUvRect OccupiedUvRect { get; }
 
-    public TerrainTextureSource UsedSource { get; }
+    public TerrainTextureSource UsedSource => UsedSources[0];
 
     public IReadOnlyList<TerrainTextureSource> UsedSources { get; }
 }
@@ -196,7 +183,7 @@ internal sealed class TerrainTextureAssetGenerator(
                 terrainTextureSource,
                 usedSources,
                 composedOccupiedUvRect);
-            return new CachedTerrainTexture(generatedTexture, terrainTextureSource);
+            return new CachedTerrainTexture(generatedTexture);
         }
     }
 
@@ -313,9 +300,21 @@ internal sealed class TerrainTextureAssetGenerator(
         generatedTexture = new GeneratedTerrainTexture(
             CreateTextureSource(canvasImage, usedSource),
             occupiedUvRect,
-            usedSource,
-            usedSources.Distinct().ToArray());
+            CreateUsedSourcesWithIdentityFirst(usedSource, usedSources));
         return true;
+    }
+
+    private static TerrainTextureSource[] CreateUsedSourcesWithIdentityFirst(
+        TerrainTextureSource identitySource,
+        IReadOnlyList<TerrainTextureSource> usedSources)
+    {
+        return
+        [
+            identitySource,
+            .. usedSources
+                .Where(source => source != identitySource)
+                .Distinct(),
+        ];
     }
 
     private static TextureUvRect CreateOccupiedUvRect(
@@ -462,8 +461,6 @@ internal sealed class TerrainTextureAssetGenerator(
             ResoniteTextureColorProfiles.Srgb);
     }
 
-    private sealed record CachedTerrainTexture(
-        GeneratedTerrainTexture GeneratedTexture,
-        TerrainTextureSource UsedSource);
+    private sealed record CachedTerrainTexture(GeneratedTerrainTexture GeneratedTexture);
 
 }

@@ -752,8 +752,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                gsiFallbackSource,
-                [rasterSource, gsiFallbackSource]));
+                [gsiFallbackSource, rasterSource]));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,

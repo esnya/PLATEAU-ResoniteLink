@@ -41,11 +41,8 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
-    public void GeneratedTerrainTextureRequiresIdentitySourceInTrackedSources()
+    public void GeneratedTerrainTextureRequiresTrackedSources()
     {
-        TerrainTextureTileSource usedSource = new("https://used.example/{z}/{x}/{y}.png", 17);
-        TerrainTextureTileSource otherSource = new("https://other.example/{z}/{x}/{y}.png", 17);
-
         ArgumentException exception = Assert.Throws<ArgumentException>(() =>
             new GeneratedTerrainTexture(
                 TextureImportSourceTestFactory.CreateRawTextureSource(
@@ -54,17 +51,17 @@ public sealed class TerrainTextureAssetGeneratorTests
                     ResoniteTextureColorProfiles.Srgb,
                     [255, 255, 255, 255]),
                 TextureUvRect.Identity,
-                usedSource,
-                [otherSource]));
+                []));
 
-        Assert.Contains("identity source", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("at least one source", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void GeneratedTerrainTextureCopiesTrackedSourcesAndExposesReadOnlyState()
+    public void GeneratedTerrainTextureDerivesIdentityFromFirstTrackedSourceAndExposesReadOnlyState()
     {
         TerrainTextureTileSource usedSource = new("https://used.example/{z}/{x}/{y}.png", 17);
-        List<TerrainTextureSource> trackedSources = [usedSource];
+        TerrainTextureTileSource otherSource = new("https://other.example/{z}/{x}/{y}.png", 17);
+        List<TerrainTextureSource> trackedSources = [usedSource, otherSource];
         GeneratedTerrainTexture texture = new(
             TextureImportSourceTestFactory.CreateRawTextureSource(
                 1,
@@ -72,13 +69,12 @@ public sealed class TerrainTextureAssetGeneratorTests
                 ResoniteTextureColorProfiles.Srgb,
                 [255, 255, 255, 255]),
             TextureUvRect.Identity,
-            usedSource,
             trackedSources);
 
         trackedSources.Clear();
 
         Assert.Equal(usedSource, texture.UsedSource);
-        Assert.Equal([usedSource], texture.UsedSources);
+        Assert.Equal([usedSource, otherSource], texture.UsedSources);
     }
 
     [Fact]
