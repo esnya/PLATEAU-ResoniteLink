@@ -44,12 +44,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
             .Select((material, materialIndex) => (Material: material, MaterialIndex: materialIndex))
             .Where(static entry => entry.Material.TerrainOverlayMaterial is not null)
             .Select(entry => (
-                TerrainMeshCode: ResoniteTerrainOverlayMaterialContract.ValidateMeshCode(
-                    cityObject,
-                    entry.MaterialIndex,
-                    entry.Material,
-                    entry.Material.TerrainOverlayMaterial!.MeshCode,
-                    entry.Material.TerrainOverlayMaterial.Overlay),
+                TerrainMeshCode: entry.Material.TerrainOverlayMaterial!.Overlay.MeshCode,
                 TerrainOverlay: entry.Material.TerrainOverlayMaterial!.Overlay))
             .Distinct()
             .OrderBy(static entry => entry.TerrainMeshCode.Value, StringComparer.Ordinal)

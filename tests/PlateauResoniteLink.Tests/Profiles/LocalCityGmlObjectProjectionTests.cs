@@ -1149,7 +1149,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectParsedCityObjectUsesSourceOverlayForTexturelessBuildingRoofOutsideSourceBounds()
+    public void ProjectParsedCityObjectUsesOverlayCoveringTexturelessBuildingRoofInsteadOfActualMeshCode()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay selectedRequestOverlay = CreateThirdMeshOverlay("53394525");
@@ -1181,12 +1181,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
 
         MaterialBinding material = Assert.Single(projected.Materials);
-        Assert.Same(selectedRequestOverlay, material.TerrainOverlay);
-        Assert.Equal("53394525", material.TerrainMeshCode);
+        Assert.Same(selectedAdjacentOverlay, material.TerrainOverlay);
+        Assert.Equal("53394526", material.TerrainMeshCode);
     }
 
     [Fact]
-    public void ProjectParsedCityObjectUsesSourceMeshOverlayBeforeActualMeshOverlay()
+    public void ProjectParsedCityObjectUsesOverlayCoveringTexturelessBuildingRoofInsteadOfSourceMeshCode()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay sourceOverlay = CreateThirdMeshOverlay("53394525");
@@ -1219,8 +1219,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
 
         MaterialBinding material = Assert.Single(projected.Materials);
-        Assert.Same(sourceOverlay, material.TerrainOverlay);
-        Assert.Equal("53394525", material.TerrainMeshCode);
+        Assert.Same(actualOverlay, material.TerrainOverlay);
+        Assert.Equal("53394526", material.TerrainMeshCode);
     }
 
     [Fact]

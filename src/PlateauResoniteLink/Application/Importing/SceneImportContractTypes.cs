@@ -198,9 +198,17 @@ public enum MaterialReuseScope
     Shared = 1,
 }
 
-public sealed record TerrainOverlayMaterialBinding(
-    ThirdRegionalMeshCode MeshCode,
-    TerrainTextureOverlay Overlay);
+public sealed record TerrainOverlayMaterialBinding
+{
+    public TerrainOverlayMaterialBinding(TerrainTextureOverlay overlay)
+    {
+        Overlay = overlay ?? throw new ArgumentNullException(nameof(overlay));
+    }
+
+    public TerrainTextureOverlay Overlay { get; init; }
+
+    public ThirdRegionalMeshCode MeshCode => Overlay.MeshCode;
+}
 
 public abstract record MaterialBinding(
     ColorRgba BaseColor,

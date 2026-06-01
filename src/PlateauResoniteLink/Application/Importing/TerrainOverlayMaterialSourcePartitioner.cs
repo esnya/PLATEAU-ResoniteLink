@@ -81,11 +81,6 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         }
 
         double cityObjectMinAltitude = CityObjectAltitudeMetricsResolver.GetMinimumAltitude(cityObjectVertices);
-        TerrainMaterialSourceMeshCode materialSourceMeshCode = TerrainMaterialSourceMeshCode.ParseRequired(
-            string.IsNullOrWhiteSpace(cityObject.SourceMeshCode)
-                ? cityObject.ActualMeshCode
-                : cityObject.SourceMeshCode);
-
         List<ParsedSurface> untexturedSurfaces = [];
         List<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> terrainOverlayMaterialSurfaces = [];
         foreach (ParsedSurface surface in cityObject.Surfaces)
@@ -101,26 +96,13 @@ internal static class TerrainOverlayMaterialSourcePartitioner
 
             ParsedSurface terrainMaterialSurface = PrepareTerrainOverlayMaterialSurface(face);
 
-            TerrainTextureOverlay[] materialSourceOverlays = demTerrainTextureOverlays
-                .Where(overlay => IsOverlayInMaterialSourceMeshCode(materialSourceMeshCode, overlay))
+            TerrainTextureOverlay[] candidateOverlays = demTerrainTextureOverlays
+                .Where(overlay => TerrainOverlayMeshCodeResolver.IsRequestedOverlay(overlay, requestedMeshCodeBounds))
+                .Where(overlay => TerrainOverlayMeshCodeResolver.BoundsOverlap(surfaceBounds, overlay.GeographicBounds)
+                    || TerrainOverlayMeshCodeResolver.ContainsBounds(overlay.GeographicBounds, surfaceBounds))
+                .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
+                .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
                 .ToArray();
-            TerrainTextureOverlay[] candidateOverlays = materialSourceOverlays.Length == 0
-                ? demTerrainTextureOverlays
-                    .Where(overlay => TerrainOverlayMeshCodeResolver.IsRequestedOverlay(overlay, requestedMeshCodeBounds))
-                    .Where(overlay => TerrainOverlayMeshCodeResolver.BoundsOverlap(surfaceBounds, overlay.GeographicBounds))
-                    .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
-                    .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
-                    .ToArray()
-                : materialSourceMeshCode.IsThirdRegionalMesh
-                    ? materialSourceOverlays
-                        .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
-                        .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
-                        .ToArray()
-                : materialSourceOverlays
-                    .Where(overlay => TerrainOverlayMeshCodeResolver.BoundsOverlap(surfaceBounds, overlay.GeographicBounds))
-                    .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
-                    .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
-                    .ToArray();
             if (candidateOverlays.Length == 0)
             {
                 untexturedSurfaces.Add(surface);
@@ -244,13 +226,6 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             : surface with { Semantic = ParsedSurfaceSemantic.Roof };
     }
 
-    private static bool IsOverlayInMaterialSourceMeshCode(
-        TerrainMaterialSourceMeshCode materialSourceMeshCode,
-        TerrainTextureOverlay terrainOverlay)
-    {
-        return materialSourceMeshCode.Contains(terrainOverlay.MeshCode);
-    }
-
     private static bool CanUseTerrainOverlayMaterialSource(
         ConstructionFace face,
         double cityObjectMinAltitude,
@@ -293,46 +268,4 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
     }
 
-    private abstract record TerrainMaterialSourceMeshCode
-    {
-        public abstract bool IsThirdRegionalMesh { get; }
-
-        public static TerrainMaterialSourceMeshCode ParseRequired(string meshCode)
-        {
-            if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
-            {
-                return new Third(thirdMeshCode);
-            }
-
-            if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode secondMeshCode))
-            {
-                return new Second(secondMeshCode);
-            }
-
-            throw new PlateauImportValidationException(
-                [$"Terrain overlay material source mesh-code '{meshCode}' must be a valid second- or third-level mesh-code."]);
-        }
-
-        public abstract bool Contains(ThirdRegionalMeshCode overlayMeshCode);
-
-        private sealed record Third(ThirdRegionalMeshCode MeshCode) : TerrainMaterialSourceMeshCode
-        {
-            public override bool IsThirdRegionalMesh => true;
-
-            public override bool Contains(ThirdRegionalMeshCode overlayMeshCode)
-            {
-                return MeshCode == overlayMeshCode;
-            }
-        }
-
-        private sealed record Second(SecondRegionalMeshCode MeshCode) : TerrainMaterialSourceMeshCode
-        {
-            public override bool IsThirdRegionalMesh => false;
-
-            public override bool Contains(ThirdRegionalMeshCode overlayMeshCode)
-            {
-                return MeshCode == overlayMeshCode.Parent;
-            }
-        }
-    }
 }

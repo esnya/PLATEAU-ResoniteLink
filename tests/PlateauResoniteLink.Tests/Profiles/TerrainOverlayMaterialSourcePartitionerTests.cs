@@ -59,7 +59,7 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
     }
 
     [Fact]
-    public void PartitionParsedCityObjectRejectsInvalidTerrainMaterialSourceMeshCodeBeforeOverlayFallback()
+    public void PartitionParsedCityObjectUsesSelectedOverlayMeshCodeWithoutParsingCityObjectMeshCode()
     {
         MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("53394525")!;
         ParsedCityObject cityObject = new(
@@ -74,14 +74,15 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
             SharedAcrossMeshCodes: false,
             BuildingAttributes: BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] });
 
-        PlateauImportValidationException exception = Assert.Throws<PlateauImportValidationException>(
-            () => TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
-                    cityObject,
-                    [CreateOverlay(meshBounds)],
-                    [meshBounds])
-                .ToArray());
-        string error = Assert.Single(exception.Errors);
-        Assert.Contains("must be a valid second- or third-level mesh-code", error);
+        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) result = Assert.Single(
+            TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
+                cityObject,
+                [CreateOverlay(meshBounds)],
+                [meshBounds]));
+
+        Assert.NotNull(result.Overlay);
+        Assert.Equal("53394525", result.CityObject.ActualMeshCode);
+        Assert.All(result.CityObject.Surfaces, static surface => Assert.True(surface.UsesGeneratedDemTexture));
     }
 
     private static ParsedSurface CreateHorizontalSurface(string polygonId, double altitude, MeshCodeBounds meshBounds)

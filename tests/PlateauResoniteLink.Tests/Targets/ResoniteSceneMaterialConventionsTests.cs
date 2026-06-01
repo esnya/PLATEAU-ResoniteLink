@@ -311,7 +311,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
+            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay),
             Family: null,
             AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv());
 

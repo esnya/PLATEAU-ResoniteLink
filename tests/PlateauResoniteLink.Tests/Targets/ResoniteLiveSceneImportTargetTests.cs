@@ -364,7 +364,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncRejectsTerrainOverlayMaterialWhenMeshCodeBoundsDoNotMatchOverlay()
+    public async Task ExecuteAsyncUsesTerrainOverlayMeshCodeWithoutRecheckingOverlayBoundsAgainstActualMeshCode()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -392,17 +392,21 @@ public sealed class ResoniteLiveSceneImportTargetTests
             MeshCode,
             mismatchedOverlay);
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-                metadata,
-                [cityObject],
-                client,
-                terrainTextureGenerator));
-        Assert.Contains("matches the overlay geographic bounds", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("object_slot='terrain-mismatched-overlay'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains($"actual_mesh_code='{MeshCode}'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("terrain_mesh='53394525'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("sources='tile-z17-https://tiles.example/{z}/{x}/{y}.png'", exception.Message, StringComparison.Ordinal);
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            metadata,
+            [cityObject],
+            client,
+            terrainTextureGenerator);
+
+        Assert.Same(mismatchedOverlay, Assert.Single(terrainTextureGenerator.RequestedOverlays));
+        AddComponent terrainTexture = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394526", StringComparison.Ordinal));
+        Assert.StartsWith(
+            "resdb:///texture/",
+            Assert.IsType<Field_Uri>(terrainTexture.Data.Members["URL"]).Value.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Fact]

@@ -279,6 +279,6 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             TextureOffset: textureOffset,
             TerrainOverlayMaterial: terrainOverlay is null
                 ? null
-                : new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), terrainOverlay));
+                : new TerrainOverlayMaterialBinding(terrainOverlay));
     }
 }

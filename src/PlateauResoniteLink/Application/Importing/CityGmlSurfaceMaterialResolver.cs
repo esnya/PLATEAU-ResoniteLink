@@ -138,12 +138,9 @@ internal static class CityGmlSurfaceMaterialResolver
         ResolvedSurfaceMaterial representativeSurface,
         int materialIndex)
     {
-        ThirdRegionalMeshCode? terrainMeshCode = representativeSurface.Material.TerrainOverlay?.MeshCode;
         TerrainOverlayMaterialBinding? terrainOverlayMaterial = representativeSurface.Material.TerrainOverlay is null
             ? null
-            : new TerrainOverlayMaterialBinding(
-                terrainMeshCode!.Value,
-                representativeSurface.Material.TerrainOverlay);
+            : new TerrainOverlayMaterialBinding(representativeSurface.Material.TerrainOverlay);
         ColorRgba baseColor = representativeSurface.Material.TerrainOverlay is null
             ? ToContractColor(representativeSurface.Surface.BaseColor)
             : new ColorRgba(1.0, 1.0, 1.0, 1.0);
