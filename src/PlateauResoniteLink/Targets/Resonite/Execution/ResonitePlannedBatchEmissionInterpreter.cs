@@ -94,7 +94,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
                 $"City object '{cityObject.DisplayName}' batch completed in {batchStopwatch.Elapsed.TotalSeconds:F3}s "
                 + $"(operations={operationCount}, est_payload_bytes={EstimateBatchPayloadBytes(operationCount)})."));
 
-        CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
+        CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse, batchBuilder.PendingActions);
         canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingActions);
         foreach (BatchPlanSlotLocator slotResolutionTarget in batchEmission.SlotResolutionTargets)
         {

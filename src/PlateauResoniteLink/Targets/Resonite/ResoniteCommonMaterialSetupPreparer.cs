@@ -151,7 +151,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
         if (batchBuilder.Actions.Count > 0)
         {
             BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
-            CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response);
+            CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response, batchBuilder.PendingActions);
             foreach (PreparedCommonMaterialBatchEntry preparedMaterial in preparedMaterials)
             {
                 if (preparedMaterial.PendingMaterialSlot is not null)

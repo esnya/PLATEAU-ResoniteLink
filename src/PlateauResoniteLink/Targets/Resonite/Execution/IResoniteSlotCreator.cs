@@ -35,6 +35,6 @@ internal sealed class ResoniteSlotCreator : IResoniteSlotCreator
             position,
             rotation);
         BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
-        return CanonicalBatchEntityMap.Create(response).ResolveSlot(pendingSlot);
+        return CanonicalBatchEntityMap.Create(response, batchBuilder.PendingActions).ResolveSlot(pendingSlot);
     }
 }
