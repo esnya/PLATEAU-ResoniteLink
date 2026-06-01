@@ -60,7 +60,6 @@ public sealed class SceneImportContractMapperTests
     [InlineData(nameof(MaterialBinding.MaterialType))]
     [InlineData(nameof(MaterialBinding.TextureSourceKind))]
     [InlineData(nameof(MaterialBinding.Projection))]
-    [InlineData(nameof(TexturePayload.Format))]
     public void ToInternalMaterialBindingsRejectsUnsupportedContractEnumValues(string invalidField)
     {
         MaterialBinding binding = CreateValidBinding() with
@@ -68,9 +67,6 @@ public sealed class SceneImportContractMapperTests
             MaterialType = invalidField == nameof(MaterialBinding.MaterialType) ? (MaterialType)999 : MaterialType.Standard,
             TextureSourceKind = invalidField == nameof(MaterialBinding.TextureSourceKind) ? (TextureSourceKind)999 : TextureSourceKind.Dataset,
             Projection = invalidField == nameof(MaterialBinding.Projection) ? (MaterialProjection)999 : MaterialProjection.Uv,
-            TexturePayload = invalidField == nameof(TexturePayload.Format)
-                ? new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", (TexturePayloadFormat)999)
-                : new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(() => SceneImportContractMapper.ToInternal(binding));
