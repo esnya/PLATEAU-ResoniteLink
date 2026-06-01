@@ -932,10 +932,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(routedClient, session: session);
-        PlateauImportRequest request = new(
+        ResolvedLocalPlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            CityGmlSource: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages")),
+            CityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
             PackageNames: ["dem"]
 );
         ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
