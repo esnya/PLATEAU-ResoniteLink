@@ -42,46 +42,6 @@ internal sealed record PlannedTextureAsset(
     TextureIdentity Identity,
     Uri AssetUri);
 
-internal abstract record MainTextureOverridePlan
-{
-    private MainTextureOverridePlan()
-    {
-    }
-
-    public static MainTextureOverridePlan None { get; } = new NoMainTextureOverridePlan();
-
-    public static MainTextureOverridePlan Texture(PlannedTextureAsset mainTexture)
-    {
-        return new TextureMainTextureOverridePlan(mainTexture);
-    }
-
-    public abstract TResult Select<TResult>(
-        Func<TResult> none,
-        Func<PlannedTextureAsset, TResult> texture);
-
-    private sealed record NoMainTextureOverridePlan : MainTextureOverridePlan
-    {
-        public override TResult Select<TResult>(
-            Func<TResult> none,
-            Func<PlannedTextureAsset, TResult> texture)
-        {
-            _ = texture;
-            return none();
-        }
-    }
-
-    private sealed record TextureMainTextureOverridePlan(PlannedTextureAsset MainTexture) : MainTextureOverridePlan
-    {
-        public override TResult Select<TResult>(
-            Func<TResult> none,
-            Func<PlannedTextureAsset, TResult> texture)
-        {
-            _ = none;
-            return texture(MainTexture);
-        }
-    }
-}
-
 internal abstract record PlannedMaterialAsset;
 
 internal sealed record PlannedReusableMaterialAsset(

@@ -105,17 +105,13 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
                 $"Setup did not resolve common material ({ResoniteMaterialComponentPolicy.DescribeForDiagnostics(sourceMaterial)}) before runtime emission.");
         }
         PlannedReusableMaterialAsset sharedMaterialAsset = new(existingMaterialAsset.MaterialComponent);
-        MainTextureOverridePlan mainTextureOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+        PlannedRendererMaterialBinding rendererBinding = CreateRendererMaterialBinding(
+            sharedMaterialAsset,
+            sourceMaterial,
             sourceMaterial,
             preparedTextureUrisByPayload,
-            preparedTerrainTextureUrisByOverlay);
-        PlannedRendererMaterialBinding rendererBinding = mainTextureOverride.Select<PlannedRendererMaterialBinding>(
-            () => new PlannedDirectRendererMaterialBinding(sharedMaterialAsset),
-            mainTexture => CreateMainTextureOverrideRendererBinding(
-                sharedMaterialAsset,
-                mainTexture,
-                terrainTexturePropertyBlockComponentsByMeshCode,
-                sourceMaterial));
+            preparedTerrainTextureUrisByOverlay,
+            terrainTexturePropertyBlockComponentsByMeshCode);
         return (sharedMaterialAsset, rendererBinding);
     }
 
@@ -147,22 +143,39 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             cancellationToken);
         if (sourceMaterial.TerrainOverlay is not null)
         {
-            MainTextureOverridePlan mainTextureOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
-                sourceMaterial,
-                preparedTextureUrisByPayload,
-                preparedTerrainTextureUrisByOverlay);
-            return mainTextureOverride.Select(
-                () => (plannedMaterial, new PlannedDirectRendererMaterialBinding(plannedMaterial)),
-                mainTexture => (
+            return (
+                plannedMaterial,
+                CreateRendererMaterialBinding(
                     plannedMaterial,
-                    (PlannedRendererMaterialBinding)CreateMainTextureOverrideRendererBinding(
-                        plannedMaterial,
-                        mainTexture,
-                        preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-                        sourceMaterial)));
+                    sourceMaterial,
+                    sourceMaterial,
+                    preparedTextureUrisByPayload,
+                    preparedTerrainTextureUrisByOverlay,
+                    preparedTerrainTexturePropertyBlockComponentsByMeshCode));
         }
 
         return (plannedMaterial, new PlannedDirectRendererMaterialBinding(plannedMaterial));
+    }
+
+    private static PlannedRendererMaterialBinding CreateRendererMaterialBinding(
+        PlannedMaterialAsset materialAsset,
+        ResoniteMaterialBinding sourceMaterial,
+        ResoniteMaterialBinding textureSourceMaterial,
+        IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
+        IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
+        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode)
+    {
+        return ResoniteMaterialPlanning.TryPlanMainTextureOverride(
+            textureSourceMaterial,
+            preparedTextureUrisByPayload,
+            preparedTerrainTextureUrisByOverlay,
+            out PlannedTextureAsset? mainTexture)
+            ? CreateMainTextureOverrideRendererBinding(
+                materialAsset,
+                mainTexture,
+                terrainTexturePropertyBlockComponentsByMeshCode,
+                sourceMaterial)
+            : new PlannedDirectRendererMaterialBinding(materialAsset);
     }
 
     private static ResoniteMaterialBinding ResolveTerrainTextureMaterialForEmission(

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -126,10 +127,11 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return textures.FirstOrDefault(texture => texture.Identity == identity)?.AssetUri;
     }
 
-    public static MainTextureOverridePlan PlanMainTextureOverride(
+    public static bool TryPlanMainTextureOverride(
         ResoniteMaterialBinding material,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
-        IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay)
+        IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
+        [NotNullWhen(true)] out PlannedTextureAsset? mainTexture)
     {
         ArgumentNullException.ThrowIfNull(material);
         ArgumentNullException.ThrowIfNull(preparedTextureUrisByPayload);
@@ -144,13 +146,14 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             : null;
         if (textureUri is null)
         {
-            return MainTextureOverridePlan.None;
+            mainTexture = null;
+            return false;
         }
 
-        return MainTextureOverridePlan.Texture(
-            new PlannedTextureAsset(
-                new TextureIdentity("main"),
-                textureUri));
+        mainTexture = new PlannedTextureAsset(
+            new TextureIdentity("main"),
+            textureUri);
+        return true;
     }
 
     public static ResoniteBatchOperations.PendingBatchComponent AddCommonMaterialComponents(
