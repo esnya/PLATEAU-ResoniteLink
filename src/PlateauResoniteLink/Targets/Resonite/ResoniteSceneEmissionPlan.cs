@@ -118,85 +118,69 @@ internal sealed record PlannedDynamicTerrainMeshBundle(
     public PlannedWorldElementReference InitialMeshTarget => GridMeshTarget;
 }
 
-internal readonly record struct PlannedSlotTargetReference
+internal abstract record PlannedSlotTargetReference
 {
-    private PlannedSlotTargetReference(ResoniteSlotLocator? canonical, BatchPlanSlotLocator? planned)
+    private PlannedSlotTargetReference()
     {
-        Canonical = canonical;
-        Planned = planned;
     }
 
-    public ResoniteSlotLocator? Canonical { get; }
+    internal sealed record Canonical(ResoniteSlotLocator Locator) : PlannedSlotTargetReference;
 
-    public BatchPlanSlotLocator? Planned { get; }
-
-    public bool IsCanonical => Canonical is not null;
-
-    public bool IsPlanned => Planned is not null;
+    internal sealed record Planned(BatchPlanSlotLocator Locator) : PlannedSlotTargetReference;
 
     public static PlannedSlotTargetReference CanonicalSlot(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new PlannedSlotTargetReference(locator, null);
+        return new Canonical(locator);
     }
 
     public static PlannedSlotTargetReference PlannedSlot(BatchPlanSlotLocator locator)
     {
-        return new PlannedSlotTargetReference(null, locator);
+        return new Planned(locator);
     }
 }
 
-internal readonly record struct PlannedWorldElementReference
+internal abstract record PlannedWorldElementReference
 {
-    private PlannedWorldElementReference(
-        ResoniteSlotLocator? canonicalSlot,
-        ResoniteComponentLocator? canonicalComponent,
-        BatchPlanSlotLocator? plannedSlot,
-        BatchPlanComponentLocator? plannedComponent,
-        BatchPlanFieldLocator? plannedField)
+    private PlannedWorldElementReference()
     {
-        CanonicalSlot = canonicalSlot;
-        CanonicalComponent = canonicalComponent;
-        PlannedSlot = plannedSlot;
-        PlannedComponent = plannedComponent;
-        PlannedField = plannedField;
     }
 
-    public ResoniteSlotLocator? CanonicalSlot { get; }
+    internal sealed record CanonicalSlot(ResoniteSlotLocator Locator) : PlannedWorldElementReference;
 
-    public ResoniteComponentLocator? CanonicalComponent { get; }
+    internal sealed record CanonicalComponent(ResoniteComponentLocator Locator) : PlannedWorldElementReference;
 
-    public BatchPlanSlotLocator? PlannedSlot { get; }
+    internal sealed record PlannedSlot(BatchPlanSlotLocator Locator) : PlannedWorldElementReference;
 
-    public BatchPlanComponentLocator? PlannedComponent { get; }
+    internal sealed record PlannedComponent(BatchPlanComponentLocator Locator) : PlannedWorldElementReference;
 
-    public BatchPlanFieldLocator? PlannedField { get; }
+    internal sealed record PlannedField(BatchPlanFieldLocator Locator) : PlannedWorldElementReference;
 
     public static PlannedWorldElementReference Canonical(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new PlannedWorldElementReference(locator, null, null, null, null);
+        return new CanonicalSlot(locator);
     }
 
     public static PlannedWorldElementReference Canonical(ResoniteComponentLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new PlannedWorldElementReference(null, locator, null, null, null);
+        return new CanonicalComponent(locator);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanSlotLocator locator)
     {
-        return new PlannedWorldElementReference(null, null, locator, null, null);
+        return new PlannedSlot(locator);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanComponentLocator locator)
     {
-        return new PlannedWorldElementReference(null, null, null, locator, null);
+        return new PlannedComponent(locator);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanFieldLocator locator)
     {
-        return new PlannedWorldElementReference(null, null, null, null, locator);
+        return new PlannedField(locator);
     }
 }
 
