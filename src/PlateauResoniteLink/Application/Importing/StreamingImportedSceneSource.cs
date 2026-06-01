@@ -291,7 +291,8 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         public SourceFileDescriptor SourceFile { get; } = sourceFile;
 
         public CoordinateReferenceSystem ReferenceSystem => referenceSystem
-            ?? CoordinateReferenceSystem.Parse((string?)null);
+            ?? throw new InvalidOperationException(
+                $"DEM projection source '{SourceFile.RelativePath}' has no parsed city objects and no reference system.");
 
         public IReadOnlyList<ParsedCityObject> CityObjects => cityObjects;
 

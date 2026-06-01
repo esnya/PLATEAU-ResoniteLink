@@ -361,6 +361,7 @@ public static class PlateauImportRequestValidator
         return source switch
         {
             LocalDatasetLocation localSource => new LocalDatasetLocation(localSource.LocalSourcePath.Trim()),
+            RemoteDatasetLocation remoteSource => remoteSource,
             _ => source,
         };
     }
