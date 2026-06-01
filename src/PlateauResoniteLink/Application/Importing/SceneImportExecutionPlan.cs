@@ -101,7 +101,7 @@ public sealed record SceneImportExecutionPlan
         {
             return RemoteDatasetResourceLayout.MatchesRemoteResourcePath(
                 workRoot,
-                remoteSource.ServerUri!,
+                remoteSource.ServerUri,
                 remotePathPrefix,
                 localSource.LocalSourcePath);
         }

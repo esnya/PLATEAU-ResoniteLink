@@ -25,14 +25,14 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
         ArgumentNullException.ThrowIfNull(lodSelector);
 
-        if (request.CityGmlSource is not LocalDatasetLocation localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
+        if (request.CityGmlSource is not LocalDatasetLocation localSource)
         {
             throw new PlateauImportValidationException(
                 [LocalCityGmlImportErrorMessages.MissingLocalSourcePath()]);
         }
 
         IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(
-            localSource.LocalSourcePath!,
+            localSource.LocalSourcePath,
             cancellationToken);
         Stopwatch totalStopwatch = Stopwatch.StartNew();
         Stopwatch scanStopwatch = Stopwatch.StartNew();
@@ -59,7 +59,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         if (sourceFiles.Length == 0)
         {
             throw new PlateauImportValidationException(
-                [LocalCityGmlImportErrorMessages.NoMatchingFiles(request, localSource.LocalSourcePath!)]);
+                [LocalCityGmlImportErrorMessages.NoMatchingFiles(request, localSource.LocalSourcePath)]);
         }
 
         LodFilteringStrategy lodFilteringStrategy = new(
