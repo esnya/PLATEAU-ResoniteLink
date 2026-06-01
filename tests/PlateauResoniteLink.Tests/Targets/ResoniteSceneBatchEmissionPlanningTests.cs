@@ -676,32 +676,29 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
 
     private static ResoniteSlotLocator AssertCanonical(PlannedSlotTargetReference target)
     {
-        Assert.Equal(PlannedSlotTargetReferenceKind.CanonicalSlot, target.Kind);
-        return target.CanonicalSlotLocator;
+        return Assert.IsType<PlannedSlotTargetReference.CanonicalSlotTarget>(target).Locator;
     }
 
     private static BatchPlanSlotLocator AssertPlanned(PlannedSlotTargetReference target)
     {
-        Assert.Equal(PlannedSlotTargetReferenceKind.PlannedSlot, target.Kind);
-        return target.PlannedSlotLocator;
+        return Assert.IsType<PlannedSlotTargetReference.BatchSlotTarget>(target).Locator;
     }
 
     private static bool IsCanonicalSlotTarget(PlannedSlotTargetReference target, ResoniteSlotLocator expected)
     {
-        return target.Kind == PlannedSlotTargetReferenceKind.CanonicalSlot
-            && target.CanonicalSlotLocator == expected;
+        return target is PlannedSlotTargetReference.CanonicalSlotTarget canonicalSlot
+            && canonicalSlot.Locator == expected;
     }
 
     private static bool IsPlannedSlotTarget(PlannedSlotTargetReference target, BatchPlanSlotLocator expected)
     {
-        return target.Kind == PlannedSlotTargetReferenceKind.PlannedSlot
-            && target.PlannedSlotLocator == expected;
+        return target is PlannedSlotTargetReference.BatchSlotTarget plannedSlot
+            && plannedSlot.Locator == expected;
     }
 
     private static BatchPlanFieldLocator AssertPlannedField(PlannedWorldElementReference target)
     {
-        Assert.Equal(PlannedWorldElementReferenceKind.PlannedField, target.Kind);
-        return target.PlannedFieldLocator;
+        return Assert.IsType<PlannedWorldElementReference.BatchFieldElement>(target).Locator;
     }
 
     private static void AssertGradientPoint(Member member, float expectedPosition, int expectedX, int expectedY)
