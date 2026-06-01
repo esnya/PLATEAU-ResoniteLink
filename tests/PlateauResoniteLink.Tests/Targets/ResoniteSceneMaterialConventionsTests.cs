@@ -311,7 +311,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
+            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay),
             Family: null,
             AssetScope: ResoniteMaterialAssetScope.Common,
             CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv);
@@ -322,7 +322,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, normalized.CommonMaterial);
         Assert.Null(normalized.TexturePayload);
         Assert.Same(overlay, normalized.TerrainOverlay);
-        Assert.Equal("53394525", normalized.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), normalized.TerrainMeshCode);
         Assert.Equal(
             ["uv"],
             ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(normalized));

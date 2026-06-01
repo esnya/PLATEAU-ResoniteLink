@@ -200,7 +200,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
             SubmeshIndices: [0],
             TextureOffset: new ResoniteFloat2(0.125, 0.75),
             TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(
-                ThirdRegionalMeshCode.Parse("53394525"),
                 new TerrainTextureOverlay(
                 PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),

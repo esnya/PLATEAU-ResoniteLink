@@ -59,7 +59,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             representativeSurface,
             materialIndex: 0);
 
-        Assert.Equal("53394525", binding.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), binding.TerrainMeshCode);
         Assert.Same(representativeSurface.Material.TerrainOverlay, binding.TerrainOverlay);
     }
 

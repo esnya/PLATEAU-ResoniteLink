@@ -844,7 +844,7 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     AssetScope: ResoniteMaterialAssetScope.Common,
-                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay),
                     CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
             ],
         };
@@ -864,7 +864,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, material.CommonMaterial);
         Assert.Null(material.TexturePayload);
         Assert.Same(overlay, material.TerrainOverlay);
-        Assert.Equal("53394525", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), material.TerrainMeshCode);
     }
 
     [Fact]

@@ -31,7 +31,7 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
             meshBounds,
         ];
 
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        TerrainOverlayAssignedCityObject[] results =
             TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
                 cityObject,
                 [overlay],

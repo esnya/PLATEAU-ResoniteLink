@@ -298,6 +298,6 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
             TerrainOverlayMaterial: terrainOverlay is null
                 ? null
-                : new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), terrainOverlay));
+                : new TerrainOverlayMaterialBinding(terrainOverlay));
     }
 }

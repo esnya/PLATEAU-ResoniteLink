@@ -17,4 +17,4 @@ internal readonly record struct NonDemPreservedMaterialGroupingKey(
     ResoniteMaterialAssetScope AssetScope,
     string? Family,
     int? BundledVariantIndex,
-    string? TerrainMeshCode);
+    ThirdRegionalMeshCode? TerrainMeshCode);

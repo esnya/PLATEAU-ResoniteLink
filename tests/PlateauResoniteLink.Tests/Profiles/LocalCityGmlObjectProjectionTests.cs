@@ -975,7 +975,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(overlay, material.TerrainOverlay);
-        Assert.Equal("53394525", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), material.TerrainMeshCode);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
     }
 
@@ -1012,7 +1012,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(expectedOverlay, material.TerrainOverlay);
-        Assert.Equal("53394526", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394526"), material.TerrainMeshCode);
     }
 
     [Fact]
@@ -1053,18 +1053,18 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Equal(2, projected.Length);
         Assert.Collection(
-            projected.OrderBy(static cityObject => cityObject.Materials.Single().TerrainMeshCode, StringComparer.Ordinal),
+            projected.OrderBy(static cityObject => cityObject.Materials.Single().TerrainMeshCode?.Value, StringComparer.Ordinal),
             first =>
             {
                 MaterialBinding material = Assert.Single(first.Materials);
                 Assert.Same(firstOverlay, material.TerrainOverlay);
-                Assert.Equal("53394525", material.TerrainMeshCode);
+                Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), material.TerrainMeshCode);
             },
             second =>
             {
                 MaterialBinding material = Assert.Single(second.Materials);
                 Assert.Same(secondOverlay, material.TerrainOverlay);
-                Assert.Equal("53394526", material.TerrainMeshCode);
+                Assert.Equal(ThirdRegionalMeshCode.Parse("53394526"), material.TerrainMeshCode);
             });
     }
 
@@ -1106,7 +1106,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(selectedAdjacentOverlay, material.TerrainOverlay);
-        Assert.Equal("53394526", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394526"), material.TerrainMeshCode);
     }
 
     [Fact]
@@ -1146,7 +1146,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(selectedOverlay, material.TerrainOverlay);
-        Assert.Equal("53394600", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394600"), material.TerrainMeshCode);
     }
 
     [Fact]
@@ -1183,7 +1183,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(selectedRequestOverlay, material.TerrainOverlay);
-        Assert.Equal("53394525", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), material.TerrainMeshCode);
     }
 
     [Fact]
@@ -1221,7 +1221,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(sourceOverlay, material.TerrainOverlay);
-        Assert.Equal("53394525", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), material.TerrainMeshCode);
     }
 
     [Fact]
@@ -1415,7 +1415,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(overlay, material.TerrainOverlay);
-        Assert.Equal("53394525", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), material.TerrainMeshCode);
     }
 
     [Fact]
@@ -1460,7 +1460,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(overlay, material.TerrainOverlay);
-        Assert.Equal("53394525", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), material.TerrainMeshCode);
     }
 
     [Fact]
@@ -1522,7 +1522,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(mismatchedOverlay, material.TerrainOverlay);
-        Assert.Equal("53394526", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394526"), material.TerrainMeshCode);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
     }
 
@@ -1697,7 +1697,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Null(material.Family);
         Assert.Null(material.TexturePayload);
         Assert.Same(overlay, material.TerrainOverlay);
-        Assert.Equal("54372778", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("54372778"), material.TerrainMeshCode);
     }
 
     [Fact]
@@ -1747,7 +1747,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Null(material.Family);
         Assert.Null(material.TexturePayload);
         Assert.Same(overlay, material.TerrainOverlay);
-        Assert.Equal("54372778", material.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("54372778"), material.TerrainMeshCode);
     }
 
     [Fact]

@@ -51,7 +51,6 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             ResoniteMaterialBinding material = ResolveTerrainTextureMaterialForEmission(
                 cityObject,
                 cityObject.Materials[materialIndex]);
-            material = ResoniteTerrainOverlayMaterialContract.ValidateMaterial(cityObject, materialIndex, material);
             reportMaterialStep($"Creating material {materialIndex + 1}/{cityObject.Materials.Count}.");
             if (material.CommonMaterial is not null)
             {

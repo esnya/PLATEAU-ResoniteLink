@@ -23,5 +23,5 @@ public sealed record ResoniteMaterialBinding(
 {
     public TerrainTextureOverlay? TerrainOverlay => TerrainOverlayMaterial?.Overlay;
 
-    public string? TerrainMeshCode => TerrainOverlayMaterial?.MeshCode.Value;
+    public ThirdRegionalMeshCode? TerrainMeshCode => TerrainOverlayMaterial?.MeshCode;
 }

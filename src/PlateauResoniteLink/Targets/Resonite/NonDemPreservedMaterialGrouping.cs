@@ -30,7 +30,7 @@ internal static class NonDemPreservedMaterialGrouping
                 default,
                 default,
                 default,
-                normalizedMaterial.TerrainMeshCode);
+                normalizedMaterial.TerrainOverlayMaterial?.MeshCode);
         }
 
         return new NonDemPreservedMaterialGroupingKey(
@@ -47,7 +47,7 @@ internal static class NonDemPreservedMaterialGrouping
             normalizedMaterial.AssetScope,
             normalizedMaterial.Family,
             normalizedMaterial.BundledVariantIndex,
-            normalizedMaterial.TerrainMeshCode);
+            normalizedMaterial.TerrainOverlayMaterial?.MeshCode);
     }
 
     public static ResoniteMaterialBinding NormalizeMaterial(ResoniteMaterialBinding material)
@@ -70,7 +70,7 @@ internal static class NonDemPreservedMaterialGrouping
                 return ResoniteTexturePayloadReferenceComparer.Instance.Equals(x.TexturePayload, y.TexturePayload)
                     && x.TextureSourceKind == y.TextureSourceKind
                     && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
-                    && string.Equals(x.TerrainMeshCode, y.TerrainMeshCode, StringComparison.Ordinal);
+                    && EqualityComparer<ThirdRegionalMeshCode?>.Default.Equals(x.TerrainMeshCode, y.TerrainMeshCode);
             }
 
             return x.BaseColor == y.BaseColor
@@ -85,7 +85,7 @@ internal static class NonDemPreservedMaterialGrouping
                 && x.AssetScope == y.AssetScope
                 && string.Equals(x.Family, y.Family, StringComparison.Ordinal)
                 && x.BundledVariantIndex == y.BundledVariantIndex
-                && string.Equals(x.TerrainMeshCode, y.TerrainMeshCode, StringComparison.Ordinal);
+                && EqualityComparer<ThirdRegionalMeshCode?>.Default.Equals(x.TerrainMeshCode, y.TerrainMeshCode);
         }
 
         public int GetHashCode(NonDemPreservedMaterialGroupingKey obj)
@@ -97,7 +97,7 @@ internal static class NonDemPreservedMaterialGrouping
                 AddTexturePayloadHash(ref hash, obj.TexturePayload);
                 hash.Add(obj.TextureSourceKind);
                 hash.Add(obj.TerrainOverlay);
-                hash.Add(obj.TerrainMeshCode, StringComparer.Ordinal);
+                hash.Add(obj.TerrainMeshCode);
                 return hash.ToHashCode();
             }
 
@@ -113,7 +113,7 @@ internal static class NonDemPreservedMaterialGrouping
             hash.Add(obj.AssetScope);
             hash.Add(obj.Family, StringComparer.Ordinal);
             hash.Add(obj.BundledVariantIndex);
-            hash.Add(obj.TerrainMeshCode, StringComparer.Ordinal);
+            hash.Add(obj.TerrainMeshCode);
             return hash.ToHashCode();
         }
 

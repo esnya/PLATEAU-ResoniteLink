@@ -55,23 +55,23 @@ internal static class DemTerrainOverlayAssignment
                 TerrainOverlayCoverage coverage = ResolveTerrainOverlayCoverage(
                     surfaceBounds,
                     demTerrainTextureOverlays);
-                if (coverage.Kind == TerrainOverlayCoverageKind.Contained)
+                switch (coverage)
                 {
-                    continue;
-                }
+                    case TerrainOverlayCoverage.Contained:
+                        continue;
+                    case TerrainOverlayCoverage.None:
+                        return false;
+                    case TerrainOverlayCoverage.Intersecting intersectingCoverage:
+                        IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
+                            DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
+                                requestedMeshClippedSurface,
+                                intersectingCoverage.Overlays);
+                        if (clippedSurfaces.Count == 0)
+                        {
+                            return false;
+                        }
 
-                if (coverage.Kind == TerrainOverlayCoverageKind.None)
-                {
-                    return false;
-                }
-
-                IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
-                    DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
-                        requestedMeshClippedSurface,
-                        coverage.IntersectingOverlays);
-                if (clippedSurfaces.Count == 0)
-                {
-                    return false;
+                        break;
                 }
             }
         }
@@ -86,7 +86,7 @@ internal static class DemTerrainOverlayAssignment
         return HasOverlayCoverage(parsedCityObject, demTerrainTextureOverlays, []);
     }
 
-    public static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
+    public static IEnumerable<TerrainOverlayAssignedCityObject> SplitParsedCityObject(
         ParsedCityObject parsedCityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
@@ -97,7 +97,7 @@ internal static class DemTerrainOverlayAssignment
         cancellationToken.ThrowIfCancellationRequested();
         if (!string.Equals(parsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
         {
-            yield return (parsedCityObject, null);
+            yield return new TerrainOverlayAssignedCityObject.WithoutOverlay(parsedCityObject);
             yield break;
         }
 
@@ -129,7 +129,8 @@ internal static class DemTerrainOverlayAssignment
                 yield break;
             }
 
-            yield return (parsedCityObject with { Surfaces = nonGeneratedSurfaces, GeodeticOriginOverride = sharedOrigin }, null);
+            yield return new TerrainOverlayAssignedCityObject.WithoutOverlay(
+                parsedCityObject with { Surfaces = nonGeneratedSurfaces, GeodeticOriginOverride = sharedOrigin });
             yield break;
         }
 
@@ -148,7 +149,8 @@ internal static class DemTerrainOverlayAssignment
                 yield break;
             }
 
-            yield return (parsedCityObject with { Surfaces = texturelessSurfaces, GeodeticOriginOverride = sharedOrigin }, null);
+            yield return new TerrainOverlayAssignedCityObject.WithoutOverlay(
+                parsedCityObject with { Surfaces = texturelessSurfaces, GeodeticOriginOverride = sharedOrigin });
             yield break;
         }
 
@@ -175,52 +177,51 @@ internal static class DemTerrainOverlayAssignment
                 TerrainOverlayCoverage coverage = ResolveTerrainOverlayCoverage(
                     surfaceBounds,
                     demTerrainTextureOverlays);
-                if (coverage.Kind == TerrainOverlayCoverageKind.Contained)
+                switch (coverage)
                 {
-                    splitGeneratedSurfaces.Add((requestedMeshClippedSurface, coverage.ContainingOverlay!));
-                    continue;
-                }
-
-                if (coverage.Kind == TerrainOverlayCoverageKind.None)
-                {
-                    if (allowMissingGeneratedDemOverlayCoverage)
-                    {
-                        texturelessGeneratedSurfaces.Add(requestedMeshClippedSurface);
+                    case TerrainOverlayCoverage.Contained containedCoverage:
+                        splitGeneratedSurfaces.Add((requestedMeshClippedSurface, containedCoverage.Overlay));
                         continue;
-                    }
+                    case TerrainOverlayCoverage.None:
+                        if (allowMissingGeneratedDemOverlayCoverage)
+                        {
+                            texturelessGeneratedSurfaces.Add(requestedMeshClippedSurface);
+                            continue;
+                        }
 
-                    throw new InvalidOperationException(
-                        $"Mesh-code-bounds-clipped DEM surface '{requestedMeshClippedSurface.PolygonId}' has no matching terrain overlay coverage.");
+                        throw new InvalidOperationException(
+                            $"Mesh-code-bounds-clipped DEM surface '{requestedMeshClippedSurface.PolygonId}' has no matching terrain overlay coverage.");
+                    case TerrainOverlayCoverage.Intersecting intersectingCoverage:
+                        IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
+                            DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
+                                requestedMeshClippedSurface,
+                                intersectingCoverage.Overlays,
+                                progressReporter,
+                                cancellationToken);
+                        if (allowMissingGeneratedDemOverlayCoverage)
+                        {
+                            texturelessGeneratedSurfaces.AddRange(
+                                ClipGeneratedSurfaceOutsideOverlays(
+                                    requestedMeshClippedSurface,
+                                    intersectingCoverage.Overlays,
+                                    progressReporter,
+                                    cancellationToken));
+                        }
+
+                        if (clippedSurfaces.Count == 0)
+                        {
+                            if (allowMissingGeneratedDemOverlayCoverage)
+                            {
+                                continue;
+                            }
+
+                            throw new InvalidOperationException(
+                                $"Mesh-code-bounds-clipped DEM surface '{requestedMeshClippedSurface.PolygonId}' did not produce any terrain-overlay-clipped geometry.");
+                        }
+
+                        splitGeneratedSurfaces.AddRange(clippedSurfaces);
+                        break;
                 }
-
-                IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
-                    DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
-                        requestedMeshClippedSurface,
-                        coverage.IntersectingOverlays,
-                        progressReporter,
-                        cancellationToken);
-                if (allowMissingGeneratedDemOverlayCoverage)
-                {
-                    texturelessGeneratedSurfaces.AddRange(
-                        ClipGeneratedSurfaceOutsideOverlays(
-                            requestedMeshClippedSurface,
-                            coverage.IntersectingOverlays,
-                            progressReporter,
-                            cancellationToken));
-                }
-
-                if (clippedSurfaces.Count == 0)
-                {
-                    if (allowMissingGeneratedDemOverlayCoverage)
-                    {
-                        continue;
-                    }
-
-                    throw new InvalidOperationException(
-                        $"Mesh-code-bounds-clipped DEM surface '{requestedMeshClippedSurface.PolygonId}' did not produce any terrain-overlay-clipped geometry.");
-                }
-
-                splitGeneratedSurfaces.AddRange(clippedSurfaces);
             }
         }
 
@@ -243,7 +244,7 @@ internal static class DemTerrainOverlayAssignment
             && texturelessGeneratedSurfaces.Count == 0
             && groupedGeneratedSurfaces.Count > 0)
         {
-            yield return (
+            yield return new TerrainOverlayAssignedCityObject.WithOverlay(
                 parsedCityObject with
                 {
                     Surfaces = groups[0].Select(static entry => entry.Surface).ToArray(),
@@ -259,7 +260,7 @@ internal static class DemTerrainOverlayAssignment
         {
             IGrouping<TerrainTextureOverlay, (ParsedSurface Surface, TerrainTextureOverlay Overlay)> group = groups[index];
             cancellationToken.ThrowIfCancellationRequested();
-            yield return (
+            yield return new TerrainOverlayAssignedCityObject.WithOverlay(
                 parsedCityObject with
                 {
                     SlotKey = $"{parsedCityObject.SlotKey}_dem_{index:D2}",
@@ -278,10 +279,11 @@ internal static class DemTerrainOverlayAssignment
             yield break;
         }
 
-        yield return (parsedCityObject with { Surfaces = untexturedSurfaces, GeodeticOriginOverride = sharedOrigin }, null);
+        yield return new TerrainOverlayAssignedCityObject.WithoutOverlay(
+            parsedCityObject with { Surfaces = untexturedSurfaces, GeodeticOriginOverride = sharedOrigin });
     }
 
-    public static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
+    public static IEnumerable<TerrainOverlayAssignedCityObject> SplitParsedCityObject(
         ParsedCityObject parsedCityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
     {
@@ -433,15 +435,15 @@ internal static class DemTerrainOverlayAssignment
             Contains(overlay.GeographicBounds, surfaceBounds));
         if (containingOverlay is not null)
         {
-            return TerrainOverlayCoverage.Contained(containingOverlay);
+            return new TerrainOverlayCoverage.Contained(containingOverlay);
         }
 
         TerrainTextureOverlay[] intersectingOverlays = demTerrainTextureOverlays
             .Where(overlay => Intersects(overlay.GeographicBounds, surfaceBounds))
             .ToArray();
         return intersectingOverlays.Length == 0
-            ? TerrainOverlayCoverage.None
-            : TerrainOverlayCoverage.Intersecting(intersectingOverlays);
+            ? new TerrainOverlayCoverage.None()
+            : new TerrainOverlayCoverage.Intersecting(intersectingOverlays);
     }
 
     private static bool ContainsPoint(
@@ -723,38 +725,13 @@ internal static class DemTerrainOverlayAssignment
 
     private readonly record struct SurfaceMetrics(double AreaSquareMeters, double EstimatedThicknessMeters);
 
-    private readonly record struct TerrainOverlayCoverage(
-        TerrainOverlayCoverageKind Kind,
-        TerrainTextureOverlay? ContainingOverlay,
-        IReadOnlyList<TerrainTextureOverlay> IntersectingOverlays)
+    private abstract record TerrainOverlayCoverage
     {
-        public static TerrainOverlayCoverage None { get; } = new(
-            TerrainOverlayCoverageKind.None,
-            ContainingOverlay: null,
-            IntersectingOverlays: []);
+        public sealed record None : TerrainOverlayCoverage;
 
-        public static TerrainOverlayCoverage Contained(TerrainTextureOverlay containingOverlay)
-        {
-            return new TerrainOverlayCoverage(
-                TerrainOverlayCoverageKind.Contained,
-                containingOverlay,
-                IntersectingOverlays: []);
-        }
+        public sealed record Contained(TerrainTextureOverlay Overlay) : TerrainOverlayCoverage;
 
-        public static TerrainOverlayCoverage Intersecting(IReadOnlyList<TerrainTextureOverlay> intersectingOverlays)
-        {
-            return new TerrainOverlayCoverage(
-                TerrainOverlayCoverageKind.Intersecting,
-                ContainingOverlay: null,
-                intersectingOverlays);
-        }
-    }
-
-    private enum TerrainOverlayCoverageKind
-    {
-        None,
-        Contained,
-        Intersecting,
+        public sealed record Intersecting(IReadOnlyList<TerrainTextureOverlay> Overlays) : TerrainOverlayCoverage;
     }
 
     private readonly record struct GroupMetrics(

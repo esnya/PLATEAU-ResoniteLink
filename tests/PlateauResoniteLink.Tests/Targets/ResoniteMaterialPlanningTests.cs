@@ -242,7 +242,7 @@ public sealed class ResoniteMaterialPlanningTests
             SubmeshIndices: [0],
             TextureScale: new ResoniteFloat2(0.4, 0.8),
             TextureOffset: new ResoniteFloat2(0.1, 0.2),
-            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay));
+            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay));
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextures = new()
         {
             [overlay] = new GeneratedTerrainTexture(
@@ -329,7 +329,7 @@ public sealed class ResoniteMaterialPlanningTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay));
+            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay));
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextures = new()
         {
             [overlay] = new GeneratedTerrainTexture(

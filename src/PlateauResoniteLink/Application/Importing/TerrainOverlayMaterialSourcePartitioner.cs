@@ -11,7 +11,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class TerrainOverlayMaterialSourcePartitioner
 {
-    internal static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> PartitionParsedCityObject(
+    internal static IEnumerable<TerrainOverlayAssignedCityObject> PartitionParsedCityObject(
         ParsedCityObject cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
@@ -19,7 +19,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) partitionedCityObject
+        foreach (TerrainOverlayAssignedCityObject partitionedCityObject
                  in DemTerrainOverlayAssignment.SplitParsedCityObject(
                      cityObject,
                      demTerrainTextureOverlays,
@@ -29,14 +29,14 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                      cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (partitionedCityObject.Overlay is not null
+            if (partitionedCityObject is TerrainOverlayAssignedCityObject.WithOverlay
                 || string.Equals(partitionedCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
             {
                 yield return partitionedCityObject;
                 continue;
             }
 
-            foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) nonDemPartition
+            foreach (TerrainOverlayAssignedCityObject nonDemPartition
                      in PartitionBuildingByTerrainOverlayMaterialSource(
                          partitionedCityObject.CityObject,
                          demTerrainTextureOverlays,
@@ -49,7 +49,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         }
     }
 
-    private static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> PartitionBuildingByTerrainOverlayMaterialSource(
+    private static IEnumerable<TerrainOverlayAssignedCityObject> PartitionBuildingByTerrainOverlayMaterialSource(
         ParsedCityObject cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
@@ -58,7 +58,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
     {
         if (demTerrainTextureOverlays.Count == 0 || !PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName))
         {
-            yield return (cityObject, null);
+            yield return new TerrainOverlayAssignedCityObject.WithoutOverlay(cityObject);
             yield break;
         }
 
@@ -76,7 +76,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         ];
         if (cityObjectVertices.Length == 0)
         {
-            yield return (cityObject, null);
+            yield return new TerrainOverlayAssignedCityObject.WithoutOverlay(cityObject);
             yield break;
         }
 
@@ -173,7 +173,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             if (terrainMaterialGroups.Length == 1)
             {
                 ThirdRegionalMeshCode terrainMeshCode = terrainMaterialGroups[0].Key.MeshCode;
-                yield return (
+                yield return new TerrainOverlayAssignedCityObject.WithOverlay(
                     cityObject with
                     {
                         ActualMeshCode = terrainMeshCode.Value,
@@ -184,13 +184,12 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                 yield break;
             }
 
-            yield return (
+            yield return new TerrainOverlayAssignedCityObject.WithoutOverlay(
                 cityObject with
                 {
                     Surfaces = untexturedSurfaces.ToArray(),
                     GeodeticOriginOverride = cityObjectOrigin,
-                },
-                null);
+                });
             yield break;
         }
 
@@ -199,7 +198,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         {
             cancellationToken.ThrowIfCancellationRequested();
             ThirdRegionalMeshCode terrainMeshCode = group.Key.MeshCode;
-            yield return (
+            yield return new TerrainOverlayAssignedCityObject.WithOverlay(
                 cityObject with
                 {
                     ActualMeshCode = terrainMeshCode.Value,
@@ -214,15 +213,14 @@ internal static class TerrainOverlayMaterialSourcePartitioner
 
         if (untexturedSurfaces.Count != 0)
         {
-            yield return (
+            yield return new TerrainOverlayAssignedCityObject.WithoutOverlay(
                 cityObject with
                 {
                     SlotKey = $"{cityObject.SlotKey}_terrain_none",
                     DisplayName = $"{cityObject.DisplayName} ({partitionIndex + 1})",
                     Surfaces = untexturedSurfaces.ToArray(),
                     GeodeticOriginOverride = cityObjectOrigin,
-                },
-                null);
+                });
         }
     }
 

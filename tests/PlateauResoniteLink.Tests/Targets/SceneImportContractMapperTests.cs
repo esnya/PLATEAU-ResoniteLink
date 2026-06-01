@@ -64,7 +64,7 @@ public sealed class SceneImportContractMapperTests
                 DepthOffset: null,
                 SubmeshIndices: [0],
                 ReuseScope: MaterialReuseScope.Shared,
-                TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
+                TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay),
                 CommonMaterial: commonMaterial),
         ];
 
@@ -72,7 +72,7 @@ public sealed class SceneImportContractMapperTests
 
         Assert.Equal(ResoniteMaterialAssetScope.Common, mapped.AssetScope);
         Assert.Same(overlay, mapped.TerrainOverlay);
-        Assert.Equal("53394525", mapped.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), mapped.TerrainMeshCode);
         Assert.Equal(commonMaterial, mapped.CommonMaterial);
     }
 
@@ -99,14 +99,14 @@ public sealed class SceneImportContractMapperTests
                 DepthOffset: null,
                 SubmeshIndices: [0],
                 ReuseScope: MaterialReuseScope.Shared,
-                TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay)),
+                TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay)),
         ];
 
         ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
 
         Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, mapped.AssetScope);
         Assert.Same(overlay, mapped.TerrainOverlay);
-        Assert.Equal("53394525", mapped.TerrainMeshCode);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), mapped.TerrainMeshCode);
         Assert.Null(mapped.CommonMaterial);
     }
 }

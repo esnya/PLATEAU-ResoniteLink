@@ -26,11 +26,12 @@ public sealed class DemTerrainOverlayAssignmentTests
             CreateOverlay(boundaryLongitude, 139.0200),
         ];
 
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        TerrainOverlayAssignedCityObject[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
-        (ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
-        Assert.NotNull(overlay);
+        TerrainOverlayAssignedCityObject.WithOverlay result = Assert.IsType<TerrainOverlayAssignedCityObject.WithOverlay>(Assert.Single(results));
+        ParsedCityObject splitCityObject = result.CityObject;
+        TerrainTextureOverlay overlay = result.Overlay;
         Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
         Assert.Equal(boundaryLongitude, overlay.GeographicBounds.MaxLongitude, 6);
         Assert.True(Assert.Single(splitCityObject.Surfaces).UsesGeneratedDemTexture);
@@ -57,7 +58,7 @@ public sealed class DemTerrainOverlayAssignmentTests
             CreateOverlay(boundaryLongitude, 139.0200),
         ];
 
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        TerrainOverlayAssignedCityObject[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
         Assert.Equal(2, results.Length);
@@ -92,11 +93,12 @@ public sealed class DemTerrainOverlayAssignmentTests
             CreateOverlay(boundaryLongitude, 139.0200),
         ];
 
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        TerrainOverlayAssignedCityObject[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
-        (ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
-        Assert.NotNull(overlay);
+        TerrainOverlayAssignedCityObject.WithOverlay result = Assert.IsType<TerrainOverlayAssignedCityObject.WithOverlay>(Assert.Single(results));
+        ParsedCityObject splitCityObject = result.CityObject;
+        TerrainTextureOverlay overlay = result.Overlay;
         Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
         Assert.Equal(boundaryLongitude, overlay.GeographicBounds.MaxLongitude, 6);
         Assert.Equal("dem-dominant", Assert.Single(splitCityObject.Surfaces).PolygonId);
@@ -130,7 +132,7 @@ public sealed class DemTerrainOverlayAssignmentTests
             CreateOverlay(boundaryLongitude, 139.0200),
         ];
 
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        TerrainOverlayAssignedCityObject[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
         Assert.Equal(2, results.Length);
@@ -174,7 +176,7 @@ public sealed class DemTerrainOverlayAssignmentTests
             CreateOverlay(boundaryLongitude, 139.0200),
         ];
 
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        TerrainOverlayAssignedCityObject[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
         Assert.Equal(2, results.Length);
@@ -316,7 +318,7 @@ public sealed class DemTerrainOverlayAssignmentTests
             new(35.0000, 35.0200, 139.0300, 139.0400),
         ];
 
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        TerrainOverlayAssignedCityObject[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(
                 cityObject,
                 overlays,
@@ -344,11 +346,11 @@ public sealed class DemTerrainOverlayAssignmentTests
             new(35.0000, 35.0200, 139.0000, 139.0100),
         ];
 
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        TerrainOverlayAssignedCityObject[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, [], requestedMeshCodeBounds).ToArray();
 
-        (ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
-        Assert.Null(overlay);
+        TerrainOverlayAssignedCityObject.WithoutOverlay result = Assert.IsType<TerrainOverlayAssignedCityObject.WithoutOverlay>(Assert.Single(results));
+        ParsedCityObject splitCityObject = result.CityObject;
         GeographicRectangle bounds = GetSurfaceBounds(Assert.Single(splitCityObject.Surfaces));
         Assert.True(bounds.MaxLongitude <= 139.0100 + 1e-9);
     }

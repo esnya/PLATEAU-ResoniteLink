@@ -90,7 +90,7 @@ internal static class CityGmlParsedCityObjectProjection
         List<ImportedCityObject> projectedCityObjects = [];
         List<ImportedCityObject> generatedRoadMarkings = [];
 
-        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) partitionedCityObject
+        foreach (TerrainOverlayAssignedCityObject partitionedCityObject
                  in TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
                      terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
@@ -100,11 +100,14 @@ internal static class CityGmlParsedCityObjectProjection
                      cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            TerrainTextureOverlay? partitionOverlay = partitionedCityObject is TerrainOverlayAssignedCityObject.WithOverlay withOverlay
+                ? withOverlay.Overlay
+                : null;
             ImportedCityObject cityObject = ProjectTerrainMeshModeCityObject(
                 partitionedCityObject.CityObject,
                 globalOriginPoint,
                 globalCartesian,
-                partitionedCityObject.Overlay,
+                partitionOverlay,
                 request,
                 requestedMeshCodeBounds,
                 materialResolver,
@@ -137,7 +140,7 @@ internal static class CityGmlParsedCityObjectProjection
                 roadMarkingCityObject,
                 globalOriginPoint,
                 globalCartesian,
-                partitionedCityObject.Overlay,
+                partitionOverlay,
                 materialResolver) with
             {
                 CollisionEnabled = false,
@@ -189,13 +192,16 @@ internal static class CityGmlParsedCityObjectProjection
                 GeometryHeightMeters = geometryHeightMeters,
             };
 
-        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) partitionedCityObject
+        foreach (TerrainOverlayAssignedCityObject partitionedCityObject
                  in TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
                      terrainAlignedParsedCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshCodeBounds,
                      AllowMissingGeneratedDemOverlayCoverage(terrainAlignedParsedCityObject)))
         {
+            TerrainTextureOverlay? partitionOverlay = partitionedCityObject is TerrainOverlayAssignedCityObject.WithOverlay withOverlay
+                ? withOverlay.Overlay
+                : null;
             GeodeticPoint cityObjectOrigin = ResolveCityObjectOrigin(partitionedCityObject.CityObject);
             LocalCartesian? cityObjectCartesian = partitionedCityObject.CityObject.ReferenceSystem.IsGeographic
                 ? new LocalCartesian(
@@ -210,7 +216,7 @@ internal static class CityGmlParsedCityObjectProjection
                          draft,
                          cityObjectOrigin,
                          cityObjectCartesian,
-                         partitionedCityObject.Overlay,
+                         partitionOverlay,
                          materialResolver))
             {
                 yield return material;
