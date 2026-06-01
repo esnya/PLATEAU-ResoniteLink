@@ -88,11 +88,12 @@ internal static class DemSourceDiscoverySupport
         List<DemTerrainOverlayRegion> overlays = [];
         foreach (string meshCode in ExpandToThirdMeshCodes(requestedMeshCodes))
         {
-            if (!PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
+            if (!ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
             {
                 continue;
             }
 
+            JisRegionalMeshBounds bounds = thirdMeshCode.Bounds;
             if (bounds.NorthLatitude < demBounds.SouthLatitude
                 || bounds.SouthLatitude > demBounds.NorthLatitude
                 || bounds.EastLongitude < demBounds.WestLongitude
@@ -101,25 +102,15 @@ internal static class DemSourceDiscoverySupport
                 continue;
             }
 
-            overlays.Add(CreateDemTerrainOverlayRegion(meshCode, bounds));
+            overlays.Add(CreateDemTerrainOverlayRegion(thirdMeshCode));
         }
 
-        if (overlays.Count > 0)
-        {
-            return overlays
-                .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
-                .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
-                .ThenBy(static overlay => overlay.GeographicBounds.MaxLatitude)
-                .ThenBy(static overlay => overlay.GeographicBounds.MaxLongitude)
-                .ToArray();
-        }
-
-        return
-        [
-            CreateDemTerrainOverlayRegion(
-                "dem-fallback",
-                (demBounds.SouthLatitude, demBounds.NorthLatitude, demBounds.WestLongitude, demBounds.EastLongitude)),
-        ];
+        return overlays
+            .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MaxLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MaxLongitude)
+            .ToArray();
     }
 
     internal static DemTerrainOverlayRegion[] CreateDemTerrainOverlayRegions(
@@ -130,12 +121,12 @@ internal static class DemSourceDiscoverySupport
         List<DemTerrainOverlayRegion> overlays = [];
         foreach (string meshCode in ExpandToThirdMeshCodes(requestedMeshCodes))
         {
-            if (!PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
+            if (!ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
             {
                 continue;
             }
 
-            overlays.Add(CreateDemTerrainOverlayRegion(meshCode, bounds));
+            overlays.Add(CreateDemTerrainOverlayRegion(thirdMeshCode));
         }
 
         return overlays
@@ -153,9 +144,9 @@ internal static class DemSourceDiscoverySupport
     }
 
     private static DemTerrainOverlayRegion CreateDemTerrainOverlayRegion(
-        string meshCode,
-        (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds)
+        ThirdRegionalMeshCode meshCode)
     {
+        JisRegionalMeshBounds bounds = meshCode.Bounds;
         return new DemTerrainOverlayRegion(
             meshCode,
             new GeographicRectangle(
@@ -253,5 +244,5 @@ internal sealed record DemDiscoveryAggregation(
     int ParsedCityObjectCount);
 
 internal sealed record DemTerrainOverlayRegion(
-    string Identity,
+    ThirdRegionalMeshCode MeshCode,
     GeographicRectangle GeographicBounds);

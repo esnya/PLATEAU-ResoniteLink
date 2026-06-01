@@ -12,10 +12,12 @@ public static class DemTerrainTextureDefaults
     public const int MaxTextureSize = 8192;
 
     public static TerrainTextureOverlay CreatePlateauOrthoWithGsiFallbackOverlay(
+        ThirdRegionalMeshCode meshCode,
         GeographicRectangle geographicBounds)
     {
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: meshCode,
             GeographicBounds: geographicBounds,
             MaxTextureSize: MaxTextureSize,
             Sources: CreatePlateauOrthoWithGsiFallbackSources(),

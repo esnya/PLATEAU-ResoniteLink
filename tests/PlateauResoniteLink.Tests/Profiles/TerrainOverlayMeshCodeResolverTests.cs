@@ -6,51 +6,15 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class TerrainOverlayMeshCodeResolverTests
 {
     [Fact]
-    public void ResolveMeshCodeKeepsMatchingThirdMeshCode()
+    public void IsRequestedOverlayUsesOverlayMeshCode()
     {
         TerrainTextureOverlay overlay = CreateOverlay("53394525");
 
-        ThirdRegionalMeshCode? meshCode = TerrainOverlayMeshCodeResolver.ResolveMeshCode("53394525", overlay);
+        bool isRequested = TerrainOverlayMeshCodeResolver.IsRequestedOverlay(
+            overlay,
+            [MeshCodeBounds.TryParse("53394525")!]);
 
-        Assert.Equal("53394525", meshCode?.Value);
-    }
-
-    [Fact]
-    public void ResolveMeshCodeFindsMatchingThirdMeshCodeUnderParentMesh()
-    {
-        TerrainTextureOverlay overlay = CreateOverlay("53394525");
-
-        ThirdRegionalMeshCode? meshCode = TerrainOverlayMeshCodeResolver.ResolveMeshCode("533945", overlay);
-
-        Assert.Equal("53394525", meshCode?.Value);
-    }
-
-    [Fact]
-    public void ResolveForOverlayFallsBackToRequestedMeshCode()
-    {
-        TerrainTextureOverlay overlay = CreateOverlay("53394525");
-
-        ThirdRegionalMeshCode? meshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
-            actualMeshCode: "53394600",
-            requestedMeshCode: "533945",
-            requestedMeshCodeBounds: [],
-            overlay);
-
-        Assert.Equal("53394525", meshCode?.Value);
-    }
-
-    [Fact]
-    public void ResolveForOverlayUsesRequestedOverlayBoundsWhenActualAndRequestedMeshCodesDoNotMatch()
-    {
-        TerrainTextureOverlay overlay = CreateOverlay("53394525");
-
-        ThirdRegionalMeshCode? meshCode = TerrainOverlayMeshCodeResolver.ResolveForOverlay(
-            actualMeshCode: "533946",
-            requestedMeshCode: "533947",
-            requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
-            overlay);
-
-        Assert.Equal("53394525", meshCode?.Value);
+        Assert.True(isRequested);
     }
 
     [Fact]
@@ -65,21 +29,38 @@ public sealed class TerrainOverlayMeshCodeResolverTests
         Assert.True(isRequested);
     }
 
+    [Fact]
+    public void BoundsOverlapRejectsBoundaryTouchOnly()
+    {
+        GeographicRectangle left = new(35.0, 35.1, 139.0, 139.1);
+        GeographicRectangle right = new(35.1, 35.2, 139.0, 139.1);
+
+        Assert.False(TerrainOverlayMeshCodeResolver.BoundsOverlap(left, right));
+    }
+
     private static TerrainTextureOverlay CreateOverlay(string meshCode)
     {
-        Assert.True(PlateauMeshCode.TryGetBounds(
-            meshCode,
-            out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds));
+        ThirdRegionalMeshCode thirdMeshCode = ThirdRegionalMeshCode.Parse(meshCode);
+        JisRegionalMeshBounds bounds = thirdMeshCode.Bounds;
 
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: thirdMeshCode,
             UrlTemplate: $"https://terrain.example/{meshCode}/{{z}}/{{x}}/{{y}}.png",
             ZoomLevel: 18,
-            GeographicBounds: new GeographicRectangle(
-                bounds.SouthLatitude,
-                bounds.NorthLatitude,
-                bounds.WestLongitude,
-                bounds.EastLongitude),
+            GeographicBounds: bounds.ToGeographicRectangle(),
             MaxTextureSize: 2048);
+    }
+}
+
+internal static class JisRegionalMeshBoundsTestExtensions
+{
+    public static GeographicRectangle ToGeographicRectangle(this JisRegionalMeshBounds bounds)
+    {
+        return new GeographicRectangle(
+            bounds.SouthLatitude,
+            bounds.NorthLatitude,
+            bounds.WestLongitude,
+            bounds.EastLongitude);
     }
 }

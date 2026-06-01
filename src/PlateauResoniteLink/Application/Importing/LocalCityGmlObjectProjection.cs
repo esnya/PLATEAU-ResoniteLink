@@ -29,9 +29,9 @@ internal static class LocalCityGmlObjectProjection
         IReadOnlyList<string> requestedMeshCodes)
     {
         return DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
-                DemTerrainBounds.FromMeshCodeBounds(demBounds),
-                requestedMeshCodes)
-            .Select(static region => DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.GeographicBounds))
+            DemTerrainBounds.FromMeshCodeBounds(demBounds),
+            requestedMeshCodes)
+            .Select(static region => DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.MeshCode, region.GeographicBounds))
             .ToArray();
     }
 
@@ -107,7 +107,7 @@ internal static class LocalCityGmlObjectProjection
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         ProjectionTerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver)

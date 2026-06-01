@@ -918,6 +918,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("57403600"),
             UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
             ZoomLevel: 19,
             GeographicBounds: new GeographicRectangle(38.25, 38.25833333333333, 140.75, 140.7625),
@@ -1818,6 +1819,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds));
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse(meshCode),
             UrlTemplate: urlTemplate,
             ZoomLevel: zoomLevel,
             GeographicBounds: new GeographicRectangle(

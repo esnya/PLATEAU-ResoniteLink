@@ -256,6 +256,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeographicRectangle bounds = new(35.0, 35.001, 139.0, 139.001);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: bounds,
             MaxTextureSize: 1024,
             Sources:
@@ -299,6 +300,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         TerrainTextureOverlay tileOnlyOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: bounds,
             MaxTextureSize: 1024,
             Sources:
@@ -307,6 +309,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             ]);
         TerrainTextureOverlay rasterOnlyOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: bounds,
             MaxTextureSize: 1024,
             Sources:
@@ -317,6 +320,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             ]);
         TerrainTextureOverlay mixedOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: bounds,
             MaxTextureSize: 1024,
             Sources:
@@ -413,6 +417,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeographicRectangle bounds = new(35.0, 35.001, 139.0, 139.001);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: bounds,
             MaxTextureSize: 16,
             Sources:
@@ -460,6 +465,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: bounds,
             MaxTextureSize: 4096,
             Sources:
@@ -502,6 +508,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeographicRectangle bounds = new(0.0, WebMercatorTileMath.MaxLatitude, -180.0, 180.0);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: bounds,
             MaxTextureSize: 1024,
             Sources:

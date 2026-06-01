@@ -398,6 +398,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds));
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse(meshCode),
             UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
             ZoomLevel: 17,
             GeographicBounds: new GeographicRectangle(

@@ -32,7 +32,7 @@ internal static class CityGmlSourceFileCityObjectProjection
             appearanceStore,
             lodSelector,
             coordinateReferenceSystem,
-            sourceFile.RequiresMeshCodeBoundsFilter ? requestedMeshAreas : null,
+            sourceFile.RequiresMeshCodeBoundsFilter ? requestedMeshAreas : [],
             lodFilteringStrategy);
     }
 }

@@ -17,7 +17,7 @@ internal static class DemTerrainOverlayAssignment
     public static bool HasOverlayCoverage(
         ParsedCityObject parsedCityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds = null)
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds)
     {
         ArgumentNullException.ThrowIfNull(parsedCityObject);
         if (!string.Equals(parsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
@@ -33,16 +33,7 @@ internal static class DemTerrainOverlayAssignment
             return true;
         }
 
-        GeographicRectangle[] requestedMeshBounds = requestedMeshCodeBounds is null
-            ? []
-            : requestedMeshCodeBounds
-                .Select(static area => new GeographicRectangle(
-                    area.SouthLatitude,
-                    area.NorthLatitude,
-                    area.WestLongitude,
-                    area.EastLongitude))
-                .Distinct()
-                .ToArray();
+        GeographicRectangle[] requestedMeshBounds = CreateRequestedMeshBounds(requestedMeshCodeBounds);
 
         foreach (ParsedSurface generatedSurface in generatedSurfaces)
         {
@@ -88,10 +79,17 @@ internal static class DemTerrainOverlayAssignment
         return true;
     }
 
+    public static bool HasOverlayCoverage(
+        ParsedCityObject parsedCityObject,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
+    {
+        return HasOverlayCoverage(parsedCityObject, demTerrainTextureOverlays, []);
+    }
+
     public static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
         ParsedCityObject parsedCityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds = null,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         bool allowMissingGeneratedDemOverlayCoverage = false,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
@@ -104,16 +102,7 @@ internal static class DemTerrainOverlayAssignment
         }
 
         GeodeticPoint sharedOrigin = GetCityObjectOrigin(parsedCityObject);
-        GeographicRectangle[] requestedMeshBounds = requestedMeshCodeBounds is null
-            ? []
-            : requestedMeshCodeBounds
-                .Select(static area => new GeographicRectangle(
-                    area.SouthLatitude,
-                    area.NorthLatitude,
-                    area.WestLongitude,
-                    area.EastLongitude))
-                .Distinct()
-                .ToArray();
+        GeographicRectangle[] requestedMeshBounds = CreateRequestedMeshBounds(requestedMeshCodeBounds);
 
         ParsedSurface[] generatedSurfaces = parsedCityObject.Surfaces
             .Where(static surface => surface.UsesGeneratedDemTexture)
@@ -290,6 +279,26 @@ internal static class DemTerrainOverlayAssignment
         }
 
         yield return (parsedCityObject with { Surfaces = untexturedSurfaces, GeodeticOriginOverride = sharedOrigin }, null);
+    }
+
+    public static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
+        ParsedCityObject parsedCityObject,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
+    {
+        return SplitParsedCityObject(parsedCityObject, demTerrainTextureOverlays, []);
+    }
+
+    private static GeographicRectangle[] CreateRequestedMeshBounds(
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds)
+    {
+        return requestedMeshCodeBounds
+            .Select(static area => new GeographicRectangle(
+                area.SouthLatitude,
+                area.NorthLatitude,
+                area.WestLongitude,
+                area.EastLongitude))
+            .Distinct()
+            .ToArray();
     }
 
     private static ParsedSurface[] ClipGeneratedSurfaceToRequestedMeshCodeBounds(

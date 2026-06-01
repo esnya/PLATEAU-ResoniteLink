@@ -100,20 +100,6 @@ internal static class CityGmlParsedCityObjectProjection
                      cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!TerrainOverlayMaterialSourcePartitioner.IsPartitionCompatibleWithRequest(
-                    partitionedCityObject.CityObject.ActualMeshCode,
-                    request.MeshCode,
-                    requestedMeshCodeBounds,
-                    partitionedCityObject.Overlay))
-            {
-                throw CreateTerrainOverlayMeshCodeMismatchException(
-                    "project",
-                    partitionedCityObject.CityObject.ActualMeshCode,
-                    request.MeshCode,
-                    requestedMeshCodeBounds,
-                    partitionedCityObject.Overlay);
-            }
-
             ImportedCityObject cityObject = ProjectTerrainMeshModeCityObject(
                 partitionedCityObject.CityObject,
                 globalOriginPoint,
@@ -186,7 +172,7 @@ internal static class CityGmlParsedCityObjectProjection
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         ProjectionTerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver)
@@ -210,20 +196,6 @@ internal static class CityGmlParsedCityObjectProjection
                      requestedMeshCodeBounds,
                      AllowMissingGeneratedDemOverlayCoverage(terrainAlignedParsedCityObject)))
         {
-            if (!TerrainOverlayMaterialSourcePartitioner.IsPartitionCompatibleWithRequest(
-                    partitionedCityObject.CityObject.ActualMeshCode,
-                    request.MeshCode,
-                    requestedMeshCodeBounds ?? [],
-                    partitionedCityObject.Overlay))
-            {
-                throw CreateTerrainOverlayMeshCodeMismatchException(
-                    "common-material-enumeration",
-                    partitionedCityObject.CityObject.ActualMeshCode,
-                    request.MeshCode,
-                    requestedMeshCodeBounds,
-                    partitionedCityObject.Overlay);
-            }
-
             GeodeticPoint cityObjectOrigin = ResolveCityObjectOrigin(partitionedCityObject.CityObject);
             LocalCartesian? cityObjectCartesian = partitionedCityObject.CityObject.ReferenceSystem.IsGeographic
                 ? new LocalCartesian(
@@ -478,21 +450,6 @@ internal static class CityGmlParsedCityObjectProjection
             origin.Longitude,
             origin.Altitude,
             cartesian);
-    }
-
-    private static InvalidOperationException CreateTerrainOverlayMeshCodeMismatchException(
-        string phase,
-        string actualMeshCode,
-        string requestedMeshCode,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshCodeBounds,
-        TerrainTextureOverlay? terrainOverlay)
-    {
-        return TerrainOverlayDiagnostics.CreateMeshCodeMismatchException(
-            phase,
-            actualMeshCode,
-            requestedMeshCode,
-            requestedMeshCodeBounds,
-            terrainOverlay);
     }
 
     private static TriangleMeshGeometry AssertTriangleMeshGeometry(ImportedCityObject cityObject)

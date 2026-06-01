@@ -39,11 +39,10 @@ internal readonly record struct DemTerrainRasterCacheKey
     public DemTerrainRasterCacheKey(
         string datasetName,
         DemTerrainRasterSourceScope sourceScope,
-        string meshCode,
+        ThirdRegionalMeshCode meshCode,
         GeographicRectangle overlayBounds)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(datasetName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
 
         DatasetName = datasetName;
         SourceScope = sourceScope;
@@ -58,7 +57,7 @@ internal readonly record struct DemTerrainRasterCacheKey
 
     public DemTerrainRasterSourceScope SourceScope { get; }
 
-    public string MeshCode { get; }
+    public ThirdRegionalMeshCode MeshCode { get; }
 
     public double MinLatitude { get; }
 
@@ -81,7 +80,7 @@ internal interface IDemTerrainGeoReferencedRasterCatalog
 
     Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
         DemTerrainRasterCacheKey cacheKey,
-        string meshCode,
+        ThirdRegionalMeshCode meshCode,
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken);
 }
@@ -190,8 +189,8 @@ internal sealed class DefaultDemTextureSourcePolicy(
         if (rasterCatalog is not null)
         {
             TerrainTextureGeoReferencedRasterSource? rasterSource = await rasterCatalog.TryResolveRasterSourceAsync(
-                new DemTerrainRasterCacheKey(datasetName, rasterCatalog.CacheScope, region.Identity, region.GeographicBounds),
-                region.Identity,
+                new DemTerrainRasterCacheKey(datasetName, rasterCatalog.CacheScope, region.MeshCode, region.GeographicBounds),
+                region.MeshCode,
                 region.GeographicBounds,
                 cancellationToken);
             if (rasterSource?.Metadata is { IsUsable: true } metadata)
@@ -206,6 +205,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
         TerrainTextureSource[] sources = OrderSources(candidates);
         return new TerrainTextureOverlay(
             PackageName: "dem",
+            MeshCode: region.MeshCode,
             GeographicBounds: region.GeographicBounds,
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize,
             Sources: sources,
@@ -214,7 +214,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
 
     private static TerrainTextureOverlay CreateFallbackOverlay(DemTerrainOverlayRegion region)
     {
-        return DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.GeographicBounds);
+        return DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.MeshCode, region.GeographicBounds);
     }
 
     private static DemTextureSourceCandidate CreateTileCandidate(

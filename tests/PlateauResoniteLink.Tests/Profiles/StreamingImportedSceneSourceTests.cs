@@ -59,6 +59,7 @@ public sealed class StreamingImportedSceneSourceTests
             PackageNames: ["bldg", "dem"]);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
             ZoomLevel: 18,
             GeographicBounds: new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
@@ -102,6 +103,7 @@ public sealed class StreamingImportedSceneSourceTests
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
         TerrainTextureOverlay discoveryOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://example.invalid/discovery/{z}/{x}/{y}.png",
             ZoomLevel: 18,
             GeographicBounds: new GeographicRectangle(35.0, 36.0, 139.0, 140.0),
@@ -109,6 +111,7 @@ public sealed class StreamingImportedSceneSourceTests
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
         TerrainTextureOverlay explicitRasterOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
             MaxTextureSize: 1024,
             Sources:
@@ -131,7 +134,8 @@ public sealed class StreamingImportedSceneSourceTests
                     new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false),
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
                 ],
-                [discoveryOverlay]),
+                [discoveryOverlay],
+                selectedMeshCodes: ["53394525"]),
             geometryProjector,
             demTextureSourcePolicy,
             new PassthroughImportedObjectUnitOptimizer());
@@ -154,6 +158,7 @@ public sealed class StreamingImportedSceneSourceTests
             PackageNames: ["bldg", "dem"]);
         TerrainTextureOverlay staleDiscoveryOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://example.invalid/stale/{z}/{x}/{y}.png",
             ZoomLevel: 18,
             GeographicBounds: new GeographicRectangle(36.0, 36.1, 140.0, 140.1),
@@ -161,6 +166,7 @@ public sealed class StreamingImportedSceneSourceTests
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
         TerrainTextureOverlay rebuiltOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0, 35.03, 139.0, 139.03),
             MaxTextureSize: 1024,
             Sources:
@@ -195,12 +201,13 @@ public sealed class StreamingImportedSceneSourceTests
     {
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
-            MeshCode: "57402736",
+            MeshCode: "53394525",
             CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
 
             PackageNames: ["bldg", "dem"]);
         TerrainTextureOverlay fallbackOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
             MaxTextureSize: 1024,
             Sources:
@@ -267,6 +274,7 @@ public sealed class StreamingImportedSceneSourceTests
             PackageNames: ["dem"]);
         TerrainTextureOverlay fallbackOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
             MaxTextureSize: 1024,
             Sources:
@@ -341,6 +349,7 @@ public sealed class StreamingImportedSceneSourceTests
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(
             new TerrainTextureOverlay(
                 PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
                 GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
                 MaxTextureSize: 1024,
                 Sources:
@@ -387,6 +396,7 @@ public sealed class StreamingImportedSceneSourceTests
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(
             new TerrainTextureOverlay(
                 PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
                 GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
                 MaxTextureSize: 1024,
                 Sources:
@@ -456,6 +466,7 @@ public sealed class StreamingImportedSceneSourceTests
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
         TerrainTextureOverlay explicitRasterOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
             MaxTextureSize: 1024,
             Sources:
@@ -475,9 +486,10 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(
                 [
-                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "57402736", RequiresMeshCodeBoundsFilter: false),
-                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
-                ]),
+                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "53394525", RequiresMeshCodeBoundsFilter: false),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
+                ],
+                selectedMeshCodes: ["53394525"]),
             geometryProjector,
             demTextureSourcePolicy,
             new PassthroughImportedObjectUnitOptimizer());
@@ -504,6 +516,7 @@ public sealed class StreamingImportedSceneSourceTests
         SourceFileDescriptor demSourceFile = new("udx/dem/file-001.gml", "dem", "533945", RequiresMeshCodeBoundsFilter: true);
         TerrainTextureOverlay explicitRasterOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
             MaxTextureSize: 1024,
             Sources:
@@ -557,12 +570,13 @@ public sealed class StreamingImportedSceneSourceTests
     {
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
-            MeshCode: "57402736",
+            MeshCode: "53394525",
             CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
             PackageNames: ["dem"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
         TerrainTextureOverlay explicitRasterOverlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
             MaxTextureSize: 1024,
             Sources:
@@ -583,8 +597,9 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(
                 [
-                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
-                ]),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
+                ],
+                selectedMeshCodes: ["53394525"]),
             geometryProjector,
             demTextureSourcePolicy,
             new PassthroughImportedObjectUnitOptimizer());
@@ -606,7 +621,7 @@ public sealed class StreamingImportedSceneSourceTests
     {
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
-            MeshCode: "57402736",
+            MeshCode: "53394525",
             CityGmlSource: DatasetLocation.Local("/tmp/source.zip"),
             PackageNames: ["dem"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho\\missing.tif"));
@@ -616,8 +631,9 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(
                 [
-                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
-                ]),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
+                ],
+                selectedMeshCodes: ["53394525"]),
             new TrackingGeometryProjector(),
             new ThrowingDemTextureSourcePolicy(expectedException),
             new PassthroughImportedObjectUnitOptimizer());
@@ -759,6 +775,12 @@ public sealed class StreamingImportedSceneSourceTests
         SourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem)
     {
+        if (string.Equals(sourceFile.PackageName, "dem", StringComparison.Ordinal)
+            && string.Equals(sourceFile.MatchedMeshCode, "53394525", StringComparison.Ordinal))
+        {
+            return CreateParsedCityObjectInMesh53394525(sourceFile, referenceSystem);
+        }
+
         ParsedSurface[] surfaces = string.Equals(sourceFile.PackageName, "dem", StringComparison.Ordinal)
             ?
             [
@@ -1038,7 +1060,7 @@ public sealed class StreamingImportedSceneSourceTests
         {
             _ = request;
             Interlocked.Increment(ref resolveOverlayRegionsCallCount);
-            LastOverlayRegionIdentities = overlayRegions.Select(static region => region.Identity).ToArray();
+            LastOverlayRegionIdentities = overlayRegions.Select(static region => region.MeshCode.Value).ToArray();
             OverlayRegionIdentityCalls.Enqueue(LastOverlayRegionIdentities);
             return ResolveOverlayRegionsCoreAsync(cancellationToken);
         }
@@ -1046,7 +1068,7 @@ public sealed class StreamingImportedSceneSourceTests
         public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
         {
-            LastOverlayRegionIdentities = overlayRegions.Select(static region => region.Identity).ToArray();
+            LastOverlayRegionIdentities = overlayRegions.Select(static region => region.MeshCode.Value).ToArray();
             OverlayRegionIdentityCalls.Enqueue(LastOverlayRegionIdentities);
             return fallbackOverlays;
         }

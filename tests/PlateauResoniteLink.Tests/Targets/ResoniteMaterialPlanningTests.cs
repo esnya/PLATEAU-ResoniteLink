@@ -227,6 +227,7 @@ public sealed class ResoniteMaterialPlanningTests
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 17,
             GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
@@ -315,6 +316,7 @@ public sealed class ResoniteMaterialPlanningTests
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 17,
             GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),

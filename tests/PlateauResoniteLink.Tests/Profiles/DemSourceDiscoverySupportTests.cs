@@ -50,7 +50,7 @@ public sealed class DemSourceDiscoverySupportTests
             ["53394525"]);
 
         DemTerrainOverlayRegion region = Assert.Single(result);
-        Assert.Equal("53394525", region.Identity);
+        Assert.Equal(ThirdRegionalMeshCode.Parse("53394525"), region.MeshCode);
         Assert.Equal(meshBounds.SouthLatitude, region.GeographicBounds.MinLatitude);
         Assert.Equal(meshBounds.NorthLatitude, region.GeographicBounds.MaxLatitude);
         Assert.Equal(meshBounds.WestLongitude, region.GeographicBounds.MinLongitude);
@@ -58,17 +58,22 @@ public sealed class DemSourceDiscoverySupportTests
     }
 
     [Fact]
-    public void CreateDemTerrainOverlayRegionsReturnsFallbackBoundsWhenRequestedMeshesDoNotIntersect()
+    public void CreateDemTerrainOverlayRegionsReturnsEmptyWhenRequestedMeshesDoNotIntersect()
     {
-        DemTerrainOverlayRegion region = Assert.Single(
-            DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
+        DemTerrainOverlayRegion[] regions = DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(
                 new DemTerrainBounds(35.0, 35.0001, 139.0, 139.0001),
-                ["99999999"]));
+                ["99999999"]);
 
-        Assert.Equal("dem-fallback", region.Identity);
-        Assert.Equal(
-            new GeographicRectangle(35.0, 35.0001, 139.0, 139.0001),
-            region.GeographicBounds);
+        Assert.Empty(regions);
+    }
+
+    [Fact]
+    public void CreateDemTerrainOverlayRegionsExpandsSecondMeshToThirdMeshRegions()
+    {
+        DemTerrainOverlayRegion[] regions = DemSourceDiscoverySupport.CreateDemTerrainOverlayRegions(["533945"]);
+
+        Assert.Equal(100, regions.Length);
+        Assert.All(regions, static region => Assert.Equal("533945", region.MeshCode.Parent.Value));
     }
 
     [Fact]

@@ -24,6 +24,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
 
         TerrainTextureOverlay overlay = new(
             PackageName: "bldg",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
             ZoomLevel: 14,
             GeographicBounds: new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
@@ -83,6 +84,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
                 [
                     new TerrainTextureOverlay(
                         "dem",
+                        ThirdRegionalMeshCode.Parse("53394525"),
                         "https://example.invalid/discovered/{z}/{x}/{y}.png",
                         18,
                         new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
@@ -212,6 +214,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
                 [
                     new TerrainTextureOverlay(
                         "dem",
+                        ThirdRegionalMeshCode.Parse("53394525"),
                         "https://example.invalid/{z}/{x}/{y}.png",
                         18,
                         overlayRegions[0].GeographicBounds,
