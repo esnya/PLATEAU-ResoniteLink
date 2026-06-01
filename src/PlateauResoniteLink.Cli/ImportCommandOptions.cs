@@ -7,13 +7,11 @@ namespace PlateauResoniteLink.Cli;
 public sealed class ImportCommandOptions(
     PlateauImportRequest Request,
     string WorkRoot,
-    Uri? ResoniteLinkUri,
-    int ResoniteLinkConnectionCount,
+    ImportDestination Destination,
     PlateauImportMemoryProfile MemoryProfile,
     bool EnableMeshBake,
     string? TerrainTileCacheRoot,
     bool DisableTerrainTileCache,
-    string? CanonicalSceneDumpPath,
     bool EnableSendMetrics,
     bool VerboseLogging) : CliCommandOptions
 {
@@ -21,9 +19,7 @@ public sealed class ImportCommandOptions(
 
     public string WorkRoot { get; } = WorkRoot ?? throw new ArgumentNullException(nameof(WorkRoot));
 
-    public Uri? ResoniteLinkUri { get; } = ResoniteLinkUri;
-
-    public int ResoniteLinkConnectionCount { get; } = ResoniteLinkConnectionCount;
+    public ImportDestination Destination { get; } = Destination ?? throw new ArgumentNullException(nameof(Destination));
 
     public PlateauImportMemoryProfile MemoryProfile { get; } = MemoryProfile;
 
@@ -33,9 +29,50 @@ public sealed class ImportCommandOptions(
 
     public bool DisableTerrainTileCache { get; } = DisableTerrainTileCache;
 
-    public string? CanonicalSceneDumpPath { get; } = CanonicalSceneDumpPath;
-
     public bool EnableSendMetrics { get; } = EnableSendMetrics;
 
     public bool VerboseLogging { get; } = VerboseLogging;
+}
+
+public abstract record ImportDestination
+{
+    private ImportDestination()
+    {
+    }
+
+    public sealed record Live : ImportDestination
+    {
+        public Live(Uri resoniteLinkUri, int connectionCount)
+        {
+            ArgumentNullException.ThrowIfNull(resoniteLinkUri);
+            if (!resoniteLinkUri.IsAbsoluteUri)
+            {
+                throw new ArgumentException("The ResoniteLink URI must be absolute.", nameof(resoniteLinkUri));
+            }
+
+            if (connectionCount < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(connectionCount), connectionCount, "Connection count must be positive.");
+            }
+
+            ResoniteLinkUri = resoniteLinkUri;
+            ConnectionCount = connectionCount;
+        }
+
+        public Uri ResoniteLinkUri { get; }
+
+        public int ConnectionCount { get; }
+    }
+
+    public sealed record CanonicalSceneDump : ImportDestination
+    {
+        public CanonicalSceneDump(string path)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+            Path = path;
+        }
+
+        public string Path { get; }
+    }
 }

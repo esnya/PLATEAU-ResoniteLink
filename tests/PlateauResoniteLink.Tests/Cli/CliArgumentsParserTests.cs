@@ -26,7 +26,9 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("/data/plateau", options.Request.CityGmlLocalSourcePath);
         Assert.Null(options.Request.DemTextureSource);
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, options.Request.PackageNames);
-        Assert.Equal(new Uri("ws://localhost:12345/"), options.ResoniteLinkUri);
+        ImportDestination.Live destination = Assert.IsType<ImportDestination.Live>(options.Destination);
+        Assert.Equal(new Uri("ws://localhost:12345/"), destination.ResoniteLinkUri);
+        Assert.Equal(CliDefaultOptions.ResoniteLinkConnectionCount, destination.ConnectionCount);
     }
 
     [Fact]
@@ -65,6 +67,25 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseParsesLiveImportDestinationConnectionCount()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-url", "wss://example.invalid/link",
+                "--resonitelink-connections", "3",
+            ]);
+
+        ImportCommandOptions options = AssertImportSuccess(result);
+        ImportDestination.Live destination = Assert.IsType<ImportDestination.Live>(options.Destination);
+        Assert.Equal(new Uri("wss://example.invalid/link"), destination.ResoniteLinkUri);
+        Assert.Equal(3, destination.ConnectionCount);
+    }
+
+    [Fact]
     public void ParseRequiresCityGmlSource()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -91,8 +112,8 @@ public sealed class CliArgumentsParserTests
             ]);
 
         ImportCommandOptions options = AssertImportSuccess(result);
-        Assert.Null(options.ResoniteLinkUri);
-        Assert.Equal("out/scene.json", options.CanonicalSceneDumpPath);
+        ImportDestination.CanonicalSceneDump destination = Assert.IsType<ImportDestination.CanonicalSceneDump>(options.Destination);
+        Assert.Equal("out/scene.json", destination.Path);
     }
 
     [Fact]

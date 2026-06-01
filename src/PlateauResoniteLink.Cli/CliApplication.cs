@@ -68,19 +68,19 @@ public sealed class CliApplication
                             options.WorkRoot,
                             cancellationToken);
 
-                        if (options.CanonicalSceneDumpPath is null)
+                        if (options.Destination is ImportDestination.CanonicalSceneDump canonicalSceneDump)
                         {
-                            await standardOutput.WriteLineAsync("Resonite import completed.");
+                            await standardOutput.WriteLineAsync("Canonical scene dump completed.");
+                            await standardOutput.WriteLineAsync($"Dump: {Path.GetFullPath(canonicalSceneDump.Path)}");
                         }
                         else
                         {
-                            await standardOutput.WriteLineAsync("Canonical scene dump completed.");
-                            await standardOutput.WriteLineAsync($"Dump: {Path.GetFullPath(options.CanonicalSceneDumpPath)}");
+                            await standardOutput.WriteLineAsync("Resonite import completed.");
                         }
 
                         await standardOutput.WriteLineAsync($"World: {result.Metadata.SceneName}");
 
-                        if (options.CanonicalSceneDumpPath is null)
+                        if (options.Destination is ImportDestination.Live)
                         {
                             foreach (string destination in result.Destinations)
                             {

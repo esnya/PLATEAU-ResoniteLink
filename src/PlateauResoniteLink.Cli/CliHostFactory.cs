@@ -131,7 +131,7 @@ internal sealed class DefaultSceneSinkFactory(
         AsyncServiceScope scope = serviceScopeFactory.CreateAsyncScope();
         try
         {
-            if (!string.IsNullOrWhiteSpace(options.CanonicalSceneDumpPath))
+            if (options.Destination is ImportDestination.CanonicalSceneDump canonicalSceneDump)
             {
                 IResoniteCanonicalSceneDumpSinkFactory dumpSinkFactory =
                     scope.ServiceProvider.GetRequiredService<IResoniteCanonicalSceneDumpSinkFactory>();
@@ -139,12 +139,17 @@ internal sealed class DefaultSceneSinkFactory(
                     scope,
                     dumpSinkFactory.Create(
                         CreateCanonicalDumpTargetOptions(options, progressReporter),
-                        options.CanonicalSceneDumpPath));
+                        canonicalSceneDump.Path));
             }
 
+            ImportDestination.Live liveDestination = options.Destination switch
+            {
+                ImportDestination.Live live => live,
+                _ => throw new InvalidOperationException($"Unsupported import destination '{options.Destination.GetType().Name}'."),
+            };
             ResoniteLiveSceneImportTargetOptions targetOptions = new(
-                options.ResoniteLinkUri!,
-                options.ResoniteLinkConnectionCount,
+                liveDestination.ResoniteLinkUri,
+                liveDestination.ConnectionCount,
                 options.EnableSendMetrics,
                 options.MemoryProfile switch
                 {
