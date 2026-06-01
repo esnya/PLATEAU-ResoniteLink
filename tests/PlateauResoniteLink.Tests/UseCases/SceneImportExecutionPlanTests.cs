@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.UseCases;
 
@@ -46,9 +47,9 @@ public sealed class SceneImportExecutionPlanTests
     {
         string workRoot = "work";
         ResolvedLocalPlateauImportRequest resolvedRequest = ResolvedLocalPlateauImportRequestTestFactory.Create(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlLocalSourcePath: "/tmp/plateau");
+            dataset: "tokyo23ku",
+            meshCode: "53394525",
+            cityGmlLocalSourcePath: "/tmp/plateau");
         ImportedSceneMetadata metadata = CreateMetadata(
             resolvedRequest.ToImportRequest() with
             {
