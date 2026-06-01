@@ -69,7 +69,7 @@ internal sealed record GeneratedTerrainTexture
 
         TextureSource = textureSource;
         OccupiedUvRect = occupiedUvRect;
-        UsedSources = trackedSources;
+        UsedSources = Array.AsReadOnly(trackedSources);
     }
 
     public ITextureImportSource TextureSource { get; }
@@ -312,8 +312,7 @@ internal sealed class TerrainTextureAssetGenerator(
         [
             identitySource,
             .. usedSources
-                .Where(source => source != identitySource)
-                .Distinct(),
+                .Where(source => source != identitySource),
         ];
     }
 

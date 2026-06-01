@@ -75,6 +75,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         Assert.Equal(usedSource, texture.UsedSource);
         Assert.Equal([usedSource, otherSource], texture.UsedSources);
+        Assert.IsNotType<TerrainTextureSource[]>(texture.UsedSources);
     }
 
     [Fact]
