@@ -160,22 +160,20 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         PlateauImportRequest? normalizedRequest = null,
         CommonMaterialCatalog<DefaultCommonMaterialMember>? commonMaterials = null)
     {
-        PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? metadata.Request;
-        PlateauImportRequest resolvedRequest = CreateResolvedRequest(
+        ValidatedPlateauImportRequest effectiveNormalizedRequest = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
+            normalizedRequest ?? metadata.Request);
+        ResolvedLocalPlateauImportRequest resolvedRequest = CreateResolvedRequest(
             effectiveNormalizedRequest,
             metadata.Request,
             workDirectory);
-        PlateauImportRequest importRequest = CreateImportRequest(effectiveNormalizedRequest, resolvedRequest);
         ImportedSceneMetadata effectiveMetadata = metadata with
         {
-            Request = importRequest,
+            Request = resolvedRequest.ToImportRequest(),
         };
 
         return SceneImportExecutionPlan.Create(
-            effectiveNormalizedRequest,
             resolvedRequest,
             effectiveMetadata,
-            GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
             commonMaterials ?? CreateReferencedCommonMaterials([], enableMeshBake: false));
     }
@@ -204,23 +202,12 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return catalog.FilterToDefinitions(definitions);
     }
 
-    private static PlateauImportRequest CreateImportRequest(
-        PlateauImportRequest normalizedRequest,
-        PlateauImportRequest resolvedRequest)
-    {
-        return normalizedRequest with
-        {
-            CityGmlSource = resolvedRequest.CityGmlSource,
-            DemTextureSource = resolvedRequest.DemTextureSource,
-        };
-    }
-
-    private static PlateauImportRequest CreateResolvedRequest(
-        PlateauImportRequest normalizedRequest,
+    private static ResolvedLocalPlateauImportRequest CreateResolvedRequest(
+        ValidatedPlateauImportRequest normalizedRequest,
         PlateauImportRequest metadataRequest,
         string workDirectory)
     {
-        string? resolvedSourcePath = ResolveLocalPath(normalizedRequest.CityGmlSource, workDirectory, "source-archive")
+        string? resolvedSourcePath = ResolveLocalPath(normalizedRequest.CityGmlSource.ToDatasetLocation(), workDirectory, "source-archive")
             ?? metadataRequest.CityGmlLocalSourcePath;
         if (string.IsNullOrWhiteSpace(resolvedSourcePath))
         {
@@ -230,23 +217,25 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         DatasetLocation? resolvedDemTextureSource = metadataRequest.DemTextureSource;
         if (normalizedRequest.DemTextureSource is not null)
         {
-            string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource, workDirectory, "source-ortho");
+            string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource.ToDatasetLocation(), workDirectory, "source-ortho");
             resolvedDemTextureSource = resolvedDemTexturePath is null
                 ? metadataRequest.DemTextureSource
                 : DatasetLocation.Local(resolvedDemTexturePath);
         }
 
-        return normalizedRequest with
-        {
-            CityGmlSource = DatasetLocation.Local(resolvedSourcePath),
-            DemTextureSource = resolvedDemTextureSource,
-        };
-    }
-
-    private static string GetRequiredResolvedLocalSourcePath(PlateauImportRequest resolvedRequest)
-    {
-        return resolvedRequest.CityGmlLocalSourcePath
-            ?? throw new ArgumentException("Resolved request must include a local CityGML source path.", nameof(resolvedRequest));
+        return new ResolvedLocalPlateauImportRequest(
+            normalizedRequest.Dataset,
+            normalizedRequest.MeshCode,
+            resolvedSourcePath,
+            resolvedDemTextureSource,
+            normalizedRequest.PackageNames,
+            normalizedRequest.GlobalExcludeLodLevels,
+            normalizedRequest.ExcludeLodLevelsByPackage,
+            normalizedRequest.PackagePatterns,
+            normalizedRequest.IncludeMarkingAlways,
+            normalizedRequest.TerrainMeshMode,
+            normalizedRequest.TerrainGridMetersPerVertex,
+            normalizedRequest.TerrainGridMaxResolution);
     }
 
     private static string? ResolveLocalPath(
