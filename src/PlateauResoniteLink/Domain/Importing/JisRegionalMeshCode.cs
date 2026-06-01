@@ -18,7 +18,7 @@ public readonly record struct FirstRegionalMeshCode
 
     public string Value { get; }
 
-    public JisRegionalMeshBounds Bounds => JisRegionalMeshCodeCalculator.GetBounds(Value);
+    public JisRegionalMeshBounds Bounds => JisRegionalMeshCodeCalculator.GetBounds(this);
 
     public static bool TryParse(string? value, out FirstRegionalMeshCode meshCode)
     {
@@ -51,7 +51,7 @@ public readonly record struct SecondRegionalMeshCode
 
     public string Value { get; }
 
-    public JisRegionalMeshBounds Bounds => JisRegionalMeshCodeCalculator.GetBounds(Value);
+    public JisRegionalMeshBounds Bounds => JisRegionalMeshCodeCalculator.GetBounds(this);
 
     public FirstRegionalMeshCode Parent => FirstRegionalMeshCode.Parse(Value[..4]);
 
@@ -86,7 +86,7 @@ public readonly record struct ThirdRegionalMeshCode
 
     public string Value { get; }
 
-    public JisRegionalMeshBounds Bounds => JisRegionalMeshCodeCalculator.GetBounds(Value);
+    public JisRegionalMeshBounds Bounds => JisRegionalMeshCodeCalculator.GetBounds(this);
 
     public SecondRegionalMeshCode Parent => SecondRegionalMeshCode.Parse(Value[..6]);
 
@@ -126,19 +126,32 @@ internal static class JisRegionalMeshCodeCalculator
             && (length < 6 || (ToDigit(meshCode[4]) <= 7 && ToDigit(meshCode[5]) <= 7));
     }
 
-    internal static JisRegionalMeshBounds GetBounds(string meshCode)
+    internal static JisRegionalMeshBounds GetBounds(FirstRegionalMeshCode meshCode)
     {
-        return TryGetBounds(meshCode, out JisRegionalMeshBounds bounds)
+        return CalculateBounds(meshCode.Value, out JisRegionalMeshBounds bounds)
             ? bounds
-            : throw new ArgumentException("JIS X 0410 regional mesh code is invalid.", nameof(meshCode));
+            : throw new InvalidOperationException("A valid first regional mesh code did not produce bounds.");
     }
 
-    internal static bool TryGetBounds(string? meshCode, out JisRegionalMeshBounds bounds)
+    internal static JisRegionalMeshBounds GetBounds(SecondRegionalMeshCode meshCode)
+    {
+        return CalculateBounds(meshCode.Value, out JisRegionalMeshBounds bounds)
+            ? bounds
+            : throw new InvalidOperationException("A valid second regional mesh code did not produce bounds.");
+    }
+
+    internal static JisRegionalMeshBounds GetBounds(ThirdRegionalMeshCode meshCode)
+    {
+        return CalculateBounds(meshCode.Value, out JisRegionalMeshBounds bounds)
+            ? bounds
+            : throw new InvalidOperationException("A valid third regional mesh code did not produce bounds.");
+    }
+
+    private static bool CalculateBounds(string meshCode, out JisRegionalMeshBounds bounds)
     {
         bounds = EmptyBounds;
 
-        if (string.IsNullOrWhiteSpace(meshCode)
-            || (meshCode.Length != 4 && meshCode.Length != 6 && meshCode.Length != 8)
+        if ((meshCode.Length != 4 && meshCode.Length != 6 && meshCode.Length != 8)
             || !meshCode.All(static character => character is >= '0' and <= '9'))
         {
             return false;
