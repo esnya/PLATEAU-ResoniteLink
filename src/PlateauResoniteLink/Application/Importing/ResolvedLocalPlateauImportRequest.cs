@@ -136,6 +136,8 @@ public sealed record ResolvedLocalPlateauImportRequest
         string requiredDataset = RequireNonEmpty(dataset, nameof(dataset));
         string requiredMeshCode = RequireNonEmpty(meshCode, nameof(meshCode));
         string[]? normalizedPackageNames = NormalizePackageNames(packageNames);
+        Dictionary<string, IReadOnlySet<int>>? normalizedPackageExclusions = NormalizePackageExclusionMap(excludeLodLevelsByPackage);
+        Dictionary<string, string>? normalizedPackagePatterns = NormalizePackagePatternMap(packagePatterns);
         if (!MeshCodeRequestSyntax.TryCreateSelectionRegex(requiredMeshCode, out Regex? meshCodePattern, out string? meshCodeError))
         {
             throw new ArgumentException(meshCodeError, nameof(meshCode));
@@ -154,8 +156,8 @@ public sealed record ResolvedLocalPlateauImportRequest
             demTextureSource,
             normalizedPackageNames,
             globalExcludeLodLevels,
-            excludeLodLevelsByPackage,
-            packagePatterns,
+            normalizedPackageExclusions,
+            normalizedPackagePatterns,
             includeMarkingAlways,
             terrainMeshMode,
             terrainGridMetersPerVertex,
@@ -188,6 +190,64 @@ public sealed record ResolvedLocalPlateauImportRequest
         }
 
         return PlateauPackageCatalog.NormalizeRequestedPackageNames(packageNames);
+    }
+
+    private static Dictionary<string, IReadOnlySet<int>>? NormalizePackageExclusionMap(
+        IReadOnlyDictionary<string, IReadOnlySet<int>>? exclusionsByPackage)
+    {
+        if (exclusionsByPackage is null)
+        {
+            return null;
+        }
+
+        Dictionary<string, IReadOnlySet<int>> normalized = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string packageName, IReadOnlySet<int> excludedLods) in exclusionsByPackage)
+        {
+            string normalizedPackageName = NormalizePackageMapKey(packageName, nameof(exclusionsByPackage));
+            if (!normalized.TryAdd(normalizedPackageName, excludedLods))
+            {
+                throw new ArgumentException(
+                    $"The {nameof(exclusionsByPackage)} value contains duplicate package keys after normalization: {normalizedPackageName}.",
+                    nameof(exclusionsByPackage));
+            }
+        }
+
+        return normalized;
+    }
+
+    private static Dictionary<string, string>? NormalizePackagePatternMap(
+        IReadOnlyDictionary<string, string>? patternsByPackage)
+    {
+        if (patternsByPackage is null)
+        {
+            return null;
+        }
+
+        Dictionary<string, string> normalized = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string packageName, string pattern) in patternsByPackage)
+        {
+            string normalizedPackageName = NormalizePackageMapKey(packageName, nameof(patternsByPackage));
+            if (!normalized.TryAdd(normalizedPackageName, pattern))
+            {
+                throw new ArgumentException(
+                    $"The {nameof(patternsByPackage)} value contains duplicate package keys after normalization: {normalizedPackageName}.",
+                    nameof(patternsByPackage));
+            }
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizePackageMapKey(string packageName, string parameterName)
+    {
+        if (!PlateauPackageCatalog.TryNormalizePackageName(packageName, out string normalizedPackageName))
+        {
+            throw new ArgumentException(
+                $"Unsupported package '{packageName}'. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.",
+                parameterName);
+        }
+
+        return normalizedPackageName;
     }
 
     private static string RequireNonEmpty(string? value, string parameterName)
