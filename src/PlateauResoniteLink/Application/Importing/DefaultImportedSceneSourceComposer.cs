@@ -15,7 +15,7 @@ internal sealed class DefaultImportedSceneSourceComposer(
     private const string PlateauLicenseUrl = "https://www.mlit.go.jp/plateau/site-policy/";
 
     public IImportedSceneSource Compose(
-        PlateauImportRequest request,
+        ResolvedLocalPlateauImportRequest request,
         ImportedSceneSourceSnapshot readResult,
         IImportedObjectUnitOptimizer objectUnitOptimizer,
         Action<string>? progressReporter = null)
@@ -25,16 +25,17 @@ internal sealed class DefaultImportedSceneSourceComposer(
         ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
         ImportedSceneSourceContext discoveryContext = readResult.DiscoveryContext;
+        PlateauImportRequest importRequest = request.ToImportRequest();
 
         ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",
             SceneName: $"PLATEAU {request.Dataset} {request.MeshCode}",
-            Request: request,
+            Request: importRequest,
             SourceDataset: new PlateauSourceDataset(
                 PackageNames: documentSet.PackageNames.ToArray(),
                 SourceFiles: documentSet.RelativeSourceFiles.ToArray(),
                 SelectedMeshCodes: documentSet.SelectedMeshCodes),
-            Attribution: CreateAttribution(request),
+            Attribution: CreateAttribution(importRequest),
             GeodeticOrigin: new GeodeticOrigin(
                 Latitude: discoveryContext.GlobalOriginPoint.Latitude,
                 Longitude: discoveryContext.GlobalOriginPoint.Longitude,
@@ -42,7 +43,7 @@ internal sealed class DefaultImportedSceneSourceComposer(
 
         return new StreamingImportedSceneSource(
             metadata,
-            request,
+            importRequest,
             readResult,
             geometryProjector,
             demTextureSourcePolicy,

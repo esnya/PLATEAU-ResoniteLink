@@ -68,10 +68,11 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
-        PlateauImportRequest request = new(
+        ResolvedLocalPlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            CityGmlSource: DatasetLocation.Local(fixturePath));
+            CityGmlLocalSourcePath: fixturePath);
+        PlateauImportRequest importRequest = request.ToImportRequest();
 
         DefaultImportedSceneSourceFactory factory = new(
             documentReader,
@@ -87,7 +88,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
-        Assert.Same(request, source.Metadata.Request);
+        Assert.Equal(importRequest, source.Metadata.Request);
         Assert.Contains("bldg", source.Metadata.SourceDataset.PackageNames);
         Assert.Contains("53394525", source.Metadata.SourceDataset.SelectedMeshCodes!);
         Assert.NotEmpty(source.Metadata.SourceDataset.SourceFiles);

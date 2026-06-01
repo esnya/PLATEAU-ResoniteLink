@@ -601,14 +601,18 @@ public sealed class PlateauImportServiceTests
 
         public string? LastWorkRoot { get; private set; }
 
-        public Task<ValidatedPlateauImportRequest> ResolveAsync(
+        public Task<ResolvedLocalPlateauImportRequest> ResolveAsync(
             ValidatedPlateauImportRequest request,
             string workRoot,
             CancellationToken cancellationToken = default)
         {
             ResolveCallCount++;
             LastWorkRoot = workRoot;
-            return Task.FromResult(resolvedRequest);
+            ValidatedLocalDatasetLocation localSource = Assert.IsType<ValidatedLocalDatasetLocation>(resolvedRequest.CityGmlSource);
+            return Task.FromResult(ResolvedLocalPlateauImportRequest.Create(
+                resolvedRequest,
+                localSource,
+                resolvedRequest.DemTextureSource));
         }
     }
 
@@ -616,7 +620,7 @@ public sealed class PlateauImportServiceTests
     {
         public int ResolveCallCount { get; private set; }
 
-        public Task<ValidatedPlateauImportRequest> ResolveAsync(
+        public Task<ResolvedLocalPlateauImportRequest> ResolveAsync(
             ValidatedPlateauImportRequest request,
             string workRoot,
             CancellationToken cancellationToken = default)
@@ -632,10 +636,10 @@ public sealed class PlateauImportServiceTests
     {
         public int CreateCallCount { get; private set; }
 
-        public PlateauImportRequest? LastRequest { get; private set; }
+        public ResolvedLocalPlateauImportRequest? LastRequest { get; private set; }
 
         public Task<IImportedSceneSource> CreateAsync(
-            PlateauImportRequest request,
+            ResolvedLocalPlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
