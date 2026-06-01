@@ -53,7 +53,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
 
         DefaultCommonMaterialMember commonMaterial = request.FamilyOverride is null
             ? SelectBundledMemberForRequest(request, commonMaterials)
-            : SelectFamilyOverrideMember(commonMaterials, request.FamilyOverride, request.VariantSelectionKey);
+            : request.FamilyOverride.SelectMember(commonMaterials, request.VariantSelectionKey);
         string family = commonMaterial.Family
             ?? throw new InvalidOperationException("Selected default material member is not a bundled material.");
         int bundledVariantIndex = commonMaterial.BundledVariantIndex
@@ -123,36 +123,6 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         }
 
         return SelectOtherMember(commonMaterials, request.VariantSelectionKey);
-    }
-
-    private static DefaultCommonMaterialMember SelectFamilyOverrideMember(
-        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
-        string family,
-        string variantSelectionKey)
-    {
-        return family switch
-        {
-            BundledDefaultMaterialFamilies.CityFurniture => SelectCityFurnitureMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.FacadeHighriseGlass => SelectFacadeHighriseGlassMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.FacadeHighriseNightLow => SelectFacadeHighriseNightLowMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.FacadeMidriseGrid => SelectFacadeMidriseGridMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.Other => SelectOtherMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.RoadTriplanar => SelectRoadTriplanarMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.RoadUv => SelectRoadUvMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.Roof => SelectRoofMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.Vegetation => SelectVegetationMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.WallApartmentTileMid => SelectWallApartmentTileMidMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.WallBrickRetro => SelectWallBrickRetroMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.WallCommercialPanel => SelectWallCommercialPanelMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.WallFactoryMetal => commonMaterials.WallFactoryMetal.FactoryMetal,
-            BundledDefaultMaterialFamilies.WallRcPaintedMid => SelectWallRcPaintedMidMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.WallResidentialPlasterLow => SelectWallResidentialPlasterLowMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.WallResidentialTileLow => SelectWallResidentialTileLowMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.WallSchoolPublicBand => SelectWallSchoolPublicBandMember(commonMaterials, variantSelectionKey),
-            BundledDefaultMaterialFamilies.WallWoodRural => commonMaterials.WallWoodRural.WoodRuralLight,
-            _ => throw new InvalidOperationException(
-                $"Bundled material family override '{family}' is not codebase-reachable and is not part of the common material catalog."),
-        };
     }
 
     private static DefaultCommonMaterialMember SelectBuildingFacadeMember(
