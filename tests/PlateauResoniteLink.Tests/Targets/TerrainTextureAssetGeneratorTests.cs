@@ -492,7 +492,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
         Assert.Contains(
-            texture.UsedSources ?? [],
+            texture.UsedSources,
             static source => source is TerrainTextureTileSource tileSource
                 && tileSource.UrlTemplate == "https://primary.example/{z}/{x}/{y}.png");
         Assert.Contains("primary.example", handler.RequestedHosts);

@@ -23,18 +23,29 @@ internal interface ITerrainTextureAssetGenerator
         CancellationToken cancellationToken);
 }
 
-internal sealed record GeneratedTerrainTexture(
-    ITextureImportSource TextureSource,
-    TextureUvRect OccupiedUvRect,
-    TerrainTextureSource? UsedSource = null,
-    IReadOnlyList<TerrainTextureSource>? UsedSources = null)
+internal sealed record GeneratedTerrainTexture
 {
     public GeneratedTerrainTexture(
         ITextureImportSource textureSource,
         ResoniteFloat2 canvasScale,
         ResoniteFloat2 canvasOffset,
-        TerrainTextureSource? usedSource = null,
-        IReadOnlyList<TerrainTextureSource>? usedSources = null)
+        TerrainTextureSource usedSource)
+        : this(
+            textureSource,
+            TextureUvRect.FromScaleOffsetValue(
+                new ScalarPair(canvasScale.X, canvasScale.Y),
+                new ScalarPair(canvasOffset.X, canvasOffset.Y)),
+            usedSource,
+            [usedSource])
+    {
+    }
+
+    public GeneratedTerrainTexture(
+        ITextureImportSource textureSource,
+        ResoniteFloat2 canvasScale,
+        ResoniteFloat2 canvasOffset,
+        TerrainTextureSource usedSource,
+        IReadOnlyList<TerrainTextureSource> usedSources)
         : this(
             textureSource,
             TextureUvRect.FromScaleOffsetValue(
@@ -44,6 +55,34 @@ internal sealed record GeneratedTerrainTexture(
             usedSources)
     {
     }
+
+    public GeneratedTerrainTexture(
+        ITextureImportSource TextureSource,
+        TextureUvRect OccupiedUvRect,
+        TerrainTextureSource UsedSource,
+        IReadOnlyList<TerrainTextureSource> UsedSources)
+    {
+        ArgumentNullException.ThrowIfNull(TextureSource);
+        ArgumentNullException.ThrowIfNull(UsedSource);
+        ArgumentNullException.ThrowIfNull(UsedSources);
+        if (UsedSources.Count == 0)
+        {
+            throw new ArgumentException("Generated terrain texture must track at least one source.", nameof(UsedSources));
+        }
+
+        this.TextureSource = TextureSource;
+        this.OccupiedUvRect = OccupiedUvRect;
+        this.UsedSource = UsedSource;
+        this.UsedSources = UsedSources;
+    }
+
+    public ITextureImportSource TextureSource { get; init; }
+
+    public TextureUvRect OccupiedUvRect { get; init; }
+
+    public TerrainTextureSource UsedSource { get; init; }
+
+    public IReadOnlyList<TerrainTextureSource> UsedSources { get; init; }
 }
 
 internal sealed class TerrainTextureAssetGenerator(
@@ -79,7 +118,7 @@ internal sealed class TerrainTextureAssetGenerator(
         Image<Rgba32>? composedTexture = null;
         TextureUvRect? composedOccupiedUvRect = null;
         List<TerrainTextureSource> usedSources = [];
-        TerrainTextureSource? usedSource = null;
+        TerrainTextureSource? textureIdentitySource = null;
 
         for (int sourceIndex = 0; sourceIndex < terrainTextureOverlay.Sources.Count; sourceIndex++)
         {
@@ -113,7 +152,7 @@ internal sealed class TerrainTextureAssetGenerator(
                 {
                     composedTexture = image.Clone();
                     composedOccupiedUvRect = sourceImage.OccupiedUvRect;
-                    usedSource = terrainTextureSource;
+                    textureIdentitySource = terrainTextureSource;
                     usedSources.Add(terrainTextureSource);
                 }
                 else
@@ -121,7 +160,7 @@ internal sealed class TerrainTextureAssetGenerator(
                     using Image<Rgba32> resizedImage = ResizeSourceImage(image, composedTexture.Width, composedTexture.Height);
                     if (FillTransparentPixels(composedTexture, resizedImage))
                     {
-                        usedSource = terrainTextureSource;
+                        textureIdentitySource = terrainTextureSource;
                         usedSources.Add(terrainTextureSource);
                     }
                 }
@@ -140,7 +179,8 @@ internal sealed class TerrainTextureAssetGenerator(
 
         using (composedTexture)
         {
-            TerrainTextureSource terrainTextureSource = usedSource ?? terrainTextureOverlay.PrimarySource;
+            TerrainTextureSource terrainTextureSource = textureIdentitySource
+                ?? throw new InvalidOperationException("Generated terrain texture must have at least one rendered source.");
             GeneratedTerrainTexture generatedTexture = CreateGeneratedTexture(
                 composedTexture,
                 terrainTextureOverlay.MaxTextureSize,

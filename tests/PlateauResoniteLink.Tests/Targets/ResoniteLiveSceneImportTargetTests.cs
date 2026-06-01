@@ -146,10 +146,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay demOverlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/dem/{z}/{x}/{y}.png");
         TerrainTextureOverlay roofOverlayWithDifferentUri = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/roof/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
+            requestedOverlay => new GeneratedTerrainTexture(
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.0, 0.0)));
+                new ResoniteFloat2(0.0, 0.0),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -226,10 +227,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay firstOverlay = CreateThirdMeshOverlay("53394525", "https://tiles.example/{z}/{x}/{y}.png");
         TerrainTextureOverlay secondOverlay = CreateThirdMeshOverlay("53394526", "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
+            requestedOverlay => new GeneratedTerrainTexture(
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.0, 0.0)));
+                new ResoniteFloat2(0.0, 0.0),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -276,10 +278,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using SceneSinkRecordingClient client = new();
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
+            requestedOverlay => new GeneratedTerrainTexture(
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.0, 0.0)));
+                new ResoniteFloat2(0.0, 0.0),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -366,10 +369,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using SceneSinkRecordingClient client = new();
         TerrainTextureOverlay mismatchedOverlay = CreateThirdMeshOverlay("53394526", "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
+            requestedOverlay => new GeneratedTerrainTexture(
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.0, 0.0)));
+                new ResoniteFloat2(0.0, 0.0),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -414,7 +418,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     ResoniteTextureColorProfiles.Srgb,
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.125, 0.375)));
+                new ResoniteFloat2(0.125, 0.375),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -786,14 +791,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using SceneSinkRecordingClient client = new();
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://example.invalid/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
+            requestedOverlay => new GeneratedTerrainTexture(
                 CreateRawTextureSource(
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
                     new byte[16]),
                 new ResoniteFloat2(0.5, 0.25),
-                new ResoniteFloat2(0.125, 0.375)));
+                new ResoniteFloat2(0.125, 0.375),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
