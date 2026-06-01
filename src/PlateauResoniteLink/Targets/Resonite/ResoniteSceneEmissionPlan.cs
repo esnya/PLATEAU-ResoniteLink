@@ -118,109 +118,70 @@ internal sealed record PlannedDynamicTerrainMeshBundle(
     public PlannedWorldElementReference InitialMeshTarget => GridMeshTarget;
 }
 
-internal enum PlannedSlotTargetReferenceKind
+internal abstract record PlannedSlotTargetReference
 {
-    Unspecified = 0,
-    Canonical = 1,
-    Planned = 2,
-}
-
-internal readonly record struct PlannedSlotTargetReference
-{
-    private PlannedSlotTargetReference(
-        PlannedSlotTargetReferenceKind kind,
-        ResoniteSlotLocator canonicalSlot,
-        BatchPlanSlotLocator plannedSlot)
+    private PlannedSlotTargetReference()
     {
-        Kind = kind;
-        CanonicalLocator = canonicalSlot;
-        PlannedLocator = plannedSlot;
     }
-
-    public PlannedSlotTargetReferenceKind Kind { get; }
-
-    public ResoniteSlotLocator CanonicalLocator { get; }
-
-    public BatchPlanSlotLocator PlannedLocator { get; }
 
     public static PlannedSlotTargetReference CanonicalSlot(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new PlannedSlotTargetReference(PlannedSlotTargetReferenceKind.Canonical, locator, default);
+        return new CanonicalSlotTarget(locator);
     }
 
     public static PlannedSlotTargetReference PlannedSlot(BatchPlanSlotLocator locator)
     {
-        return new PlannedSlotTargetReference(PlannedSlotTargetReferenceKind.Planned, default, locator);
+        return new PlannedSlotTarget(locator);
     }
+
+    internal sealed record CanonicalSlotTarget(ResoniteSlotLocator Locator) : PlannedSlotTargetReference;
+
+    internal sealed record PlannedSlotTarget(BatchPlanSlotLocator Locator) : PlannedSlotTargetReference;
 }
 
-internal enum PlannedWorldElementReferenceKind
+internal abstract record PlannedWorldElementReference
 {
-    Unspecified = 0,
-    CanonicalSlot = 1,
-    CanonicalComponent = 2,
-    PlannedSlot = 3,
-    PlannedComponent = 4,
-    PlannedField = 5,
-}
-
-internal readonly record struct PlannedWorldElementReference
-{
-    private PlannedWorldElementReference(
-        PlannedWorldElementReferenceKind kind,
-        ResoniteSlotLocator canonicalSlot,
-        ResoniteComponentLocator canonicalComponent,
-        BatchPlanSlotLocator plannedSlot,
-        BatchPlanComponentLocator plannedComponent,
-        BatchPlanFieldLocator plannedField)
+    private PlannedWorldElementReference()
     {
-        Kind = kind;
-        CanonicalSlot = canonicalSlot;
-        CanonicalComponent = canonicalComponent;
-        PlannedSlot = plannedSlot;
-        PlannedComponent = plannedComponent;
-        PlannedField = plannedField;
     }
-
-    public PlannedWorldElementReferenceKind Kind { get; }
-
-    public ResoniteSlotLocator CanonicalSlot { get; }
-
-    public ResoniteComponentLocator CanonicalComponent { get; }
-
-    public BatchPlanSlotLocator PlannedSlot { get; }
-
-    public BatchPlanComponentLocator PlannedComponent { get; }
-
-    public BatchPlanFieldLocator PlannedField { get; }
 
     public static PlannedWorldElementReference Canonical(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new PlannedWorldElementReference(PlannedWorldElementReferenceKind.CanonicalSlot, locator, default, default, default, default);
+        return new CanonicalSlotElement(locator);
     }
 
     public static PlannedWorldElementReference Canonical(ResoniteComponentLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new PlannedWorldElementReference(PlannedWorldElementReferenceKind.CanonicalComponent, default, locator, default, default, default);
+        return new CanonicalComponentElement(locator);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanSlotLocator locator)
     {
-        return new PlannedWorldElementReference(PlannedWorldElementReferenceKind.PlannedSlot, default, default, locator, default, default);
+        return new PlannedSlotElement(locator);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanComponentLocator locator)
     {
-        return new PlannedWorldElementReference(PlannedWorldElementReferenceKind.PlannedComponent, default, default, default, locator, default);
+        return new PlannedComponentElement(locator);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanFieldLocator locator)
     {
-        return new PlannedWorldElementReference(PlannedWorldElementReferenceKind.PlannedField, default, default, default, default, locator);
+        return new PlannedFieldElement(locator);
     }
+
+    internal sealed record CanonicalSlotElement(ResoniteSlotLocator Locator) : PlannedWorldElementReference;
+
+    internal sealed record CanonicalComponentElement(ResoniteComponentLocator Locator) : PlannedWorldElementReference;
+
+    internal sealed record PlannedSlotElement(BatchPlanSlotLocator Locator) : PlannedWorldElementReference;
+
+    internal sealed record PlannedComponentElement(BatchPlanComponentLocator Locator) : PlannedWorldElementReference;
+
+    internal sealed record PlannedFieldElement(BatchPlanFieldLocator Locator) : PlannedWorldElementReference;
 }
 
 internal abstract record PlannedMember;
@@ -319,8 +280,126 @@ internal sealed record PlannedBatchComponentEmission(
     string ComponentType,
     IReadOnlyDictionary<string, PlannedMember> Members);
 
-internal sealed record PlannedBatchEmission(
-    IReadOnlyList<PlannedBatchSlotEmission> SlotEmissions,
-    IReadOnlyList<PlannedBatchComponentEmission> ComponentEmissions,
-    IReadOnlyList<BatchPlanSlotLocator> SlotResolutionTargets,
-    IReadOnlyList<BatchPlanComponentLocator> ComponentResolutionTargets);
+internal sealed record PlannedBatchEmission
+{
+    private PlannedBatchEmission(
+        IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
+        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
+        IReadOnlyList<BatchPlanSlotLocator> slotResolutionTargets,
+        IReadOnlyList<BatchPlanComponentLocator> componentResolutionTargets)
+    {
+        SlotEmissions = slotEmissions;
+        ComponentEmissions = componentEmissions;
+        SlotResolutionTargets = slotResolutionTargets;
+        ComponentResolutionTargets = componentResolutionTargets;
+    }
+
+    public IReadOnlyList<PlannedBatchSlotEmission> SlotEmissions { get; }
+
+    public IReadOnlyList<PlannedBatchComponentEmission> ComponentEmissions { get; }
+
+    public IReadOnlyList<BatchPlanSlotLocator> SlotResolutionTargets { get; }
+
+    public IReadOnlyList<BatchPlanComponentLocator> ComponentResolutionTargets { get; }
+
+    public static PlannedBatchEmission Create(
+        IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
+        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
+        IReadOnlyList<BatchPlanSlotLocator> slotResolutionTargets,
+        IReadOnlyList<BatchPlanComponentLocator> componentResolutionTargets)
+    {
+        ValidatePlannedReferences(slotEmissions, componentEmissions, slotResolutionTargets, componentResolutionTargets);
+        return new PlannedBatchEmission(slotEmissions, componentEmissions, slotResolutionTargets, componentResolutionTargets);
+    }
+
+    private static void ValidatePlannedReferences(
+        IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
+        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
+        IReadOnlyList<BatchPlanSlotLocator> slotResolutionTargets,
+        IReadOnlyList<BatchPlanComponentLocator> componentResolutionTargets)
+    {
+        HashSet<BatchPlanSlotLocator> emittedSlots = [];
+        foreach (PlannedBatchSlotEmission slotEmission in slotEmissions)
+        {
+            if (slotEmission.ParentTarget is PlannedSlotTargetReference.PlannedSlotTarget plannedParent
+                && !emittedSlots.Contains(plannedParent.Locator))
+            {
+                throw new InvalidOperationException("Planned slot parent target must reference an earlier planned slot.");
+            }
+
+            emittedSlots.Add(slotEmission.Identity);
+        }
+
+        foreach (BatchPlanSlotLocator slotResolutionTarget in slotResolutionTargets)
+        {
+            if (!emittedSlots.Contains(slotResolutionTarget))
+            {
+                throw new InvalidOperationException("Planned slot resolution target must reference an emitted planned slot.");
+            }
+        }
+
+        HashSet<BatchPlanComponentLocator> emittedComponents = [];
+        foreach (PlannedBatchComponentEmission componentEmission in componentEmissions)
+        {
+            if (componentEmission.ContainerTarget is PlannedSlotTargetReference.PlannedSlotTarget plannedContainer
+                && !emittedSlots.Contains(plannedContainer.Locator))
+            {
+                throw new InvalidOperationException("Planned component container target must reference an emitted planned slot.");
+            }
+
+            foreach (PlannedWorldElementReference target in EnumerateMemberTargets(componentEmission.Members.Values))
+            {
+                ValidateWorldElementReference(target, emittedSlots, emittedComponents);
+            }
+
+            emittedComponents.Add(componentEmission.Identity);
+        }
+
+        foreach (BatchPlanComponentLocator componentResolutionTarget in componentResolutionTargets)
+        {
+            if (!emittedComponents.Contains(componentResolutionTarget))
+            {
+                throw new InvalidOperationException("Planned component resolution target must reference an emitted planned component.");
+            }
+        }
+    }
+
+    private static void ValidateWorldElementReference(
+        PlannedWorldElementReference target,
+        HashSet<BatchPlanSlotLocator> emittedSlots,
+        HashSet<BatchPlanComponentLocator> emittedComponents)
+    {
+        switch (target)
+        {
+            case PlannedWorldElementReference.PlannedSlotElement plannedSlot
+                when !emittedSlots.Contains(plannedSlot.Locator):
+                throw new InvalidOperationException("Planned world element target must reference an emitted planned slot.");
+            case PlannedWorldElementReference.PlannedComponentElement plannedComponent
+                when !emittedComponents.Contains(plannedComponent.Locator):
+                throw new InvalidOperationException("Planned world element target must reference an earlier planned component.");
+        }
+    }
+
+    private static IEnumerable<PlannedWorldElementReference> EnumerateMemberTargets(IEnumerable<PlannedMember> members)
+    {
+        foreach (PlannedMember member in members)
+        {
+            switch (member)
+            {
+                case PlannedElementReferenceMember reference:
+                    yield return reference.Target;
+                    break;
+                case PlannedAddressableReferenceMember reference:
+                    yield return reference.Target;
+                    break;
+                case PlannedSyncListMember syncList:
+                    foreach (PlannedWorldElementReference nestedTarget in EnumerateMemberTargets(syncList.Elements))
+                    {
+                        yield return nestedTarget;
+                    }
+
+                    break;
+            }
+        }
+    }
+}
