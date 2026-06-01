@@ -133,6 +133,11 @@ internal static class BuildingAttributeParser
         }
 
         string rawValue = element.Value.Trim();
+        if (string.IsNullOrEmpty(rawValue))
+        {
+            return BuildingMetricValue.Missing;
+        }
+
         if (IsPlateauMissingMetricToken(rawValue))
         {
             return BuildingMetricValue.Missing;
@@ -152,6 +157,11 @@ internal static class BuildingAttributeParser
         }
 
         string rawValue = element.Value.Trim();
+        if (string.IsNullOrEmpty(rawValue))
+        {
+            return BuildingMetricValue.Missing;
+        }
+
         if (IsPlateauMissingMetricToken(rawValue))
         {
             return BuildingMetricValue.Missing;

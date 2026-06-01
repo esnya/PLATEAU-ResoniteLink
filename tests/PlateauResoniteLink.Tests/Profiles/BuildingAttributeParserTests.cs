@@ -55,6 +55,27 @@ public sealed class BuildingAttributeParserTests
     }
 
     [Fact]
+    public void ParseTreatsBlankMetricElementsAsMissingMetrics()
+    {
+        XElement element = XElement.Parse(
+            """
+            <bldg:Building xmlns:bldg="urn:bldg">
+              <bldg:measuredHeight uom="m"> </bldg:measuredHeight>
+              <bldg:storeysAboveGround />
+              <bldg:BuildingDetailAttribute>
+                <bldg:buildingFootprintArea uom="m2"></bldg:buildingFootprintArea>
+              </bldg:BuildingDetailAttribute>
+            </bldg:Building>
+            """);
+
+        BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
+
+        Assert.IsType<MissingBuildingMetricValue>(attributes.MeasuredHeightMeters);
+        Assert.IsType<MissingBuildingMetricValue>(attributes.StoreysAboveGround);
+        Assert.IsType<MissingBuildingMetricValue>(attributes.BuildingFootprintArea);
+    }
+
+    [Fact]
     public void ParseRejectsNonMeterHeightButKeepsAreaWithoutMeterRequirement()
     {
         XElement element = XElement.Parse(
