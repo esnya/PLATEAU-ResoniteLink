@@ -39,8 +39,12 @@ internal static class CityGmlParsedCityObjectReader
             actualMeshCode,
             sharedAcrossMeshCodes);
         BuildingAttributeContext buildingAttributes = BuildingAttributeParser.Parse(cityObjectElement);
-        int? floorsAboveGround = BuildingAttributeQueries.TryGetKnownPositiveInteger(buildingAttributes.StoreysAboveGround);
-        double? measuredHeightMeters = BuildingAttributeQueries.TryGetKnownPositiveMetric(buildingAttributes.MeasuredHeightMeters);
+        int? floorsAboveGround = BuildingAttributeQueries.TryGetKnownPositiveInteger(
+            buildingAttributes,
+            BuildingMetricKind.StoreysAboveGround);
+        double? measuredHeightMeters = BuildingAttributeQueries.TryGetKnownPositiveMetric(
+            buildingAttributes,
+            BuildingMetricKind.MeasuredHeightMeters);
 
         bool isMarking = displayName.Contains("Marking", StringComparison.OrdinalIgnoreCase)
             || objectId.Contains("Marking", StringComparison.OrdinalIgnoreCase)

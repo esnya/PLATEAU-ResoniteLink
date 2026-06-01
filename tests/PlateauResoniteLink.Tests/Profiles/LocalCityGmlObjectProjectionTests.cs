@@ -537,8 +537,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             {
                 CityGmlFunctionCodes = ["401"],
                 Structures = [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
-                MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
-                BuildingFootprintArea = BuildingMetricValue.Known(100.0),
+                Metrics = CreateMetrics(
+                    (BuildingMetricKind.MeasuredHeightMeters, 8.0),
+                    (BuildingMetricKind.BuildingFootprintArea, 100.0)),
             });
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -596,8 +597,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             {
                 CityGmlFunctionCodes = ["401"],
                 Structures = [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
-                MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
-                BuildingFootprintArea = BuildingMetricValue.Known(100.0),
+                Metrics = CreateMetrics(
+                    (BuildingMetricKind.MeasuredHeightMeters, 8.0),
+                    (BuildingMetricKind.BuildingFootprintArea, 100.0)),
             });
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -3631,6 +3633,13 @@ public sealed class LocalCityGmlObjectProjectionTests
             Uses = use == PlateauBuildingUse.Unknown ? [] : [new BuildingCodeValue<PlateauBuildingUse>(use, CreateUsageCode(use))],
             Structures = structure == PlateauBuildingStructure.Unknown ? [] : [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
         };
+    }
+
+    private static BuildingMetricMeasurements CreateMetrics(params (BuildingMetricKind Kind, double Value)[] values)
+    {
+        return new BuildingMetricMeasurements(values.ToDictionary(
+            static value => value.Kind,
+            static value => new BuildingMetricValue(value.Value)));
     }
 
     private static string CreateRoofTypeCode(CityGmlRoofShape roofShape)

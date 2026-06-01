@@ -52,49 +52,49 @@ internal enum PlateauBuildingStructure
 
 internal sealed record BuildingCodeValue<T>(T Value, string Code);
 
-internal abstract record BuildingMetricValue
+internal enum BuildingMetricKind
 {
-    public static BuildingMetricValue Missing { get; } = new MissingMetricValue();
+    MeasuredHeightMeters,
+    StoreysAboveGround,
+    StoreysBelowGround,
+    BuildingFootprintArea,
+    BuildingRoofEdgeArea,
+    BuildingHeight,
+    EaveHeight,
+}
 
-    public static BuildingMetricValue Known(double value)
+internal readonly record struct BuildingMetricValue
+{
+    public BuildingMetricValue(double value)
     {
-        return new KnownMetricValue(value);
-    }
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
 
-    public static BuildingMetricValue Invalid(string raw)
-    {
-        return new InvalidMetricValue(raw);
-    }
-
-    internal sealed record MissingMetricValue : BuildingMetricValue
-    {
-    }
-
-    internal sealed record KnownMetricValue : BuildingMetricValue
-    {
-        public KnownMetricValue(double value)
+        if (!double.IsFinite(value))
         {
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
-
-            if (!double.IsFinite(value))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            Value = value;
+            throw new ArgumentOutOfRangeException(nameof(value));
         }
 
-        public double Value { get; }
+        Value = value;
     }
 
-    internal sealed record InvalidMetricValue : BuildingMetricValue
-    {
-        public InvalidMetricValue(string raw)
-        {
-            Raw = raw ?? throw new ArgumentNullException(nameof(raw));
-        }
+    public double Value { get; }
+}
 
-        public string Raw { get; }
+internal sealed record BuildingMetricMeasurements
+{
+    public static BuildingMetricMeasurements Empty { get; } = new(new Dictionary<BuildingMetricKind, BuildingMetricValue>());
+
+    public BuildingMetricMeasurements(IReadOnlyDictionary<BuildingMetricKind, BuildingMetricValue> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        Values = new Dictionary<BuildingMetricKind, BuildingMetricValue>(values);
+    }
+
+    public IReadOnlyDictionary<BuildingMetricKind, BuildingMetricValue> Values { get; }
+
+    public bool TryGet(BuildingMetricKind kind, out BuildingMetricValue value)
+    {
+        return Values.TryGetValue(kind, out value);
     }
 }
 
@@ -105,13 +105,7 @@ internal sealed record BuildingAttributeContext(
     IReadOnlyList<BuildingCodeValue<PlateauBuildingStructure>> Structures,
     IReadOnlyList<string> CityGmlClassCodes,
     IReadOnlyList<string> CityGmlFunctionCodes,
-    BuildingMetricValue MeasuredHeightMeters,
-    BuildingMetricValue StoreysAboveGround,
-    BuildingMetricValue StoreysBelowGround,
-    BuildingMetricValue BuildingFootprintArea,
-    BuildingMetricValue BuildingRoofEdgeArea,
-    BuildingMetricValue BuildingHeight,
-    BuildingMetricValue EaveHeight)
+    BuildingMetricMeasurements Metrics)
 {
     public static BuildingAttributeContext Empty { get; } = new(
         RoofShape: null,
@@ -120,11 +114,5 @@ internal sealed record BuildingAttributeContext(
         Structures: [],
         CityGmlClassCodes: [],
         CityGmlFunctionCodes: [],
-        MeasuredHeightMeters: BuildingMetricValue.Missing,
-        StoreysAboveGround: BuildingMetricValue.Missing,
-        StoreysBelowGround: BuildingMetricValue.Missing,
-        BuildingFootprintArea: BuildingMetricValue.Missing,
-        BuildingRoofEdgeArea: BuildingMetricValue.Missing,
-        BuildingHeight: BuildingMetricValue.Missing,
-        EaveHeight: BuildingMetricValue.Missing);
+        Metrics: BuildingMetricMeasurements.Empty);
 }

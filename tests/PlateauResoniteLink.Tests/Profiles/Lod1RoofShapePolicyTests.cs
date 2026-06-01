@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
@@ -86,13 +87,13 @@ public sealed class Lod1RoofShapePolicyTests
             Structures: CreateCodeValues(structures),
             CityGmlClassCodes: [],
             CityGmlFunctionCodes: cityGmlFunctionCodes ?? [],
-            MeasuredHeightMeters: BuildingMetricValue.Missing,
-            StoreysAboveGround: BuildingMetricValue.Missing,
-            StoreysBelowGround: BuildingMetricValue.Missing,
-            BuildingFootprintArea: footprintArea.HasValue ? BuildingMetricValue.Known(footprintArea.Value) : BuildingMetricValue.Missing,
-            BuildingRoofEdgeArea: BuildingMetricValue.Missing,
-            BuildingHeight: BuildingMetricValue.Missing,
-            EaveHeight: BuildingMetricValue.Missing);
+            Metrics: footprintArea.HasValue
+                ? new BuildingMetricMeasurements(
+                    new Dictionary<BuildingMetricKind, BuildingMetricValue>
+                    {
+                        [BuildingMetricKind.BuildingFootprintArea] = new(footprintArea.Value),
+                    })
+                : BuildingMetricMeasurements.Empty);
     }
 
     private static BuildingCodeValue<T>[] CreateCodeValues<T>(T[]? values)

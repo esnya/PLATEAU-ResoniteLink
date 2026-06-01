@@ -10,6 +10,7 @@ internal static class BuildingAttributeParser
 {
     internal static BuildingAttributeContext Parse(XElement cityObjectElement)
     {
+        BuildingMetricMeasurements metrics = ParseMetrics(cityObjectElement);
         return new BuildingAttributeContext(
             RoofShape: ParseOptionalRoofShape(GetFirstDirectElementValue(cityObjectElement, "roofType")),
             Uses: ParseBuildingUses(GetDirectElementValues(cityObjectElement, "usage")),
@@ -17,13 +18,7 @@ internal static class BuildingAttributeParser
             Structures: ParseBuildingStructures(GetDescendantElementValues(cityObjectElement, "buildingStructureType")),
             CityGmlClassCodes: GetDirectElementValues(cityObjectElement, "class"),
             CityGmlFunctionCodes: GetDirectElementValues(cityObjectElement, "function"),
-            MeasuredHeightMeters: ParseMetricValue(GetFirstDirectElement(cityObjectElement, "measuredHeight"), requireMeters: true),
-            StoreysAboveGround: ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysAboveGround")),
-            StoreysBelowGround: ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysBelowGround")),
-            BuildingFootprintArea: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingFootprintArea"), requireMeters: false),
-            BuildingRoofEdgeArea: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingRoofEdgeArea"), requireMeters: false),
-            BuildingHeight: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingHeight"), requireMeters: true),
-            EaveHeight: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "eaveHeight"), requireMeters: true));
+            Metrics: metrics);
     }
 
     private static XElement? GetFirstDirectElement(XElement element, string localName)
@@ -125,36 +120,81 @@ internal static class BuildingAttributeParser
         };
     }
 
-    private static BuildingMetricValue ParseIntegerMetricValue(XElement? element)
+    private static BuildingMetricMeasurements ParseMetrics(XElement cityObjectElement)
+    {
+        Dictionary<BuildingMetricKind, BuildingMetricValue> values = [];
+        AddMetric(
+            values,
+            BuildingMetricKind.MeasuredHeightMeters,
+            ParseMetricValue(GetFirstDirectElement(cityObjectElement, "measuredHeight"), requireMeters: true));
+        AddMetric(
+            values,
+            BuildingMetricKind.StoreysAboveGround,
+            ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysAboveGround")));
+        AddMetric(
+            values,
+            BuildingMetricKind.StoreysBelowGround,
+            ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysBelowGround")));
+        AddMetric(
+            values,
+            BuildingMetricKind.BuildingFootprintArea,
+            ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingFootprintArea"), requireMeters: false));
+        AddMetric(
+            values,
+            BuildingMetricKind.BuildingRoofEdgeArea,
+            ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingRoofEdgeArea"), requireMeters: false));
+        AddMetric(
+            values,
+            BuildingMetricKind.BuildingHeight,
+            ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingHeight"), requireMeters: true));
+        AddMetric(
+            values,
+            BuildingMetricKind.EaveHeight,
+            ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "eaveHeight"), requireMeters: true));
+        return new BuildingMetricMeasurements(values);
+    }
+
+    private static void AddMetric(
+        Dictionary<BuildingMetricKind, BuildingMetricValue> values,
+        BuildingMetricKind kind,
+        BuildingMetricValue? metric)
+    {
+        if (metric.HasValue)
+        {
+            values.Add(kind, metric.Value);
+        }
+    }
+
+    private static BuildingMetricValue? ParseIntegerMetricValue(XElement? element)
     {
         if (element is null)
         {
-            return BuildingMetricValue.Missing;
+            return null;
         }
 
         string rawValue = element.Value.Trim();
         if (IsPlateauMissingMetricToken(rawValue))
         {
-            return BuildingMetricValue.Missing;
+            return null;
         }
 
         return int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
             && value >= 0
-                ? BuildingMetricValue.Known(value)
-                : BuildingMetricValue.Invalid(rawValue);
+                ? new BuildingMetricValue(value)
+                : null;
     }
 
-    private static BuildingMetricValue ParseMetricValue(XElement? element, bool requireMeters)
+    private static BuildingMetricValue? ParseMetricValue(XElement? element, bool requireMeters)
     {
         if (element is null)
         {
-            return BuildingMetricValue.Missing;
+            return null;
         }
 
         string rawValue = element.Value.Trim();
         if (IsPlateauMissingMetricToken(rawValue))
         {
-            return BuildingMetricValue.Missing;
+            return null;
         }
 
         string? unitOfMeasure = element.Attribute("uom")?.Value.Trim();
@@ -162,14 +202,14 @@ internal static class BuildingAttributeParser
             && !string.IsNullOrWhiteSpace(unitOfMeasure)
             && !string.Equals(unitOfMeasure, "m", StringComparison.OrdinalIgnoreCase))
         {
-            return BuildingMetricValue.Invalid(rawValue);
+            return null;
         }
 
         return double.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
             && double.IsFinite(value)
             && value > 0.0
-                ? BuildingMetricValue.Known(value)
-                : BuildingMetricValue.Invalid(rawValue);
+                ? new BuildingMetricValue(value)
+                : null;
     }
 
     private static bool IsPlateauMissingMetricToken(string rawValue)
