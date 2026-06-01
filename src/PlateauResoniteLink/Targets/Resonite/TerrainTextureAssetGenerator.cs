@@ -35,7 +35,7 @@ internal sealed record GeneratedTerrainTexture
             TextureUvRect.FromScaleOffsetValue(
                 new ScalarPair(canvasScale.X, canvasScale.Y),
                 new ScalarPair(canvasOffset.X, canvasOffset.Y)),
-            [usedSource])
+            CreateSingleUsedSourceSnapshot(usedSource))
     {
     }
 
@@ -59,9 +59,8 @@ internal sealed record GeneratedTerrainTexture
         IReadOnlyList<TerrainTextureSource> usedSources)
     {
         ArgumentNullException.ThrowIfNull(textureSource);
-        ArgumentNullException.ThrowIfNull(usedSources);
 
-        TerrainTextureSource[] trackedSources = usedSources.Distinct().ToArray();
+        TerrainTextureSource[] trackedSources = CreateUsedSourceSnapshot(usedSources);
         if (trackedSources.Length == 0)
         {
             throw new ArgumentException("Generated terrain texture must track at least one source.", nameof(usedSources));
@@ -79,6 +78,26 @@ internal sealed record GeneratedTerrainTexture
     public TerrainTextureSource UsedSource => UsedSources[0];
 
     public IReadOnlyList<TerrainTextureSource> UsedSources { get; }
+
+    private static TerrainTextureSource[] CreateSingleUsedSourceSnapshot(TerrainTextureSource usedSource)
+    {
+        ArgumentNullException.ThrowIfNull(usedSource);
+        return [usedSource];
+    }
+
+    private static TerrainTextureSource[] CreateUsedSourceSnapshot(IReadOnlyList<TerrainTextureSource> usedSources)
+    {
+        ArgumentNullException.ThrowIfNull(usedSources);
+
+        TerrainTextureSource[] sources = new TerrainTextureSource[usedSources.Count];
+        for (int index = 0; index < usedSources.Count; index++)
+        {
+            sources[index] = usedSources[index]
+                ?? throw new ArgumentException("Generated terrain texture sources cannot contain null.", nameof(usedSources));
+        }
+
+        return sources.Distinct().ToArray();
+    }
 }
 
 internal sealed class TerrainTextureAssetGenerator(

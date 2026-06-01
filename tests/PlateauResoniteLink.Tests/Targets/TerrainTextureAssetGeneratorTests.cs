@@ -57,6 +57,59 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
+    public void GeneratedTerrainTextureRejectsNullTrackedSources()
+    {
+        ITextureImportSource textureSource = TextureImportSourceTestFactory.CreateRawTextureSource(
+            1,
+            1,
+            ResoniteTextureColorProfiles.Srgb,
+            [255, 255, 255, 255]);
+
+        Assert.Throws<ArgumentNullException>(() =>
+            new GeneratedTerrainTexture(
+                textureSource,
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0),
+                (TerrainTextureSource)null!));
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            new GeneratedTerrainTexture(
+                textureSource,
+                TextureUvRect.Identity,
+                [new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 17), null!]));
+
+        Assert.Contains("cannot contain null", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TerrainTextureOverlayRejectsNullSourcesFromConstructionAndWithExpressions()
+    {
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        Assert.Throws<ArgumentNullException>(() =>
+            new TerrainTextureOverlay(
+                PackageName: "dem",
+                MeshCode: ThirdRegionalMeshCode.Parse("53395325"),
+                GeographicBounds: overlay.GeographicBounds,
+                MaxTextureSize: 512,
+                Sources: null!));
+
+        ArgumentException constructionException = Assert.Throws<ArgumentException>(() =>
+            new TerrainTextureOverlay(
+                PackageName: "dem",
+                MeshCode: ThirdRegionalMeshCode.Parse("53395325"),
+                GeographicBounds: overlay.GeographicBounds,
+                MaxTextureSize: 512,
+                Sources: [null!]));
+
+        ArgumentException withExpressionException = Assert.Throws<ArgumentException>(() =>
+            overlay with { Sources = [null!] });
+
+        Assert.Contains("cannot contain null", constructionException.Message, StringComparison.Ordinal);
+        Assert.Contains("cannot contain null", withExpressionException.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GeneratedTerrainTextureDerivesIdentityFromFirstTrackedSourceAndExposesReadOnlyState()
     {
         TerrainTextureTileSource usedSource = new("https://used.example/{z}/{x}/{y}.png", 17);
