@@ -172,15 +172,17 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         Assert.Contains(attributes.Structures, value => value.Value == PlateauBuildingStructure.Wood && value.Code == "601");
         Assert.Equal(["3001"], attributes.CityGmlClassCodes);
         Assert.Equal(["401"], attributes.CityGmlFunctionCodes);
-        Assert.Equal(BuildingMetricValueKind.Known, attributes.MeasuredHeightMeters.Kind);
-        Assert.Equal(BuildingMetricValueKind.Known, attributes.StoreysAboveGround.Kind);
-        Assert.Equal(BuildingMetricValueKind.Missing, attributes.StoreysBelowGround.Kind);
-        Assert.Equal(BuildingMetricValueKind.Known, attributes.BuildingFootprintArea.Kind);
-        Assert.Equal(BuildingMetricValueKind.Missing, attributes.BuildingRoofEdgeArea.Kind);
-        Assert.Equal(BuildingMetricValueKind.Known, attributes.BuildingHeight.Kind);
-        Assert.Equal(BuildingMetricValueKind.Known, attributes.EaveHeight.Kind);
-        Assert.InRange(attributes.BuildingFootprintArea.Value!.Value, 120.499999, 120.500001);
-        Assert.InRange(attributes.EaveHeight.Value!.Value, 9.699999, 9.700001);
+        Assert.NotNull(attributes.MeasuredHeightMeters);
+        Assert.NotNull(attributes.StoreysAboveGround);
+        Assert.Null(attributes.StoreysBelowGround);
+        Assert.NotNull(attributes.BuildingFootprintArea);
+        Assert.Null(attributes.BuildingRoofEdgeArea);
+        Assert.NotNull(attributes.BuildingHeight);
+        Assert.NotNull(attributes.EaveHeight);
+        BuildingMetricValue footprintArea = attributes.BuildingFootprintArea;
+        BuildingMetricValue eaveHeight = attributes.EaveHeight;
+        Assert.InRange(footprintArea.Value, 120.499999, 120.500001);
+        Assert.InRange(eaveHeight.Value, 9.699999, 9.700001);
     }
 
     private static async Task<ParsedCityObject> ParseSingleBuildingWithDetailAttributeAsync(string detailAttributeXml)
@@ -439,7 +441,6 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
 
         throw new InvalidOperationException("No city object was parsed.");
     }
-
     private sealed class GateableDatasetContentSource(byte[] payload, int gateOffset) : IPlateauDatasetContentSource
     {
         private readonly TaskCompletionSource releaseSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);

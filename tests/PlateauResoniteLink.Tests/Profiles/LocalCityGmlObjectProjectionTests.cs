@@ -538,8 +538,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             {
                 CityGmlFunctionCodes = ["401"],
                 Structures = [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
-                MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
-                BuildingFootprintArea = BuildingMetricValue.Known(100.0),
+                MeasuredHeightMeters = new BuildingMetricValue(8.0),
+                BuildingFootprintArea = new BuildingMetricValue(100.0),
             });
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -597,8 +597,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             {
                 CityGmlFunctionCodes = ["401"],
                 Structures = [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
-                MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
-                BuildingFootprintArea = BuildingMetricValue.Known(100.0),
+                MeasuredHeightMeters = new BuildingMetricValue(8.0),
+                BuildingFootprintArea = new BuildingMetricValue(100.0),
             });
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
