@@ -85,6 +85,7 @@ public sealed class DemCityObjectAggregationTests
             Surfaces: [surface],
             referenceSystem,
             sourceFileRelativePath,
-            SharedAcrossMeshCodes: true);
+            SharedAcrossMeshCodes: true,
+            BuildingAttributes: BuildingAttributeContext.Empty);
     }
 }

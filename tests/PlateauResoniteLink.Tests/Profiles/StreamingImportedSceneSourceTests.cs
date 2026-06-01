@@ -812,7 +812,8 @@ public sealed class StreamingImportedSceneSourceTests
             Surfaces: surfaces,
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
-            SharedAcrossMeshCodes: false);
+            SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty);
     }
 
     private static ParsedCityObject CreateParsedCityObjectInMesh53394525(
@@ -846,7 +847,8 @@ public sealed class StreamingImportedSceneSourceTests
             ],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
-            SharedAcrossMeshCodes: false);
+            SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty);
     }
 
     private static ParsedCityObject CreateRenderableParsedCityObject(
@@ -884,7 +886,8 @@ public sealed class StreamingImportedSceneSourceTests
             ],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
-            SharedAcrossMeshCodes: false);
+            SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty);
     }
 
     private static async Task WaitForConditionAsync(Func<bool> predicate, TimeSpan timeout)

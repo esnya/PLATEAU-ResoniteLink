@@ -277,13 +277,11 @@ internal static class CityGmlSurfaceMaterialResolver
             preferUvProjection,
             FamilyOverride: null,
             VariantSelectionKey: $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}",
-            BuildingAttributes: cityObject.BuildingAttributes ?? BuildingAttributeContext.Empty,
+            BuildingAttributes: cityObject.BuildingAttributes,
             FloorsAboveGround: cityObject.FloorsAboveGround,
             MeasuredHeightMeters: cityObject.MeasuredHeightMeters,
             GeometryHeightMeters: cityObject.GeometryHeightMeters,
-            FootprintAreaSquareMeters: cityObject.BuildingAttributes is null
-                ? null
-                : BuildingAttributeQueries.TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
+            FootprintAreaSquareMeters: BuildingAttributeQueries.TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
             SurfaceRole: ToDefaultMaterialSurfaceRole(face.Role)));
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? TerrainAlignedDepthOffset

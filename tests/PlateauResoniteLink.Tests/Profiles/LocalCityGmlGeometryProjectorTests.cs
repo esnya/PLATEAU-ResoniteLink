@@ -50,7 +50,8 @@ public sealed class LocalCityGmlGeometryProjectorTests
                     Surfaces: [],
                     ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:6697"),
                     SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
-                    SharedAcrossMeshCodes: false),
+                    SharedAcrossMeshCodes: false,
+                    BuildingAttributes: BuildingAttributeContext.Empty),
             ]);
 
         PlateauImportValidationException exception = Assert.Throws<PlateauImportValidationException>(
