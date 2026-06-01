@@ -893,6 +893,36 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task TryBufferAsyncRejectsDuplicateMaterialBindingsBeforeDynamicUvNormalization()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject cityObject = CreateUvScaledLod2Building(
+            "duplicate-dynamic",
+            CreatePayload("textures/duplicate-dynamic.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            "unit-a",
+            new ResoniteFloat2(2.0, 0.5),
+            new ResoniteFloat2(0.25, 0.75));
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
+        cityObject = cityObject with
+        {
+            Materials =
+            [
+                material,
+                material with
+                {
+                    BaseColor = new ResoniteColor(0.5, 1.0, 1.0, 1.0),
+                },
+            ],
+        };
+
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
+
+        Assert.False(result.Buffered);
+        Assert.Empty(result.ReadyCityObjects);
+        Assert.Empty(await baker.FlushAllAsync());
+    }
+
+    [Fact]
     public async Task TryBufferAsyncBuffersLodlessNonDemCityObjects()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
