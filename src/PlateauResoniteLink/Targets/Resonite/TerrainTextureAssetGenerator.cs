@@ -220,21 +220,37 @@ internal sealed class TerrainTextureAssetGenerator(
         TerrainTextureGeoReferencedRasterSource rasterSource,
         CancellationToken cancellationToken)
     {
-        await using Stream sourceStream = await rasterSource.OpenReadAsync(cancellationToken);
-        using Image<Rgba32> sourceImage = await Image.LoadAsync<Rgba32>(sourceStream, cancellationToken);
-        Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(
-            sourceImage,
-            rasterSource.Metadata,
-            terrainTextureOverlay.GeographicBounds);
-        if (cropped is null)
+        Image<Rgba32> sourceImage;
+        try
+        {
+            await using Stream sourceStream = await rasterSource.OpenReadAsync(cancellationToken);
+            sourceImage = await Image.LoadAsync<Rgba32>(sourceStream, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             throw new InvalidOperationException(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"Geo-referenced raster source '{rasterSource.ContentSource.Description}' does not overlap terrain overlay bounds '{TerrainTextureDescriptorFormatting.FormatBounds(terrainTextureOverlay.GeographicBounds)}'."));
+                    $"Failed to open or decode geo-referenced raster source '{rasterSource.ContentSource.Description}' for terrain overlay bounds '{TerrainTextureDescriptorFormatting.FormatBounds(terrainTextureOverlay.GeographicBounds)}'."),
+                exception);
         }
 
-        return new TerrainTextureSourceImage(cropped, null);
+        using (sourceImage)
+        {
+            Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(
+                sourceImage,
+                rasterSource.Metadata,
+                terrainTextureOverlay.GeographicBounds);
+            if (cropped is null)
+            {
+                throw new InvalidOperationException(
+                    string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"Geo-referenced raster source '{rasterSource.ContentSource.Description}' does not overlap terrain overlay bounds '{TerrainTextureDescriptorFormatting.FormatBounds(terrainTextureOverlay.GeographicBounds)}'."));
+            }
+
+            return new TerrainTextureSourceImage(cropped, null);
+        }
     }
 
     private static GeneratedTerrainTexture CreateGeneratedTexture(

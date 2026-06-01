@@ -516,9 +516,12 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
-        await Assert.ThrowsAsync<FileNotFoundException>(
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await generator.EnsureTextureAsync(overlay, CancellationToken.None));
 
+        Assert.Contains("missing.tif", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(TerrainTextureDescriptorFormatting.FormatBounds(bounds), exception.Message, StringComparison.Ordinal);
+        Assert.IsType<FileNotFoundException>(exception.InnerException);
         Assert.Equal(0, handler.RequestCount);
     }
 
