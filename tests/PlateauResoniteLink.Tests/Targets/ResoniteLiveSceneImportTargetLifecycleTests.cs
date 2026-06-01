@@ -704,7 +704,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             .ToArray();
         Assert.Contains(creditStrings, static creditString => creditString.Contains("GSI Maps Terms", StringComparison.Ordinal));
         Assert.Contains(creditStrings, static creditString => !creditString.Contains("GSI Maps Terms", StringComparison.Ordinal));
-        ImportDataSourceUsage demSourceUsage = Assert.Single(executionResult.DataSourceUsages ?? []);
+        ImportDataSourceUsage demSourceUsage = Assert.Single(executionResult.DataSourceUsages);
         Assert.Equal(ImportDataSourceCategory.DemTextureSource, demSourceUsage.Category);
         Assert.Equal(
             new TerrainTextureTileSource(
@@ -772,10 +772,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             CreateImportedObjectUnits(
                 CreateDemCityObject("dem-mixed", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
-        ImportDataSourceUsage[] usages = executionResult.DataSourceUsages?
+        ImportDataSourceUsage[] usages = executionResult.DataSourceUsages
             .OrderBy(static usage => usage.Identity, StringComparer.Ordinal)
-            .ToArray()
-            ?? [];
+            .ToArray();
         Assert.Equal(2, usages.Length);
         Assert.Contains(
             usages,
