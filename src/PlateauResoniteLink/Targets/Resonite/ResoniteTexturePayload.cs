@@ -18,13 +18,14 @@ public sealed record ResoniteTexturePayload
         int? height,
         string? colorProfile,
         byte[] binaryPayload,
-        string? identity = null,
+        string identity,
         ResoniteTexturePayloadFormat format = ResoniteTexturePayloadFormat.RawRgba32)
     {
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
         ArgumentNullException.ThrowIfNull(binaryPayload);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
         BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
         Identity = identity;
         Format = format;
@@ -33,7 +34,7 @@ public sealed record ResoniteTexturePayload
             height,
             colorProfile,
             binaryPayload,
-            identity ?? Guid.NewGuid().ToString("N"),
+            identity,
             (TexturePayloadFormat)format);
     }
 
@@ -63,7 +64,7 @@ public sealed record ResoniteTexturePayload
 
     public ImmutableArray<byte> BinaryPayload { get; init; }
 
-    public string? Identity { get; init; }
+    public string Identity { get; init; }
 
     public ResoniteTexturePayloadFormat Format { get; init; }
 

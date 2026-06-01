@@ -109,13 +109,14 @@ public sealed record TexturePayload
         int? height,
         string? colorProfile,
         byte[] binaryPayload,
-        string? identity = null,
+        string identity,
         TexturePayloadFormat format = TexturePayloadFormat.RawRgba32)
     {
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
         ArgumentNullException.ThrowIfNull(binaryPayload);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
         BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
         Identity = identity;
         Format = format;
@@ -124,7 +125,7 @@ public sealed record TexturePayload
             height,
             colorProfile,
             binaryPayload,
-            identity ?? Guid.NewGuid().ToString("N"),
+            identity,
             format);
     }
 
@@ -154,7 +155,7 @@ public sealed record TexturePayload
 
     public ImmutableArray<byte> BinaryPayload { get; init; }
 
-    public string? Identity { get; init; }
+    public string Identity { get; init; }
 
     public TexturePayloadFormat Format { get; init; }
 
