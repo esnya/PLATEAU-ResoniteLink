@@ -647,43 +647,21 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         PlannedMainTextureOverrideRendererMaterialBinding binding,
         ref int nextComponentLocator)
     {
-        if (binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
-            {
-                SharedMainTexturePropertyBlockComponent: { } sharedMainTexturePropertyBlockComponent,
-            })
+        if (binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding terrainBinding
+            && terrainBinding.PropertyBlock.TryGetSharedComponent(out ResoniteComponentLocator sharedMainTexturePropertyBlockComponent))
         {
             return PlannedMembers.Reference(PlannedWorldElementReference.Canonical(sharedMainTexturePropertyBlockComponent));
         }
 
-        PlannedWorldElementReference? sharedTextureTarget = binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
-        {
-            SharedMainTextureComponent: { } sharedMainTextureComponent,
-        }
-            ? PlannedWorldElementReference.Canonical(sharedMainTextureComponent)
-            : null;
-        BatchPlanComponentLocator? textureId = sharedTextureTarget is null
-            ? CreateBatchPlanComponentLocator(ref nextComponentLocator)
-            : null;
-        ResoniteSceneMaterialConventions.TextureMemberRole textureRole = binding switch
-        {
-            PlannedAlbedoMainTextureOverrideRendererMaterialBinding =>
-                ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
-            PlannedTerrainMainTextureOverrideRendererMaterialBinding =>
-                ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride,
-            _ => throw new InvalidOperationException(
-                $"Unsupported planned main texture override binding type '{binding.GetType().Name}'."),
-        };
-        if (textureId is { } plannedTextureId)
-        {
-            componentEmissions.Add(new PlannedBatchComponentEmission(
-                plannedTextureId,
-                PlannedSlotTargetReference.PlannedSlot(assetSlotId),
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    binding.MainTexture.AssetUri,
-                    textureRole)
-                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
-        }
+        BatchPlanComponentLocator textureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            textureId,
+            PlannedSlotTargetReference.PlannedSlot(assetSlotId),
+            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+            ResoniteSceneMaterialConventions.CreateTextureMembers(
+                binding.MainTexture.AssetUri,
+                binding.TextureRole)
+                .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
 
         BatchPlanComponentLocator propertyBlockId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
         componentEmissions.Add(new PlannedBatchComponentEmission(
@@ -692,7 +670,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
             new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
             {
-                ["Texture"] = PlannedMembers.Reference(sharedTextureTarget ?? PlannedWorldElementReference.Planned(textureId!.Value)),
+                ["Texture"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(textureId)),
             }));
 
         return PlannedMembers.Reference(PlannedWorldElementReference.Planned(propertyBlockId));

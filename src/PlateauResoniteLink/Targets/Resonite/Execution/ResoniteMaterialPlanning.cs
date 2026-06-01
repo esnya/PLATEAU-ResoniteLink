@@ -126,7 +126,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return textures.FirstOrDefault(texture => texture.Identity == identity)?.AssetUri;
     }
 
-    public static PlannedTextureAsset? PlanMainTextureOverride(
+    public static MainTextureOverridePlan PlanMainTextureOverride(
         ResoniteMaterialBinding material,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay)
@@ -144,12 +144,13 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             : null;
         if (textureUri is null)
         {
-            return null;
+            return MainTextureOverridePlan.None;
         }
 
-        return new PlannedTextureAsset(
-            new TextureIdentity("main"),
-            textureUri);
+        return MainTextureOverridePlan.Texture(
+            new PlannedTextureAsset(
+                new TextureIdentity("main"),
+                textureUri));
     }
 
     public static ResoniteBatchOperations.PendingBatchComponent AddCommonMaterialComponents(

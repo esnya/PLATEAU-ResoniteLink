@@ -495,7 +495,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 [
                     new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
                         reusableMaterial,
-                        new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override"))),
+                        new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override")),
+                        PlannedTerrainMainTexturePropertyBlock.CreatePerRenderer()),
                 ]),
             new PlannedCollider(
                 new GeometryIdentity("geom"),
@@ -535,8 +536,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                     new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
                         reusableMaterial,
                         new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override")),
-                        SharedMainTextureComponent: new ResoniteComponentLocator("shared-terrain-texture-id"),
-                        SharedMainTexturePropertyBlockComponent: new ResoniteComponentLocator("shared-terrain-property-block-id")),
+                        PlannedTerrainMainTexturePropertyBlock.Shared(
+                            new ResoniteComponentLocator("shared-terrain-property-block-id"))),
                 ]),
             new PlannedCollider(
                 new GeometryIdentity("geom"),

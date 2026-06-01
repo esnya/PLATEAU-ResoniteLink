@@ -42,6 +42,46 @@ internal sealed record PlannedTextureAsset(
     TextureIdentity Identity,
     Uri AssetUri);
 
+internal abstract record MainTextureOverridePlan
+{
+    private MainTextureOverridePlan()
+    {
+    }
+
+    public static MainTextureOverridePlan None { get; } = new NoMainTextureOverridePlan();
+
+    public static MainTextureOverridePlan Texture(PlannedTextureAsset mainTexture)
+    {
+        return new TextureMainTextureOverridePlan(mainTexture);
+    }
+
+    public abstract TResult Select<TResult>(
+        Func<TResult> none,
+        Func<PlannedTextureAsset, TResult> texture);
+
+    private sealed record NoMainTextureOverridePlan : MainTextureOverridePlan
+    {
+        public override TResult Select<TResult>(
+            Func<TResult> none,
+            Func<PlannedTextureAsset, TResult> texture)
+        {
+            _ = texture;
+            return none();
+        }
+    }
+
+    private sealed record TextureMainTextureOverridePlan(PlannedTextureAsset MainTexture) : MainTextureOverridePlan
+    {
+        public override TResult Select<TResult>(
+            Func<TResult> none,
+            Func<PlannedTextureAsset, TResult> texture)
+        {
+            _ = none;
+            return texture(MainTexture);
+        }
+    }
+}
+
 internal abstract record PlannedMaterialAsset;
 
 internal sealed record PlannedReusableMaterialAsset(
@@ -63,19 +103,87 @@ internal sealed record PlannedDirectRendererMaterialBinding(PlannedMaterialAsset
 internal abstract record PlannedMainTextureOverrideRendererMaterialBinding(
     PlannedMaterialAsset MaterialAsset,
     PlannedTextureAsset MainTexture)
-    : PlannedRendererMaterialBinding(MaterialAsset);
+    : PlannedRendererMaterialBinding(MaterialAsset)
+{
+    public abstract ResoniteSceneMaterialConventions.TextureMemberRole TextureRole { get; }
+}
 
 internal sealed record PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
     PlannedMaterialAsset MaterialAsset,
     PlannedTextureAsset MainTexture)
-    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture);
+    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture)
+{
+    public override ResoniteSceneMaterialConventions.TextureMemberRole TextureRole =>
+        ResoniteSceneMaterialConventions.TextureMemberRole.Albedo;
+}
+
+internal abstract record PlannedTerrainMainTexturePropertyBlock
+{
+    private PlannedTerrainMainTexturePropertyBlock()
+    {
+    }
+
+    public static PlannedTerrainMainTexturePropertyBlock CreatePerRenderer()
+    {
+        return new PerRendererTerrainMainTexturePropertyBlock();
+    }
+
+    public static PlannedTerrainMainTexturePropertyBlock Shared(ResoniteComponentLocator component)
+    {
+        return new SharedTerrainMainTexturePropertyBlock(component);
+    }
+
+    public abstract TResult Select<TResult>(
+        Func<TResult> createPerRenderer,
+        Func<ResoniteComponentLocator, TResult> shared);
+
+    public abstract bool TryGetSharedComponent(out ResoniteComponentLocator component);
+
+    private sealed record PerRendererTerrainMainTexturePropertyBlock : PlannedTerrainMainTexturePropertyBlock
+    {
+        public override TResult Select<TResult>(
+            Func<TResult> createPerRenderer,
+            Func<ResoniteComponentLocator, TResult> shared)
+        {
+            _ = shared;
+            return createPerRenderer();
+        }
+
+        public override bool TryGetSharedComponent(out ResoniteComponentLocator component)
+        {
+            component = default;
+            return false;
+        }
+    }
+
+    private sealed record SharedTerrainMainTexturePropertyBlock(ResoniteComponentLocator Component)
+        : PlannedTerrainMainTexturePropertyBlock
+    {
+        public override TResult Select<TResult>(
+            Func<TResult> createPerRenderer,
+            Func<ResoniteComponentLocator, TResult> shared)
+        {
+            _ = createPerRenderer;
+            return shared(Component);
+        }
+
+        public override bool TryGetSharedComponent(out ResoniteComponentLocator component)
+        {
+            component = Component;
+            return true;
+        }
+    }
+}
 
 internal sealed record PlannedTerrainMainTextureOverrideRendererMaterialBinding(
     PlannedMaterialAsset MaterialAsset,
     PlannedTextureAsset MainTexture,
-    ResoniteComponentLocator? SharedMainTextureComponent = null,
-    ResoniteComponentLocator? SharedMainTexturePropertyBlockComponent = null)
-    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture);
+    PlannedTerrainMainTexturePropertyBlock PropertyBlock)
+    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture)
+{
+    public override ResoniteSceneMaterialConventions.TextureMemberRole TextureRole =>
+        ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride;
+}
 
 internal sealed record PlannedRenderer(
     GeometryIdentity GeometryIdentity,

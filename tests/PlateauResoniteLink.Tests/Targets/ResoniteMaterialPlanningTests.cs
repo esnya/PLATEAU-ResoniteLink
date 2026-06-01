@@ -369,34 +369,54 @@ public sealed class ResoniteMaterialPlanningTests
             [secondMaterial.TexturePayload!] = new Uri("resdb:///texture/second", UriKind.Absolute),
         };
 
-        PlannedTextureAsset? firstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+        MainTextureOverridePlan firstOverridePlan = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? repeatedFirstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+        MainTextureOverridePlan repeatedFirstOverridePlan = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? secondOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+        MainTextureOverridePlan secondOverridePlan = ResoniteMaterialPlanning.PlanMainTextureOverride(
             secondMaterial,
             secondPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? thirdOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+        MainTextureOverridePlan thirdOverridePlan = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
+        PlannedTextureAsset firstOverride = GetMainTextureOverride(firstOverridePlan);
+        PlannedTextureAsset repeatedFirstOverride = GetMainTextureOverride(repeatedFirstOverridePlan);
+        PlannedTextureAsset secondOverride = GetMainTextureOverride(secondOverridePlan);
+        PlannedTextureAsset thirdOverride = GetMainTextureOverride(thirdOverridePlan);
 
-        Assert.NotNull(firstOverride);
-        Assert.NotNull(repeatedFirstOverride);
-        Assert.NotNull(secondOverride);
-        Assert.NotNull(thirdOverride);
-        Assert.Equal(new TextureIdentity("main"), firstOverride!.Identity);
-        Assert.Equal(firstOverride.Identity, repeatedFirstOverride!.Identity);
-        Assert.Equal(firstOverride.Identity, secondOverride!.Identity);
-        Assert.Equal(firstOverride.Identity, thirdOverride!.Identity);
+        Assert.Equal(new TextureIdentity("main"), firstOverride.Identity);
+        Assert.Equal(firstOverride.Identity, repeatedFirstOverride.Identity);
+        Assert.Equal(firstOverride.Identity, secondOverride.Identity);
+        Assert.Equal(firstOverride.Identity, thirdOverride.Identity);
         Assert.Equal(new Uri("resdb:///texture/first", UriKind.Absolute), firstOverride.AssetUri);
         Assert.Equal(firstOverride.AssetUri, repeatedFirstOverride.AssetUri);
         Assert.Equal(new Uri("resdb:///texture/second", UriKind.Absolute), secondOverride.AssetUri);
+    }
+
+    [Fact]
+    public void PlanMainTextureOverrideReturnsNonePlanWithoutPreparedTexture()
+    {
+        ResoniteMaterialBinding material = new(
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0]);
+
+        MainTextureOverridePlan plan = ResoniteMaterialPlanning.PlanMainTextureOverride(
+            material,
+            new Dictionary<ResoniteTexturePayload, Uri>(),
+            new Dictionary<TerrainTextureOverlay, Uri>());
+
+        Assert.Same(MainTextureOverridePlan.None, plan);
     }
 
     private static ResoniteMaterialBinding CreateRoadMaterial(ResoniteMaterialProjection projection)
@@ -437,6 +457,13 @@ public sealed class ResoniteMaterialPlanningTests
     {
         return ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedAsset.Textures, role)
             ?? throw new InvalidOperationException($"Missing planned texture role '{role}'.");
+    }
+
+    private static PlannedTextureAsset GetMainTextureOverride(MainTextureOverridePlan plan)
+    {
+        return plan.Select(
+            static () => throw new InvalidOperationException("Expected a planned main texture override."),
+            static texture => texture);
     }
 
     private sealed class TexturePayloadReferenceComparer : IEqualityComparer<ResoniteTexturePayload>

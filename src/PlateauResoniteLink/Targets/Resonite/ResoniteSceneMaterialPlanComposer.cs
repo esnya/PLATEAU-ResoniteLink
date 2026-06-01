@@ -105,17 +105,17 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
                 $"Setup did not resolve common material ({ResoniteMaterialComponentPolicy.DescribeForDiagnostics(sourceMaterial)}) before runtime emission.");
         }
         PlannedReusableMaterialAsset sharedMaterialAsset = new(existingMaterialAsset.MaterialComponent);
-        PlannedTextureAsset? mainTextureOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+        MainTextureOverridePlan mainTextureOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             sourceMaterial,
             preparedTextureUrisByPayload,
             preparedTerrainTextureUrisByOverlay);
-        PlannedRendererMaterialBinding rendererBinding = mainTextureOverride is null
-            ? new PlannedDirectRendererMaterialBinding(sharedMaterialAsset)
-            : CreateMainTextureOverrideRendererBinding(
+        PlannedRendererMaterialBinding rendererBinding = mainTextureOverride.Select<PlannedRendererMaterialBinding>(
+            () => new PlannedDirectRendererMaterialBinding(sharedMaterialAsset),
+            mainTexture => CreateMainTextureOverrideRendererBinding(
                 sharedMaterialAsset,
-                mainTextureOverride,
+                mainTexture,
                 terrainTexturePropertyBlockComponentsByMeshCode,
-                sourceMaterial);
+                sourceMaterial));
         return (sharedMaterialAsset, rendererBinding);
     }
 
@@ -147,20 +147,19 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             cancellationToken);
         if (sourceMaterial.TerrainOverlay is not null)
         {
-            PlannedTextureAsset? mainTextureOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+            MainTextureOverridePlan mainTextureOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
                 sourceMaterial,
                 preparedTextureUrisByPayload,
                 preparedTerrainTextureUrisByOverlay);
-            if (mainTextureOverride is not null)
-            {
-                return (
+            return mainTextureOverride.Select(
+                () => (plannedMaterial, new PlannedDirectRendererMaterialBinding(plannedMaterial)),
+                mainTexture => (
                     plannedMaterial,
-                    CreateMainTextureOverrideRendererBinding(
+                    (PlannedRendererMaterialBinding)CreateMainTextureOverrideRendererBinding(
                         plannedMaterial,
-                        mainTextureOverride,
+                        mainTexture,
                         preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-                        sourceMaterial));
-            }
+                        sourceMaterial)));
         }
 
         return (plannedMaterial, new PlannedDirectRendererMaterialBinding(plannedMaterial));
@@ -192,14 +191,17 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             return new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(materialAsset, mainTexture);
         }
 
+        PlannedTerrainMainTexturePropertyBlock propertyBlock =
+            sourceMaterial.TerrainOverlayMaterial is not null
+            && terrainTexturePropertyBlockComponentsByMeshCode.TryGetValue(
+                sourceMaterial.TerrainOverlayMaterial.MeshCode,
+                out ResoniteComponentLocator propertyBlockComponent)
+                ? PlannedTerrainMainTexturePropertyBlock.Shared(propertyBlockComponent)
+                : PlannedTerrainMainTexturePropertyBlock.CreatePerRenderer();
         return new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
             materialAsset,
             mainTexture,
-            null,
-            sourceMaterial.TerrainOverlayMaterial is not null
-            && terrainTexturePropertyBlockComponentsByMeshCode.TryGetValue(sourceMaterial.TerrainOverlayMaterial.MeshCode, out ResoniteComponentLocator propertyBlockComponent)
-                ? propertyBlockComponent
-                : null);
+            propertyBlock);
     }
 
 }
