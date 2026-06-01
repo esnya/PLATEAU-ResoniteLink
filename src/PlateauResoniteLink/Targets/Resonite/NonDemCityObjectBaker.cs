@@ -34,8 +34,14 @@ internal sealed class NonDemCityObjectBaker(
             return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
         }
 
+        NonDemSourceFileScopeResolution sourceFileScopeResolution = NonDemSourceFileScope.Resolve(cityObject);
+        if (sourceFileScopeResolution is not NonDemSourceFileScopeResolution.Available sourceFileScope)
+        {
+            return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
+        }
+
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-        NonDemSourceFileBatchKey sourceFileKey = NonDemSourceFileBatching.CreateKey(cityObject, policy);
+        NonDemSourceFileBatchKey sourceFileKey = NonDemSourceFileBatching.CreateKey(cityObject, policy, sourceFileScope.Scope);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
         sourceFileBuffer.Add(sourceFileKey, new NonDemBufferedCityObject(cityObject, policy));
         BakedInputCityObjectCount++;

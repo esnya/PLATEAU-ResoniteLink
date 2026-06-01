@@ -1,5 +1,3 @@
-using System;
-
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -7,7 +5,7 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class NonDemSourceFileBatchingTests
 {
     [Fact]
-    public void CreateKeyNormalizesPackageNameAndRequiresSourceFileScope()
+    public void CreateKeyUsesResolvedSourceFileScope()
     {
         ResoniteConstructionCityObject cityObject = CreateCityObject() with
         {
@@ -15,15 +13,29 @@ public sealed class NonDemSourceFileBatchingTests
             SourceFileRelativePath = "udx/bldg/53394525_bldg_6697_op.gml",
         };
 
+        NonDemSourceFileScopeResolution sourceFileScope = NonDemSourceFileScope.Resolve(cityObject);
+        NonDemSourceFileScope scope = Assert.IsType<NonDemSourceFileScopeResolution.Available>(sourceFileScope).Scope;
+
         NonDemSourceFileBatchKey key = NonDemSourceFileBatching.CreateKey(
             cityObject,
-            NonDemCityObjectBakePolicies.Default);
+            NonDemCityObjectBakePolicies.Default,
+            scope);
 
         Assert.Equal("bldg", key.PackageName);
         Assert.Equal("udx/bldg/53394525_bldg_6697_op.gml", key.SourceFileRelativePath);
-        Assert.Throws<InvalidOperationException>(() => NonDemSourceFileBatching.CreateKey(
-            cityObject with { SourceFileRelativePath = null },
-            NonDemCityObjectBakePolicies.Default));
+    }
+
+    [Fact]
+    public void SourceFileScopeResolutionRepresentsMissingSourceFileWithoutCreatingBatchKey()
+    {
+        ResoniteConstructionCityObject cityObject = CreateCityObject() with
+        {
+            SourceFileRelativePath = null,
+        };
+
+        NonDemSourceFileScopeResolution sourceFileScope = NonDemSourceFileScope.Resolve(cityObject);
+
+        Assert.IsType<NonDemSourceFileScopeResolution.Missing>(sourceFileScope);
     }
 
     [Fact]
@@ -34,7 +46,7 @@ public sealed class NonDemSourceFileBatchingTests
             PackageName: "bldg",
             LodLevel: 2,
             PolicyContext: "default",
-            SourceFileRelativePath: "udx/bldg/53394525_bldg_6697_op.gml");
+            SourceFileScope: new NonDemSourceFileScope("udx/bldg/53394525_bldg_6697_op.gml"));
 
         string slotKey = NonDemSourceFileBatching.CreateBatchSlotKey(key, batchIndex: 1);
         string displayName = NonDemSourceFileBatching.CreateBatchDisplayName(key, batchIndex: 1, slotKey);
@@ -49,8 +61,8 @@ public sealed class NonDemSourceFileBatchingTests
     [Fact]
     public void KeyComparerOrdersByMeshPackageLodPolicyAndSourceFile()
     {
-        NonDemSourceFileBatchKey first = new("53394525", "bldg", 1, "a", "a.gml");
-        NonDemSourceFileBatchKey second = new("53394525", "bldg", 2, "a", "a.gml");
+        NonDemSourceFileBatchKey first = new("53394525", "bldg", 1, "a", new NonDemSourceFileScope("a.gml"));
+        NonDemSourceFileBatchKey second = new("53394525", "bldg", 2, "a", new NonDemSourceFileScope("a.gml"));
 
         Assert.True(NonDemSourceFileBatching.KeyComparer.Compare(first, second) < 0);
         Assert.True(NonDemSourceFileBatching.KeyComparer.Compare(second, first) > 0);

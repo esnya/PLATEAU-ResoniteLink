@@ -5,4 +5,7 @@ internal readonly record struct NonDemSourceFileBatchKey(
     string PackageName,
     int? LodLevel,
     string PolicyContext,
-    string SourceFileRelativePath);
+    NonDemSourceFileScope SourceFileScope)
+{
+    public string SourceFileRelativePath => SourceFileScope.RelativePath;
+}

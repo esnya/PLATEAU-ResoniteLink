@@ -11,23 +11,17 @@ internal static class NonDemSourceFileBatching
 
     public static NonDemSourceFileBatchKey CreateKey(
         ResoniteConstructionCityObject cityObject,
-        NonDemCityObjectBakePolicy policy)
+        NonDemCityObjectBakePolicy policy,
+        NonDemSourceFileScope sourceFileScope)
     {
         string context = policy.Name;
-        string? sourceFileRelativePath = string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath) ? null : cityObject.SourceFileRelativePath;
-        if (sourceFileRelativePath is null)
-        {
-            throw new InvalidOperationException(
-                $"Non-DEM batch candidate '{cityObject.DisplayName}' did not provide source scope. "
-                + "source-file-owned batching requires SourceFileRelativePath.");
-        }
 
         return new NonDemSourceFileBatchKey(
             cityObject.ActualMeshCode,
             cityObject.PackageName.ToLowerInvariant(),
             cityObject.LodLevel,
             context,
-            SourceFileRelativePath: sourceFileRelativePath);
+            sourceFileScope);
     }
 
     public static string CreateBatchSlotKey(NonDemSourceFileBatchKey sourceFileKey, int batchIndex)
@@ -35,7 +29,7 @@ internal static class NonDemSourceFileBatching
         string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.SourceFileRelativePath)}-{sourceFileKey.PackageName}-lod{lodToken}-{batchIndex + 1}");
+            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.SourceFileScope.RelativePath)}-{sourceFileKey.PackageName}-lod{lodToken}-{batchIndex + 1}");
     }
 
     public static string CreateBatchDisplayName(NonDemSourceFileBatchKey sourceFileKey, int batchIndex, string batchSlotKey)
@@ -50,7 +44,7 @@ internal static class NonDemSourceFileBatching
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlastex-{sourceFileKey.SourceFileRelativePath}-{batchIndex + 1}");
+            $"atlastex-{sourceFileKey.SourceFileScope.RelativePath}-{batchIndex + 1}");
     }
 
     private sealed class SourceFileBatchKeyComparer : IComparer<NonDemSourceFileBatchKey>
@@ -81,7 +75,7 @@ internal static class NonDemSourceFileBatching
                 return compare;
             }
 
-            compare = string.CompareOrdinal(x.SourceFileRelativePath, y.SourceFileRelativePath);
+            compare = string.CompareOrdinal(x.SourceFileScope.RelativePath, y.SourceFileScope.RelativePath);
             if (compare != 0)
             {
                 return compare;
