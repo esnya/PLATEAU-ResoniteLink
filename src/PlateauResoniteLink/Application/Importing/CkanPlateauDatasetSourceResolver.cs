@@ -41,21 +41,21 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
         ValidatedLocalDatasetLocation resolvedSource = await ResolveRequiredLocalDatasetLocationAsync(
             request.CityGmlSource,
             workRoot,
-            resourcePrefix: "source-archive",
+            resourcePrefix: ResolvedLocalPlateauImportRequest.RemoteCityGmlResourcePrefix,
             invalidateLocalFileCache: true,
             cancellationToken);
         ValidatedLocalDatasetLocation? resolvedDemTextureSource = await ResolveOptionalLocalDatasetLocationAsync(
             request.DemTextureSource,
             workRoot,
-            resourcePrefix: "source-ortho",
+            resourcePrefix: ResolvedLocalPlateauImportRequest.RemoteDemTextureResourcePrefix,
             invalidateLocalFileCache: false,
             cancellationToken);
 
         return ResolvedLocalPlateauImportRequest.Create(
             request,
-            workRoot,
             resolvedSource,
-            resolvedDemTextureSource);
+            resolvedDemTextureSource,
+            workRoot);
     }
 
     private async Task<ValidatedLocalDatasetLocation> ResolveRequiredLocalDatasetLocationAsync(

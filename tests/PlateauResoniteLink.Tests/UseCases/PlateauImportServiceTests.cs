@@ -613,9 +613,9 @@ public sealed class PlateauImportServiceTests
                 : Assert.IsType<ValidatedLocalDatasetLocation>(resolvedRequest.DemTextureSource);
             return Task.FromResult(ResolvedLocalPlateauImportRequest.Create(
                 request,
-                workRoot,
                 localSource,
-                localDemTextureSource));
+                localDemTextureSource,
+                workRoot));
         }
     }
 
