@@ -5,7 +5,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface INonDemCityObjectBakePolicyResolver
 {
-    NonDemCityObjectBakePolicy? Resolve(ResoniteConstructionCityObject cityObject);
+    NonDemCityObjectBakePolicy? Resolve(NonDemSourceScopedTriangleCityObject cityObject);
 }
 
 internal sealed class NonDemCityObjectBakePolicyResolver(
@@ -14,7 +14,7 @@ internal sealed class NonDemCityObjectBakePolicyResolver(
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? throw new ArgumentNullException(nameof(bakePolicies));
 
-    public NonDemCityObjectBakePolicy? Resolve(ResoniteConstructionCityObject cityObject)
+    public NonDemCityObjectBakePolicy? Resolve(NonDemSourceScopedTriangleCityObject cityObject)
     {
         foreach (NonDemCityObjectBakePolicy policy in bakePolicies)
         {

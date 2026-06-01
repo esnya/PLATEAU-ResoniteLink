@@ -14,7 +14,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal interface INonDemAtlasOrPreservedEntryFactory
 {
     Task<NonDemAtlasOrPreservedEntry> CreateAsync(
-        ResoniteConstructionCityObject cityObject,
+        NonDemSourceScopedTriangleCityObject cityObject,
         ResoniteMeshSubmesh submesh,
         ResoniteMaterialBinding material,
         CancellationToken cancellationToken);
@@ -28,7 +28,7 @@ internal sealed class NonDemAtlasOrPreservedEntryFactory(
         ?? throw new ArgumentNullException(nameof(textureImageLoader));
 
     public async Task<NonDemAtlasOrPreservedEntry> CreateAsync(
-        ResoniteConstructionCityObject cityObject,
+        NonDemSourceScopedTriangleCityObject cityObject,
         ResoniteMeshSubmesh submesh,
         ResoniteMaterialBinding material,
         CancellationToken cancellationToken)

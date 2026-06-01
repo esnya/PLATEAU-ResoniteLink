@@ -5,7 +5,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal static class NonDemCityObjectBakeMaterialClassifier
 {
     public static bool CanBufferCityObjectMaterials(
-        ResoniteConstructionCityObject cityObject,
+        NonDemSourceScopedTriangleCityObject cityObject,
         NonDemCityObjectBakePolicy policy)
     {
         if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex))
@@ -43,7 +43,7 @@ internal static class NonDemCityObjectBakeMaterialClassifier
     }
 
     public static bool TryCreateMaterialBySubmeshIndex(
-        ResoniteConstructionCityObject cityObject,
+        NonDemSourceScopedTriangleCityObject cityObject,
         out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex)
     {
         materialBySubmeshIndex = [];

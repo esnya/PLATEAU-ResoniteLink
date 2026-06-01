@@ -10,24 +10,16 @@ internal static class NonDemSourceFileBatching
     public static IComparer<NonDemSourceFileBatchKey> KeyComparer { get; } = new SourceFileBatchKeyComparer();
 
     public static NonDemSourceFileBatchKey CreateKey(
-        ResoniteConstructionCityObject cityObject,
+        NonDemSourceScopedTriangleCityObject cityObject,
         NonDemCityObjectBakePolicy policy)
     {
         string context = policy.Name;
-        string? sourceFileRelativePath = string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath) ? null : cityObject.SourceFileRelativePath;
-        if (sourceFileRelativePath is null)
-        {
-            throw new InvalidOperationException(
-                $"Non-DEM batch candidate '{cityObject.DisplayName}' did not provide source scope. "
-                + "source-file-owned batching requires SourceFileRelativePath.");
-        }
-
         return new NonDemSourceFileBatchKey(
             cityObject.ActualMeshCode,
             cityObject.PackageName.ToLowerInvariant(),
             cityObject.LodLevel,
             context,
-            SourceFileRelativePath: sourceFileRelativePath);
+            SourceFileRelativePath: cityObject.SourceFileRelativePath);
     }
 
     public static string CreateBatchSlotKey(NonDemSourceFileBatchKey sourceFileKey, int batchIndex)

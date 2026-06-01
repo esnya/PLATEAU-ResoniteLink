@@ -42,16 +42,13 @@ internal sealed class NonDemCityObjectBakeAssembler(
         List<NonDemAtlasBatchEntry> entries = candidates.SelectMany(static candidate => candidate.AtlasEntries).ToList();
         using NonDemRenderedAtlas? atlas = RenderAtlas(entries, cancellationToken);
 
-        ResoniteConstructionCityObject firstCityObject = candidates[0].CityObject;
+        NonDemSourceScopedTriangleCityObject firstCityObject = candidates[0].CityObject;
         string slotKey = preservePrimaryIdentity
             ? firstCityObject.SlotKey
             : NonDemSourceFileBatching.CreateBatchSlotKey(sourceFileKey, batchIndex);
         string displayName = preservePrimaryIdentity
             ? firstCityObject.DisplayName
             : NonDemSourceFileBatching.CreateBatchDisplayName(sourceFileKey, batchIndex, slotKey);
-        string? sourceFileRelativePath = string.IsNullOrWhiteSpace(firstCityObject.SourceFileRelativePath)
-            ? null
-            : sourceFileKey.SourceFileRelativePath;
 
         NonDemBakedGeometry geometry = geometryComposer.Compose(
             sourceFileKey,
@@ -70,7 +67,7 @@ internal sealed class NonDemCityObjectBakeAssembler(
             Mesh: geometry.Mesh,
             Materials: geometry.Materials,
             CollisionEnabled: candidates.Any(static candidate => candidate.CityObject.CollisionEnabled),
-            SourceFileRelativePath: sourceFileRelativePath);
+            SourceFileRelativePath: sourceFileKey.SourceFileRelativePath);
         return Task.FromResult(bakedCityObject);
     }
 

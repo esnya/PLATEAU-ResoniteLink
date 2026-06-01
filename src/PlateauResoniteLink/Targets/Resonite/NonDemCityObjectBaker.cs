@@ -28,16 +28,21 @@ internal sealed class NonDemCityObjectBaker(
         ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
 
-        NonDemCityObjectBakePolicy? policy = bakePolicyResolver.Resolve(cityObject);
+        if (!NonDemSourceScopedTriangleCityObject.TryCreate(cityObject, out NonDemSourceScopedTriangleCityObject? scopedCityObject))
+        {
+            return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
+        }
+
+        NonDemCityObjectBakePolicy? policy = bakePolicyResolver.Resolve(scopedCityObject);
         if (policy is null)
         {
             return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
         }
 
-        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-        NonDemSourceFileBatchKey sourceFileKey = NonDemSourceFileBatching.CreateKey(cityObject, policy);
+        scopedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(scopedCityObject);
+        NonDemSourceFileBatchKey sourceFileKey = NonDemSourceFileBatching.CreateKey(scopedCityObject, policy);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
-        sourceFileBuffer.Add(sourceFileKey, new NonDemBufferedCityObject(cityObject, policy));
+        sourceFileBuffer.Add(sourceFileKey, new NonDemBufferedCityObject(scopedCityObject, policy));
         BakedInputCityObjectCount++;
         return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects));
     }
