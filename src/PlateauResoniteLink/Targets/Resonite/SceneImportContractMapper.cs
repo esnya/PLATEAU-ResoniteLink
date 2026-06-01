@@ -113,10 +113,10 @@ internal static class SceneImportContractMapper
     {
         return new ResoniteMaterialBinding(
             ToInternal(binding.BaseColor),
-            (ResoniteMaterialType)binding.MaterialType,
+            ToInternal(binding.MaterialType),
             binding.TexturePayload is null ? null : ToInternal(binding.TexturePayload),
-            (ResoniteTextureSourceKind)binding.TextureSourceKind,
-            (ResoniteMaterialProjection)binding.Projection,
+            ToInternal(binding.TextureSourceKind),
+            ToInternal(binding.Projection),
             binding.DepthOffset is null ? null : ToInternal(binding.DepthOffset),
             binding.SubmeshIndices,
             binding.TextureScale is null ? null : ToInternal(binding.TextureScale),
@@ -154,6 +154,37 @@ internal static class SceneImportContractMapper
             payload.ColorProfile,
             rawSource,
             payload.Identity);
+    }
+
+    private static ResoniteMaterialType ToInternal(MaterialType materialType)
+    {
+        return materialType switch
+        {
+            MaterialType.Standard => ResoniteMaterialType.Standard,
+            MaterialType.Wireframe => ResoniteMaterialType.Wireframe,
+            MaterialType.VertexColor => ResoniteMaterialType.VertexColor,
+            _ => throw new ArgumentOutOfRangeException(nameof(materialType), materialType, "Unsupported material type."),
+        };
+    }
+
+    private static ResoniteTextureSourceKind ToInternal(TextureSourceKind sourceKind)
+    {
+        return sourceKind switch
+        {
+            TextureSourceKind.Dataset => ResoniteTextureSourceKind.Dataset,
+            TextureSourceKind.Bundled => ResoniteTextureSourceKind.Bundled,
+            _ => throw new ArgumentOutOfRangeException(nameof(sourceKind), sourceKind, "Unsupported texture source kind."),
+        };
+    }
+
+    private static ResoniteMaterialProjection ToInternal(MaterialProjection projection)
+    {
+        return projection switch
+        {
+            MaterialProjection.Uv => ResoniteMaterialProjection.Uv,
+            MaterialProjection.Triplanar => ResoniteMaterialProjection.Triplanar,
+            _ => throw new ArgumentOutOfRangeException(nameof(projection), projection, "Unsupported material projection."),
+        };
     }
 
     private static ResoniteMaterialDepthOffset ToInternal(MaterialDepthOffset value) => new(value.Factor, value.Units);

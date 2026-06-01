@@ -292,7 +292,8 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             Surfaces: [surface],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: $"udx/{packageName}/53394525/{objectKey}.gml",
-            SharedAcrossMeshCodes: false);
+            SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty);
     }
 
     private sealed class RecordingGeometryProjector : ICityGmlGeometryProjector
