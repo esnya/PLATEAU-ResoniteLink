@@ -676,29 +676,32 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
 
     private static ResoniteSlotLocator AssertCanonical(PlannedSlotTargetReference target)
     {
-        return Assert.IsType<PlannedSlotTargetReference.CanonicalSlotTarget>(target).Locator;
+        Assert.Equal(PlannedSlotTargetReferenceKind.CanonicalSlot, target.Kind);
+        return target.CanonicalSlotLocator;
     }
 
     private static BatchPlanSlotLocator AssertPlanned(PlannedSlotTargetReference target)
     {
-        return Assert.IsType<PlannedSlotTargetReference.BatchSlotTarget>(target).Locator;
+        Assert.Equal(PlannedSlotTargetReferenceKind.PlannedSlot, target.Kind);
+        return target.PlannedSlotLocator;
     }
 
     private static bool IsCanonicalSlotTarget(PlannedSlotTargetReference target, ResoniteSlotLocator expected)
     {
-        return target is PlannedSlotTargetReference.CanonicalSlotTarget canonical
-            && canonical.Locator == expected;
+        return target.Kind == PlannedSlotTargetReferenceKind.CanonicalSlot
+            && target.CanonicalSlotLocator == expected;
     }
 
     private static bool IsPlannedSlotTarget(PlannedSlotTargetReference target, BatchPlanSlotLocator expected)
     {
-        return target is PlannedSlotTargetReference.BatchSlotTarget planned
-            && planned.Locator == expected;
+        return target.Kind == PlannedSlotTargetReferenceKind.PlannedSlot
+            && target.PlannedSlotLocator == expected;
     }
 
     private static BatchPlanFieldLocator AssertPlannedField(PlannedWorldElementReference target)
     {
-        return Assert.IsType<PlannedWorldElementReference.BatchFieldElement>(target).Locator;
+        Assert.Equal(PlannedWorldElementReferenceKind.PlannedField, target.Kind);
+        return target.PlannedFieldLocator;
     }
 
     private static void AssertGradientPoint(Member member, float expectedPosition, int expectedX, int expectedY)
@@ -738,11 +741,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         return Assert.Single(
             batchPlan.SlotEmissions,
             slot => string.Equals(slot.SlotName, slotName, StringComparison.Ordinal)
-                && slot.ParentTarget is PlannedSlotTargetReference.CanonicalSlotTarget
-                {
-                    Locator: { } locator,
-                }
-                && locator == new ResoniteSlotLocator("asset-lod-slot")).Identity;
+                && IsCanonicalSlotTarget(slot.ParentTarget, new ResoniteSlotLocator("asset-lod-slot"))).Identity;
     }
 
     private static string? ResolveTargetId(PlannedWorldElementReference target)
