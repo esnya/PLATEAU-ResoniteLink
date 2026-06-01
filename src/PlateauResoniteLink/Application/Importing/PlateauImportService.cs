@@ -39,7 +39,6 @@ internal sealed class PlateauImportService(
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
         ValidatedPlateauImportRequest validatedRequest = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(request);
-        PlateauImportRequest normalizedRequest = validatedRequest.ToImportRequest();
         string datasetWorkRoot = archiveFileLayoutPolicy.ResolveDatasetRoot(workRoot, validatedRequest.Dataset);
         ExceptionDispatchInfo? failure = null;
 
@@ -49,7 +48,6 @@ internal sealed class PlateauImportService(
                 validatedRequest,
                 datasetWorkRoot,
                 cancellationToken);
-            PlateauImportRequest resolvedImportRequest = resolvedRequest.ToImportRequest();
             ReportProgress(
                 PlateauLog.Debug("import", $"Resolved CityGML source for '{resolvedRequest.Dataset}' mesh-code '{resolvedRequest.MeshCode}'."));
 
@@ -69,10 +67,8 @@ internal sealed class PlateauImportService(
                     $"Setup will use {this.commonMaterials.Count} codebase-reachable common materials."));
 
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
-                normalizedRequest,
-                resolvedImportRequest,
+                resolvedRequest,
                 metadata,
-                resolvedRequest.CityGmlLocalSourcePath,
                 datasetWorkRoot,
                 this.commonMaterials);
 

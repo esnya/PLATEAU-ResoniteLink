@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Logging;
-using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -27,7 +26,7 @@ internal sealed class ResoniteLiveSendConnectionInitializer : IResoniteLiveSendC
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.SetupInfo);
-        ArgumentNullException.ThrowIfNull(request.NormalizedRequest);
+        ArgumentNullException.ThrowIfNull(request.ConnectionRequest);
         ArgumentNullException.ThrowIfNull(runPlan);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(context.Endpoint);
@@ -47,9 +46,7 @@ internal sealed class ResoniteLiveSendConnectionInitializer : IResoniteLiveSendC
                 $"Connecting ResoniteLink connection pool to {context.Endpoint} "
                 + $"with {request.ConnectionCount} available routed connection(s)."));
         await context.ClientSession.EnsureConnectedAsync(
-            new LiveSendConnectionRequest(
-                request.NormalizedRequest.Dataset,
-                request.NormalizedRequest.MeshCode),
+            request.ConnectionRequest,
             cancellationToken);
         connectionStopwatch.Stop();
         ReportProgress(
