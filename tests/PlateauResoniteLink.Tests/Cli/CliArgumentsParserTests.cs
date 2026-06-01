@@ -78,6 +78,56 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("Specify --citygml-source.", AssertFailure(result).Error);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" ")]
+    public void ParseImportRequiresDatasetAtCliBoundary(string? dataset)
+    {
+        string[] args = dataset is null
+            ? [
+                "import",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+            ]
+            : [
+                "import",
+                "--dataset", dataset,
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+            ];
+
+        CliParseResult result = CliArgumentsParser.Parse(args);
+
+        Assert.Equal("Specify --dataset.", AssertFailure(result).Error);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" ")]
+    public void ParseImportRequiresMeshCodeAtCliBoundary(string? meshCode)
+    {
+        string[] args = meshCode is null
+            ? [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+            ]
+            : [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", meshCode,
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+            ];
+
+        CliParseResult result = CliArgumentsParser.Parse(args);
+
+        Assert.Equal("Specify --mesh-code.", AssertFailure(result).Error);
+    }
+
     [Fact]
     public void ParseParsesCanonicalSceneDumpImportWithoutResoniteLinkEndpoint()
     {
