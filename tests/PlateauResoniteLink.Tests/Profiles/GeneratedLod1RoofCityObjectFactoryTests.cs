@@ -509,6 +509,33 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     }
 
     [Fact]
+    public void CreateSkipsEmptySurfacesBeforeSelectingGeneratedRoofTopCandidate()
+    {
+        ParsedSurface empty = CreateSurface("empty", ParsedSurfaceSemantic.Roof, [], null, texturePayload: null);
+        ParsedSurface top = CreateSurface(
+            "lod1-top",
+            ParsedSurfaceSemantic.Roof,
+            altitude: 10.0);
+        ParsedSurface bottom = CreateSurface(
+            "lod1-bottom",
+            ParsedSurfaceSemantic.Ground,
+            altitude: 0.0);
+        ParsedCityObject cityObject = CreateCityObject(
+            [empty, top, bottom],
+            CoordinateReferenceSystem.Parse("EPSG:6697"),
+            BuildingAttributeContext.Empty with
+            {
+                RoofShape = new BuildingCodeValue<CityGmlRoofShape>(CityGmlRoofShape.Shed, "shed"),
+            });
+
+        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+
+        Assert.DoesNotContain(generated.Surfaces, static surface => surface.PolygonId == "lod1-top");
+        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "empty");
+        Assert.Equal(4, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_", System.StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public void CreateSkipsObjectThatAlreadyHasGeneratedRoofSurface()
     {
         ParsedCityObject cityObject = CreateCityObject(
