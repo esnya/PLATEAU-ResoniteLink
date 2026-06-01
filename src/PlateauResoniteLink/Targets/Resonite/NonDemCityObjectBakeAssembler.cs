@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -39,21 +40,7 @@ internal sealed class NonDemCityObjectBakeAssembler(
         CancellationToken cancellationToken)
     {
         List<NonDemAtlasBatchEntry> entries = candidates.SelectMany(static candidate => candidate.AtlasEntries).ToList();
-        NonDemAtlasLayout<NonDemAtlasBatchEntry>? layout = null;
-        if (entries.Count > 0
-            && (!atlasLayoutFactory.TryCreate(entries, out layout) || layout is null))
-        {
-            throw new InvalidOperationException("Failed to create non-DEM atlas layout.");
-        }
-
-        using Image<Rgba32>? atlasImage = layout is null
-            ? null
-            : new Image<Rgba32>(layout.Width, layout.Height, new Rgba32(0, 0, 0, 0));
-        if (layout is not null)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            atlasImageRenderer.Draw(atlasImage!, layout.Placements);
-        }
+        using NonDemRenderedAtlas? atlas = RenderAtlas(entries, cancellationToken);
 
         ResoniteConstructionCityObject firstCityObject = candidates[0].CityObject;
         string slotKey = preservePrimaryIdentity
@@ -70,8 +57,7 @@ internal sealed class NonDemCityObjectBakeAssembler(
             sourceFileKey,
             candidates,
             batchIndex,
-            layout,
-            atlasImage,
+            atlas,
             cancellationToken);
 
         ResoniteConstructionCityObject bakedCityObject = new(
@@ -86,5 +72,29 @@ internal sealed class NonDemCityObjectBakeAssembler(
             CollisionEnabled: candidates.Any(static candidate => candidate.CityObject.CollisionEnabled),
             SourceFileRelativePath: sourceFileRelativePath);
         return Task.FromResult(bakedCityObject);
+    }
+
+    [SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "NonDemRenderedAtlas takes ownership of the rendered image and disposes it after geometry composition.")]
+    private NonDemRenderedAtlas? RenderAtlas(
+        List<NonDemAtlasBatchEntry> entries,
+        CancellationToken cancellationToken)
+    {
+        if (entries.Count == 0)
+        {
+            return null;
+        }
+
+        if (!atlasLayoutFactory.TryCreate(entries, out NonDemAtlasLayout<NonDemAtlasBatchEntry>? layout) || layout is null)
+        {
+            throw new InvalidOperationException("Failed to create non-DEM atlas layout.");
+        }
+
+        Image<Rgba32> atlasImage = new(layout.Width, layout.Height, new Rgba32(0, 0, 0, 0));
+        cancellationToken.ThrowIfCancellationRequested();
+        atlasImageRenderer.Draw(atlasImage, layout.Placements);
+        return new NonDemRenderedAtlas(layout, atlasImage);
     }
 }
