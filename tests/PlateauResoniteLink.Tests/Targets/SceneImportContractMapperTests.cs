@@ -64,6 +64,21 @@ public sealed class SceneImportContractMapperTests
     }
 
     [Fact]
+    public void ToInternalMaterialBindingsRejectsUnsupportedTexturePayloadFormat()
+    {
+        MaterialBinding validBinding = CreateValidBinding();
+        MaterialBinding binding = validBinding with
+        {
+            TexturePayload = validBinding.TexturePayload! with
+            {
+                Format = (TexturePayloadFormat)999,
+            },
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => SceneImportContractMapper.ToInternal(binding));
+    }
+
+    [Fact]
     public void ToInternalMaterialBindingsReusesRawTextureSource()
     {
         TexturePayload texturePayload = new(
