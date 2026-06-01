@@ -53,7 +53,8 @@ public sealed class ResoniteSlotSnapshotIndexTests
 
         ObservedSourceRootSlot observedRoot = Assert.Single(index.GetObservedDatasetSourceRoots());
         Assert.Equal("existing-root", observedRoot.SlotId);
-        Assert.Equal("53394525", observedRoot.MeshCode);
+        Assert.True(observedRoot.TryGetConcreteMeshCode(out string meshCode));
+        Assert.Equal("53394525", meshCode);
     }
 
     private static Slot CreateSlot(

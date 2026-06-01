@@ -25,6 +25,24 @@ public sealed class SourceRootPlacementResolverTests
     }
 
     [Fact]
+    public void ResolveUsesExactObservedRootWithoutConcreteMeshCode()
+    {
+        SourceRootPlacement placement = SourceRootPlacementResolver.Resolve(
+            "custom_buildings",
+            "53394525",
+            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
+            [
+                CreateSlot(
+                    "source-root",
+                    "custom_buildings",
+                    new ResoniteFloat3(4.0, 5.0, 6.0)),
+            ]);
+
+        Assert.Equal(new ResoniteFloat3(4.0, 5.0, 6.0), placement.RootPosition);
+        Assert.Equal(placement.RootPosition, placement.LocalPositionReferenceRoot);
+    }
+
+    [Fact]
     public void ResolveUsesRequestOriginWhenNoObservedSourceRootExists()
     {
         ResoniteLocalOrigin requestLocalOrigin = new(35.0, 139.0, 0.0);
@@ -48,6 +66,18 @@ public sealed class SourceRootPlacementResolverTests
             out _);
 
         Assert.False(created);
+    }
+
+    [Fact]
+    public void ObservedSourceRootSlotAcceptsSourceRootWithoutConcreteMeshCode()
+    {
+        bool created = ObservedSourceRootSlot.TryCreate(
+            CreateRawSlot("source-root", "custom_buildings", new ResoniteFloat3(1.0, 2.0, 3.0)),
+            out ObservedSourceRootSlot sourceRoot);
+
+        Assert.True(created);
+        Assert.False(sourceRoot.TryGetConcreteMeshCode(out _));
+        Assert.Equal("custom_buildings", sourceRoot.SlotName);
     }
 
     private static ObservedSourceRootSlot CreateSlot(string id, string name, ResoniteFloat3 position)

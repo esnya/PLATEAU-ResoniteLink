@@ -88,12 +88,12 @@ internal sealed class ResoniteSlotSnapshotIndex(CreatedSlot datasetRootSlot)
     {
         return observedSlotSnapshotsById.Values
             .Where(slot => string.Equals(slot.Parent?.TargetID, datasetRootSlot.Locator.Value, StringComparison.Ordinal))
-            .Where(slot => string.IsNullOrWhiteSpace(slot.ID) || !createdSlotIds.ContainsKey(slot.ID!))
+            .Where(slot => !createdSlotIds.ContainsKey(slot.ID!))
             .Where(static slot => !string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal))
             .Select(static slot => ObservedSourceRootSlot.TryCreate(slot, out ObservedSourceRootSlot sourceRoot)
-                ? (SourceRoot: sourceRoot, HasPosition: true)
+                ? (SourceRoot: sourceRoot, HasSourceRoot: true)
                 : default)
-            .Where(static candidate => candidate.HasPosition)
+            .Where(static candidate => candidate.HasSourceRoot)
             .Select(static candidate => candidate.SourceRoot);
     }
 

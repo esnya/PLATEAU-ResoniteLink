@@ -50,14 +50,15 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         ObservedSourceRootSlot[] sourceFileRoots = datasetRootSnapshot.Root?.Children?
             .Where(static child => !string.Equals(child.Name?.Value, "Assets", StringComparison.Ordinal))
             .Select(static child => ObservedSourceRootSlot.TryCreate(child, out ObservedSourceRootSlot sourceRoot)
-                ? (SourceRoot: sourceRoot, HasPosition: true)
+                ? (SourceRoot: sourceRoot, HasSourceRoot: true)
                 : default)
-            .Where(static candidate => candidate.HasPosition)
+            .Where(static candidate => candidate.HasSourceRoot)
             .Select(static candidate => candidate.SourceRoot)
             .ToArray()
             ?? [];
         ObservedSourceRootSlot completionSourceFileRoot = sourceFileRoots.FirstOrDefault(
-            child => string.Equals(child.MeshCode, completionMeshCode, StringComparison.Ordinal));
+            child => child.TryGetConcreteMeshCode(out string meshCode)
+                && string.Equals(meshCode, completionMeshCode, StringComparison.Ordinal));
         if (!string.IsNullOrEmpty(completionSourceFileRoot.SlotName))
         {
             return new SceneAnchor(
@@ -68,9 +69,13 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         }
 
         (ObservedSourceRootSlot Slot, string MeshCode) referenceSourceFileRoot = sourceFileRoots
-            .Select(static child => (Slot: child, MeshCode: child.MeshCode))
+            .Select(static child => child.TryGetConcreteMeshCode(out string meshCode)
+                ? (Slot: child, MeshCode: meshCode, HasMeshCode: true)
+                : default)
+            .Where(static candidate => candidate.HasMeshCode)
             .OrderBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
             .ThenBy(static candidate => candidate.Slot.SlotId, StringComparer.Ordinal)
+            .Select(static candidate => (candidate.Slot, candidate.MeshCode))
             .FirstOrDefault();
         if (!string.IsNullOrEmpty(referenceSourceFileRoot.Slot.SlotName))
         {

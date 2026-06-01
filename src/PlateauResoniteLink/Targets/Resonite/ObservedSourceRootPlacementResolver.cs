@@ -30,24 +30,32 @@ internal static class ObservedSourceRootPlacementResolver
         }
 
         ObservedSourceRootPlacement[] ancestorCandidates = directSourceRoots
-            .Where(slot => rootMeshCode.StartsWith(slot.MeshCode, StringComparison.Ordinal))
+            .Select(static slot => slot.TryGetConcreteMeshCode(out string meshCode)
+                ? (Slot: slot, MeshCode: meshCode, HasMeshCode: true)
+                : default)
+            .Where(static candidate => candidate.HasMeshCode)
+            .Where(candidate => rootMeshCode.StartsWith(candidate.MeshCode, StringComparison.Ordinal))
             .Select(candidate => new ObservedSourceRootPlacement(
                 ResonitePlacementPolicy.Add(
-                    candidate.Position,
+                    candidate.Slot.Position,
                     ResonitePlacementPolicy.ComputeMeshCodeOffset(candidate.MeshCode, rootMeshCode)),
                 ReferenceMeshCode: candidate.MeshCode,
-                SlotId: candidate.SlotId))
+                SlotId: candidate.Slot.SlotId))
             .OrderByDescending(static candidate => candidate.ReferenceMeshCode.Length)
             .ToArray();
         if (ancestorCandidates.Length == 0)
         {
             ObservedSourceRootPlacement[] observedMeshCodeRoots = directSourceRoots
+                .Select(static slot => slot.TryGetConcreteMeshCode(out string meshCode)
+                    ? (Slot: slot, MeshCode: meshCode, HasMeshCode: true)
+                    : default)
+                .Where(static candidate => candidate.HasMeshCode)
                 .Select(candidate => new ObservedSourceRootPlacement(
                     ResonitePlacementPolicy.Add(
-                        candidate.Position,
+                        candidate.Slot.Position,
                         ResonitePlacementPolicy.ComputeMeshCodeOffset(candidate.MeshCode, rootMeshCode)),
                     ReferenceMeshCode: candidate.MeshCode,
-                    SlotId: candidate.SlotId))
+                    SlotId: candidate.Slot.SlotId))
                 .ToArray();
             return observedMeshCodeRoots.Length == 0
                 ? null
