@@ -298,7 +298,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             componentType,
             members);
         BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
-        return CanonicalBatchEntityMap.Create(response).ResolveComponent(pendingComponent);
+        return CanonicalBatchEntityMap.Create(response, batchBuilder.PendingActions).ResolveComponent(pendingComponent);
     }
 
     public static ResoniteMaterialBinding ResolveTerrainTextureCanvasMaterial(

@@ -171,7 +171,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
         if (batchBuilder.Actions.Count > 0)
         {
             BatchResponse response = await setupClient.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
-            CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response);
+            CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response, batchBuilder.PendingActions);
             if (pendingAssets is not null)
             {
                 assetsSlot = CreateSlot(entityMap.ResolveSlot(pendingAssets.Value));
@@ -338,7 +338,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
 
         BatchResponse response = await setupClient.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
 
-        CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response);
+        CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response, batchBuilder.PendingActions);
         CreatedSlot datasetRootSlot = entityMap.ResolveSlot(pendingDatasetRootSlot);
         CreatedSlot datasetAssetsRootSlot = entityMap.ResolveSlot(pendingDatasetAssetsRootSlot);
         CreatedSlot commonAssetsRootSlot = existingSharedCommonMaterialsSlot is null
