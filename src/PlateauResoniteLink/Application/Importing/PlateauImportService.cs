@@ -154,7 +154,7 @@ internal sealed class PlateauImportService(
                 UsedCount: 1))
             .ToList();
 
-        if (executionResult.DataSourceUsages is { Count: > 0 })
+        if (executionResult.DataSourceUsages.Count > 0)
         {
             usages.AddRange(executionResult.DataSourceUsages);
         }
