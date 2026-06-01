@@ -26,7 +26,7 @@ internal static class CityGmlParsedCityObjectReader
     {
         string objectTypeName = cityObjectElement.Name.LocalName;
         string objectId = GetAttribute(cityObjectElement, Gml + "id") ?? objectTypeName;
-        string? displayName = cityObjectElement.Elements(Gml + "name").FirstOrDefault()?.Value.Trim();
+        string displayName = cityObjectElement.Elements(Gml + "name").FirstOrDefault()?.Value.Trim() ?? objectId;
         if (string.IsNullOrWhiteSpace(displayName))
         {
             displayName = objectId;
@@ -34,7 +34,7 @@ internal static class CityGmlParsedCityObjectReader
 
         string resolvedActualMeshCode = CityGmlMeshCodeBoundsFilter.ResolveActualMeshCode(
             packageName,
-            displayName!,
+            displayName,
             objectId,
             actualMeshCode,
             sharedAcrossMeshCodes);
@@ -64,13 +64,7 @@ internal static class CityGmlParsedCityObjectReader
             return null;
         }
 
-        ParsedSurface[] surfaces = preferredSurfaceElements
-            .Select(surfaceElement => CityGmlParsedSurfaceReader.Parse(surfaceElement, appearanceStore))
-            .Where(static surface => surface is not null)
-            .Select(static surface => surface!)
-            .Select(surface => CityGmlParsedSurfaceReader.ApplyPackageDefaults(packageName, surface))
-            .OrderBy(static surface => ParsedSurfaceStableSortKey.Create(surface), StringComparer.Ordinal)
-            .ToArray();
+        ParsedSurface[] surfaces = ParseSurfaces(preferredSurfaceElements, packageName, appearanceStore);
 
         if (surfaces.Length == 0)
         {
@@ -91,7 +85,7 @@ internal static class CityGmlParsedCityObjectReader
         string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
         return new ParsedCityObject(
             slotKey,
-            displayName!,
+            displayName,
             packageName,
             resolvedActualMeshCode,
             lodLevel,
@@ -103,6 +97,27 @@ internal static class CityGmlParsedCityObjectReader
             MeasuredHeightMeters: measuredHeightMeters,
             BuildingAttributes: buildingAttributes,
             SourceMeshCode: actualMeshCode);
+    }
+
+    private static ParsedSurface[] ParseSurfaces(
+        IEnumerable<XElement> surfaceElements,
+        string packageName,
+        ICityGmlAppearanceStore appearanceStore)
+    {
+        List<ParsedSurface> surfaces = [];
+        foreach (XElement surfaceElement in surfaceElements)
+        {
+            if (CityGmlParsedSurfaceReader.TryParse(surfaceElement, appearanceStore) is not { } surface)
+            {
+                continue;
+            }
+
+            surfaces.Add(CityGmlParsedSurfaceReader.ApplyPackageDefaults(packageName, surface));
+        }
+
+        return surfaces
+            .OrderBy(static surface => ParsedSurfaceStableSortKey.Create(surface), StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static string? GetAttribute(XElement element, XName attributeName)
