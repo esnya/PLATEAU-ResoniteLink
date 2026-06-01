@@ -93,8 +93,21 @@ internal sealed class NonDemCityObjectBakeAssembler(
         }
 
         Image<Rgba32> atlasImage = new(layout.Width, layout.Height, new Rgba32(0, 0, 0, 0));
-        cancellationToken.ThrowIfCancellationRequested();
-        atlasImageRenderer.Draw(atlasImage, layout.Placements);
-        return new NonDemRenderedAtlas(layout, atlasImage);
+        bool ownershipTransferred = false;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            atlasImageRenderer.Draw(atlasImage, layout.Placements);
+            NonDemRenderedAtlas renderedAtlas = new(layout, atlasImage);
+            ownershipTransferred = true;
+            return renderedAtlas;
+        }
+        finally
+        {
+            if (!ownershipTransferred)
+            {
+                atlasImage.Dispose();
+            }
+        }
     }
 }
