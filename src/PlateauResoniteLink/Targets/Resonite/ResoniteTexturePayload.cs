@@ -52,6 +52,23 @@ public sealed record ResoniteTexturePayload
         Source = source;
     }
 
+    internal ResoniteTexturePayload(
+        int width,
+        int height,
+        string? colorProfile,
+        IRawTexturePayloadSource source,
+        string? identity = null)
+    {
+        Width = width;
+        Height = height;
+        ColorProfile = colorProfile;
+        ArgumentNullException.ThrowIfNull(source);
+        BinaryPayload = [];
+        Identity = identity ?? source.Identity;
+        Format = ResoniteTexturePayloadFormat.RawRgba32;
+        Source = source;
+    }
+
     public int? Width { get; init; }
 
     public int? Height { get; init; }

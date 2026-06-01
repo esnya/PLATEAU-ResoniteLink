@@ -46,6 +46,40 @@ public sealed class SceneImportContractMapperTests
     }
 
     [Fact]
+    public void ToInternalMaterialBindingsReusesRawTextureSource()
+    {
+        TexturePayload texturePayload = new(
+            width: 2,
+            height: 2,
+            colorProfile: "linear",
+            binaryPayload:
+            [
+                0, 0, 0, 255,
+                255, 0, 0, 255,
+                0, 255, 0, 255,
+                0, 0, 255, 255,
+            ],
+            identity: "raw:texture");
+        MaterialBinding[] bindings =
+        [
+            new(
+                BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+                MaterialType: MaterialType.Standard,
+                TexturePayload: texturePayload,
+                TextureSourceKind: TextureSourceKind.Dataset,
+                Projection: MaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [0]),
+        ];
+
+        ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
+
+        Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, mapped.TexturePayload!.Format);
+        Assert.Same(texturePayload.Source, mapped.TexturePayload.Source);
+        Assert.True(mapped.TexturePayload.BinaryPayload.IsDefaultOrEmpty);
+    }
+
+    [Fact]
     public void ToInternalMaterialBindingsKeepsTerrainOverlaySharedScopeIndependentFromProvider()
     {
         TerrainTextureOverlay overlay = new(

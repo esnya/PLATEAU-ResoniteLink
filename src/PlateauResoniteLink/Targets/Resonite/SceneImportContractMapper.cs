@@ -133,19 +133,27 @@ internal static class SceneImportContractMapper
 
     private static ResoniteTexturePayload ToInternal(TexturePayload payload)
     {
-        return payload.Format == TexturePayloadFormat.RawRgba32
-            ? new ResoniteTexturePayload(
-                payload.Width ?? throw new ArgumentException("Raw texture payload must include width.", nameof(payload)),
-                payload.Height ?? throw new ArgumentException("Raw texture payload must include height.", nameof(payload)),
-                payload.ColorProfile,
-                payload.BinaryPayload.AsSpan().ToArray(),
-                payload.Identity)
-            : new ResoniteTexturePayload(
+        if (payload.Format != TexturePayloadFormat.RawRgba32)
+        {
+            return new ResoniteTexturePayload(
                 payload.Width,
                 payload.Height,
                 payload.ColorProfile,
                 payload.Source,
                 payload.Identity);
+        }
+
+        if (payload.Source is not IRawTexturePayloadSource rawSource)
+        {
+            throw new ArgumentException("Raw texture payload must carry a raw texture import source.", nameof(payload));
+        }
+
+        return new ResoniteTexturePayload(
+            payload.Width ?? throw new ArgumentException("Raw texture payload must include width.", nameof(payload)),
+            payload.Height ?? throw new ArgumentException("Raw texture payload must include height.", nameof(payload)),
+            payload.ColorProfile,
+            rawSource,
+            payload.Identity);
     }
 
     private static ResoniteMaterialDepthOffset ToInternal(MaterialDepthOffset value) => new(value.Factor, value.Units);
