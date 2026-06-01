@@ -69,10 +69,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             albedoTextureTask,
             bundledTextureImportTasks,
             cancellationToken);
-        return new PlannedDedicatedMaterialAsset(
+        return new PlannedInlineDedicatedMaterialAsset(
             material,
-            textures,
-            PreserveDedicatedMaterialSlot: false);
+            textures);
     }
 
     public async Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
@@ -107,13 +106,14 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             albedoTextureTask,
             bundledTextureImportTasks: null,
             cancellationToken);
-        return new PlannedDedicatedMaterialAsset(
-            material,
-            textures,
-            preserveDedicatedMaterialSlot,
-            DedicatedMaterialSlotName: preserveDedicatedMaterialSlot
-                ? ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex)
-                : null);
+        return preserveDedicatedMaterialSlot
+            ? new PlannedPreservedSlotDedicatedMaterialAsset(
+                material,
+                textures,
+                ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex))
+            : new PlannedInlineDedicatedMaterialAsset(
+                material,
+                textures);
     }
 
     public static Uri? TryGetPlannedTextureUri(
@@ -298,7 +298,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             componentType,
             members);
         BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
-        return CanonicalBatchEntityMap.Create(response).ResolveComponent(pendingComponent);
+        return CanonicalBatchEntityMap.Create(response, batchBuilder.PendingActions).ResolveComponent(pendingComponent);
     }
 
     public static ResoniteMaterialBinding ResolveTerrainTextureCanvasMaterial(

@@ -216,10 +216,10 @@ public sealed class ResoniteMaterialPlanningTests
             material,
             materialIndex: 2);
 
-        Assert.True(preserved.PreserveDedicatedMaterialSlot);
-        Assert.Equal(expectedDedicatedSlotName, preserved.DedicatedMaterialSlotName);
-        Assert.False(notPreserved.PreserveDedicatedMaterialSlot);
-        Assert.Null(notPreserved.DedicatedMaterialSlotName);
+        PlannedPreservedSlotDedicatedMaterialAsset preservedSlotMaterial =
+            Assert.IsType<PlannedPreservedSlotDedicatedMaterialAsset>(preserved);
+        Assert.Equal(expectedDedicatedSlotName, preservedSlotMaterial.DedicatedMaterialSlotName);
+        Assert.IsType<PlannedInlineDedicatedMaterialAsset>(notPreserved);
     }
 
     [Fact]
@@ -264,14 +264,13 @@ public sealed class ResoniteMaterialPlanningTests
     {
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
         ResoniteMaterialBinding material = CreateBundledMaterial(BundledDefaultMaterialFamilies.Facade, 0);
-        PlannedDedicatedMaterialAsset plannedMaterial = new(
+        PlannedDedicatedMaterialAsset plannedMaterial = new PlannedInlineDedicatedMaterialAsset(
             material,
             [
                 new PlannedTextureAsset(
                     ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
                     new Uri("resdb:///texture/albedo", UriKind.Absolute)),
-            ],
-            PreserveDedicatedMaterialSlot: false);
+            ]);
 
         ResoniteMaterialPlanning.AddCommonMaterialComponents(batchBuilder, plannedMaterial, "slot");
 
@@ -287,7 +286,7 @@ public sealed class ResoniteMaterialPlanningTests
     {
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
         ResoniteMaterialBinding material = CreateBundledMaterial(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 0);
-        PlannedDedicatedMaterialAsset plannedMaterial = new(
+        PlannedDedicatedMaterialAsset plannedMaterial = new PlannedInlineDedicatedMaterialAsset(
             material,
             [
                 new PlannedTextureAsset(
@@ -296,8 +295,7 @@ public sealed class ResoniteMaterialPlanningTests
                 new PlannedTextureAsset(
                     ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.TextureMemberRole.Emission),
                     new Uri("resdb:///texture/emission", UriKind.Absolute)),
-            ],
-            PreserveDedicatedMaterialSlot: false);
+            ]);
 
         ResoniteMaterialPlanning.AddCommonMaterialComponents(batchBuilder, plannedMaterial, "slot");
 

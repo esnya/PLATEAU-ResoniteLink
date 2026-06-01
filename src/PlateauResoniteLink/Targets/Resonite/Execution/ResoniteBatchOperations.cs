@@ -334,26 +334,21 @@ internal static class ResoniteBatchOperations
 internal sealed class CanonicalBatchEntityMap
 {
     private readonly Dictionary<string, Response> responsesByMessageId;
-    private readonly Queue<Response> responsesWithoutMessageId;
 
-    private CanonicalBatchEntityMap(
-        Dictionary<string, Response> responsesByMessageId,
-        Queue<Response> responsesWithoutMessageId)
+    private CanonicalBatchEntityMap(Dictionary<string, Response> responsesByMessageId)
     {
         this.responsesByMessageId = responsesByMessageId;
-        this.responsesWithoutMessageId = responsesWithoutMessageId;
     }
 
-    public static CanonicalBatchEntityMap Create(BatchResponse batchResponse)
+    public static CanonicalBatchEntityMap Create(
+        BatchResponse batchResponse,
+        IReadOnlyList<ResoniteBatchOperations.PendingBatchOperation> pendingOperations)
     {
         ArgumentNullException.ThrowIfNull(batchResponse);
-        return new CanonicalBatchEntityMap(
-            (batchResponse.Responses ?? [])
-                .Where(static response => !string.IsNullOrWhiteSpace(response.SourceMessageID))
-                .ToDictionary(response => response.SourceMessageID!, StringComparer.Ordinal),
-            new Queue<Response>(
-                (batchResponse.Responses ?? [])
-                    .Where(static response => string.IsNullOrWhiteSpace(response.SourceMessageID))));
+        ArgumentNullException.ThrowIfNull(pendingOperations);
+
+        IReadOnlyList<Response> responses = batchResponse.Responses ?? [];
+        return new CanonicalBatchEntityMap(CorrelateResponses(responses, pendingOperations));
     }
 
     public CreatedSlot ResolveSlot(ResoniteBatchOperations.PendingBatchSlot pendingSlot)
@@ -400,15 +395,78 @@ internal sealed class CanonicalBatchEntityMap
     {
         if (!responsesByMessageId.TryGetValue(messageId.Value, out Response? response))
         {
-            if (responsesWithoutMessageId.Count == 0)
-            {
-                throw new InvalidOperationException($"Batch response did not include message '{messageId.Value}'.");
-            }
-
-            response = responsesWithoutMessageId.Dequeue();
+            throw new InvalidOperationException($"Batch response did not include message '{messageId.Value}'.");
         }
 
         ResoniteLinkClient.EnsureSuccess(response, operationName);
         return response;
+    }
+
+    private static Dictionary<string, Response> CorrelateResponses(
+        IReadOnlyList<Response> responses,
+        IReadOnlyList<ResoniteBatchOperations.PendingBatchOperation> pendingOperations)
+    {
+        if (responses.Count == 0 && pendingOperations.Count == 0)
+        {
+            return new Dictionary<string, Response>(StringComparer.Ordinal);
+        }
+
+        bool anyMessageId = responses.Any(static response => !string.IsNullOrWhiteSpace(response.SourceMessageID));
+        bool anyMissingMessageId = responses.Any(static response => string.IsNullOrWhiteSpace(response.SourceMessageID));
+        if (anyMessageId && anyMissingMessageId)
+        {
+            throw new InvalidOperationException("Batch response mixed message-correlated and ordered-only responses.");
+        }
+
+        if (!anyMessageId)
+        {
+            return CorrelateOrderedResponses(responses, pendingOperations);
+        }
+
+        Dictionary<string, Response> correlated = new(StringComparer.Ordinal);
+        foreach (Response response in responses)
+        {
+            string messageId = response.SourceMessageID!;
+            if (!correlated.TryAdd(messageId, response))
+            {
+                throw new InvalidOperationException($"Batch response included duplicate message '{messageId}'.");
+            }
+        }
+
+        foreach (ResoniteBatchOperations.PendingBatchOperation pendingOperation in pendingOperations)
+        {
+            if (!correlated.ContainsKey(pendingOperation.MessageId.Value))
+            {
+                throw new InvalidOperationException($"Batch response did not include message '{pendingOperation.MessageId.Value}'.");
+            }
+        }
+
+        if (correlated.Count != pendingOperations.Count)
+        {
+            throw new InvalidOperationException(
+                $"Batch response included {correlated.Count} message-correlated response(s) for {pendingOperations.Count} pending operation(s).");
+        }
+
+        return correlated;
+    }
+
+    private static Dictionary<string, Response> CorrelateOrderedResponses(
+        IReadOnlyList<Response> responses,
+        IReadOnlyList<ResoniteBatchOperations.PendingBatchOperation> pendingOperations)
+    {
+        if (responses.Count != pendingOperations.Count)
+        {
+            throw new InvalidOperationException(
+                $"Batch response included {responses.Count} ordered response(s) for {pendingOperations.Count} pending operation(s).");
+        }
+
+        Dictionary<string, Response> correlated = new(StringComparer.Ordinal);
+        for (int i = 0; i < responses.Count; i++)
+        {
+            ResoniteBatchOperations.PendingBatchOperation pendingOperation = pendingOperations[i];
+            correlated[pendingOperation.MessageId.Value] = responses[i];
+        }
+
+        return correlated;
     }
 }
