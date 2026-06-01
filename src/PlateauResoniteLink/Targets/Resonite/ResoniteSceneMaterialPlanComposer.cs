@@ -165,11 +165,11 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
         IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode)
     {
-        return ResoniteMaterialPlanning.TryPlanMainTextureOverride(
+        PlannedTextureAsset? mainTexture = ResoniteMaterialPlanning.PlanMainTextureOverride(
             textureSourceMaterial,
             preparedTextureUrisByPayload,
-            preparedTerrainTextureUrisByOverlay,
-            out PlannedTextureAsset? mainTexture)
+            preparedTerrainTextureUrisByOverlay);
+        return mainTexture is not null
             ? CreateMainTextureOverrideRendererBinding(
                 materialAsset,
                 mainTexture,

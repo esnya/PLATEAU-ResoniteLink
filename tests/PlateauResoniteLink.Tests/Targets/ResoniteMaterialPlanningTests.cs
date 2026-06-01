@@ -347,7 +347,7 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
-    public void TryPlanMainTextureOverrideUsesPreparedUriWithRoleIdentity()
+    public void PlanMainTextureOverrideUsesPreparedUriWithRoleIdentity()
     {
         ResoniteMaterialBinding firstMaterial = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -369,31 +369,23 @@ public sealed class ResoniteMaterialPlanningTests
             [secondMaterial.TexturePayload!] = new Uri("resdb:///texture/second", UriKind.Absolute),
         };
 
-        bool hasFirstOverride = ResoniteMaterialPlanning.TryPlanMainTextureOverride(
+        PlannedTextureAsset? firstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
-            new Dictionary<TerrainTextureOverlay, Uri>(),
-            out PlannedTextureAsset? firstOverride);
-        bool hasRepeatedFirstOverride = ResoniteMaterialPlanning.TryPlanMainTextureOverride(
+            new Dictionary<TerrainTextureOverlay, Uri>());
+        PlannedTextureAsset? repeatedFirstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
-            new Dictionary<TerrainTextureOverlay, Uri>(),
-            out PlannedTextureAsset? repeatedFirstOverride);
-        bool hasSecondOverride = ResoniteMaterialPlanning.TryPlanMainTextureOverride(
+            new Dictionary<TerrainTextureOverlay, Uri>());
+        PlannedTextureAsset? secondOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             secondMaterial,
             secondPreparedUris,
-            new Dictionary<TerrainTextureOverlay, Uri>(),
-            out PlannedTextureAsset? secondOverride);
-        bool hasThirdOverride = ResoniteMaterialPlanning.TryPlanMainTextureOverride(
+            new Dictionary<TerrainTextureOverlay, Uri>());
+        PlannedTextureAsset? thirdOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
-            new Dictionary<TerrainTextureOverlay, Uri>(),
-            out PlannedTextureAsset? thirdOverride);
+            new Dictionary<TerrainTextureOverlay, Uri>());
 
-        Assert.True(hasFirstOverride);
-        Assert.True(hasRepeatedFirstOverride);
-        Assert.True(hasSecondOverride);
-        Assert.True(hasThirdOverride);
         PlannedTextureAsset firstOverrideAsset = firstOverride
             ?? throw new InvalidOperationException("Expected the first main texture override.");
         PlannedTextureAsset repeatedFirstOverrideAsset = repeatedFirstOverride
@@ -413,7 +405,7 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
-    public void TryPlanMainTextureOverrideReturnsFalseWithoutPreparedTexture()
+    public void PlanMainTextureOverrideReturnsNullWithoutPreparedTexture()
     {
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -424,13 +416,12 @@ public sealed class ResoniteMaterialPlanningTests
             DepthOffset: null,
             SubmeshIndices: [0]);
 
-        bool hasOverride = ResoniteMaterialPlanning.TryPlanMainTextureOverride(
+        PlannedTextureAsset? plannedOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             material,
             new Dictionary<ResoniteTexturePayload, Uri>(),
-            new Dictionary<TerrainTextureOverlay, Uri>(),
-            out _);
+            new Dictionary<TerrainTextureOverlay, Uri>());
 
-        Assert.False(hasOverride);
+        Assert.Null(plannedOverride);
     }
 
     private static ResoniteMaterialBinding CreateRoadMaterial(ResoniteMaterialProjection projection)
