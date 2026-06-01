@@ -18,24 +18,31 @@ public sealed class ResoniteTexturePayloadTests
         Assert.Equal<byte>([4, 3, 2, 1], payload.BinaryPayload);
     }
 
+    [Fact]
+    public void SourceBackedConstructorUsesSourceAsIdentityCarrier()
+    {
+        FakeTextureImportSource source = new("source:texture");
+
+        ResoniteTexturePayload payload = new(
+            width: 1,
+            height: 1,
+            colorProfile: "sRGB",
+            source: source);
+
+        Assert.Same(source, payload.Source);
+        Assert.Equal("source:texture", payload.Source.Identity);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData(" ")]
-    public void SourceBackedConstructorRejectsBlankResolvedIdentity(string identity)
+    public void SourceBackedConstructorRejectsBlankSourceIdentity(string identity)
     {
-        FakeTextureImportSource source = new(identity);
-
         Assert.Throws<ArgumentException>(() => new ResoniteTexturePayload(
             width: 1,
             height: 1,
             colorProfile: "sRGB",
-            source: source));
-        Assert.Throws<ArgumentException>(() => new ResoniteTexturePayload(
-            width: 1,
-            height: 1,
-            colorProfile: "sRGB",
-            source: new FakeTextureImportSource("source:texture"),
-            identity: identity));
+            source: new FakeTextureImportSource(identity)));
     }
 
     private sealed class FakeTextureImportSource(string identity) : ITextureImportSource

@@ -27,7 +27,6 @@ public sealed record ResoniteTexturePayload
         ArgumentNullException.ThrowIfNull(binaryPayload);
         ArgumentException.ThrowIfNullOrWhiteSpace(identity);
         BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
-        Identity = identity;
         Format = format;
         Source = TextureImportSourceFactory.CreateInMemory(
             width,
@@ -43,17 +42,14 @@ public sealed record ResoniteTexturePayload
         int? height,
         string? colorProfile,
         ITextureImportSource source,
-        string? identity = null,
         ResoniteTexturePayloadFormat format = ResoniteTexturePayloadFormat.EncodedImage)
     {
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
         ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.Identity, nameof(source));
         BinaryPayload = [];
-        string resolvedIdentity = identity ?? source.Identity;
-        ArgumentException.ThrowIfNullOrWhiteSpace(resolvedIdentity, nameof(identity));
-        Identity = resolvedIdentity;
         Format = format;
         Source = source;
     }
@@ -65,8 +61,6 @@ public sealed record ResoniteTexturePayload
     public string? ColorProfile { get; init; }
 
     public ImmutableArray<byte> BinaryPayload { get; init; }
-
-    public string Identity { get; init; }
 
     public ResoniteTexturePayloadFormat Format { get; init; }
 

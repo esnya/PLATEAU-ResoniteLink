@@ -226,6 +226,7 @@ internal static class TextureImportSourceFactory
         string? colorProfile,
         string identity)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
         return new DatasetTextureImportSource(datasetSource, relativePath, colorProfile, identity);
     }
 
@@ -236,10 +237,12 @@ internal static class TextureImportSourceFactory
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(absolutePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
+        string resolvedIdentity = identity ?? $"file:{Path.GetFullPath(absolutePath)}:{colorProfile}";
+        ArgumentException.ThrowIfNullOrWhiteSpace(resolvedIdentity, nameof(identity));
         return new FileTextureImportSource(
             absolutePath,
             colorProfile,
-            identity ?? $"file:{Path.GetFullPath(absolutePath)}:{colorProfile}");
+            resolvedIdentity);
     }
 
     public static ITextureImportSource CreateGeneratedImage(
@@ -249,6 +252,7 @@ internal static class TextureImportSourceFactory
         string? colorProfile,
         long? estimatedByteLength = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
         return new GeneratedTextureImportSource(
             materializeRawAsync,
             identity,

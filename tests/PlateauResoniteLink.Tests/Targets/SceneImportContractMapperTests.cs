@@ -32,7 +32,7 @@ public sealed class SceneImportContractMapperTests
 
         Assert.Equal(0.1, mapped.BaseColor.R, 9);
         Assert.Equal(0.2, mapped.BaseColor.G, 9);
-        Assert.Equal("dataset:texture", mapped.TexturePayload!.Identity);
+        Assert.Equal("dataset:texture", mapped.TexturePayload!.Source.Identity);
         Assert.Equal(ResoniteTexturePayloadFormat.EncodedImage, mapped.TexturePayload.Format);
         Assert.Equal(-1.5, mapped.DepthOffset!.Factor, 9);
         Assert.Equal(2.5, mapped.DepthOffset.Units, 9);

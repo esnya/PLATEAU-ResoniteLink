@@ -138,7 +138,6 @@ internal static class SceneImportContractMapper
             payload.Height,
             payload.ColorProfile,
             payload.Source,
-            payload.Identity,
             ToInternal(payload.Format));
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 
@@ -17,24 +18,52 @@ public sealed class TexturePayloadTests
         Assert.Equal<byte>([1, 2, 3, 4], payload.BinaryPayload);
     }
 
+    [Fact]
+    public void SourceBackedConstructorUsesSourceAsIdentityCarrier()
+    {
+        FakeTextureImportSource source = new("source:texture");
+
+        TexturePayload payload = new(
+            width: 1,
+            height: 1,
+            colorProfile: "sRGB",
+            source: source);
+
+        Assert.Same(source, payload.Source);
+        Assert.Equal("source:texture", payload.Source.Identity);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData(" ")]
-    public void SourceBackedConstructorRejectsBlankResolvedIdentity(string identity)
+    public void SourceBackedConstructorRejectsBlankSourceIdentity(string identity)
     {
-        FakeTextureImportSource source = new(identity);
+        Assert.Throws<ArgumentException>(() => new TexturePayload(
+            width: 1,
+            height: 1,
+            colorProfile: "sRGB",
+            source: new FakeTextureImportSource(identity)));
+    }
 
-        Assert.Throws<ArgumentException>(() => new TexturePayload(
-            width: 1,
-            height: 1,
-            colorProfile: "sRGB",
-            source: source));
-        Assert.Throws<ArgumentException>(() => new TexturePayload(
-            width: 1,
-            height: 1,
-            colorProfile: "sRGB",
-            source: new FakeTextureImportSource("source:texture"),
-            identity: identity));
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void TextureImportSourceFactoryRejectsBlankSourceIdentities(string identity)
+    {
+        Assert.Throws<ArgumentException>(() => TextureImportSourceFactory.CreateDatasetEncodedImage(
+            null!,
+            "textures/albedo.png",
+            "sRGB",
+            identity));
+        Assert.Throws<ArgumentException>(() => TextureImportSourceFactory.CreateFileImage(
+            "textures/albedo.png",
+            "sRGB",
+            identity));
+        Assert.Throws<ArgumentException>(() => TextureImportSourceFactory.CreateGeneratedImage(
+            static _ => ValueTask.FromResult(new RawTexturePayload(1, 1, "sRGB", [0, 0, 0, 255])),
+            identity,
+            "generated",
+            "sRGB"));
     }
 
     private sealed class FakeTextureImportSource(string identity) : ITextureImportSource

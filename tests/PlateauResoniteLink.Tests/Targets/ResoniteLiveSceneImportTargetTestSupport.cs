@@ -546,7 +546,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             payload.Height,
             payload.ColorProfile,
             payload.BinaryPayload.AsSpan().ToArray(),
-            payload.Identity,
+            payload.Source.Identity,
             (TexturePayloadFormat)payload.Format);
 
 }

@@ -118,7 +118,6 @@ public sealed record TexturePayload
         ArgumentNullException.ThrowIfNull(binaryPayload);
         ArgumentException.ThrowIfNullOrWhiteSpace(identity);
         BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
-        Identity = identity;
         Format = format;
         Source = TextureImportSourceFactory.CreateInMemory(
             width,
@@ -134,17 +133,14 @@ public sealed record TexturePayload
         int? height,
         string? colorProfile,
         ITextureImportSource source,
-        string? identity = null,
         TexturePayloadFormat format = TexturePayloadFormat.EncodedImage)
     {
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
         ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.Identity, nameof(source));
         BinaryPayload = [];
-        string resolvedIdentity = identity ?? source.Identity;
-        ArgumentException.ThrowIfNullOrWhiteSpace(resolvedIdentity, nameof(identity));
-        Identity = resolvedIdentity;
         Format = format;
         Source = source;
     }
@@ -156,8 +152,6 @@ public sealed record TexturePayload
     public string? ColorProfile { get; init; }
 
     public ImmutableArray<byte> BinaryPayload { get; init; }
-
-    public string Identity { get; init; }
 
     public TexturePayloadFormat Format { get; init; }
 

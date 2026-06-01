@@ -197,7 +197,6 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
                     resolvedTexturePath,
                     "sRGB",
                     $"dataset:{resolvedTexturePath}"),
-                $"dataset:{resolvedTexturePath}",
                 TexturePayloadFormat.EncodedImage);
             texturePayloadsByResolvedPath[resolvedTexturePath] = texturePayload;
         }
