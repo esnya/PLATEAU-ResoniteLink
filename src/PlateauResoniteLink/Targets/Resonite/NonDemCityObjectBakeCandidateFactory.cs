@@ -50,31 +50,31 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
                     $"Non-DEM bake city object '{cityObject.DisplayName}' left submesh index {submesh.Index} without a material assignment.");
             }
 
-            NonDemMaterialBakeCategory category = NonDemCityObjectBakeMaterialClassifier.Classify(material);
-            switch (category)
+            NonDemMaterialBakeClassification classification = NonDemCityObjectBakeMaterialClassifier.Classify(material);
+            switch (classification)
             {
-                case NonDemMaterialBakeCategory.AtlasCandidate:
+                case NonDemMaterialBakeClassification.AtlasCandidate atlasCandidate:
                     hadAtlasCandidateMaterial = true;
                     NonDemAtlasOrPreservedEntry bakeEntry = await entryFactory.CreateAsync(
                         normalizedCityObject,
                         submesh,
-                        material,
+                        atlasCandidate.Candidate,
                         cancellationToken);
-                    if (bakeEntry.AtlasEntry is not null)
+                    switch (bakeEntry)
                     {
-                        atlasEntries.Add(bakeEntry.AtlasEntry);
-                    }
-
-                    if (bakeEntry.PreservedEntry is not null)
-                    {
-                        preservedEntries.Add(bakeEntry.PreservedEntry);
+                        case NonDemAtlasOrPreservedEntry.Atlas atlasEntry:
+                            atlasEntries.Add(atlasEntry.Entry);
+                            break;
+                        case NonDemAtlasOrPreservedEntry.Preserved preservedEntry:
+                            preservedEntries.Add(preservedEntry.Entry);
+                            break;
                     }
 
                     break;
-                case NonDemMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
-                case NonDemMaterialBakeCategory.PreservedTextureless when policy.PreserveTexturelessMaterials:
-                case NonDemMaterialBakeCategory.PreservedVertexColor when policy.PreserveVertexColorMaterials:
-                case NonDemMaterialBakeCategory.PreservedOther:
+                case NonDemMaterialBakeClassification.Preserved { Kind: NonDemPreservedMaterialKind.CommonMaterial } when policy.PreserveCommonMaterials:
+                case NonDemMaterialBakeClassification.Preserved { Kind: NonDemPreservedMaterialKind.Textureless } when policy.PreserveTexturelessMaterials:
+                case NonDemMaterialBakeClassification.Preserved { Kind: NonDemPreservedMaterialKind.VertexColor } when policy.PreserveVertexColorMaterials:
+                case NonDemMaterialBakeClassification.Preserved { Kind: NonDemPreservedMaterialKind.Other }:
                     ResoniteMeshSubmesh normalizedSubmesh = normalizedCityObject.Mesh.Submeshes.Single(candidate => candidate.Index == submesh.Index);
                     ResoniteMaterialBinding normalizedMaterial = normalizedCityObject.Materials.Single(candidate => candidate.SubmeshIndices.Contains(submesh.Index));
                     preservedEntries.Add(new NonDemPreservedSubmeshEntry(normalizedCityObject, normalizedSubmesh, normalizedMaterial));

@@ -21,19 +21,22 @@ internal static class NonDemCityObjectBakeMaterialClassifier
                 return false;
             }
 
-            NonDemMaterialBakeCategory category = Classify(material);
-            hasAtlasCandidateSubmesh |= category == NonDemMaterialBakeCategory.AtlasCandidate;
-            if (category == NonDemMaterialBakeCategory.PreservedCommonMaterial && !policy.PreserveCommonMaterials)
+            NonDemMaterialBakeClassification classification = Classify(material);
+            hasAtlasCandidateSubmesh |= classification is NonDemMaterialBakeClassification.AtlasCandidate;
+            if (classification is NonDemMaterialBakeClassification.Preserved { Kind: NonDemPreservedMaterialKind.CommonMaterial }
+                && !policy.PreserveCommonMaterials)
             {
                 return false;
             }
 
-            if (category == NonDemMaterialBakeCategory.PreservedVertexColor && !policy.PreserveVertexColorMaterials)
+            if (classification is NonDemMaterialBakeClassification.Preserved { Kind: NonDemPreservedMaterialKind.VertexColor }
+                && !policy.PreserveVertexColorMaterials)
             {
                 return false;
             }
 
-            if (category == NonDemMaterialBakeCategory.PreservedTextureless && !policy.PreserveTexturelessMaterials)
+            if (classification is NonDemMaterialBakeClassification.Preserved { Kind: NonDemPreservedMaterialKind.Textureless }
+                && !policy.PreserveTexturelessMaterials)
             {
                 return false;
             }
@@ -61,57 +64,32 @@ internal static class NonDemCityObjectBakeMaterialClassifier
         return true;
     }
 
-    public static NonDemMaterialBakeCategory Classify(ResoniteMaterialBinding material)
+    public static NonDemMaterialBakeClassification Classify(ResoniteMaterialBinding material)
     {
-        if (IsAtlasBakeCandidate(material))
+        if (NonDemAtlasBakeMaterial.TryCreate(material) is NonDemAtlasBakeMaterial atlasCandidate)
         {
-            return NonDemMaterialBakeCategory.AtlasCandidate;
+            return new NonDemMaterialBakeClassification.AtlasCandidate(atlasCandidate);
         }
 
         if (material.MaterialType == ResoniteMaterialType.VertexColor)
         {
-            return NonDemMaterialBakeCategory.PreservedVertexColor;
+            return new NonDemMaterialBakeClassification.Preserved(NonDemPreservedMaterialKind.VertexColor);
         }
 
         if (material.AssetScope == ResoniteMaterialAssetScope.Common
             || !string.IsNullOrWhiteSpace(material.Family))
         {
             return CanPreserveAsCommonMaterial(material)
-                ? NonDemMaterialBakeCategory.PreservedCommonMaterial
-                : NonDemMaterialBakeCategory.PreservedOther;
+                ? new NonDemMaterialBakeClassification.Preserved(NonDemPreservedMaterialKind.CommonMaterial)
+                : new NonDemMaterialBakeClassification.Preserved(NonDemPreservedMaterialKind.Other);
         }
 
         if (material.TexturePayload is null)
         {
-            return NonDemMaterialBakeCategory.PreservedTextureless;
+            return new NonDemMaterialBakeClassification.Preserved(NonDemPreservedMaterialKind.Textureless);
         }
 
-        return NonDemMaterialBakeCategory.PreservedOther;
-    }
-
-    private static bool IsAtlasBakeCandidate(ResoniteMaterialBinding material)
-    {
-        if (material.DepthOffset is not null
-            || material.Projection != ResoniteMaterialProjection.Uv
-            || material.AssetScope == ResoniteMaterialAssetScope.Common)
-        {
-            return false;
-        }
-
-        if (material.MaterialType != ResoniteMaterialType.Standard
-            || material.TexturePayload is null
-            || material.TextureSourceKind != ResoniteTextureSourceKind.Dataset)
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(material.Family))
-        {
-            return true;
-        }
-
-        return material.TerrainOverlay is null
-            && ResoniteMaterialSharing.CanUseSharedAlbedoOnlyMaterial(material);
+        return new NonDemMaterialBakeClassification.Preserved(NonDemPreservedMaterialKind.Other);
     }
 
     private static bool CanPreserveAsCommonMaterial(ResoniteMaterialBinding material)

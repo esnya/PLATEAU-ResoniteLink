@@ -10,24 +10,24 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
     [Fact]
     public void ClassifySeparatesAtlasCandidateFromPreservedMaterialKinds()
     {
-        Assert.Equal(
-            NonDemMaterialBakeCategory.AtlasCandidate,
+        NonDemMaterialBakeClassification.AtlasCandidate atlasCandidate = Assert.IsType<NonDemMaterialBakeClassification.AtlasCandidate>(
             NonDemCityObjectBakeMaterialClassifier.Classify(CreateDatasetTextureMaterial()));
-        Assert.Equal(
-            NonDemMaterialBakeCategory.PreservedVertexColor,
+        Assert.Equal("dataset.png", atlasCandidate.Candidate.TexturePayload.Identity);
+        AssertPreservedKind(
+            NonDemPreservedMaterialKind.VertexColor,
             NonDemCityObjectBakeMaterialClassifier.Classify(CreateTexturelessMaterial() with { MaterialType = ResoniteMaterialType.VertexColor }));
-        Assert.Equal(
-            NonDemMaterialBakeCategory.PreservedCommonMaterial,
+        AssertPreservedKind(
+            NonDemPreservedMaterialKind.CommonMaterial,
             NonDemCityObjectBakeMaterialClassifier.Classify(CreateTexturelessMaterial() with
             {
                 AssetScope = ResoniteMaterialAssetScope.Common,
                 CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
             }));
-        Assert.Equal(
-            NonDemMaterialBakeCategory.PreservedTextureless,
+        AssertPreservedKind(
+            NonDemPreservedMaterialKind.Textureless,
             NonDemCityObjectBakeMaterialClassifier.Classify(CreateTexturelessMaterial()));
-        Assert.Equal(
-            NonDemMaterialBakeCategory.PreservedOther,
+        AssertPreservedKind(
+            NonDemPreservedMaterialKind.Other,
             NonDemCityObjectBakeMaterialClassifier.Classify(CreateDatasetTextureMaterial() with
             {
                 Projection = ResoniteMaterialProjection.Triplanar,
@@ -70,6 +70,14 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
         Assert.False(NonDemCityObjectBakeMaterialClassifier.TryCreateMaterialBySubmeshIndex(
             cityObject,
             out _));
+    }
+
+    private static void AssertPreservedKind(
+        NonDemPreservedMaterialKind expectedKind,
+        NonDemMaterialBakeClassification classification)
+    {
+        NonDemMaterialBakeClassification.Preserved preserved = Assert.IsType<NonDemMaterialBakeClassification.Preserved>(classification);
+        Assert.Equal(expectedKind, preserved.Kind);
     }
 
     private static ResoniteConstructionCityObject CreateCityObject(IReadOnlyList<ResoniteMaterialBinding> materials)

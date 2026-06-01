@@ -3,13 +3,12 @@ using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal enum NonDemMaterialBakeCategory
+internal enum NonDemPreservedMaterialKind
 {
-    AtlasCandidate,
-    PreservedCommonMaterial,
-    PreservedVertexColor,
-    PreservedTextureless,
-    PreservedOther,
+    CommonMaterial,
+    VertexColor,
+    Textureless,
+    Other,
 }
 
 internal sealed record NonDemCityObjectBakePolicy(
