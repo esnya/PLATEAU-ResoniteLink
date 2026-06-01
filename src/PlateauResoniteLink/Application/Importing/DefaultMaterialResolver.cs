@@ -159,7 +159,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         DefaultMaterialRequest request,
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials)
     {
-        BuildingAttributeContext attributes = request.BuildingAttributes ?? BuildingAttributeContext.Empty;
+        BuildingAttributeContext attributes = request.BuildingAttributes;
         BuildingFacadeScale scale = BuildingFacadeScale.Classify(
             request.FloorsAboveGround,
             request.MeasuredHeightMeters,
