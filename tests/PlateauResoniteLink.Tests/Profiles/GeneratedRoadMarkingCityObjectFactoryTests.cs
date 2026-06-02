@@ -114,26 +114,15 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
     }
 
     [Fact]
-    public void RoadSurfaceEdgePairSelectorRejectsNonQuadInputsWithClearPrecondition()
+    public void CreateSkipsNonQuadRoadSurfaceAtQuadBoundary()
     {
-        GeodeticPoint[] vertices =
-        [
-            new(0.0, 0.0, 0.0),
-            new(1.0, 0.0, 0.0),
-            new(1.0, 1.0, 0.0),
-        ];
-        Float3[] positions =
-        [
-            new(0.0, 0.0, 0.0),
-            new(1.0, 0.0, 0.0),
-            new(1.0, 0.0, 1.0),
-        ];
+        ParsedCityObject road = CreateRoadObject(
+            packageName: "tran",
+            surface: CreateTriangleRoadSurface("triangle-road"));
 
-        ArgumentException exception = Assert.Throws<ArgumentException>(
-            () => RoadSurfaceEdgePairSelector.Select(vertices, positions));
+        ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(road, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
 
-        Assert.Equal("vertices", exception.ParamName);
-        Assert.Contains("exactly four vertices", exception.Message, StringComparison.Ordinal);
+        Assert.Null(marking);
     }
 
     private static ParsedCityObject CreateRoadObject(string packageName, ParsedSurface surface)
@@ -178,5 +167,23 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
             InteriorRings: [],
             new ColorRgba(0.2, 0.2, 0.2, 1.0),
             texturePayload);
+    }
+
+    private static ParsedSurface CreateTriangleRoadSurface(string polygonId)
+    {
+        GeodeticPoint[] vertices =
+        [
+            new(0.0, 0.0, 0.0),
+            new(12.0, 0.0, 0.0),
+            new(12.0, 4.0, 0.0),
+        ];
+
+        return new ParsedSurface(
+            polygonId,
+            ParsedSurfaceSemantic.Ground,
+            new ParsedRing($"{polygonId}-ring", vertices, UVs: null),
+            InteriorRings: [],
+            new ColorRgba(0.2, 0.2, 0.2, 1.0),
+            TexturePayload: null);
     }
 }
