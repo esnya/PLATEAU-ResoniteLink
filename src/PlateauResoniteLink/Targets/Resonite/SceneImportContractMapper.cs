@@ -139,21 +139,21 @@ internal static class SceneImportContractMapper
 
     private static ResoniteTexturePayload ToInternal(TexturePayload payload)
     {
-        return payload.Format switch
+        return payload switch
         {
-            TexturePayloadFormat.RawRgba32 => new ResoniteTexturePayload(
-                payload.Width.GetValueOrDefault(),
-                payload.Height.GetValueOrDefault(),
-                payload.ColorProfile,
-                payload.BinaryPayload.AsSpan().ToArray(),
-                payload.Identity),
-            TexturePayloadFormat.EncodedImage => new ResoniteTexturePayload(
-                payload.Width,
-                payload.Height,
-                payload.ColorProfile,
-                payload.Source,
-                payload.Identity),
-            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.Format, "Unsupported texture payload format."),
+            RawRgba32TexturePayload raw => new ResoniteTexturePayload(
+                raw.Width,
+                raw.Height,
+                raw.ColorProfile,
+                raw.BinaryPayload.AsSpan().ToArray(),
+                raw.Identity),
+            EncodedImageTexturePayload encoded => new ResoniteTexturePayload(
+                encoded.Width,
+                encoded.Height,
+                encoded.ColorProfile,
+                encoded.Source,
+                encoded.Identity),
+            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.GetType(), "Unsupported texture payload type."),
         };
     }
 

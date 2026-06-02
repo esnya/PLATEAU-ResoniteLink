@@ -570,13 +570,13 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
         => payload.Format switch
         {
-            ResoniteTexturePayloadFormat.RawRgba32 => new TexturePayload(
-                payload.Width.GetValueOrDefault(),
-                payload.Height.GetValueOrDefault(),
+            ResoniteTexturePayloadFormat.RawRgba32 => new RawRgba32TexturePayload(
+                payload.Width ?? throw new InvalidOperationException("Raw texture payload requires width."),
+                payload.Height ?? throw new InvalidOperationException("Raw texture payload requires height."),
                 payload.ColorProfile,
                 payload.BinaryPayload.AsSpan().ToArray(),
                 payload.Identity),
-            ResoniteTexturePayloadFormat.EncodedImage => new TexturePayload(
+            ResoniteTexturePayloadFormat.EncodedImage => new EncodedImageTexturePayload(
                 payload.Width,
                 payload.Height,
                 payload.ColorProfile,

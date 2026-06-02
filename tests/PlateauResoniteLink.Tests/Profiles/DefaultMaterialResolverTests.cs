@@ -13,7 +13,7 @@ public sealed class DefaultMaterialResolverTests
     [Fact]
     public void ResolveMaterialUsesDatasetTextureWhenPresent()
     {
-        TexturePayload payload = new(4, 4, "srgb", new byte[4 * 4 * 4], "udx/bldg/53394525/appearance/roof.png");
+        TexturePayload payload = new RawRgba32TexturePayload(4, 4, "srgb", new byte[4 * 4 * 4], "udx/bldg/53394525/appearance/roof.png");
 
         ResolvedMaterial material = resolver.ResolveMaterial(new DefaultMaterialRequest(
             "bldg",
@@ -41,7 +41,7 @@ public sealed class DefaultMaterialResolverTests
     public void ResolveMaterialUsesDatasetTextureBeforeBuildingFallback(int surfaceRoleValue)
     {
         DefaultMaterialSurfaceRole surfaceRole = (DefaultMaterialSurfaceRole)surfaceRoleValue;
-        TexturePayload payload = new(4, 4, "srgb", new byte[4 * 4 * 4], $"udx/bldg/53394525/appearance/{surfaceRole}.png");
+        TexturePayload payload = new RawRgba32TexturePayload(4, 4, "srgb", new byte[4 * 4 * 4], $"udx/bldg/53394525/appearance/{surfaceRole}.png");
 
         ResolvedMaterial material = resolver.ResolveMaterial(new DefaultMaterialRequest(
             "bldg",
