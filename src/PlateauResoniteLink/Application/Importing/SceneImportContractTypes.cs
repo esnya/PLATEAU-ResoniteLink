@@ -185,7 +185,16 @@ public sealed record EncodedImageTexturePayload : TexturePayload
         string? colorProfile,
         ITextureImportSource source,
         string? identity = null)
-        : base(colorProfile, identity ?? source?.Identity ?? throw new ArgumentNullException(nameof(source)), source!)
+        : this(width, height, colorProfile, CreateSource(source, identity))
+    {
+    }
+
+    private EncodedImageTexturePayload(
+        int? width,
+        int? height,
+        string? colorProfile,
+        (string Identity, ITextureImportSource Source) source)
+        : base(colorProfile, source.Identity, source.Source)
     {
         Width = width;
         Height = height;
@@ -194,6 +203,14 @@ public sealed record EncodedImageTexturePayload : TexturePayload
     public int? Width { get; }
 
     public int? Height { get; }
+
+    private static (string Identity, ITextureImportSource Source) CreateSource(
+        ITextureImportSource source,
+        string? identity)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return (identity ?? source.Identity, source);
+    }
 }
 
 public enum TextureSourceKind

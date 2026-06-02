@@ -13,7 +13,7 @@ public sealed class NonDemPreservedMaterialGroupingTests
             AssetScope = ResoniteMaterialAssetScope.Common,
             CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
         };
-        ResoniteTexturePayload texture = new(
+        ResoniteTexturePayload texture = new RawRgba32ResoniteTexturePayload(
             width: 1,
             height: 1,
             colorProfile: null,
@@ -32,7 +32,7 @@ public sealed class NonDemPreservedMaterialGroupingTests
         });
         NonDemPreservedMaterialGroupingKey differentTexture = NonDemPreservedMaterialGrouping.CreateKey(commonMaterial with
         {
-            TexturePayload = new ResoniteTexturePayload(
+            TexturePayload = new RawRgba32ResoniteTexturePayload(
                 width: 1,
                 height: 1,
                 colorProfile: null,

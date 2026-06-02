@@ -71,7 +71,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             r, g, b, 255,
             r, g, b, 255,
         ];
-        return new ResoniteTexturePayload(2, 2, ResoniteTextureColorProfiles.Srgb, rawBytes, identity);
+        return new RawRgba32ResoniteTexturePayload(2, 2, ResoniteTextureColorProfiles.Srgb, rawBytes, identity);
     }
 
     public static ImportedSceneMetadata CreateMetadata(
@@ -541,21 +541,21 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         => Enumerable.Repeat(TerrainGridSampleCoverage.Measured, count).ToArray();
 
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
-        => payload.Format switch
+        => payload switch
         {
-            ResoniteTexturePayloadFormat.RawRgba32 => new RawRgba32TexturePayload(
-                payload.Width ?? throw new InvalidOperationException("Raw texture payload requires width."),
-                payload.Height ?? throw new InvalidOperationException("Raw texture payload requires height."),
-                payload.ColorProfile,
-                payload.BinaryPayload.AsSpan().ToArray(),
-                payload.Identity),
-            ResoniteTexturePayloadFormat.EncodedImage => new EncodedImageTexturePayload(
-                payload.Width,
-                payload.Height,
-                payload.ColorProfile,
-                payload.Source,
-                payload.Identity),
-            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.Format, "Unsupported texture payload format."),
+            RawRgba32ResoniteTexturePayload raw => new RawRgba32TexturePayload(
+                raw.Width,
+                raw.Height,
+                raw.ColorProfile,
+                raw.BinaryPayload.AsSpan().ToArray(),
+                raw.Identity),
+            EncodedImageResoniteTexturePayload encoded => new EncodedImageTexturePayload(
+                encoded.Width,
+                encoded.Height,
+                encoded.ColorProfile,
+                encoded.Source,
+                encoded.Identity),
+            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.GetType(), "Unsupported texture payload type."),
         };
 
 }

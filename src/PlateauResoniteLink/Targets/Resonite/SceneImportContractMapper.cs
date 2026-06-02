@@ -135,13 +135,13 @@ internal static class SceneImportContractMapper
     {
         return payload switch
         {
-            RawRgba32TexturePayload raw => new ResoniteTexturePayload(
+            RawRgba32TexturePayload raw => new RawRgba32ResoniteTexturePayload(
                 raw.Width,
                 raw.Height,
                 raw.ColorProfile,
                 raw.BinaryPayload.AsSpan().ToArray(),
                 raw.Identity),
-            EncodedImageTexturePayload encoded => new ResoniteTexturePayload(
+            EncodedImageTexturePayload encoded => new EncodedImageResoniteTexturePayload(
                 encoded.Width,
                 encoded.Height,
                 encoded.ColorProfile,

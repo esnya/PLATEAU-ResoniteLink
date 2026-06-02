@@ -104,7 +104,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
+            TexturePayload: new RawRgba32ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
@@ -170,7 +170,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/direct-terrain-grid-style.png"),
+            TexturePayload: new RawRgba32ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/direct-terrain-grid-style.png"),
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
