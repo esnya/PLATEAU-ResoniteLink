@@ -43,6 +43,7 @@ internal readonly record struct DemTerrainRasterCacheKey
         GeographicRectangle overlayBounds)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(datasetName);
+        ArgumentNullException.ThrowIfNull(meshCode);
 
         DatasetName = datasetName;
         SourceScope = sourceScope;

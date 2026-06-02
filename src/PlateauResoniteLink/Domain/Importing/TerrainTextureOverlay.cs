@@ -117,6 +117,12 @@ public sealed record TerrainTextureOverlay
         Justification = "The init setter snapshots and rejects null source elements for with-expression updates.")]
     private IReadOnlyList<TerrainTextureSource> sources = [];
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Style",
+        "IDE0032:Use auto property",
+        Justification = "The init setter validates with-expression updates before changing overlay identity state.")]
+    private ThirdRegionalMeshCode meshCode = null!;
+
     public TerrainTextureOverlay(
         string PackageName,
         ThirdRegionalMeshCode MeshCode,
@@ -180,7 +186,11 @@ public sealed record TerrainTextureOverlay
             : value.ToLowerInvariant();
     }
 
-    public ThirdRegionalMeshCode MeshCode { get; init; }
+    public ThirdRegionalMeshCode MeshCode
+    {
+        get => meshCode;
+        init => meshCode = value ?? throw new ArgumentNullException(nameof(value));
+    }
 
     public GeographicRectangle GeographicBounds { get; init; }
 

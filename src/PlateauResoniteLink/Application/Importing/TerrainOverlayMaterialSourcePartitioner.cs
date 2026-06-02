@@ -317,6 +317,18 @@ internal static class TerrainOverlayMaterialSourcePartitioner
 
         private sealed record Third(ThirdRegionalMeshCode MeshCode) : TerrainMaterialSourceMeshCode
         {
+            [System.Diagnostics.CodeAnalysis.SuppressMessage(
+                "Style",
+                "IDE0032:Use auto property",
+                Justification = "The init setter validates with-expression updates before changing mesh-code identity state.")]
+            private ThirdRegionalMeshCode meshCode = MeshCode ?? throw new ArgumentNullException(nameof(MeshCode));
+
+            public ThirdRegionalMeshCode MeshCode
+            {
+                get => meshCode;
+                init => meshCode = value ?? throw new ArgumentNullException(nameof(value));
+            }
+
             public override bool IsThirdRegionalMesh => true;
 
             public override bool Contains(ThirdRegionalMeshCode overlayMeshCode)

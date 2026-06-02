@@ -200,7 +200,20 @@ public enum MaterialReuseScope
 
 public sealed record TerrainOverlayMaterialBinding(
     ThirdRegionalMeshCode MeshCode,
-    TerrainTextureOverlay Overlay);
+    TerrainTextureOverlay Overlay)
+{
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Style",
+        "IDE0032:Use auto property",
+        Justification = "The init setter validates with-expression updates before changing mesh-code identity state.")]
+    private ThirdRegionalMeshCode meshCode = MeshCode ?? throw new ArgumentNullException(nameof(MeshCode));
+
+    public ThirdRegionalMeshCode MeshCode
+    {
+        get => meshCode;
+        init => meshCode = value ?? throw new ArgumentNullException(nameof(value));
+    }
+}
 
 public sealed record MaterialBinding(
     ColorRgba BaseColor,

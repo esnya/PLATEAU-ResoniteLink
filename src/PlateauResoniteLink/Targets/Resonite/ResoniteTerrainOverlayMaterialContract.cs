@@ -33,6 +33,9 @@ internal static class ResoniteTerrainOverlayMaterialContract
         ThirdRegionalMeshCode meshCode,
         TerrainTextureOverlay terrainOverlay)
     {
+        ArgumentNullException.ThrowIfNull(meshCode);
+        ArgumentNullException.ThrowIfNull(terrainOverlay);
+
         if (BoundsApproximatelyEqual(meshCode.Bounds, terrainOverlay.GeographicBounds))
         {
             return meshCode;

@@ -370,4 +370,17 @@ internal sealed record PreparedTerrainOverlayTextureReference(
     ThirdRegionalMeshCode MeshCode,
     TerrainTextureOverlay Overlay,
     GeneratedTerrainTexture GeneratedTerrainTexture)
-    : PreparedTextureReference(GeneratedTerrainTexture.TextureSource);
+    : PreparedTextureReference(GeneratedTerrainTexture.TextureSource)
+{
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Style",
+        "IDE0032:Use auto property",
+        Justification = "The init setter validates with-expression updates before changing mesh-code identity state.")]
+    private ThirdRegionalMeshCode meshCode = MeshCode ?? throw new ArgumentNullException(nameof(MeshCode));
+
+    public ThirdRegionalMeshCode MeshCode
+    {
+        get => meshCode;
+        init => meshCode = value ?? throw new ArgumentNullException(nameof(value));
+    }
+}
