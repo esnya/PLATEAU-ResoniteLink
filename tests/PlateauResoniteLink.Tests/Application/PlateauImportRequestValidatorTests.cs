@@ -17,6 +17,9 @@ public sealed class PlateauImportRequestValidatorTests
         Assert.Throws<ArgumentNullException>(() => DatasetLocation.Remote(null!));
         Assert.Throws<ArgumentException>(() => new ValidatedLocalDatasetLocation(" "));
         Assert.Throws<ArgumentNullException>(() => new ValidatedRemoteDatasetLocation(null!));
+        Assert.Throws<ArgumentException>(() => new ValidatedRemoteDatasetLocation(new Uri("/dataset.zip", UriKind.Relative)));
+        Assert.Throws<ArgumentException>(() => new ValidatedRemoteDatasetLocation(new Uri("ftp://example.invalid/dataset.zip")));
+        Assert.Equal("C:/dataset", new ValidatedLocalDatasetLocation(" C:/dataset ").LocalSourcePath);
     }
 
     [Fact]

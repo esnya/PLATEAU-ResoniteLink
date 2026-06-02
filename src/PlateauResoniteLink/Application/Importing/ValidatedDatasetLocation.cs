@@ -15,7 +15,7 @@ public sealed record ValidatedLocalDatasetLocation : ValidatedDatasetLocation
         : base(DatasetSourceKind.Local)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(localSourcePath);
-        LocalSourcePath = localSourcePath;
+        LocalSourcePath = localSourcePath.Trim();
     }
 
     public string LocalSourcePath { get; }
@@ -29,6 +29,17 @@ public sealed record ValidatedRemoteDatasetLocation : ValidatedDatasetLocation
         : base(DatasetSourceKind.Remote)
     {
         ArgumentNullException.ThrowIfNull(serverUri);
+        if (!serverUri.IsAbsoluteUri)
+        {
+            throw new ArgumentException("The remote dataset location URI must be absolute.", nameof(serverUri));
+        }
+
+        if (!string.Equals(serverUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(serverUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("The remote dataset location URI must use http or https.", nameof(serverUri));
+        }
+
         ServerUri = serverUri;
     }
 
