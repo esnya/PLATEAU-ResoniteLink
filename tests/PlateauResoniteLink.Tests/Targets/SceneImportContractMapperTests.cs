@@ -13,7 +13,7 @@ public sealed class SceneImportContractMapperTests
     {
         MaterialBinding[] bindings =
         [
-            new(
+            new PresentationMaterialBinding(
                 BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
                 MaterialType: MaterialType.Standard,
                 TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
@@ -24,7 +24,6 @@ public sealed class SceneImportContractMapperTests
                 TextureScale: new Float2(0.25, 0.5),
                 Family: "roof",
                 TextureOffset: new Float2(0.75, 0.125),
-                ReuseScope: MaterialReuseScope.Shared,
                 BundledVariantIndex: 3),
         ];
 
@@ -38,8 +37,23 @@ public sealed class SceneImportContractMapperTests
         Assert.Equal(2.5, mapped.DepthOffset.Units, 9);
         Assert.Equal(0.25, mapped.TextureScale!.X, 9);
         Assert.Equal(0.125, mapped.TextureOffset!.Y, 9);
-        Assert.Equal(ResoniteMaterialAssetScope.Common, mapped.AssetScope);
+        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, mapped.AssetScope);
         Assert.Equal(3, mapped.BundledVariantIndex);
+    }
+
+    [Fact]
+    public void ToInternalMaterialBindingsUsesCommonScopeOnlyForTypedCommonMaterial()
+    {
+        DefaultCommonMaterialMember commonMaterial = CommonMaterialCatalog.Create().Generic.Uv;
+        MaterialBinding[] bindings =
+        [
+            commonMaterial.CreateBinding([0]),
+        ];
+
+        ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
+
+        Assert.Equal(ResoniteMaterialAssetScope.Common, mapped.AssetScope);
+        Assert.Equal(commonMaterial, mapped.CommonMaterial);
     }
 
     [Theory]
@@ -77,7 +91,7 @@ public sealed class SceneImportContractMapperTests
         DefaultCommonMaterialMember commonMaterial = CommonMaterialCatalog.Create().Generic.Uv;
         MaterialBinding[] bindings =
         [
-            new(
+            new SharedCommonMaterialBinding(
                 BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                 MaterialType: MaterialType.Standard,
                 TexturePayload: null,
@@ -85,9 +99,8 @@ public sealed class SceneImportContractMapperTests
                 Projection: MaterialProjection.Uv,
                 DepthOffset: null,
                 SubmeshIndices: [0],
-                ReuseScope: MaterialReuseScope.Shared,
-                TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
-                CommonMaterial: commonMaterial),
+                commonMaterial,
+                TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay)),
         ];
 
         ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
@@ -112,7 +125,7 @@ public sealed class SceneImportContractMapperTests
             ]);
         MaterialBinding[] bindings =
         [
-            new(
+            new PresentationMaterialBinding(
                 BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                 MaterialType: MaterialType.Standard,
                 TexturePayload: null,
@@ -120,7 +133,6 @@ public sealed class SceneImportContractMapperTests
                 Projection: MaterialProjection.Uv,
                 DepthOffset: null,
                 SubmeshIndices: [0],
-                ReuseScope: MaterialReuseScope.Shared,
                 TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay)),
         ];
 
@@ -134,7 +146,7 @@ public sealed class SceneImportContractMapperTests
 
     private static MaterialBinding CreateValidBinding()
     {
-        return new MaterialBinding(
+        return new PresentationMaterialBinding(
             BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
             MaterialType: MaterialType.Standard,
             TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),

@@ -202,7 +202,7 @@ public sealed record TerrainOverlayMaterialBinding(
     ThirdRegionalMeshCode MeshCode,
     TerrainTextureOverlay Overlay);
 
-public sealed record MaterialBinding(
+public abstract record MaterialBinding(
     ColorRgba BaseColor,
     MaterialType MaterialType,
     TexturePayload? TexturePayload,
@@ -213,12 +213,124 @@ public sealed record MaterialBinding(
     Float2? TextureScale = null,
     string? Family = null,
     Float2? TextureOffset = null,
-    MaterialReuseScope ReuseScope = MaterialReuseScope.PerObject,
     TerrainOverlayMaterialBinding? TerrainOverlayMaterial = null,
-    int? BundledVariantIndex = null,
-    DefaultCommonMaterialMember? CommonMaterial = null)
+    int? BundledVariantIndex = null)
 {
     public TerrainTextureOverlay? TerrainOverlay => TerrainOverlayMaterial?.Overlay;
 
     public string? TerrainMeshCode => TerrainOverlayMaterial?.MeshCode.Value;
+
+    public abstract MaterialReuseScope ReuseScope { get; }
+
+    public virtual DefaultCommonMaterialMember? CommonMaterial => null;
+}
+
+public sealed record PresentationMaterialBinding : MaterialBinding
+{
+    public PresentationMaterialBinding(
+        ColorRgba BaseColor,
+        MaterialType MaterialType,
+        TexturePayload? TexturePayload,
+        TextureSourceKind TextureSourceKind,
+        MaterialProjection Projection,
+        MaterialDepthOffset? DepthOffset,
+        IReadOnlyList<int> SubmeshIndices,
+        Float2? TextureScale = null,
+        string? Family = null,
+        Float2? TextureOffset = null,
+        TerrainOverlayMaterialBinding? TerrainOverlayMaterial = null,
+        int? BundledVariantIndex = null)
+        : base(
+            BaseColor,
+            MaterialType,
+            TexturePayload,
+            TextureSourceKind,
+            Projection,
+            DepthOffset,
+            SubmeshIndices,
+            TextureScale,
+            Family,
+            TextureOffset,
+            TerrainOverlayMaterial,
+            BundledVariantIndex)
+    {
+    }
+
+    public override MaterialReuseScope ReuseScope => MaterialReuseScope.PerObject;
+}
+
+public sealed record PresentationCommonMaterialBinding : MaterialBinding
+{
+    public PresentationCommonMaterialBinding(
+        ColorRgba BaseColor,
+        MaterialType MaterialType,
+        TexturePayload? TexturePayload,
+        TextureSourceKind TextureSourceKind,
+        MaterialProjection Projection,
+        MaterialDepthOffset? DepthOffset,
+        IReadOnlyList<int> SubmeshIndices,
+        DefaultCommonMaterialMember commonMaterial,
+        Float2? TextureScale = null,
+        string? Family = null,
+        Float2? TextureOffset = null,
+        TerrainOverlayMaterialBinding? TerrainOverlayMaterial = null,
+        int? BundledVariantIndex = null)
+        : base(
+            BaseColor,
+            MaterialType,
+            TexturePayload,
+            TextureSourceKind,
+            Projection,
+            DepthOffset,
+            SubmeshIndices,
+            TextureScale,
+            Family,
+            TextureOffset,
+            TerrainOverlayMaterial,
+            BundledVariantIndex)
+    {
+        CommonMaterial = commonMaterial ?? throw new ArgumentNullException(nameof(commonMaterial));
+    }
+
+    public override MaterialReuseScope ReuseScope => MaterialReuseScope.PerObject;
+
+    public override DefaultCommonMaterialMember CommonMaterial { get; }
+}
+
+public sealed record SharedCommonMaterialBinding : MaterialBinding
+{
+    public SharedCommonMaterialBinding(
+        ColorRgba BaseColor,
+        MaterialType MaterialType,
+        TexturePayload? TexturePayload,
+        TextureSourceKind TextureSourceKind,
+        MaterialProjection Projection,
+        MaterialDepthOffset? DepthOffset,
+        IReadOnlyList<int> SubmeshIndices,
+        DefaultCommonMaterialMember commonMaterial,
+        Float2? TextureScale = null,
+        string? Family = null,
+        Float2? TextureOffset = null,
+        TerrainOverlayMaterialBinding? TerrainOverlayMaterial = null,
+        int? BundledVariantIndex = null)
+        : base(
+            BaseColor,
+            MaterialType,
+            TexturePayload,
+            TextureSourceKind,
+            Projection,
+            DepthOffset,
+            SubmeshIndices,
+            TextureScale,
+            Family,
+            TextureOffset,
+            TerrainOverlayMaterial,
+            BundledVariantIndex)
+    {
+        CommonMaterial = commonMaterial ?? throw new ArgumentNullException(nameof(commonMaterial));
+    }
+
+    public override MaterialReuseScope ReuseScope => MaterialReuseScope.Shared;
+
+    public override DefaultCommonMaterialMember CommonMaterial { get; }
 }
