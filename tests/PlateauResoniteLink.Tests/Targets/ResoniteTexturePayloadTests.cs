@@ -35,12 +35,11 @@ public sealed class ResoniteTexturePayloadTests
     }
 
     [Fact]
-    public void RawConstructorKeepsGeneratedIdentityConsistentWithSource()
+    public void RawConstructorCreatesGeneratedSourceIdentity()
     {
         ResoniteTexturePayload payload = new(1, 1, "sRGB", [4, 3, 2, 1]);
 
-        Assert.False(string.IsNullOrWhiteSpace(payload.Identity));
-        Assert.Equal(payload.Identity, payload.Source.Identity);
+        Assert.False(string.IsNullOrWhiteSpace(payload.Source.Identity.Value));
     }
 
     [Theory]
@@ -56,22 +55,31 @@ public sealed class ResoniteTexturePayloadTests
     }
 
     [Fact]
-    public void EncodedConstructorRejectsPayloadIdentityThatDiffersFromSourceIdentity()
+    public void EncodedConstructorUsesSourceAsIdentityCarrier()
     {
         ITextureImportSource source = TextureImportSourceFactory.CreateEncodedImageInMemory(
             "sRGB",
             [1, 2, 3, 4],
             "source:texture");
 
-        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
-            new ResoniteTexturePayload(
-                1,
-                1,
-                "sRGB",
-                source,
-                "payload:texture"));
+        ResoniteTexturePayload payload = new(
+            1,
+            1,
+            "sRGB",
+            source);
 
-        Assert.Contains("identity must match", exception.Message, System.StringComparison.Ordinal);
+        Assert.Same(source, payload.Source);
+        Assert.Equal(new TextureImportSourceIdentity("source:texture"), payload.Source.Identity);
+    }
+
+    [Fact]
+    public void SourceBackedConstructorRejectsDefaultSourceIdentity()
+    {
+        Assert.ThrowsAny<ArgumentException>(() => new ResoniteTexturePayload(
+            1,
+            1,
+            "sRGB",
+            new DefaultIdentityTextureImportSource()));
     }
 
     [Fact]
@@ -102,7 +110,18 @@ public sealed class ResoniteTexturePayloadTests
         TexturePayload contractPayload = Assert.IsType<TexturePayload>(contractBinding.TexturePayload);
         Assert.Equal(TexturePayloadFormat.RawRgba32, contractPayload.Format);
         Assert.Same(source, contractPayload.Source);
-        Assert.Equal(source.Identity, contractPayload.Identity);
+        Assert.Equal(source.Identity, contractPayload.Source.Identity);
         Assert.True(contractPayload.BinaryPayload.IsDefaultOrEmpty);
+    }
+
+    private sealed class DefaultIdentityTextureImportSource : ITextureImportSource
+    {
+        public TextureImportSourceIdentity Identity => default;
+
+        public string Description => "default identity";
+
+        public string? ColorProfile => "sRGB";
+
+        public long? EstimatedByteLength => null;
     }
 }

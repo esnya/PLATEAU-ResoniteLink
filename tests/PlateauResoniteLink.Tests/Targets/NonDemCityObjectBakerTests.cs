@@ -122,7 +122,7 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
 
         string?[] identities = cityObject.Materials
-            .Select(static material => material.TexturePayload?.Identity)
+            .Select(static material => material.TexturePayload?.Source.Identity.Value)
             .ToArray();
         Assert.Collection(
             identities,
@@ -151,7 +151,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, material.CommonMaterial);
         Assert.NotSame(payload, material.TexturePayload);
         Assert.NotNull(material.TexturePayload);
-        Assert.Contains("atlastex-", material.TexturePayload.Identity, StringComparison.Ordinal);
+        Assert.Contains("atlastex-", material.TexturePayload.Source.Identity.Value, StringComparison.Ordinal);
         Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, material.TexturePayload.Format);
         Assert.Null(material.TextureScale);
         Assert.Null(material.TextureOffset);
@@ -193,7 +193,7 @@ public sealed class NonDemCityObjectBakerTests
             double averageX = submesh.TriangleVertexIndices
                 .Select(index => cityObject.Mesh.Vertices[index].Position.X)
                 .Average();
-            averageXByPayloadIdentity.Add(material.TexturePayload?.Identity ?? string.Empty, averageX);
+            averageXByPayloadIdentity.Add(material.TexturePayload?.Source.Identity.Value ?? string.Empty, averageX);
         }
 
         Assert.True(averageXByPayloadIdentity["textures/left.png"] < averageXByPayloadIdentity["textures/right.png"]);
@@ -590,7 +590,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(oversizedCandidate.DisplayName, cityObject.DisplayName);
         Assert.Equal(oversizedCandidate.Materials.Count, cityObject.Materials.Count);
         Assert.All(cityObject.Materials, static material => Assert.NotNull(material.TexturePayload));
-        Assert.DoesNotContain(cityObject.Materials, static material => material.TexturePayload?.Identity?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(cityObject.Materials, static material => material.TexturePayload?.Source.Identity.Value?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
     }
 
     [Fact]
@@ -615,7 +615,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(new ResoniteFloat2(0.25, 0.75), cityObject.Mesh.Vertices[0].UV0);
         Assert.Equal(new ResoniteFloat2(2.25, 0.75), cityObject.Mesh.Vertices[1].UV0);
         Assert.Equal(new ResoniteFloat2(0.25, 1.25), cityObject.Mesh.Vertices[2].UV0);
-        Assert.DoesNotContain(cityObject.Materials, static candidate => candidate.TexturePayload?.Identity?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(cityObject.Materials, static candidate => candidate.TexturePayload?.Source.Identity.Value?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
     }
 
     [Fact]
@@ -791,7 +791,7 @@ public sealed class NonDemCityObjectBakerTests
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         Assert.Equal(oversizedCandidate.SlotKey, cityObject.SlotKey);
-        Assert.DoesNotContain(cityObject.Materials, static material => material.TexturePayload?.Identity?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(cityObject.Materials, static material => material.TexturePayload?.Source.Identity.Value?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
     }
 
     [Fact]
@@ -1025,7 +1025,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal("atlasbake-unit-a-bldg-lod2-3", cityObject.SlotKey);
         Assert.Equal(
             "atlastex-unit-a.gml-3",
-            Assert.IsType<ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload).Identity);
+            Assert.IsType<ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload).Source.Identity.Value);
     }
 
     private static NonDemCityObjectBaker CreateBaker(

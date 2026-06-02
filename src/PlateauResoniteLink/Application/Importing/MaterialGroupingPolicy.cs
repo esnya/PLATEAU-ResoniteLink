@@ -18,7 +18,7 @@ internal static class MaterialGroupingPolicy
         {
             return new MaterialGroupingKey(
                 material.MaterialType,
-                TexturePayloadIdentity: null,
+                TextureSourceIdentity: null,
                 material.TextureSourceKind,
                 material.Projection,
                 depthOffset,
@@ -33,7 +33,7 @@ internal static class MaterialGroupingPolicy
 
         return new MaterialGroupingKey(
             material.MaterialType,
-            material.TexturePayload?.Identity,
+            material.TexturePayload?.Source.Identity,
             material.TextureSourceKind,
             material.Projection,
             depthOffset,
@@ -63,7 +63,7 @@ internal static class MaterialGroupingPolicy
 
 internal sealed record MaterialGroupingKey(
     MaterialType MaterialType,
-    string? TexturePayloadIdentity,
+    TextureImportSourceIdentity? TextureSourceIdentity,
     TextureSourceKind TextureSourceKind,
     MaterialProjection Projection,
     MaterialDepthOffset? DepthOffset,

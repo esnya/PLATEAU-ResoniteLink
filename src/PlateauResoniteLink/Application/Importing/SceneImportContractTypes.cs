@@ -114,19 +114,18 @@ public sealed record TexturePayload
         ArgumentNullException.ThrowIfNull(binaryPayload);
         RawTexturePayload.EnsureValidShape(width, height, binaryPayload.Length, RawTexturePayloadFormat.Rgba32);
         ImmutableArray<byte> immutablePayload = ImmutableArray.CreateRange(binaryPayload);
-        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
+        TextureImportSourceIdentity effectiveIdentity = new(identity ?? Guid.NewGuid().ToString("N"));
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
         BinaryPayload = immutablePayload;
-        Identity = effectiveIdentity;
         Format = TexturePayloadFormat.RawRgba32;
         Source = TextureImportSourceFactory.CreateRawRgba32InMemory(
             width,
             height,
             colorProfile,
             immutablePayload,
-            effectiveIdentity);
+            effectiveIdentity.Value);
     }
 
     internal TexturePayload(
@@ -136,12 +135,12 @@ public sealed record TexturePayload
         IRawTexturePayloadSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.Identity.Value, nameof(source));
         RawTexturePayload.EnsureValidDimensions(width, height);
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
         BinaryPayload = [];
-        Identity = source.Identity;
         Format = TexturePayloadFormat.RawRgba32;
         Source = source;
     }
@@ -150,23 +149,14 @@ public sealed record TexturePayload
         int? width,
         int? height,
         string? colorProfile,
-        ITextureImportSource source,
-        string? identity = null)
+        ITextureImportSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        string effectiveIdentity = identity ?? source.Identity;
-        if (!string.Equals(effectiveIdentity, source.Identity, StringComparison.Ordinal))
-        {
-            throw new ArgumentException(
-                "Texture payload identity must match the texture import source identity.",
-                nameof(identity));
-        }
-
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.Identity.Value, nameof(source));
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
         BinaryPayload = [];
-        Identity = effectiveIdentity;
         Format = TexturePayloadFormat.EncodedImage;
         Source = source;
     }
@@ -178,8 +168,6 @@ public sealed record TexturePayload
     public string? ColorProfile { get; }
 
     public ImmutableArray<byte> BinaryPayload { get; }
-
-    public string Identity { get; }
 
     public TexturePayloadFormat Format { get; }
 

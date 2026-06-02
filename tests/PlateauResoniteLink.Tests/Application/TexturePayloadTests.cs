@@ -56,12 +56,11 @@ public sealed class TexturePayloadTests
     }
 
     [Fact]
-    public void RawConstructorKeepsGeneratedIdentityConsistentWithSource()
+    public void RawConstructorCreatesGeneratedSourceIdentity()
     {
         TexturePayload payload = new(1, 1, "sRGB", [1, 2, 3, 4]);
 
-        Assert.False(string.IsNullOrWhiteSpace(payload.Identity));
-        Assert.Equal(payload.Identity, payload.Source.Identity);
+        Assert.False(string.IsNullOrWhiteSpace(payload.Source.Identity.Value));
     }
 
     [Fact]
@@ -96,22 +95,31 @@ public sealed class TexturePayloadTests
     }
 
     [Fact]
-    public void EncodedConstructorRejectsPayloadIdentityThatDiffersFromSourceIdentity()
+    public void EncodedConstructorUsesSourceAsIdentityCarrier()
     {
         ITextureImportSource source = TextureImportSourceFactory.CreateEncodedImageInMemory(
             "sRGB",
             [1, 2, 3, 4],
             "source:texture");
 
-        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
-            new TexturePayload(
-                1,
-                1,
-                "sRGB",
-                source,
-                "payload:texture"));
+        TexturePayload payload = new(
+            1,
+            1,
+            "sRGB",
+            source);
 
-        Assert.Contains("identity must match", exception.Message, System.StringComparison.Ordinal);
+        Assert.Same(source, payload.Source);
+        Assert.Equal(new TextureImportSourceIdentity("source:texture"), payload.Source.Identity);
+    }
+
+    [Fact]
+    public void SourceBackedConstructorRejectsDefaultSourceIdentity()
+    {
+        Assert.ThrowsAny<ArgumentException>(() => new TexturePayload(
+            1,
+            1,
+            "sRGB",
+            new DefaultIdentityTextureImportSource()));
     }
 
     private static byte[] CreateEncodedPixelBytes(Rgba32 pixel)
@@ -121,5 +129,16 @@ public sealed class TexturePayloadTests
         using MemoryStream stream = new();
         image.SaveAsPng(stream);
         return stream.ToArray();
+    }
+
+    private sealed class DefaultIdentityTextureImportSource : ITextureImportSource
+    {
+        public TextureImportSourceIdentity Identity => default;
+
+        public string Description => "default identity";
+
+        public string? ColorProfile => "sRGB";
+
+        public long? EstimatedByteLength => null;
     }
 }

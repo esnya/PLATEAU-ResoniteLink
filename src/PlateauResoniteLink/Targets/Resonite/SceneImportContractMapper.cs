@@ -139,8 +139,7 @@ internal static class SceneImportContractMapper
                 payload.Width,
                 payload.Height,
                 payload.ColorProfile,
-                payload.Source,
-                payload.Identity),
+                payload.Source),
             TexturePayloadFormat.RawRgba32 => ToInternalRawTexturePayload(payload),
             _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.Format, "Unsupported texture payload format."),
         };

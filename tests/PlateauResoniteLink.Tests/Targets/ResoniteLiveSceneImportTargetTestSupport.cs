@@ -547,8 +547,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 payload.Width,
                 payload.Height,
                 payload.ColorProfile,
-                payload.Source,
-                payload.Identity);
+                payload.Source);
 
     private static TexturePayload ToContractRawTexturePayload(ResoniteTexturePayload payload)
     {
@@ -561,7 +560,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 height,
                 payload.ColorProfile,
                 payload.BinaryPayload.AsSpan().ToArray(),
-                payload.Identity);
+                payload.Source.Identity.Value);
         }
 
         if (payload.Source is not IRawTexturePayloadSource rawSource)

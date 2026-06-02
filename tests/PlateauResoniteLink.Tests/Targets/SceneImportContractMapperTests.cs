@@ -20,8 +20,7 @@ public sealed class SceneImportContractMapperTests
                     2,
                     2,
                     "sRGB",
-                    TextureImportSourceFactory.CreateEncodedImageInMemory("sRGB", [1, 2, 3, 4], "dataset:texture"),
-                    "dataset:texture"),
+                    TextureImportSourceFactory.CreateEncodedImageInMemory("sRGB", [1, 2, 3, 4], "dataset:texture")),
                 TextureSourceKind: TextureSourceKind.Dataset,
                 Projection: MaterialProjection.Uv,
                 DepthOffset: new MaterialDepthOffset(-1.5, 2.5),
@@ -37,7 +36,7 @@ public sealed class SceneImportContractMapperTests
 
         Assert.Equal(0.1, mapped.BaseColor.R, 9);
         Assert.Equal(0.2, mapped.BaseColor.G, 9);
-        Assert.Equal("dataset:texture", mapped.TexturePayload!.Identity);
+        Assert.Equal(new TextureImportSourceIdentity("dataset:texture"), mapped.TexturePayload!.Source.Identity);
         Assert.Equal(ResoniteTexturePayloadFormat.EncodedImage, mapped.TexturePayload.Format);
         Assert.Equal(-1.5, mapped.DepthOffset!.Factor, 9);
         Assert.Equal(2.5, mapped.DepthOffset.Units, 9);
@@ -93,7 +92,7 @@ public sealed class SceneImportContractMapperTests
 
         Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, mapped.TexturePayload!.Format);
         Assert.Same(texturePayload.Source, mapped.TexturePayload.Source);
-        Assert.Equal(texturePayload.Source.Identity, mapped.TexturePayload.Identity);
+        Assert.Equal(texturePayload.Source.Identity, mapped.TexturePayload.Source.Identity);
         Assert.True(mapped.TexturePayload.BinaryPayload.IsDefaultOrEmpty);
     }
 
@@ -176,8 +175,7 @@ public sealed class SceneImportContractMapperTests
                 2,
                 2,
                 "sRGB",
-                TextureImportSourceFactory.CreateEncodedImageInMemory("sRGB", [1, 2, 3, 4], "dataset:texture"),
-                "dataset:texture"),
+                TextureImportSourceFactory.CreateEncodedImageInMemory("sRGB", [1, 2, 3, 4], "dataset:texture")),
             TextureSourceKind: TextureSourceKind.Dataset,
             Projection: MaterialProjection.Uv,
             DepthOffset: null,
