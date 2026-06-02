@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +26,7 @@ public sealed class TextureImportSourceFactoryTests
             source,
             CancellationToken.None);
 
+        Assert.IsType<Rgba32RawTexturePayload>(payload);
         Assert.Equal(1, payload.Width);
         Assert.Equal(1, payload.Height);
         Assert.Equal([255, 255, 255, 255], payload.Bytes);
@@ -48,9 +50,36 @@ public sealed class TextureImportSourceFactoryTests
             source,
             CancellationToken.None);
 
+        Assert.IsType<Rgba32RawTexturePayload>(payload);
         Assert.Equal(1, payload.Width);
         Assert.Equal(1, payload.Height);
         Assert.Equal([1, 2, 3, 255], payload.Bytes);
+    }
+
+    [Fact]
+    public async Task CreateGeneratedRgbaFloat32ImageDoesNotMaterializeAsRgba32()
+    {
+        ITextureImportSource source = TextureImportSourceFactory.CreateGeneratedRgbaFloat32Image(
+            _ => ValueTask.FromResult(new RgbaFloat32RawTexturePayload(
+                width: 1,
+                height: 1,
+                colorProfile: null,
+                bytes: new byte[16])),
+            identity: "hdr",
+            description: "hdr",
+            colorProfile: null,
+            estimatedByteLength: 16);
+
+        RawTexturePayload rawPayload = await TextureImportSourceMaterializer.MaterializeRawAsync(
+            source,
+            CancellationToken.None);
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await TextureImportSourceMaterializer.MaterializeRgba32Async(
+                source,
+                CancellationToken.None));
+
+        Assert.IsType<RgbaFloat32RawTexturePayload>(rawPayload);
+        Assert.Contains("cannot materialize an RGBA32 texture payload", exception.Message, System.StringComparison.Ordinal);
     }
 
 }
