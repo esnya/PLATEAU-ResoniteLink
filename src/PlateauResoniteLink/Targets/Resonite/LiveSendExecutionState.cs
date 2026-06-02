@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Domain.Importing;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class LiveSendProgressSink
@@ -51,8 +53,12 @@ internal sealed class CommonMaterialAssetCache
 
 internal sealed class TerrainTextureAssetCache
 {
-    public AsyncInFlightResultCache<string, SharedTerrainTextureAsset> AssetsByMeshCode { get; } = new();
+    public AsyncInFlightResultCache<TerrainTextureAssetKey, SharedTerrainTextureAsset> AssetsByOverlay { get; } = new();
 }
+
+internal sealed record TerrainTextureAssetKey(
+    ThirdRegionalMeshCode MeshCode,
+    TerrainTextureOverlay Overlay);
 
 internal sealed record SharedTerrainTextureAsset(
     Uri TextureUri,

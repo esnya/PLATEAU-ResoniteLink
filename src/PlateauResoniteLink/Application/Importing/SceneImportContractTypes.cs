@@ -200,14 +200,22 @@ public enum MaterialReuseScope
 
 public sealed record TerrainOverlayMaterialBinding
 {
-    public TerrainOverlayMaterialBinding(TerrainTextureOverlay overlay)
+    public TerrainOverlayMaterialBinding(
+        ThirdRegionalMeshCode meshCode,
+        TerrainTextureOverlay overlay)
     {
+        if (!ThirdRegionalMeshCode.TryParse(meshCode.Value, out _))
+        {
+            throw new ArgumentException("Terrain overlay material mesh code must be a valid third regional mesh code.", nameof(meshCode));
+        }
+
+        MeshCode = meshCode;
         Overlay = overlay ?? throw new ArgumentNullException(nameof(overlay));
     }
 
-    public TerrainTextureOverlay Overlay { get; init; }
+    public ThirdRegionalMeshCode MeshCode { get; }
 
-    public ThirdRegionalMeshCode MeshCode => Overlay.MeshCode;
+    public TerrainTextureOverlay Overlay { get; }
 }
 
 public abstract record MaterialBinding(

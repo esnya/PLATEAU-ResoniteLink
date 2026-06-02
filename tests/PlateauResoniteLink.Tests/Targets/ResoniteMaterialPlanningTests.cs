@@ -244,7 +244,7 @@ public sealed class ResoniteMaterialPlanningTests
             AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             TextureScale: new ResoniteFloat2(0.4, 0.8),
             TextureOffset: new ResoniteFloat2(0.1, 0.2),
-            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay));
+            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay));
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextures = new()
         {
             [overlay] = new GeneratedTerrainTexture(

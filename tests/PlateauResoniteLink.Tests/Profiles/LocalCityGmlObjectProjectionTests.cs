@@ -1499,7 +1499,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectUsesProvidedTerrainOverlayMeshCodeForTexturelessRoof()
+    public void ProjectCityObjectKeepsMaterialMeshCodeForMismatchedTerrainOverlayRoof()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay mismatchedOverlay = CreateThirdMeshOverlay("53394526");
@@ -1521,7 +1521,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(mismatchedOverlay, material.TerrainOverlay);
-        Assert.Equal("53394526", material.TerrainMeshCode);
+        Assert.Equal("53394525", material.TerrainMeshCode);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
     }
 

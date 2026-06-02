@@ -299,6 +299,6 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             TextureOffset: textureOffset,
             TerrainOverlayMaterial: terrainOverlay is null
                 ? null
-                : new TerrainOverlayMaterialBinding(terrainOverlay));
+                : new TerrainOverlayMaterialBinding(terrainOverlay.MeshCode, terrainOverlay));
     }
 }
