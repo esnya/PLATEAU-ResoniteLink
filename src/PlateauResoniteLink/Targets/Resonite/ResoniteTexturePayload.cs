@@ -13,6 +13,44 @@ public enum ResoniteTexturePayloadFormat
 
 public sealed record ResoniteTexturePayload
 {
+    private ResoniteTexturePayload(
+        int width,
+        int height,
+        string? colorProfile,
+        ImmutableArray<byte> binaryPayload,
+        string? identity = null)
+    {
+        if (binaryPayload.IsDefault)
+        {
+            throw new ArgumentException("Raw texture bytes must be initialized.", nameof(binaryPayload));
+        }
+
+        RawTexturePayload.EnsureValidShape(width, height, binaryPayload.Length, RawTexturePayloadFormat.Rgba32);
+        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
+        Width = width;
+        Height = height;
+        ColorProfile = colorProfile;
+        BinaryPayload = binaryPayload;
+        Identity = effectiveIdentity;
+        Format = ResoniteTexturePayloadFormat.RawRgba32;
+        Source = TextureImportSourceFactory.CreateRawRgba32InMemory(
+            width,
+            height,
+            colorProfile,
+            binaryPayload,
+            effectiveIdentity);
+    }
+
+    internal static ResoniteTexturePayload CreateRaw(
+        int width,
+        int height,
+        string? colorProfile,
+        ImmutableArray<byte> binaryPayload,
+        string? identity = null)
+    {
+        return new ResoniteTexturePayload(width, height, colorProfile, binaryPayload, identity);
+    }
+
     public ResoniteTexturePayload(
         int width,
         int height,

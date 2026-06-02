@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
@@ -422,6 +423,13 @@ internal static class SceneSinkRecordingClientCanonicalDump
         }
 
         return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    }
+
+    private static string HashBytes(ImmutableArray<byte> bytes)
+    {
+        return bytes.IsDefaultOrEmpty
+            ? "empty"
+            : Convert.ToHexString(SHA256.HashData(bytes.AsSpan())).ToLowerInvariant();
     }
 
     private static string FormatNumber(double value)

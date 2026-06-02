@@ -151,7 +151,7 @@ public sealed class ResoniteLinkClientTests
         Assert.Equal(1, importedTexture.Width);
         Assert.Equal(1, importedTexture.Height);
         Assert.Equal(ResoniteTextureColorProfiles.Srgb, importedTexture.ColorProfile);
-        Assert.Equal([255, 0, 0, 255], importedTexture.Bytes);
+        Assert.Equal([255, 0, 0, 255], importedTexture.Bytes.AsSpan().ToArray());
     }
 
     [Fact]

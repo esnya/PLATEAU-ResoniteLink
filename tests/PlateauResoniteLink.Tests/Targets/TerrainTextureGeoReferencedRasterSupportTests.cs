@@ -275,7 +275,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         Assert.Equal(0, handler.RequestCount);
         using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
-            Materialize(texture.TextureSource).Bytes,
+            Materialize(texture.TextureSource).Bytes.AsSpan().ToArray(),
             Materialize(texture.TextureSource).Width,
             Materialize(texture.TextureSource).Height);
         Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[0, 0]);
@@ -391,7 +391,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
                 (double)layout.CropHeight / Materialize(texture.TextureSource).Height),
             texture.OccupiedUvRect.ScaleValue);
         using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
-            Materialize(texture.TextureSource).Bytes,
+            Materialize(texture.TextureSource).Bytes.AsSpan().ToArray(),
             Materialize(texture.TextureSource).Width,
             Materialize(texture.TextureSource).Height);
         int occupiedLeft = (outputImage.Width - layout.CropWidth) / 2;
@@ -432,7 +432,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
-            Materialize(texture.TextureSource).Bytes,
+            Materialize(texture.TextureSource).Bytes.AsSpan().ToArray(),
             Materialize(texture.TextureSource).Width,
             Materialize(texture.TextureSource).Height);
         Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 0]);
@@ -483,7 +483,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
-            Materialize(texture.TextureSource).Bytes,
+            Materialize(texture.TextureSource).Bytes.AsSpan().ToArray(),
             Materialize(texture.TextureSource).Width,
             Materialize(texture.TextureSource).Height);
         int occupiedTop = outputImage.Height - layout.CropHeight;

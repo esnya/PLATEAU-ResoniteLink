@@ -528,7 +528,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal(2, importedTexture.Width);
         Assert.Equal(2, importedTexture.Height);
         float[] pixels = new float[importedTexture.Bytes.Length / sizeof(float)];
-        Buffer.BlockCopy(importedTexture.Bytes, 0, pixels, 0, importedTexture.Bytes.Length);
+        Buffer.BlockCopy(importedTexture.Bytes.AsSpan().ToArray(), 0, pixels, 0, importedTexture.Bytes.Length);
         Assert.Equal(0.0f, pixels[0]);
         Assert.Equal(0.0f, pixels[1]);
         Assert.Equal(3.0f, pixels[2]);

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,6 +18,36 @@ public enum RawTexturePayloadFormat
 
 public sealed record RawTexturePayload
 {
+    private RawTexturePayload(
+        int Width,
+        int Height,
+        string? ColorProfile,
+        ImmutableArray<byte> Bytes,
+        RawTexturePayloadFormat Format = RawTexturePayloadFormat.Rgba32)
+    {
+        if (Bytes.IsDefault)
+        {
+            throw new ArgumentException("Raw texture bytes must be initialized.", nameof(Bytes));
+        }
+
+        EnsureValidShape(Width, Height, Bytes.Length, Format);
+        this.Width = Width;
+        this.Height = Height;
+        this.ColorProfile = ColorProfile;
+        this.Bytes = Bytes;
+        this.Format = Format;
+    }
+
+    internal static RawTexturePayload Create(
+        int width,
+        int height,
+        string? colorProfile,
+        ImmutableArray<byte> bytes,
+        RawTexturePayloadFormat format = RawTexturePayloadFormat.Rgba32)
+    {
+        return new RawTexturePayload(width, height, colorProfile, bytes, format);
+    }
+
     public RawTexturePayload(
         int Width,
         int Height,
@@ -29,7 +60,7 @@ public sealed record RawTexturePayload
         this.Width = Width;
         this.Height = Height;
         this.ColorProfile = ColorProfile;
-        this.Bytes = Bytes;
+        this.Bytes = ImmutableArray.CreateRange(Bytes);
         this.Format = Format;
     }
 
@@ -39,7 +70,7 @@ public sealed record RawTexturePayload
 
     public string? ColorProfile { get; }
 
-    public byte[] Bytes { get; }
+    public ImmutableArray<byte> Bytes { get; }
 
     public RawTexturePayloadFormat Format { get; }
 
@@ -170,17 +201,17 @@ internal sealed class InMemoryRawTextureImportSource : IRawTexturePayloadSource
     public ValueTask<RawTexturePayload> MaterializeRawAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(new RawTexturePayload(
+        return ValueTask.FromResult(RawTexturePayload.Create(
             Width,
             Height,
             ColorProfile,
-            bytes.AsSpan().ToArray()));
+            bytes));
     }
 }
 
 internal sealed class InMemoryEncodedTextureImportSource : IRawTexturePayloadSource
 {
-    private readonly byte[] bytes;
+    private readonly ImmutableArray<byte> bytes;
 
     public InMemoryEncodedTextureImportSource(
         string? colorProfile,
@@ -190,7 +221,7 @@ internal sealed class InMemoryEncodedTextureImportSource : IRawTexturePayloadSou
         ArgumentNullException.ThrowIfNull(bytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(identity);
         ColorProfile = colorProfile;
-        this.bytes = (byte[])bytes.Clone();
+        this.bytes = ImmutableArray.CreateRange(bytes);
         Identity = identity;
     }
 
@@ -204,7 +235,8 @@ internal sealed class InMemoryEncodedTextureImportSource : IRawTexturePayloadSou
 
     public async ValueTask<RawTexturePayload> MaterializeRawAsync(CancellationToken cancellationToken)
     {
-        using MemoryStream stream = new(bytes, writable: false);
+        byte[] retainedBytes = ImmutableCollectionsMarshal.AsArray(bytes) ?? [];
+        using MemoryStream stream = new(retainedBytes, writable: false);
         using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
         return TextureImportSourceFactory.CreateRawPayloadFromImage(
             image,

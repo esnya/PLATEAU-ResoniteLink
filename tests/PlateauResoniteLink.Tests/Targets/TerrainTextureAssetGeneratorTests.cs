@@ -225,7 +225,9 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         Assert.Equal(Materialize(texture.TextureSource).Width, Materialize(repeatedTexture.TextureSource).Width);
         Assert.Equal(Materialize(texture.TextureSource).Height, Materialize(repeatedTexture.TextureSource).Height);
-        Assert.Equal(Materialize(texture.TextureSource).Bytes, Materialize(repeatedTexture.TextureSource).Bytes);
+        Assert.Equal(
+            Materialize(texture.TextureSource).Bytes.AsSpan().ToArray(),
+            Materialize(repeatedTexture.TextureSource).Bytes.AsSpan().ToArray());
     }
 
     [Fact]
@@ -600,7 +602,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     private static Image<Rgba32> LoadImage(ITextureImportSource texture)
     {
         RawTexturePayload rawPayload = Materialize(texture);
-        return Image.LoadPixelData<Rgba32>(rawPayload.Bytes, rawPayload.Width, rawPayload.Height);
+        return Image.LoadPixelData<Rgba32>(rawPayload.Bytes.AsSpan().ToArray(), rawPayload.Width, rawPayload.Height);
     }
 
     private static RawTexturePayload Materialize(ITextureImportSource texture)

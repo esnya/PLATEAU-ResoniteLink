@@ -277,7 +277,7 @@ public sealed class CityGmlAppearanceStoreTests
         Assert.Equal(1, datasetSource.OpenReadCallCount);
         Assert.Equal(1, rawPayload.Width);
         Assert.Equal(1, rawPayload.Height);
-        Assert.Equal([255, 0, 0, 255], rawPayload.Bytes);
+        Assert.Equal([255, 0, 0, 255], rawPayload.Bytes.AsSpan().ToArray());
     }
 
     private sealed class CountingDatasetContentSource(byte[] payload) : IPlateauDatasetContentSource

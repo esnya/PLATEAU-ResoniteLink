@@ -263,7 +263,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
                     Width = rawPayload.Width,
                     Height = rawPayload.Height,
                     ColorProfile = rawPayload.ColorProfile ?? ResoniteTextureColorProfiles.Srgb,
-                    RawBinaryPayload = rawPayload.Bytes,
+                    RawBinaryPayload = rawPayload.Bytes.AsSpan().ToArray(),
                 }),
             cancellationToken);
     }
@@ -277,7 +277,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
                 {
                     Width = rawPayload.Width,
                     Height = rawPayload.Height,
-                    RawBinaryPayload = rawPayload.Bytes,
+                    RawBinaryPayload = rawPayload.Bytes.AsSpan().ToArray(),
                 }),
             cancellationToken);
     }

@@ -35,7 +35,7 @@ internal sealed class ResoniteTextureImageLoader
         }
 
         return Image.LoadPixelData<Rgba32>(
-            rawPayload.Bytes,
+            rawPayload.Bytes.AsSpan().ToArray(),
             rawPayload.Width,
             rawPayload.Height);
     }
