@@ -7,9 +7,9 @@ public sealed class JisRegionalMeshCodeTests
     [Fact]
     public void TryParseAcceptsOnlyMatchingMeshOrder()
     {
-        Assert.True(FirstRegionalMeshCode.TryParse("5339", out FirstRegionalMeshCode first));
-        Assert.True(SecondRegionalMeshCode.TryParse("533945", out SecondRegionalMeshCode second));
-        Assert.True(ThirdRegionalMeshCode.TryParse("53394525", out ThirdRegionalMeshCode third));
+        Assert.True(FirstRegionalMeshCode.TryParse("5339", out FirstRegionalMeshCode? first));
+        Assert.True(SecondRegionalMeshCode.TryParse("533945", out SecondRegionalMeshCode? second));
+        Assert.True(ThirdRegionalMeshCode.TryParse("53394525", out ThirdRegionalMeshCode? third));
 
         Assert.Equal("5339", first.Value);
         Assert.Equal("533945", second.Value);
@@ -18,6 +18,15 @@ public sealed class JisRegionalMeshCodeTests
         Assert.False(SecondRegionalMeshCode.TryParse("53394525", out _));
         Assert.False(ThirdRegionalMeshCode.TryParse("533945", out _));
         Assert.False(ThirdRegionalMeshCode.TryParse(".*", out _));
+    }
+
+    [Fact]
+    public void TryParseClearsMeshCodeWhenInputIsInvalid()
+    {
+        bool parsed = ThirdRegionalMeshCode.TryParse("invalid", out ThirdRegionalMeshCode? meshCode);
+
+        Assert.False(parsed);
+        Assert.Null(meshCode);
     }
 
     [Fact]

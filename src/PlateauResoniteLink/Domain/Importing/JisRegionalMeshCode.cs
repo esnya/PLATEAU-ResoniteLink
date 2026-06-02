@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
 namespace PlateauResoniteLink.Domain.Importing;
@@ -15,7 +16,7 @@ public sealed record JisRegionalMeshBounds(
         Altitude: 0.0);
 }
 
-public readonly record struct FirstRegionalMeshCode
+public sealed record FirstRegionalMeshCode
 {
     private FirstRegionalMeshCode(string value)
     {
@@ -28,7 +29,7 @@ public readonly record struct FirstRegionalMeshCode
 
     public GeodeticCoordinate Center => Bounds.Center;
 
-    public static bool TryParse(string? value, out FirstRegionalMeshCode meshCode)
+    public static bool TryParse(string? value, [NotNullWhen(true)] out FirstRegionalMeshCode? meshCode)
     {
         if (value is not null && JisRegionalMeshCodeCalculator.IsValid(value, 4))
         {
@@ -36,13 +37,13 @@ public readonly record struct FirstRegionalMeshCode
             return true;
         }
 
-        meshCode = default;
+        meshCode = null;
         return false;
     }
 
     public static FirstRegionalMeshCode Parse(string value)
     {
-        return TryParse(value, out FirstRegionalMeshCode meshCode)
+        return TryParse(value, out FirstRegionalMeshCode? meshCode)
             ? meshCode
             : throw new ArgumentException("JIS X 0410 first regional mesh code must be a valid 4-digit code.", nameof(value));
     }
@@ -55,7 +56,7 @@ public readonly record struct FirstRegionalMeshCode
     }
 }
 
-public readonly record struct SecondRegionalMeshCode
+public sealed record SecondRegionalMeshCode
 {
     private SecondRegionalMeshCode(string value)
     {
@@ -70,7 +71,7 @@ public readonly record struct SecondRegionalMeshCode
 
     public FirstRegionalMeshCode Parent => FirstRegionalMeshCode.FromValidated(Value[..4]);
 
-    public static bool TryParse(string? value, out SecondRegionalMeshCode meshCode)
+    public static bool TryParse(string? value, [NotNullWhen(true)] out SecondRegionalMeshCode? meshCode)
     {
         if (value is not null && JisRegionalMeshCodeCalculator.IsValid(value, 6))
         {
@@ -78,13 +79,13 @@ public readonly record struct SecondRegionalMeshCode
             return true;
         }
 
-        meshCode = default;
+        meshCode = null;
         return false;
     }
 
     public static SecondRegionalMeshCode Parse(string value)
     {
-        return TryParse(value, out SecondRegionalMeshCode meshCode)
+        return TryParse(value, out SecondRegionalMeshCode? meshCode)
             ? meshCode
             : throw new ArgumentException("JIS X 0410 second regional mesh code must be a valid 6-digit code.", nameof(value));
     }
@@ -97,7 +98,7 @@ public readonly record struct SecondRegionalMeshCode
     }
 }
 
-public readonly record struct ThirdRegionalMeshCode
+public sealed record ThirdRegionalMeshCode
 {
     private ThirdRegionalMeshCode(string value)
     {
@@ -114,7 +115,7 @@ public readonly record struct ThirdRegionalMeshCode
 
     public FirstRegionalMeshCode FirstMesh => FirstRegionalMeshCode.FromValidated(Value[..4]);
 
-    public static bool TryParse(string? value, out ThirdRegionalMeshCode meshCode)
+    public static bool TryParse(string? value, [NotNullWhen(true)] out ThirdRegionalMeshCode? meshCode)
     {
         if (value is not null && JisRegionalMeshCodeCalculator.IsValid(value, 8))
         {
@@ -122,13 +123,13 @@ public readonly record struct ThirdRegionalMeshCode
             return true;
         }
 
-        meshCode = default;
+        meshCode = null;
         return false;
     }
 
     public static ThirdRegionalMeshCode Parse(string value)
     {
-        return TryParse(value, out ThirdRegionalMeshCode meshCode)
+        return TryParse(value, out ThirdRegionalMeshCode? meshCode)
             ? meshCode
             : throw new ArgumentException("JIS X 0410 third regional mesh code must be a valid 8-digit code.", nameof(value));
     }

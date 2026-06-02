@@ -91,7 +91,7 @@ internal static class DemSourceDiscoverySupport
         List<DemTerrainOverlayRegion> overlays = [];
         foreach (string meshCode in ExpandToThirdMeshCodes(requestedMeshCodes))
         {
-            if (!ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
+            if (!ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode? thirdMeshCode))
             {
                 continue;
             }
@@ -124,7 +124,7 @@ internal static class DemSourceDiscoverySupport
         List<DemTerrainOverlayRegion> overlays = [];
         foreach (string meshCode in ExpandToThirdMeshCodes(requestedMeshCodes))
         {
-            if (!ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
+            if (!ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode? thirdMeshCode))
             {
                 continue;
             }

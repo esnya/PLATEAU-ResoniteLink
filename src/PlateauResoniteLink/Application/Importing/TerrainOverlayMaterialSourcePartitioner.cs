@@ -299,12 +299,12 @@ internal static class TerrainOverlayMaterialSourcePartitioner
 
         public static TerrainMaterialSourceMeshCode ParseRequired(string meshCode)
         {
-            if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
+            if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode? thirdMeshCode))
             {
                 return new Third(thirdMeshCode);
             }
 
-            if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode secondMeshCode))
+            if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode? secondMeshCode))
             {
                 return new Second(secondMeshCode);
             }

@@ -7,9 +7,10 @@ public sealed class PlateauMeshCodeTests
     [Fact]
     public void SecondRegionalMeshCodeCarriesBoundsAndCenterAfterParsing()
     {
-        bool parsed = SecondRegionalMeshCode.TryParse("533945", out SecondRegionalMeshCode meshCode);
+        bool parsed = SecondRegionalMeshCode.TryParse("533945", out SecondRegionalMeshCode? meshCode);
 
         Assert.True(parsed);
+        Assert.NotNull(meshCode);
         Assert.Equal("533945", meshCode.Value);
         Assert.Equal(35.708333333333343, meshCode.Center.Latitude, 9);
         Assert.Equal(139.6875, meshCode.Center.Longitude, 9);
@@ -18,9 +19,10 @@ public sealed class PlateauMeshCodeTests
     [Fact]
     public void ThirdRegionalMeshCodeCarriesBoundsAndCenterAfterParsing()
     {
-        bool parsed = ThirdRegionalMeshCode.TryParse("53394525", out ThirdRegionalMeshCode meshCode);
+        bool parsed = ThirdRegionalMeshCode.TryParse("53394525", out ThirdRegionalMeshCode? meshCode);
 
         Assert.True(parsed);
+        Assert.NotNull(meshCode);
         Assert.Equal("53394525", meshCode.Value);
         Assert.Equal(35.6875, meshCode.Center.Latitude, 9);
         Assert.Equal(139.69375, meshCode.Center.Longitude, 9);

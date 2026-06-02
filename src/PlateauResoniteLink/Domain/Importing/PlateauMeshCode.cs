@@ -4,13 +4,13 @@ public static class PlateauMeshCode
 {
     public static bool TryGetGeodeticCenter(string meshCode, out GeodeticCoordinate center)
     {
-        if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode secondMeshCode))
+        if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode? secondMeshCode))
         {
             center = secondMeshCode.Center;
             return true;
         }
 
-        if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
+        if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode? thirdMeshCode))
         {
             center = thirdMeshCode.Center;
             return true;
@@ -24,13 +24,13 @@ public static class PlateauMeshCode
         string meshCode,
         out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds)
     {
-        if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode secondMeshCode))
+        if (SecondRegionalMeshCode.TryParse(meshCode, out SecondRegionalMeshCode? secondMeshCode))
         {
             bounds = ToTuple(secondMeshCode.Bounds);
             return true;
         }
 
-        if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode thirdMeshCode))
+        if (ThirdRegionalMeshCode.TryParse(meshCode, out ThirdRegionalMeshCode? thirdMeshCode))
         {
             bounds = ToTuple(thirdMeshCode.Bounds);
             return true;
