@@ -82,7 +82,8 @@ public sealed class ResoniteLiveSceneImportTargetYOffsetTests
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            SubmeshIndices: [0]);
+            SubmeshIndices: [0],
+            ResoniteMaterialAssetBinding.Presentation);
     }
 
     private static double GetSlotY(Slot slot)

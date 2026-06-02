@@ -345,7 +345,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
         Assert.Contains(
             cityObject.Materials,
-            static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal)
+            static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.FacadeHighriseGlass, StringComparison.Ordinal)
                 && material.AssetScope == ResoniteMaterialAssetScope.PresentationSlotScoped);
         Assert.Contains(cityObject.Materials, static material => material.TexturePayload is not null);
     }
@@ -360,7 +360,7 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
 
         ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
-        Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
+        Assert.Equal(BundledDefaultMaterialFamilies.FacadeHighriseGlass, material.Family);
         Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
         Assert.Equal(new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0), material.TextureScale);
         Assert.Equal(new ResoniteFloat2(0.0, 0.5 / 6.0), material.TextureOffset);
@@ -383,7 +383,7 @@ public sealed class NonDemCityObjectBakerTests
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         ResoniteMaterialBinding[] preservedFacadeMaterials = cityObject.Materials
-            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal))
+            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.FacadeHighriseGlass, StringComparison.Ordinal))
             .ToArray();
 
         Assert.Equal(3, cityObject.Materials.Count);
@@ -438,7 +438,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -447,6 +448,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
                     SubmeshIndices: [1],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     TextureOffset: new ResoniteFloat2(0.125, 0.25),
                     BundledVariantIndex: 0),
@@ -458,6 +460,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: new ResoniteMaterialDepthOffset(2.0, 2.0),
                     SubmeshIndices: [2],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     TextureOffset: new ResoniteFloat2(0.25, 0.5),
                     BundledVariantIndex: 1),
@@ -531,7 +534,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -543,7 +547,7 @@ public sealed class NonDemCityObjectBakerTests
                     Family: BundledDefaultMaterialFamilies.Roof,
                     TextureOffset: new ResoniteFloat2(0.125, 0.25),
                     BundledVariantIndex: 0,
-                    AssetScope: ResoniteMaterialAssetScope.Common),
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.Roof, 0)),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -555,7 +559,7 @@ public sealed class NonDemCityObjectBakerTests
                     Family: BundledDefaultMaterialFamilies.Roof,
                     TextureOffset: new ResoniteFloat2(0.25, 0.5),
                     BundledVariantIndex: 1,
-                    AssetScope: ResoniteMaterialAssetScope.Common),
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.Roof, 1)),
             ],
         };
 
@@ -665,7 +669,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -674,6 +679,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 0),
                 new ResoniteMaterialBinding(
@@ -684,6 +690,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [2],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 0),
             ],
@@ -843,9 +850,8 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    AssetScope: ResoniteMaterialAssetScope.Common,
-                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
-                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay),
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv()),
             ],
         };
         ResoniteConstructionCityObject secondCityObject = firstCityObject with
@@ -1185,7 +1191,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
@@ -1242,7 +1249,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1250,7 +1258,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [1]),
+                    SubmeshIndices: [1],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
@@ -1274,8 +1283,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    AssetScope: ResoniteMaterialAssetScope.Common,
-                    CommonMaterial: commonMaterial),
+                    AssetBinding: ResoniteMaterialAssetBinding.SharedCommon(commonMaterial)),
             ],
         };
     }
@@ -1297,8 +1305,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
+                    AssetBinding: ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv)),
             ],
         };
     }
@@ -1335,7 +1342,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(0.4, 0.4, 0.4, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1344,8 +1352,8 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0),
                     BundledVariantIndex: 0),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
@@ -1370,6 +1378,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     TextureScale: textureScale,
                     TextureOffset: textureOffset),
             ],
@@ -1410,8 +1419,8 @@ public sealed class NonDemCityObjectBakerTests
                         BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
                         BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
                     TextureOffset: new ResoniteFloat2(0.0, 0.5 / 6.0),
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0),
                     BundledVariantIndex: 0),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
@@ -1452,6 +1461,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Facade),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -1461,6 +1471,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Facade),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
@@ -1504,7 +1515,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(0.5, 0.5, 0.5, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1513,8 +1525,8 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0),
                     BundledVariantIndex: 0),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(0.5, 0.5, 0.5, 1.0),
@@ -1524,8 +1536,8 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [2],
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 1),
                     BundledVariantIndex: 1),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
@@ -1569,7 +1581,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(0.85, 0.85, 0.85, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1578,6 +1591,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 0),
                 new ResoniteMaterialBinding(
@@ -1588,6 +1602,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [2],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 1),
             ],

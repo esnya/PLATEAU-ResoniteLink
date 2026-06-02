@@ -87,7 +87,6 @@ internal static class ResoniteSceneMaterialConventions
             && material.MaterialType == ResoniteMaterialType.Standard
             && material.TexturePayload is null
             && material.TerrainOverlay is null
-            && material.CommonMaterial is null
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && !string.IsNullOrWhiteSpace(material.Family)
             && (!IsWhiteBaseColor(material.BaseColor)
@@ -96,7 +95,9 @@ internal static class ResoniteSceneMaterialConventions
         {
             return material with
             {
-                AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
+                AssetBinding = material.CommonMaterial is { } commonMaterial
+                    ? ResoniteMaterialAssetBinding.PresentationCommon(commonMaterial)
+                    : ResoniteMaterialAssetBinding.Presentation,
             };
         }
 

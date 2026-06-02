@@ -66,7 +66,7 @@ internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
                     TexturePayload: ResoniteTextureImportFactory.CreatePayloadFromImage(
                         atlasImage ?? throw new InvalidOperationException("Non-DEM atlas image is required when an atlas layout exists."),
                         identity: textureIdentity),
-                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv));
+                    AssetBinding: ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv)));
         }
 
         foreach (IGrouping<NonDemPreservedMaterialGroupingKey, NonDemOrderedPreservedSubmeshEntry> preservedGroup in candidates
