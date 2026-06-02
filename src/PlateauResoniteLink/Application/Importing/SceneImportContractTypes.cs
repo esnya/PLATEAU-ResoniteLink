@@ -129,6 +129,23 @@ public sealed record TexturePayload
             effectiveIdentity);
     }
 
+    internal TexturePayload(
+        int width,
+        int height,
+        string? colorProfile,
+        IRawTexturePayloadSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        RawTexturePayload.EnsureValidDimensions(width, height);
+        Width = width;
+        Height = height;
+        ColorProfile = colorProfile;
+        BinaryPayload = [];
+        Identity = source.Identity;
+        Format = TexturePayloadFormat.RawRgba32;
+        Source = source;
+    }
+
     public TexturePayload(
         int? width,
         int? height,

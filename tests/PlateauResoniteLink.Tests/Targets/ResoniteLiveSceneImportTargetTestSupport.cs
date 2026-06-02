@@ -542,18 +542,35 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
         => payload.Format == ResoniteTexturePayloadFormat.RawRgba32
-            ? new TexturePayload(
-                payload.Width ?? throw new ArgumentException("Raw texture payload must include width.", nameof(payload)),
-                payload.Height ?? throw new ArgumentException("Raw texture payload must include height.", nameof(payload)),
-                payload.ColorProfile,
-                payload.BinaryPayload.AsSpan().ToArray(),
-                payload.Identity)
+            ? ToContractRawTexturePayload(payload)
             : new TexturePayload(
                 payload.Width,
                 payload.Height,
                 payload.ColorProfile,
                 payload.Source,
                 payload.Identity);
+
+    private static TexturePayload ToContractRawTexturePayload(ResoniteTexturePayload payload)
+    {
+        int width = payload.Width ?? throw new ArgumentException("Raw texture payload must include width.", nameof(payload));
+        int height = payload.Height ?? throw new ArgumentException("Raw texture payload must include height.", nameof(payload));
+        if (!payload.BinaryPayload.IsDefaultOrEmpty)
+        {
+            return new TexturePayload(
+                width,
+                height,
+                payload.ColorProfile,
+                payload.BinaryPayload.AsSpan().ToArray(),
+                payload.Identity);
+        }
+
+        if (payload.Source is not IRawTexturePayloadSource rawSource)
+        {
+            throw new ArgumentException("Raw texture payload must carry a raw texture import source.", nameof(payload));
+        }
+
+        return new TexturePayload(width, height, payload.ColorProfile, rawSource);
+    }
 
 }
 

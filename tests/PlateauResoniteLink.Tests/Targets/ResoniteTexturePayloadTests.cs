@@ -73,4 +73,36 @@ public sealed class ResoniteTexturePayloadTests
 
         Assert.Contains("identity must match", exception.Message, System.StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ContractRoundTripPreservesSourceBackedRawPayload()
+    {
+        ITextureImportSource source = TextureImportSourceFactory.CreateRawRgba32InMemory(
+            1,
+            1,
+            "sRGB",
+            new byte[] { 4, 3, 2, 1 },
+            "source:texture");
+        ResoniteTexturePayload payload = new(
+            1,
+            1,
+            "sRGB",
+            Assert.IsAssignableFrom<IRawTexturePayloadSource>(source));
+        ResoniteMaterialBinding binding = new(
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: payload,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0]);
+
+        MaterialBinding contractBinding = ResoniteLiveSceneImportTargetTestSupport.ToContractMaterial(binding);
+
+        TexturePayload contractPayload = Assert.IsType<TexturePayload>(contractBinding.TexturePayload);
+        Assert.Equal(TexturePayloadFormat.RawRgba32, contractPayload.Format);
+        Assert.Same(source, contractPayload.Source);
+        Assert.Equal(source.Identity, contractPayload.Identity);
+        Assert.True(contractPayload.BinaryPayload.IsDefaultOrEmpty);
+    }
 }
