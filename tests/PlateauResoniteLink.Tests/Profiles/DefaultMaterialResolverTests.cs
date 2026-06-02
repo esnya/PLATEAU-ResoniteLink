@@ -467,19 +467,23 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialRejectsExplicitFacadeOverrideOutsideCodebaseReachableFamilies()
+    public void ResolveMaterialAcceptsEveryTypedFamilyOverride()
     {
-        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
-            () => resolver.ResolveMaterial(new DefaultMaterialRequest(
+        foreach (DefaultMaterialFamilyOverride familyOverride in DefaultMaterialFamilyOverride.All)
+        {
+            ResolvedMaterial material = resolver.ResolveMaterial(new DefaultMaterialRequest(
                 "bldg",
                 TexturePayload: null,
                 PreferUvProjection: true,
-                FamilyOverride: BundledDefaultMaterialFamilies.Facade,
-                VariantSelectionKey: "bldg:uv:0",
+                FamilyOverride: familyOverride,
+                VariantSelectionKey: $"typed-family:{familyOverride.Family}:0",
                 BuildingAttributes: BuildingAttributeContext.Empty,
-                SurfaceRole: DefaultMaterialSurfaceRole.Wall)));
+                SurfaceRole: DefaultMaterialSurfaceRole.Wall));
 
-        Assert.Contains("not codebase-reachable", error.Message, StringComparison.Ordinal);
+            Assert.Equal(familyOverride.Family, material.Family);
+            Assert.Equal(TextureSourceKind.Bundled, material.TextureSourceKind);
+            Assert.Null(material.TexturePayload);
+        }
     }
 
     [Fact]
