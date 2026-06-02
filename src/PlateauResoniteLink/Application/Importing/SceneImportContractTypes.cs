@@ -134,7 +134,7 @@ public sealed record RawRgba32TexturePayload : TexturePayload
         ITextureImportSource source)
         : base(source)
     {
-        ArgumentNullException.ThrowIfNull(binaryPayload);
+        Rgba32RawTexturePayload.ValidateByteLength(width, height, binaryPayload);
         Width = width;
         Height = height;
         BinaryPayload = ImmutableArray.CreateRange(binaryPayload);

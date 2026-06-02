@@ -18,6 +18,25 @@ public sealed class TexturePayloadTests
     }
 
     [Fact]
+    public void ConstructorRejectsRawRgbaByteLengthMismatch()
+    {
+        Assert.Throws<ArgumentException>(
+            () => new RawRgba32TexturePayload(2, 2, "sRGB", [255, 255, 255, 255], "dataset:texture"));
+    }
+
+    [Fact]
+    public void ConstructorRejectsRawRgbaByteLengthOverflow()
+    {
+        Assert.Throws<OverflowException>(
+            () => new RawRgba32TexturePayload(
+                int.MaxValue,
+                int.MaxValue,
+                "sRGB",
+                [255, 255, 255, 255],
+                "dataset:texture"));
+    }
+
+    [Fact]
     public void ConstructorCarriesIdentityAndColorProfileOnSourceOnly()
     {
         RawRgba32TexturePayload payload = new(1, 1, "sRGB", [1, 2, 3, 4], "dataset:texture");

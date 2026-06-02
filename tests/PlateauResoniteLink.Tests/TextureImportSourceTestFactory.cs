@@ -24,25 +24,24 @@ internal static class TextureImportSourceTestFactory
             identity ?? $"test-rgba32:{width}:{height}:{Guid.NewGuid():N}");
     }
 
-    public static IReadOnlyList<RawTexturePayload> ImportedRgba32Textures(SceneSinkRecordingClient client)
+    public static IReadOnlyList<Rgba32RawTexturePayload> ImportedRgba32Textures(SceneSinkRecordingClient client)
     {
         return client.ImportedTexturePayloads
-            .Where(static payload => payload.Format == RawTexturePayloadFormat.Rgba32)
+            .OfType<Rgba32RawTexturePayload>()
             .ToArray();
     }
 
-    public static IReadOnlyList<RawTexturePayload> ImportedHdrTextures(SceneSinkRecordingClient client)
+    public static IReadOnlyList<RgbaFloat32RawTexturePayload> ImportedHdrTextures(SceneSinkRecordingClient client)
     {
         return client.ImportedTexturePayloads
-            .Where(static payload => payload.Format == RawTexturePayloadFormat.RgbaFloat32)
+            .OfType<RgbaFloat32RawTexturePayload>()
             .ToArray();
     }
 
-    public static bool IsSolidColorTexture(RawTexturePayload texture, byte r, byte g, byte b)
+    public static bool IsSolidColorTexture(Rgba32RawTexturePayload texture, byte r, byte g, byte b)
     {
         byte[] expectedPixel = [r, g, b, 255];
-        return texture.Format == RawTexturePayloadFormat.Rgba32
-            && texture.Width == 2
+        return texture.Width == 2
             && texture.Height == 2
             && texture.Bytes.Chunk(4).All(pixel => pixel.SequenceEqual(expectedPixel));
     }
