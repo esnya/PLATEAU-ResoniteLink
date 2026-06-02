@@ -351,7 +351,7 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
-    public async Task FlushAllAsyncKeepsBundledFacadeCommonTransformOnMaterial()
+    public async Task FlushAllAsyncDemotesBundledFacadeCommonTransformToMeshUv()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
 
@@ -362,11 +362,14 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
         Assert.Equal(BundledDefaultMaterialFamilies.FacadeHighriseGlass, material.Family);
         Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
-        Assert.Equal(new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0), material.TextureScale);
-        Assert.Equal(new ResoniteFloat2(0.0, 0.5 / 6.0), material.TextureOffset);
-        Assert.Equal(new ResoniteFloat2(0.0, 0.0), cityObject.Mesh.Vertices[0].UV0);
-        Assert.Equal(new ResoniteFloat2(1.0, 0.0), cityObject.Mesh.Vertices[1].UV0);
-        Assert.Equal(new ResoniteFloat2(0.0, 1.0), cityObject.Mesh.Vertices[2].UV0);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+        Assert.Equal(0.0, cityObject.Mesh.Vertices[0].UV0.X, 12);
+        Assert.Equal(5.0 / 6.0, cityObject.Mesh.Vertices[0].UV0.Y, 12);
+        Assert.Equal(10.0 / 6.0, cityObject.Mesh.Vertices[1].UV0.X, 12);
+        Assert.Equal(5.0 / 6.0, cityObject.Mesh.Vertices[1].UV0.Y, 12);
+        Assert.Equal(0.0, cityObject.Mesh.Vertices[2].UV0.X, 12);
+        Assert.Equal(15.0 / 6.0, cityObject.Mesh.Vertices[2].UV0.Y, 12);
     }
 
     [Fact]
@@ -480,6 +483,8 @@ public sealed class NonDemCityObjectBakerTests
         Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
         Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset is null);
         Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset is null);
+        Assert.NotEqual(new ResoniteFloat2(0.0, 0.0), cityObject.Mesh.Vertices[3].UV0);
+        Assert.NotEqual(new ResoniteFloat2(0.0, 0.0), cityObject.Mesh.Vertices[6].UV0);
     }
 
     [Fact]
@@ -573,8 +578,8 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(3, cityObject.Materials.Count);
         Assert.Equal(2, preservedRoofMaterials.Length);
         Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
-        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset == new ResoniteFloat2(0.125, 0.25));
-        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset == new ResoniteFloat2(0.25, 0.5));
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset is null);
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset is null);
     }
 
     [Fact]
