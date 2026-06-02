@@ -186,7 +186,7 @@ public sealed class ImportServiceFactoryTests
                                 new MeshSubmesh(0, [0, 1, 2]),
                             ])),
                         [
-                            new MaterialBinding(new ColorRgba(1, 1, 1, 1),
+                            new PresentationMaterialBinding(new ColorRgba(1, 1, 1, 1),
                                 MaterialType.Standard,
                                 null,
                                 TextureSourceKind.Dataset,

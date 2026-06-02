@@ -2330,7 +2330,10 @@ public sealed class LocalCityGmlObjectProjectionTests
             cartesian);
 
         Assert.DoesNotContain(materialBindings, static binding => binding.BaseColor == new ColorRgba(1.0, 0.0, 0.0, 1.0));
-        Assert.Contains(materialBindings, static binding => binding.BaseColor == new ColorRgba(0.0, 0.0, 1.0, 1.0));
+        Assert.Contains(
+            materialBindings,
+            static binding => binding is SharedCommonMaterialBinding shared
+                && shared.CommonMaterial.Kind == DefaultCommonMaterialMemberKind.Bundled);
     }
 
     [Fact]
