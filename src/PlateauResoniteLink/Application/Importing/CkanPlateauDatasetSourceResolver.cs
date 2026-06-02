@@ -26,7 +26,7 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
         this.archiveFileLayoutPolicy = archiveFileLayoutPolicy ?? throw new ArgumentNullException(nameof(archiveFileLayoutPolicy));
     }
 
-    public async Task<ValidatedPlateauImportRequest> ResolveAsync(
+    public async Task<ResolvedLocalPlateauImportRequest> ResolveAsync(
         ValidatedPlateauImportRequest request,
         string workRoot,
         CancellationToken cancellationToken = default)
@@ -37,27 +37,44 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
         _ = archiveFileLayoutPolicy.CreateSafePathSegment(request.Dataset);
         _ = TryCreateSafePathSegment(request.MeshCode, out _);
 
-        ValidatedDatasetLocation resolvedSource = await ResolveOptionalRemoteDatasetLocationAsync(
+        ValidatedLocalDatasetLocation resolvedSource = await ResolveRequiredLocalDatasetLocationAsync(
             request.CityGmlSource,
             workRoot,
             resourcePrefix: "source-archive",
             invalidateLocalFileCache: true,
-            cancellationToken) ?? throw new InvalidOperationException("The normalized CityGML source must resolve to a local or remote location.");
-        ValidatedDatasetLocation? resolvedDemTextureSource = await ResolveOptionalRemoteDatasetLocationAsync(
+            cancellationToken);
+        ValidatedLocalDatasetLocation? resolvedDemTextureSource = await ResolveOptionalLocalDatasetLocationAsync(
             request.DemTextureSource,
             workRoot,
             resourcePrefix: "source-ortho",
             invalidateLocalFileCache: false,
             cancellationToken);
 
-        return request with
-        {
-            CityGmlSource = resolvedSource,
-            DemTextureSource = resolvedDemTextureSource!,
-        };
+        return ResolvedLocalPlateauImportRequest.Create(
+            request,
+            workRoot,
+            resolvedSource,
+            resolvedDemTextureSource);
     }
 
-    private async Task<ValidatedDatasetLocation?> ResolveOptionalRemoteDatasetLocationAsync(
+    private async Task<ValidatedLocalDatasetLocation> ResolveRequiredLocalDatasetLocationAsync(
+        ValidatedDatasetLocation source,
+        string workRoot,
+        string resourcePrefix,
+        bool invalidateLocalFileCache,
+        CancellationToken cancellationToken)
+    {
+        ValidatedLocalDatasetLocation? resolvedSource = await ResolveOptionalLocalDatasetLocationAsync(
+            source,
+            workRoot,
+            resourcePrefix,
+            invalidateLocalFileCache,
+            cancellationToken);
+        return resolvedSource
+            ?? throw new InvalidOperationException("The normalized CityGML source must resolve to a local dataset location.");
+    }
+
+    private async Task<ValidatedLocalDatasetLocation?> ResolveOptionalLocalDatasetLocationAsync(
         ValidatedDatasetLocation? source,
         string workRoot,
         string resourcePrefix,
@@ -66,7 +83,7 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
     {
         if (source is null || source is ValidatedLocalDatasetLocation)
         {
-            return source;
+            return source as ValidatedLocalDatasetLocation;
         }
 
         ValidatedRemoteDatasetLocation remoteSource = (ValidatedRemoteDatasetLocation)source;

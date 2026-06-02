@@ -24,10 +24,10 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlLodSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
-            new PlateauImportRequest(
+            new ResolvedLocalPlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                CityGmlSource: DatasetLocation.Local(fixturePath),
+                CityGmlLocalSourcePath: fixturePath,
                 PackageNames: ["bldg"]
 ));
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
@@ -53,10 +53,10 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlLodSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
-            new PlateauImportRequest(
+            new ResolvedLocalPlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                CityGmlSource: DatasetLocation.Local(datasetSource.SourcePath),
+                CityGmlLocalSourcePath: datasetSource.SourcePath,
                 PackageNames: ["dem"]
 ));
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
@@ -79,10 +79,10 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlLodSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
-            new PlateauImportRequest(
+            new ResolvedLocalPlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                CityGmlSource: DatasetLocation.Local(fixturePath),
+                CityGmlLocalSourcePath: fixturePath,
                 PackageNames: ["dem", "tran"]
 ));
 
