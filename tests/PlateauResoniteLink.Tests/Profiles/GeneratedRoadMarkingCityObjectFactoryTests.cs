@@ -65,7 +65,7 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
                 "textured-road",
                 width: 4.0,
                 length: 12.0,
-                texturePayload: new TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], "road-texture")));
+                texturePayload: new RawRgba32TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], "road-texture")));
 
         ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(road, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
 
@@ -83,7 +83,7 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
                     "textured-road",
                     width: 4.0,
                     length: 12.0,
-                    texturePayload: new TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], "road-texture")),
+                    texturePayload: new RawRgba32TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], "road-texture")),
                 CreateRoadSurface(
                     "plain-road",
                     width: 4.0,
