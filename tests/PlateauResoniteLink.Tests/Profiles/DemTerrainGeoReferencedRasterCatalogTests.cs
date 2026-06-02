@@ -183,7 +183,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     }
 
     [Fact]
-    public async Task TryResolveRasterSourceAsyncEvictsFaultedBackgroundTaskAfterCanceledWaiter()
+    public async Task TryResolveRasterSourceAsyncTreatsFaultedCandidateMaterializationAsUnavailableAfterCanceledWaiter()
     {
         using TemporaryDirectory datasetRoot = new();
         FaultingGateableDatasetContentSource datasetSource = CreateFaultingGateableDatasetSource(datasetRoot.Path);
@@ -203,35 +203,15 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         datasetSource.ReleaseOpenRead.TrySetResult();
         await datasetSource.BackgroundCompletion.Task.WaitAsync(CancellationToken.None);
 
-        await AssertEventuallyRetriesFaultedBackgroundTaskAsync(catalog, datasetSource, bounds);
-        Assert.Equal(2, datasetSource.EnsureLocalFileCallCount);
+        TerrainTextureGeoReferencedRasterSource? retryResult = await catalog.TryResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
+            ThirdRegionalMeshCode.Parse("53394525"),
+            bounds,
+            CancellationToken.None);
+
+        Assert.Null(retryResult);
+        Assert.Equal(1, datasetSource.EnsureLocalFileCallCount);
         Assert.Equal(0, datasetSource.OpenReadCallCount);
-    }
-
-    private static async Task AssertEventuallyRetriesFaultedBackgroundTaskAsync(
-        DemTerrainGeoReferencedRasterCatalog catalog,
-        FaultingGateableDatasetContentSource datasetSource,
-        GeographicRectangle bounds)
-    {
-        for (int attempt = 0; attempt < 50; attempt++)
-        {
-            await Assert.ThrowsAnyAsync<IOException>(async () => await catalog.TryResolveRasterSourceAsync(
-                    new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
-                    ThirdRegionalMeshCode.Parse("53394525"),
-                    bounds,
-                    CancellationToken.None));
-
-            if (datasetSource.EnsureLocalFileCallCount == 2)
-            {
-                return;
-            }
-
-            await Task.Delay(20);
-        }
-
-        Assert.Fail(
-            $"Faulted background task was not evicted after 50 retry attempts. "
-            + $"Observed EnsureLocalFileCallCount={datasetSource.EnsureLocalFileCallCount}.");
     }
 
     private static RecordingDatasetContentSource CreateDatasetSource(string datasetRoot)

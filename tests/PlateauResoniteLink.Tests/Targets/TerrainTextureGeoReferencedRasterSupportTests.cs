@@ -64,6 +64,25 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     }
 
     [Fact]
+    public async Task TryReadMetadataAsyncReturnsNullWhenRasterContentSourceCannotOpen()
+    {
+        GeoReferencedRasterMetadata? metadata = await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
+            new ThrowingRasterContentSource(new IOException("candidate raster unavailable")),
+            CancellationToken.None);
+
+        Assert.Null(metadata);
+    }
+
+    [Fact]
+    public async Task TryReadMetadataAsyncPropagatesCancellationFromRasterContentSource()
+    {
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
+                new ThrowingRasterContentSource(new OperationCanceledException("cancelled")),
+                CancellationToken.None));
+    }
+
+    [Fact]
     public void TryCreateMetadataResolvesWebMercatorBoundsFromRealPlateauGeoTiffTags()
     {
         ushort[] geoKeyDirectory =
@@ -496,7 +515,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     }
 
     [Fact]
-    public async Task EnsureTextureAsyncRejectsUnavailableGeoReferencedRasterSourceWithoutTileFallback()
+    public async Task EnsureTextureAsyncSkipsUnavailableGeoReferencedRasterSourceBeforeTileFallback()
     {
         GeographicRectangle bounds = new(0.0, WebMercatorTileMath.MaxLatitude, -180.0, 180.0);
         TerrainTextureOverlay overlay = new(
@@ -516,17 +535,15 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await generator.EnsureTextureAsync(overlay, CancellationToken.None));
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Contains("missing.tif", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(TerrainTextureDescriptorFormatting.FormatBounds(bounds), exception.Message, StringComparison.Ordinal);
-        Assert.IsType<FileNotFoundException>(exception.InnerException);
-        Assert.Equal(0, handler.RequestCount);
+        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
+        Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
+        Assert.True(handler.RequestCount > 0);
     }
 
     [Fact]
-    public async Task EnsureTextureAsyncRejectsNonOverlappingGeoReferencedRasterSourceWithoutTileFallback()
+    public async Task EnsureTextureAsyncSkipsNonOverlappingGeoReferencedRasterSourceBeforeTileFallback()
     {
         using TemporaryDirectory workDirectory = new();
         string rasterPath = Path.Combine(workDirectory.Path, "terrain.png");
@@ -557,10 +574,24 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await generator.EnsureTextureAsync(overlay, CancellationToken.None));
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(0, handler.RequestCount);
+        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
+        Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
+        Assert.True(handler.RequestCount > 0);
+    }
+
+    private sealed class ThrowingRasterContentSource(Exception exception) : ITerrainTextureRasterContentSource
+    {
+        public string IdentityKey => "throwing-raster";
+
+        public string Description => "throwing-raster";
+
+        public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw exception;
+        }
     }
 
     private sealed class NeverCalledMapTileHandler : HttpMessageHandler

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -150,7 +149,7 @@ internal sealed class TerrainTextureAssetGenerator(
                     tileSource,
                     cancellationToken),
                 TerrainTextureGeoReferencedRasterSource rasterSource => await CreateTextureFromGeoReferencedRasterSourceAsync(
-                    terrainTextureOverlay,
+                    terrainTextureOverlay.GeographicBounds,
                     rasterSource,
                     cancellationToken),
                 _ => null,
@@ -215,8 +214,8 @@ internal sealed class TerrainTextureAssetGenerator(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "The returned source image owns and disposes the cropped raster image.")]
-    private static async Task<TerrainTextureSourceImage> CreateTextureFromGeoReferencedRasterSourceAsync(
-        TerrainTextureOverlay terrainTextureOverlay,
+    private static async Task<TerrainTextureSourceImage?> CreateTextureFromGeoReferencedRasterSourceAsync(
+        GeographicRectangle geographicBounds,
         TerrainTextureGeoReferencedRasterSource rasterSource,
         CancellationToken cancellationToken)
     {
@@ -228,11 +227,7 @@ internal sealed class TerrainTextureAssetGenerator(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            throw new InvalidOperationException(
-                string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"Failed to open or decode geo-referenced raster source '{rasterSource.ContentSource.Description}' for terrain overlay bounds '{TerrainTextureDescriptorFormatting.FormatBounds(terrainTextureOverlay.GeographicBounds)}'."),
-                exception);
+            return null;
         }
 
         using (sourceImage)
@@ -240,13 +235,10 @@ internal sealed class TerrainTextureAssetGenerator(
             Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(
                 sourceImage,
                 rasterSource.Metadata,
-                terrainTextureOverlay.GeographicBounds);
+                geographicBounds);
             if (cropped is null)
             {
-                throw new InvalidOperationException(
-                    string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"Geo-referenced raster source '{rasterSource.ContentSource.Description}' does not overlap terrain overlay bounds '{TerrainTextureDescriptorFormatting.FormatBounds(terrainTextureOverlay.GeographicBounds)}'."));
+                return null;
             }
 
             return new TerrainTextureSourceImage(cropped, null);
