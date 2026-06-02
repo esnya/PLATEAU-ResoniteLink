@@ -100,13 +100,66 @@ public sealed record ResolvedLocalPlateauImportRequest
 
     internal static ResolvedLocalPlateauImportRequest Create(
         ValidatedPlateauImportRequest request,
+        string workRoot,
         ValidatedLocalDatasetLocation cityGmlSource,
         ValidatedLocalDatasetLocation? demTextureSource)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
         ArgumentNullException.ThrowIfNull(cityGmlSource);
 
+        ValidateResolvedSource(request.CityGmlSource, cityGmlSource, workRoot, "source-archive", nameof(cityGmlSource));
+        ValidateResolvedOptionalSource(request.DemTextureSource, demTextureSource, workRoot, "source-ortho", nameof(demTextureSource));
+
         return new ResolvedLocalPlateauImportRequest(request, cityGmlSource, demTextureSource);
+    }
+
+    private static void ValidateResolvedOptionalSource(
+        ValidatedDatasetLocation? requestedSource,
+        ValidatedLocalDatasetLocation? resolvedSource,
+        string workRoot,
+        string remotePathPrefix,
+        string parameterName)
+    {
+        if (requestedSource is null || resolvedSource is null)
+        {
+            if (requestedSource is not null || resolvedSource is not null)
+            {
+                throw new ArgumentException(
+                    "Resolved local source presence must match the requested source presence.",
+                    parameterName);
+            }
+
+            return;
+        }
+
+        ValidateResolvedSource(requestedSource, resolvedSource, workRoot, remotePathPrefix, parameterName);
+    }
+
+    private static void ValidateResolvedSource(
+        ValidatedDatasetLocation requestedSource,
+        ValidatedLocalDatasetLocation resolvedSource,
+        string workRoot,
+        string remotePathPrefix,
+        string parameterName)
+    {
+        switch (requestedSource)
+        {
+            case ValidatedLocalDatasetLocation requestedLocal
+                when string.Equals(requestedLocal.LocalSourcePath, resolvedSource.LocalSourcePath, StringComparison.Ordinal):
+                return;
+            case ValidatedRemoteDatasetLocation requestedRemote
+                when RemoteDatasetResourceLayout.MatchesRemoteResourcePath(
+                    workRoot,
+                    requestedRemote.ServerUri,
+                    remotePathPrefix,
+                    resolvedSource.LocalSourcePath):
+                return;
+            default:
+                throw new ArgumentException(
+                    "Resolved local source must match the requested local source or the expected remote materialization path.",
+                    parameterName);
+        }
     }
 
     private static ValidatedPlateauImportRequest CreateResolvedRequest(

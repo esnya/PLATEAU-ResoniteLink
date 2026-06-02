@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -121,20 +122,116 @@ public sealed class ResolvedLocalPlateauImportRequestTests
     }
 
     [Fact]
-    public void CreateKeepsLocalDemTextureSource()
+    public void CreateKeepsResolvedRemoteDemTextureSource()
     {
+        string workRoot = "work";
+        Uri cityGmlUri = new("https://example.test/tokyo.zip");
+        Uri demTextureUri = new("https://example.test/ortho.tif");
         ValidatedPlateauImportRequest request = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
-                CityGmlSource: DatasetLocation.Remote(new Uri("https://example.test/tokyo.zip")),
-                DemTextureSource: DatasetLocation.Remote(new Uri("https://example.test/ortho.tif"))));
+                CityGmlSource: DatasetLocation.Remote(cityGmlUri),
+                DemTextureSource: DatasetLocation.Remote(demTextureUri)));
 
         ResolvedLocalPlateauImportRequest resolvedRequest = ResolvedLocalPlateauImportRequest.Create(
             request,
+            workRoot,
+            new ValidatedLocalDatasetLocation(
+                RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, cityGmlUri, "source-archive")),
+            new ValidatedLocalDatasetLocation(
+                RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, demTextureUri, "source-ortho")));
+
+        Assert.Equal(
+            RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, demTextureUri, "source-ortho"),
+            resolvedRequest.DemTextureLocalSourcePath);
+    }
+
+    [Fact]
+    public void CreateRejectsLocalCityGmlSourceMismatch()
+    {
+        ValidatedPlateauImportRequest request = CreateValidatedRequest(
+            new ValidatedLocalDatasetLocation("/tmp/plateau-a"));
+
+        Assert.Throws<ArgumentException>(
+            () => ResolvedLocalPlateauImportRequest.Create(
+                request,
+                "work",
+                new ValidatedLocalDatasetLocation("/tmp/plateau-b"),
+                demTextureSource: null));
+    }
+
+    [Fact]
+    public void CreateRejectsRemoteCityGmlSourceMismatch()
+    {
+        Uri cityGmlUri = new("https://example.test/tokyo.zip");
+        ValidatedPlateauImportRequest request = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                CityGmlSource: DatasetLocation.Remote(cityGmlUri)));
+
+        Assert.Throws<ArgumentException>(
+            () => ResolvedLocalPlateauImportRequest.Create(
+                request,
+                "work",
+                new ValidatedLocalDatasetLocation("/tmp/unexpected.zip"),
+                demTextureSource: null));
+    }
+
+    [Fact]
+    public void CreateRejectsDifferentResolvedLocalDemTextureSource()
+    {
+        ValidatedPlateauImportRequest request = CreateValidatedRequest(
+            new ValidatedLocalDatasetLocation("/tmp/plateau"),
+            new ValidatedLocalDatasetLocation("/tmp/ortho-a.tif"));
+
+        Assert.Throws<ArgumentException>(
+            () => ResolvedLocalPlateauImportRequest.Create(
+                request,
+                "work",
+                new ValidatedLocalDatasetLocation("/tmp/plateau"),
+                new ValidatedLocalDatasetLocation("/tmp/ortho-b.tif")));
+    }
+
+    [Fact]
+    public void CreateRejectsResolvedDemTextureSourceWhenNoneWasRequested()
+    {
+        ValidatedPlateauImportRequest request = CreateValidatedRequest(
+            new ValidatedLocalDatasetLocation("/tmp/plateau"));
+
+        Assert.Throws<ArgumentException>(
+            () => ResolvedLocalPlateauImportRequest.Create(
+                request,
+                "work",
+                new ValidatedLocalDatasetLocation("/tmp/plateau"),
+                new ValidatedLocalDatasetLocation("/tmp/ortho.tif")));
+    }
+
+    [Fact]
+    public void CreateRejectsUnresolvedDemTextureSourceWhenOneWasRequested()
+    {
+        ValidatedPlateauImportRequest request = CreateValidatedRequest(
             new ValidatedLocalDatasetLocation("/tmp/plateau"),
             new ValidatedLocalDatasetLocation("/tmp/ortho.tif"));
 
-        Assert.Equal("/tmp/ortho.tif", resolvedRequest.DemTextureLocalSourcePath);
+        Assert.Throws<ArgumentException>(
+            () => ResolvedLocalPlateauImportRequest.Create(
+                request,
+                "work",
+                new ValidatedLocalDatasetLocation("/tmp/plateau"),
+                demTextureSource: null));
+    }
+
+    private static ValidatedPlateauImportRequest CreateValidatedRequest(
+        ValidatedDatasetLocation cityGmlSource,
+        ValidatedDatasetLocation? demTextureSource = null)
+    {
+        return new ValidatedPlateauImportRequest(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
+            CityGmlSource: cityGmlSource,
+            DemTextureSource: demTextureSource);
     }
 }

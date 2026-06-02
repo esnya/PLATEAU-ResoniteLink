@@ -52,6 +52,7 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
 
         return ResolvedLocalPlateauImportRequest.Create(
             request,
+            workRoot,
             resolvedSource,
             resolvedDemTextureSource);
     }
