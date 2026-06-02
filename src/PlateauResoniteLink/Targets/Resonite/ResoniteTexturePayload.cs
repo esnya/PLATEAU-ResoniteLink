@@ -48,7 +48,7 @@ public sealed record ResoniteTexturePayload
         Height = height;
         ColorProfile = colorProfile;
         ArgumentNullException.ThrowIfNull(source);
-        ArgumentException.ThrowIfNullOrWhiteSpace(source.Identity, nameof(source));
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.Identity.Value, nameof(source));
         BinaryPayload = [];
         Format = format;
         Source = source;

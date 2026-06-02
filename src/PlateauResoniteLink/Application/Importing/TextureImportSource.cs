@@ -23,7 +23,7 @@ public sealed record RawTexturePayload(
 
 public interface ITextureImportSource
 {
-    string Identity { get; }
+    TextureImportSourceIdentity Identity { get; }
 
     string Description { get; }
 
@@ -67,12 +67,12 @@ internal sealed class InMemoryTextureImportSource : IRawTexturePayloadSource
         TexturePayloadFormat sourceFormat)
     {
         ArgumentNullException.ThrowIfNull(bytes);
-        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
+        TextureImportSourceIdentity resolvedIdentity = new(identity);
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
         this.bytes = (byte[])bytes.Clone();
-        Identity = identity;
+        Identity = resolvedIdentity;
         SourceFormat = sourceFormat;
     }
 
@@ -80,7 +80,7 @@ internal sealed class InMemoryTextureImportSource : IRawTexturePayloadSource
 
     public int? Height { get; }
 
-    public string Identity { get; }
+    public TextureImportSourceIdentity Identity { get; }
 
     public string Description => $"memory:{Identity}";
 
@@ -131,7 +131,7 @@ internal sealed class DatasetTextureImportSource(
     string? colorProfile,
     string identity) : IRawTexturePayloadSource
 {
-    public string Identity { get; } = identity;
+    public TextureImportSourceIdentity Identity { get; } = new(identity);
 
     public string Description => $"dataset:{relativePath}";
 
@@ -154,7 +154,7 @@ internal sealed class FileTextureImportSource(
     string colorProfile,
     string identity) : IRawTexturePayloadSource
 {
-    public string Identity { get; } = identity;
+    public TextureImportSourceIdentity Identity { get; } = new(identity);
 
     public string Description => $"file:{Path.GetFileName(absolutePath)}";
 
@@ -193,7 +193,7 @@ internal sealed class GeneratedTextureImportSource(
     string? colorProfile,
     long? estimatedByteLength = null) : IRawTexturePayloadSource
 {
-    public string Identity { get; } = identity;
+    public TextureImportSourceIdentity Identity { get; } = new(identity);
 
     public string Description { get; } = description;
 

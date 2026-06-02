@@ -30,7 +30,7 @@ public sealed class TexturePayloadTests
             source: source);
 
         Assert.Same(source, payload.Source);
-        Assert.Equal("source:texture", payload.Source.Identity);
+        Assert.Equal(new TextureImportSourceIdentity("source:texture"), payload.Source.Identity);
     }
 
     [Theory]
@@ -43,6 +43,16 @@ public sealed class TexturePayloadTests
             height: 1,
             colorProfile: "sRGB",
             source: new FakeTextureImportSource(identity)));
+    }
+
+    [Fact]
+    public void SourceBackedConstructorRejectsDefaultSourceIdentity()
+    {
+        Assert.ThrowsAny<ArgumentException>(() => new TexturePayload(
+            width: 1,
+            height: 1,
+            colorProfile: "sRGB",
+            source: new DefaultIdentityTextureImportSource()));
     }
 
     [Theory]
@@ -68,7 +78,18 @@ public sealed class TexturePayloadTests
 
     private sealed class FakeTextureImportSource(string identity) : ITextureImportSource
     {
-        public string Identity { get; } = identity;
+        public TextureImportSourceIdentity Identity { get; } = new(identity);
+
+        public string Description => "fake texture";
+
+        public string? ColorProfile => "sRGB";
+
+        public long? EstimatedByteLength => null;
+    }
+
+    private sealed class DefaultIdentityTextureImportSource : ITextureImportSource
+    {
+        public TextureImportSourceIdentity Identity => default;
 
         public string Description => "fake texture";
 

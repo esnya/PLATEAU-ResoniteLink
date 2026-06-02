@@ -382,7 +382,7 @@ public sealed class ResoniteLinkClientTests
     {
         public int MaterializeCallCount { get; private set; }
 
-        public string Identity => "instrumented";
+        public TextureImportSourceIdentity Identity { get; } = new("instrumented");
 
         public string Description => "instrumented";
 
