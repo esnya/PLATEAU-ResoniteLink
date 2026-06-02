@@ -67,6 +67,11 @@ internal static class GeneratedRoadMarkingCityObjectFactory
             return [];
         }
 
+        if (vertices.Length != 4)
+        {
+            return [];
+        }
+
         Float3[] positions = vertices
             .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();

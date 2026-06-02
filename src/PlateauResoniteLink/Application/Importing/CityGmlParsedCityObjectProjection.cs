@@ -363,6 +363,11 @@ internal static class CityGmlParsedCityObjectProjection
             return [surface];
         }
 
+        if (surface.ExteriorRing.Vertices.Length != 4)
+        {
+            return [surface];
+        }
+
         GeodeticPoint cityObjectOrigin = ResolveCityObjectOrigin(cityObject);
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
             ? new LocalCartesian(
