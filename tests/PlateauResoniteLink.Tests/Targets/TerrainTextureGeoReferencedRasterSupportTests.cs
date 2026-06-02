@@ -342,8 +342,8 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.NotEqual(Materialize(tileOnlyTexture.TextureSource).Bytes, Materialize(rasterOnlyTexture.TextureSource).Bytes);
         Assert.NotEqual(Materialize(tileOnlyTexture.TextureSource).Bytes, Materialize(mixedTexture.TextureSource).Bytes);
         Assert.NotEqual(Materialize(rasterOnlyTexture.TextureSource).Bytes, Materialize(mixedTexture.TextureSource).Bytes);
-        Assert.Single(rasterOnlyTexture.UsedSources ?? []);
-        Assert.Equal(2, (mixedTexture.UsedSources ?? []).Count);
+        Assert.Single(rasterOnlyTexture.UsedSources);
+        Assert.Equal(2, mixedTexture.UsedSources.Count);
     }
 
     [Fact]
@@ -494,9 +494,9 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             new Rgba32(12, 34, 56, 255),
             outputImage[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)]);
         Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
-        Assert.Contains(texture.UsedSources ?? [], static source => source is TerrainTextureGeoReferencedRasterSource);
+        Assert.Contains(texture.UsedSources, static source => source is TerrainTextureGeoReferencedRasterSource);
         Assert.Contains(
-            texture.UsedSources ?? [],
+            texture.UsedSources,
             static source => source is TerrainTextureTileSource tileSource
                 && tileSource.UrlTemplate == "https://tiles.example/{z}/{x}/{y}.png");
         Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
