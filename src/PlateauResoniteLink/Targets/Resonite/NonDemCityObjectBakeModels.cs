@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 using PlateauResoniteLink.Domain.Importing;
@@ -15,9 +16,27 @@ internal abstract record NonDemBakeEntry
     {
     }
 
-    internal sealed record Atlas(NonDemAtlasBatchEntry Entry) : NonDemBakeEntry;
+    internal sealed record Atlas : NonDemBakeEntry
+    {
+        public Atlas(NonDemAtlasBatchEntry entry)
+        {
+            ArgumentNullException.ThrowIfNull(entry);
+            Entry = entry;
+        }
 
-    internal sealed record Preserved(NonDemPreservedSubmeshEntry Entry) : NonDemBakeEntry;
+        public NonDemAtlasBatchEntry Entry { get; }
+    }
+
+    internal sealed record Preserved : NonDemBakeEntry
+    {
+        public Preserved(NonDemPreservedSubmeshEntry entry)
+        {
+            ArgumentNullException.ThrowIfNull(entry);
+            Entry = entry;
+        }
+
+        public NonDemPreservedSubmeshEntry Entry { get; }
+    }
 }
 
 internal readonly record struct NonDemBufferedCityObject(

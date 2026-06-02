@@ -59,7 +59,9 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
                         normalizedCityObject,
                         submesh,
                         material,
-                        cancellationToken);
+                        cancellationToken)
+                        ?? throw new InvalidOperationException(
+                            $"Non-DEM bake entry factory returned no entry for city object '{cityObject.DisplayName}' submesh index {submesh.Index}.");
                     switch (bakeEntry)
                     {
                         case NonDemBakeEntry.Atlas atlas:
@@ -68,6 +70,9 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
                         case NonDemBakeEntry.Preserved preserved:
                             preservedEntries.Add(preserved.Entry);
                             break;
+                        default:
+                            throw new InvalidOperationException(
+                                $"Unsupported Non-DEM bake entry type '{bakeEntry.GetType().FullName}'.");
                     }
 
                     break;
