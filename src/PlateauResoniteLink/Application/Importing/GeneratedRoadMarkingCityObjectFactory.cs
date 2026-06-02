@@ -62,7 +62,7 @@ internal static class GeneratedRoadMarkingCityObjectFactory
         LocalCartesian? cityObjectCartesian)
     {
         GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
-        if (vertices.Length != 4 || surface.InteriorRings.Length != 0)
+        if (surface.InteriorRings.Length != 0)
         {
             return [];
         }
@@ -70,13 +70,18 @@ internal static class GeneratedRoadMarkingCityObjectFactory
         Float3[] positions = vertices
             .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
+        if (!RoadSurfaceQuad.TryCreate(surface.ExteriorRing, positions, out RoadSurfaceQuad quad))
+        {
+            return [];
+        }
+
         Float3? normal = PolygonNormal.Compute(positions);
         if (normal is null || Math.Abs(normal.Y) < 0.7)
         {
             return [];
         }
 
-        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(vertices, positions);
+        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(quad);
         if (edgePair.Length < 1.0 || edgePair.Width < 0.3)
         {
             return [];
