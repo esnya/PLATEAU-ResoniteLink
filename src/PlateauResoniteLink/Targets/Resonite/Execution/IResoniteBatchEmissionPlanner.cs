@@ -233,7 +233,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 ref nextFieldLocator);
         }
 
-        return new PlannedBatchEmission(
+        return PlannedBatchEmission.Create(
             slotEmissions,
             componentEmissions,
             slotResolutionTargets,
