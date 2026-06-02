@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -20,8 +19,7 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
             NonDemMaterialBakeCategory.PreservedCommonMaterial,
             NonDemCityObjectBakeMaterialClassifier.Classify(CreateTexturelessMaterial() with
             {
-                AssetScope = ResoniteMaterialAssetScope.Common,
-                CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
+                AssetBinding = ResoniteMaterialAssetBindingTestFactory.SharedGenericUv(),
             }));
         Assert.Equal(
             NonDemMaterialBakeCategory.PreservedTextureless,
@@ -123,6 +121,7 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
             ResoniteTextureSourceKind.Bundled,
             ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            SubmeshIndices: [0]);
+            SubmeshIndices: [0],
+            ResoniteMaterialAssetBinding.Presentation);
     }
 }

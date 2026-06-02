@@ -112,22 +112,29 @@ internal static class SceneImportContractMapper
     internal static ResoniteMaterialBinding ToInternal(MaterialBinding binding)
     {
         return new ResoniteMaterialBinding(
-            ToInternal(binding.BaseColor),
-            ToInternal(binding.MaterialType),
-            binding.TexturePayload is null ? null : ToInternal(binding.TexturePayload),
-            ToInternal(binding.TextureSourceKind),
-            ToInternal(binding.Projection),
-            binding.DepthOffset is null ? null : ToInternal(binding.DepthOffset),
-            binding.SubmeshIndices,
-            binding.TextureScale is null ? null : ToInternal(binding.TextureScale),
-            binding.Family,
-            binding.TextureOffset is null ? null : ToInternal(binding.TextureOffset),
-            binding is SharedCommonMaterialBinding
-                ? ResoniteMaterialAssetScope.Common
-                : ResoniteMaterialAssetScope.PresentationSlotScoped,
-            binding.TerrainOverlayMaterial,
-            binding.BundledVariantIndex,
-            binding.CommonMaterial);
+            BaseColor: ToInternal(binding.BaseColor),
+            MaterialType: ToInternal(binding.MaterialType),
+            TexturePayload: binding.TexturePayload is null ? null : ToInternal(binding.TexturePayload),
+            TextureSourceKind: ToInternal(binding.TextureSourceKind),
+            Projection: ToInternal(binding.Projection),
+            DepthOffset: binding.DepthOffset is null ? null : ToInternal(binding.DepthOffset),
+            SubmeshIndices: binding.SubmeshIndices,
+            AssetBinding: ToInternalAssetBinding(binding),
+            TextureScale: binding.TextureScale is null ? null : ToInternal(binding.TextureScale),
+            Family: binding.Family,
+            TextureOffset: binding.TextureOffset is null ? null : ToInternal(binding.TextureOffset),
+            TerrainOverlayMaterial: binding.TerrainOverlayMaterial,
+            BundledVariantIndex: binding.BundledVariantIndex);
+    }
+
+    private static ResoniteMaterialAssetBinding ToInternalAssetBinding(MaterialBinding binding)
+    {
+        return binding switch
+        {
+            SharedCommonMaterialBinding sharedCommon => ResoniteMaterialAssetBinding.SharedCommon(sharedCommon.CommonMaterial),
+            PresentationCommonMaterialBinding presentationCommon => ResoniteMaterialAssetBinding.PresentationCommon(presentationCommon.CommonMaterial),
+            _ => ResoniteMaterialAssetBinding.Presentation,
+        };
     }
 
     private static ResoniteTexturePayload ToInternal(TexturePayload payload)

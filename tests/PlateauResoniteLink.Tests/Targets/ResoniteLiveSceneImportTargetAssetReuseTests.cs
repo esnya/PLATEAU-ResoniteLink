@@ -1506,11 +1506,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     SubmeshIndices: [0],
                     TextureScale: textureScale,
                     Family: family,
-                    AssetScope: commonMaterial is null
-                        ? ResoniteMaterialAssetScope.PresentationSlotScoped
-                        : ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: 0,
-                    CommonMaterial: commonMaterial),
+                    AssetBinding: commonMaterial is null
+                        ? ResoniteMaterialAssetBinding.Presentation
+                        : ResoniteMaterialAssetBinding.SharedCommon(commonMaterial)),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1543,8 +1542,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     TextureScale: textureScale,
                     Family: null,
                     TextureOffset: textureOffset,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
+                    AssetBinding: ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv)),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1574,8 +1572,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     Family: null,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
+                    AssetBinding: ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv)),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1585,8 +1582,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     DepthOffset: null,
                     SubmeshIndices: [1],
                     Family: null,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
+                    AssetBinding: ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv)),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1620,7 +1616,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1647,8 +1644,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    AssetScope: ResoniteMaterialAssetScope.Common,
-                    CommonMaterial: CommonMaterialCatalog.Create().VertexColor.Uv),
+                    AssetBinding: ResoniteMaterialAssetBinding.SharedCommon(CommonMaterialCatalog.Create().VertexColor.Uv)),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }
@@ -1677,9 +1673,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     Family: BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: 0,
-                    CommonMaterial: CommonMaterialCatalog.Create().WallResidentialPlasterLow.ResidentialPlasterLow),
+                    AssetBinding: ResoniteMaterialAssetBinding.SharedCommon(CommonMaterialCatalog.Create().WallResidentialPlasterLow.ResidentialPlasterLow)),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1689,8 +1684,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     DepthOffset: null,
                     SubmeshIndices: [1],
                     Family: null,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
+                    AssetBinding: ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv)),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }

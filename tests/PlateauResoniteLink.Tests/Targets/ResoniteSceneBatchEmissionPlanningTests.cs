@@ -343,7 +343,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                 Projection: ResoniteMaterialProjection.Uv,
                 DepthOffset: null,
-                SubmeshIndices: [0]),
+                SubmeshIndices: [0],
+                ResoniteMaterialAssetBinding.Presentation),
             [new PlannedTextureAsset(new TextureIdentity("albedo"), new Uri("resdb:///texture/albedo"))],
             PreserveDedicatedMaterialSlot: true,
             DedicatedMaterialSlotName: "material-000-pbs-uv-uv");
@@ -411,7 +412,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                 Projection: ResoniteMaterialProjection.Uv,
                 DepthOffset: null,
-                SubmeshIndices: [0]),
+                SubmeshIndices: [0],
+                ResoniteMaterialAssetBinding.Presentation),
             [
                 new PlannedTextureAsset(new TextureIdentity("albedo"), new Uri("resdb:///texture/albedo")),
                 new PlannedTextureAsset(new TextureIdentity("normal"), new Uri("resdb:///texture/normal")),

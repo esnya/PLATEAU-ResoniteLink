@@ -92,11 +92,11 @@ internal sealed class NonDemBakeEntryFactory(
             TextureOffset = null,
             Family = null,
             TerrainOverlayMaterial = null,
-            AssetScope = ResoniteMaterialAssetScope.Common,
+            AssetBinding = ResoniteMaterialAssetBinding.SharedCommon(
+                material.DepthOffset is null
+                    ? CommonMaterialCatalog.Create().VertexColor.Uv
+                    : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv),
             SubmeshIndices = [submeshIndex],
-            CommonMaterial = material.DepthOffset is null
-                ? CommonMaterialCatalog.Create().VertexColor.Uv
-                : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv,
         };
     }
 
