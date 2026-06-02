@@ -2073,10 +2073,10 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
 
         Assert.Equal(3, projected.Materials.Count);
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "ground");
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "ground-reversed");
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "outer-floor");
-        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "high-outer-floor");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Identity == "ground");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Identity == "ground-reversed");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Identity == "outer-floor");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Source.Identity == "high-outer-floor");
     }
 
     [Fact]
@@ -2113,7 +2113,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
 
         Assert.Single(projected.Materials);
-        Assert.Equal("tran-ground", projected.Materials[0].TexturePayload?.Identity);
+        Assert.Equal("tran-ground", projected.Materials[0].TexturePayload?.Source.Identity);
         Assert.NotEmpty(projected.Mesh.Vertices);
     }
 
@@ -2171,10 +2171,10 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
 
         Assert.Equal(2, projected.Materials.Count);
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-bottom");
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-bottom-reversed");
-        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-roof");
-        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-wall");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Identity == "lod1-bottom");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Identity == "lod1-bottom-reversed");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Source.Identity == "lod1-roof");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Source.Identity == "lod1-wall");
     }
 
     [Fact]
@@ -2246,7 +2246,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
 
         Assert.Single(projected.Materials);
-        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "only-surface");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Source.Identity == "only-surface");
     }
 
     [Fact]
@@ -2378,7 +2378,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.NotNull(explicitMaterial.TexturePayload);
         Assert.Contains(
             "udx/dem/53394525/appearance/mixed_surface.png",
-            explicitMaterial.TexturePayload!.Identity,
+            explicitMaterial.TexturePayload!.Source.Identity,
             StringComparison.Ordinal);
     }
 

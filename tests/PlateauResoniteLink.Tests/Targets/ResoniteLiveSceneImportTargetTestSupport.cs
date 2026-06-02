@@ -546,15 +546,13 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             RawRgba32ResoniteTexturePayload raw => new RawRgba32TexturePayload(
                 raw.Width,
                 raw.Height,
-                raw.ColorProfile,
+                raw.Source.ColorProfile,
                 raw.BinaryPayload.AsSpan().ToArray(),
-                raw.Identity),
+                raw.Source.Identity),
             EncodedImageResoniteTexturePayload encoded => new EncodedImageTexturePayload(
                 encoded.Width,
                 encoded.Height,
-                encoded.ColorProfile,
-                encoded.Source,
-                encoded.Identity),
+                encoded.Source),
             _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.GetType(), "Unsupported texture payload type."),
         };
 
