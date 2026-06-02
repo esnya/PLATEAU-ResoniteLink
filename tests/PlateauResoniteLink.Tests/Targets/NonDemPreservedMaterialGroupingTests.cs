@@ -1,3 +1,4 @@
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -50,6 +51,26 @@ public sealed class NonDemPreservedMaterialGroupingTests
             BaseColor = new ResoniteColor(1.0, 0.0, 0.0, 1.0),
         });
         NonDemPreservedMaterialGroupingKey blue = NonDemPreservedMaterialGrouping.CreateKey(CreateTexturelessMaterial() with
+        {
+            BaseColor = new ResoniteColor(0.0, 0.0, 1.0, 1.0),
+        });
+
+        Assert.False(NonDemPreservedMaterialGrouping.KeyComparer.Equals(red, blue));
+    }
+
+    [Fact]
+    public void CreateKeyKeepsPresentationCommonMaterialTintDistinct()
+    {
+        ResoniteMaterialBinding presentationCommonMaterial = CreateTexturelessMaterial() with
+        {
+            AssetBinding = ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv),
+        };
+
+        NonDemPreservedMaterialGroupingKey red = NonDemPreservedMaterialGrouping.CreateKey(presentationCommonMaterial with
+        {
+            BaseColor = new ResoniteColor(1.0, 0.0, 0.0, 1.0),
+        });
+        NonDemPreservedMaterialGroupingKey blue = NonDemPreservedMaterialGrouping.CreateKey(presentationCommonMaterial with
         {
             BaseColor = new ResoniteColor(0.0, 0.0, 1.0, 1.0),
         });
