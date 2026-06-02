@@ -58,6 +58,34 @@ public sealed class ResolvedLocalPlateauImportRequestTests
                 PackageNames: ["unknown"]));
     }
 
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-0.01)]
+    [InlineData(double.PositiveInfinity)]
+    public void ConstructorRejectsInvalidTerrainGridMetersPerVertex(double metersPerVertex)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new ResolvedLocalPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                CityGmlLocalSourcePath: "/tmp/plateau",
+                TerrainGridMetersPerVertex: metersPerVertex));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(0)]
+    [InlineData(-4)]
+    public void ConstructorRejectsInvalidTerrainGridMaxResolution(int maxResolution)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new ResolvedLocalPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                CityGmlLocalSourcePath: "/tmp/plateau",
+                TerrainGridMaxResolution: maxResolution));
+    }
+
     [Fact]
     public void ConstructorNormalizesPackageOptionMapKeysAtResolvedBoundary()
     {
