@@ -53,7 +53,8 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
                 cityObject.Materials[materialIndex]);
             material = ResoniteTerrainOverlayMaterialContract.ValidateMaterial(cityObject, materialIndex, material);
             reportMaterialStep($"Creating material {materialIndex + 1}/{cityObject.Materials.Count}.");
-            if (material.CommonMaterial is not null)
+            if (material.AssetBinding.IsSharedCommon
+                && material.CommonMaterial is not null)
             {
                 materialPlanTasks[materialIndex] = PlanSharedCommonRendererMaterialAsync(
                     state,

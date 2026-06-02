@@ -14,7 +14,8 @@ internal static class NonDemPreservedMaterialGrouping
     public static NonDemPreservedMaterialGroupingKey CreateKey(ResoniteMaterialBinding material)
     {
         ResoniteMaterialBinding normalizedMaterial = NormalizeMaterial(material);
-        if (normalizedMaterial.CommonMaterial is not null)
+        if (normalizedMaterial.AssetBinding.IsSharedCommon
+            && normalizedMaterial.CommonMaterial is not null)
         {
             return new NonDemPreservedMaterialGroupingKey(
                 normalizedMaterial.CommonMaterial,
@@ -27,14 +28,14 @@ internal static class NonDemPreservedMaterialGrouping
                 default,
                 default,
                 default,
-                default,
+                normalizedMaterial.AssetScope,
                 default,
                 default,
                 normalizedMaterial.TerrainMeshCode);
         }
 
         return new NonDemPreservedMaterialGroupingKey(
-            null,
+            normalizedMaterial.CommonMaterial,
             normalizedMaterial.BaseColor,
             normalizedMaterial.MaterialType,
             normalizedMaterial.TexturePayload,
@@ -65,9 +66,13 @@ internal static class NonDemPreservedMaterialGrouping
                 return false;
             }
 
-            if (x.CommonMaterial is not null)
+            bool xIsSharedCommon = IsSharedCommonMaterialKey(x);
+            bool yIsSharedCommon = IsSharedCommonMaterialKey(y);
+            if (xIsSharedCommon || yIsSharedCommon)
             {
-                return ResoniteTexturePayloadReferenceComparer.Instance.Equals(x.TexturePayload, y.TexturePayload)
+                return xIsSharedCommon
+                    && yIsSharedCommon
+                    && ResoniteTexturePayloadReferenceComparer.Instance.Equals(x.TexturePayload, y.TexturePayload)
                     && x.TextureSourceKind == y.TextureSourceKind
                     && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
                     && string.Equals(x.TerrainMeshCode, y.TerrainMeshCode, StringComparison.Ordinal);
@@ -92,7 +97,7 @@ internal static class NonDemPreservedMaterialGrouping
         {
             HashCode hash = new();
             hash.Add(obj.CommonMaterial);
-            if (obj.CommonMaterial is not null)
+            if (IsSharedCommonMaterialKey(obj))
             {
                 AddTexturePayloadHash(ref hash, obj.TexturePayload);
                 hash.Add(obj.TextureSourceKind);
@@ -115,6 +120,12 @@ internal static class NonDemPreservedMaterialGrouping
             hash.Add(obj.BundledVariantIndex);
             hash.Add(obj.TerrainMeshCode, StringComparer.Ordinal);
             return hash.ToHashCode();
+        }
+
+        private static bool IsSharedCommonMaterialKey(NonDemPreservedMaterialGroupingKey key)
+        {
+            return key.CommonMaterial is not null
+                && key.AssetScope == ResoniteMaterialAssetScope.Common;
         }
 
         private static void AddTexturePayloadHash(ref HashCode hash, ResoniteTexturePayload? texturePayload)

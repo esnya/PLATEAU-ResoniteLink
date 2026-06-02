@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -20,6 +21,13 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
             NonDemCityObjectBakeMaterialClassifier.Classify(CreateTexturelessMaterial() with
             {
                 AssetBinding = ResoniteMaterialAssetBindingTestFactory.SharedGenericUv(),
+            }));
+        Assert.Equal(
+            NonDemMaterialBakeCategory.AtlasCandidate,
+            NonDemCityObjectBakeMaterialClassifier.Classify(CreateDatasetTextureMaterial() with
+            {
+                Family = "facade",
+                AssetBinding = ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv),
             }));
         Assert.Equal(
             NonDemMaterialBakeCategory.PreservedTextureless,
@@ -53,6 +61,19 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
             {
                 RequireAtlasCandidateMaterial = false,
                 PreserveTexturelessMaterials = false,
+            }));
+        Assert.True(NonDemCityObjectBakeMaterialClassifier.CanBufferCityObjectMaterials(
+            CreateCityObject(
+                [
+                    CreateDatasetTextureMaterial() with
+                    {
+                        Family = "facade",
+                        AssetBinding = ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv),
+                    },
+                ]),
+            requireAtlasCandidate with
+            {
+                PreserveCommonMaterials = false,
             }));
     }
 
