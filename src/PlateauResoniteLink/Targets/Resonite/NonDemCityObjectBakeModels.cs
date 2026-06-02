@@ -16,6 +16,10 @@ internal abstract record NonDemBakeEntry
     {
     }
 
+    internal abstract void AddTo(
+        List<NonDemAtlasBatchEntry> atlasEntries,
+        List<NonDemPreservedSubmeshEntry> preservedEntries);
+
     internal sealed record Atlas : NonDemBakeEntry
     {
         public Atlas(NonDemAtlasBatchEntry entry)
@@ -25,6 +29,15 @@ internal abstract record NonDemBakeEntry
         }
 
         public NonDemAtlasBatchEntry Entry { get; }
+
+        internal override void AddTo(
+            List<NonDemAtlasBatchEntry> atlasEntries,
+            List<NonDemPreservedSubmeshEntry> preservedEntries)
+        {
+            ArgumentNullException.ThrowIfNull(atlasEntries);
+            ArgumentNullException.ThrowIfNull(preservedEntries);
+            atlasEntries.Add(Entry);
+        }
     }
 
     internal sealed record Preserved : NonDemBakeEntry
@@ -36,6 +49,15 @@ internal abstract record NonDemBakeEntry
         }
 
         public NonDemPreservedSubmeshEntry Entry { get; }
+
+        internal override void AddTo(
+            List<NonDemAtlasBatchEntry> atlasEntries,
+            List<NonDemPreservedSubmeshEntry> preservedEntries)
+        {
+            ArgumentNullException.ThrowIfNull(atlasEntries);
+            ArgumentNullException.ThrowIfNull(preservedEntries);
+            preservedEntries.Add(Entry);
+        }
     }
 }
 

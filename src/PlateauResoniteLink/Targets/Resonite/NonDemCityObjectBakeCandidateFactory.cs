@@ -8,7 +8,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface INonDemCityObjectBakeCandidateFactory
 {
-    Task<NonDemCityObjectBakeCandidate?> CreateAsync(
+    Task<NonDemCityObjectBakeCandidate> CreateAsync(
         NonDemBufferedCityObject bufferedCityObject,
         CancellationToken cancellationToken);
 }
@@ -19,7 +19,7 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
     private readonly INonDemBakeEntryFactory entryFactory = entryFactory
         ?? throw new ArgumentNullException(nameof(entryFactory));
 
-    public async Task<NonDemCityObjectBakeCandidate?> CreateAsync(
+    public async Task<NonDemCityObjectBakeCandidate> CreateAsync(
         NonDemBufferedCityObject bufferedCityObject,
         CancellationToken cancellationToken)
     {
@@ -40,7 +40,6 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
 
         List<NonDemAtlasBatchEntry> atlasEntries = [];
         List<NonDemPreservedSubmeshEntry> preservedEntries = [];
-        bool hadAtlasCandidateMaterial = false;
         foreach (ResoniteMeshSubmesh submesh in normalizedCityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -54,26 +53,12 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
             switch (category)
             {
                 case NonDemMaterialBakeCategory.AtlasCandidate:
-                    hadAtlasCandidateMaterial = true;
                     NonDemBakeEntry bakeEntry = await entryFactory.CreateAsync(
                         normalizedCityObject,
                         submesh,
                         material,
-                        cancellationToken)
-                        ?? throw new InvalidOperationException(
-                            $"Non-DEM bake entry factory returned no entry for city object '{cityObject.DisplayName}' submesh index {submesh.Index}.");
-                    switch (bakeEntry)
-                    {
-                        case NonDemBakeEntry.Atlas atlas:
-                            atlasEntries.Add(atlas.Entry);
-                            break;
-                        case NonDemBakeEntry.Preserved preserved:
-                            preservedEntries.Add(preserved.Entry);
-                            break;
-                        default:
-                            throw new InvalidOperationException(
-                                $"Unsupported Non-DEM bake entry type '{bakeEntry.GetType().FullName}'.");
-                    }
+                        cancellationToken);
+                    bakeEntry.AddTo(atlasEntries, preservedEntries);
 
                     break;
                 case NonDemMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
@@ -85,11 +70,6 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
                     preservedEntries.Add(new NonDemPreservedSubmeshEntry(normalizedCityObject, normalizedSubmesh, normalizedMaterial));
                     break;
             }
-        }
-
-        if (policy.RequireAtlasCandidateMaterial && !hadAtlasCandidateMaterial)
-        {
-            return null;
         }
 
         if (atlasEntries.Count == 0 && preservedEntries.Count == 0)
