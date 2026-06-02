@@ -34,7 +34,7 @@ internal static class ResoniteTextureImportFactory
         RawTexturePayload rawPayload = TextureImportSourceFactory.CreateRawPayloadFromImage(
             image,
             colorProfile);
-        return new ResoniteTexturePayload(
+        return new RawRgba32ResoniteTexturePayload(
             image.Width,
             image.Height,
             colorProfile,
