@@ -54,11 +54,12 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             material = ResoniteTerrainOverlayMaterialContract.ValidateMaterial(cityObject, materialIndex, material);
             reportMaterialStep($"Creating material {materialIndex + 1}/{cityObject.Materials.Count}.");
             if (material.AssetBinding.IsSharedCommon
-                && material.CommonMaterial is not null)
+                && material.CommonMaterial is { } commonMaterial)
             {
                 materialPlanTasks[materialIndex] = PlanSharedCommonRendererMaterialAsync(
                     state,
                     material,
+                    commonMaterial,
                     preparedTextureUrisByPayload,
                     preparedTerrainTextureUrisByOverlay,
                     preparedTerrainTexturePropertyBlockComponentsByMeshCode,
@@ -86,13 +87,14 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
     private static async Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)> PlanSharedCommonRendererMaterialAsync(
         LiveSendRunState runState,
         ResoniteMaterialBinding sourceMaterial,
+        DefaultCommonMaterialMember member,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
         IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode,
         CancellationToken cancellationToken)
     {
-        DefaultCommonMaterialMember member = sourceMaterial.CommonMaterial
-            ?? throw new InvalidOperationException("Common renderer material requires a typed common material member.");
+        ArgumentNullException.ThrowIfNull(member);
+
         string familySlotName = ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(
             SceneImportContractMapper.ToInternal(member.CreateBinding([0])));
         if (runState.Materials.CommonMaterialFamilyWarmupTasks.TryGetValue(familySlotName, out Task? familyWarmupTask))
