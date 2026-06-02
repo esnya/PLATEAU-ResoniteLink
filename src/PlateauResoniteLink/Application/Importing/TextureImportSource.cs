@@ -15,12 +15,70 @@ public enum RawTexturePayloadFormat
     RgbaFloat32 = 1,
 }
 
-public sealed record RawTexturePayload(
-    int Width,
-    int Height,
-    string? ColorProfile,
-    byte[] Bytes,
-    RawTexturePayloadFormat Format = RawTexturePayloadFormat.Rgba32);
+public sealed record RawTexturePayload
+{
+    public RawTexturePayload(
+        int Width,
+        int Height,
+        string? ColorProfile,
+        byte[] Bytes,
+        RawTexturePayloadFormat Format = RawTexturePayloadFormat.Rgba32)
+    {
+        ArgumentNullException.ThrowIfNull(Bytes);
+        EnsureValidShape(Width, Height, Bytes.Length, Format);
+        this.Width = Width;
+        this.Height = Height;
+        this.ColorProfile = ColorProfile;
+        this.Bytes = Bytes;
+        this.Format = Format;
+    }
+
+    public int Width { get; }
+
+    public int Height { get; }
+
+    public string? ColorProfile { get; }
+
+    public byte[] Bytes { get; }
+
+    public RawTexturePayloadFormat Format { get; }
+
+    internal static void EnsureValidShape(
+        int width,
+        int height,
+        int byteLength,
+        RawTexturePayloadFormat format)
+    {
+        EnsureValidDimensions(width, height);
+
+        int bytesPerPixel = format switch
+        {
+            RawTexturePayloadFormat.Rgba32 => 4,
+            RawTexturePayloadFormat.RgbaFloat32 => 4 * sizeof(float),
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported raw texture payload format."),
+        };
+        long expectedByteLength = checked((long)width * height * bytesPerPixel);
+        if (byteLength != expectedByteLength)
+        {
+            throw new ArgumentException(
+                $"Raw texture byte length must be width * height * {bytesPerPixel}.",
+                nameof(byteLength));
+        }
+    }
+
+    internal static void EnsureValidDimensions(int width, int height)
+    {
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), width, "Raw texture width must be positive.");
+        }
+
+        if (height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height), height, "Raw texture height must be positive.");
+        }
+    }
+}
 
 public interface ITextureImportSource
 {
@@ -68,6 +126,7 @@ internal sealed class InMemoryRawTextureImportSource : IRawTexturePayloadSource
     {
         ArgumentNullException.ThrowIfNull(bytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(identity);
+        RawTexturePayload.EnsureValidShape(width, height, bytes.Length, RawTexturePayloadFormat.Rgba32);
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
@@ -88,6 +147,7 @@ internal sealed class InMemoryRawTextureImportSource : IRawTexturePayloadSource
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(identity);
+        RawTexturePayload.EnsureValidShape(width, height, bytes.Length, RawTexturePayloadFormat.Rgba32);
         Width = width;
         Height = height;
         ColorProfile = colorProfile;

@@ -20,12 +20,13 @@ public sealed record ResoniteTexturePayload
         byte[] binaryPayload,
         string? identity = null)
     {
+        ArgumentNullException.ThrowIfNull(binaryPayload);
+        RawTexturePayload.EnsureValidShape(width, height, binaryPayload.Length, RawTexturePayloadFormat.Rgba32);
+        ImmutableArray<byte> immutablePayload = ImmutableArray.CreateRange(binaryPayload);
+        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
-        ArgumentNullException.ThrowIfNull(binaryPayload);
-        ImmutableArray<byte> immutablePayload = ImmutableArray.CreateRange(binaryPayload);
-        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
         BinaryPayload = immutablePayload;
         Identity = effectiveIdentity;
         Format = ResoniteTexturePayloadFormat.RawRgba32;
@@ -44,12 +45,20 @@ public sealed record ResoniteTexturePayload
         ITextureImportSource source,
         string? identity = null)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        string effectiveIdentity = identity ?? source.Identity;
+        if (!string.Equals(effectiveIdentity, source.Identity, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "Texture payload identity must match the texture import source identity.",
+                nameof(identity));
+        }
+
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
-        ArgumentNullException.ThrowIfNull(source);
         BinaryPayload = [];
-        Identity = identity ?? source.Identity;
+        Identity = effectiveIdentity;
         Format = ResoniteTexturePayloadFormat.EncodedImage;
         Source = source;
     }
@@ -60,27 +69,28 @@ public sealed record ResoniteTexturePayload
         string? colorProfile,
         IRawTexturePayloadSource source)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        RawTexturePayload.EnsureValidDimensions(width, height);
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
-        ArgumentNullException.ThrowIfNull(source);
         BinaryPayload = [];
         Identity = source.Identity;
         Format = ResoniteTexturePayloadFormat.RawRgba32;
         Source = source;
     }
 
-    public int? Width { get; init; }
+    public int? Width { get; }
 
-    public int? Height { get; init; }
+    public int? Height { get; }
 
-    public string? ColorProfile { get; init; }
+    public string? ColorProfile { get; }
 
-    public ImmutableArray<byte> BinaryPayload { get; init; }
+    public ImmutableArray<byte> BinaryPayload { get; }
 
-    public string? Identity { get; init; }
+    public string Identity { get; }
 
-    public ResoniteTexturePayloadFormat Format { get; init; }
+    public ResoniteTexturePayloadFormat Format { get; }
 
-    public ITextureImportSource Source { get; init; }
+    public ITextureImportSource Source { get; }
 }

@@ -111,12 +111,13 @@ public sealed record TexturePayload
         byte[] binaryPayload,
         string? identity = null)
     {
+        ArgumentNullException.ThrowIfNull(binaryPayload);
+        RawTexturePayload.EnsureValidShape(width, height, binaryPayload.Length, RawTexturePayloadFormat.Rgba32);
+        ImmutableArray<byte> immutablePayload = ImmutableArray.CreateRange(binaryPayload);
+        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
-        ArgumentNullException.ThrowIfNull(binaryPayload);
-        ImmutableArray<byte> immutablePayload = ImmutableArray.CreateRange(binaryPayload);
-        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
         BinaryPayload = immutablePayload;
         Identity = effectiveIdentity;
         Format = TexturePayloadFormat.RawRgba32;
@@ -135,29 +136,37 @@ public sealed record TexturePayload
         ITextureImportSource source,
         string? identity = null)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        string effectiveIdentity = identity ?? source.Identity;
+        if (!string.Equals(effectiveIdentity, source.Identity, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "Texture payload identity must match the texture import source identity.",
+                nameof(identity));
+        }
+
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
-        ArgumentNullException.ThrowIfNull(source);
         BinaryPayload = [];
-        Identity = identity ?? source.Identity;
+        Identity = effectiveIdentity;
         Format = TexturePayloadFormat.EncodedImage;
         Source = source;
     }
 
-    public int? Width { get; init; }
+    public int? Width { get; }
 
-    public int? Height { get; init; }
+    public int? Height { get; }
 
-    public string? ColorProfile { get; init; }
+    public string? ColorProfile { get; }
 
-    public ImmutableArray<byte> BinaryPayload { get; init; }
+    public ImmutableArray<byte> BinaryPayload { get; }
 
-    public string? Identity { get; init; }
+    public string Identity { get; }
 
-    public TexturePayloadFormat Format { get; init; }
+    public TexturePayloadFormat Format { get; }
 
-    public ITextureImportSource Source { get; init; }
+    public ITextureImportSource Source { get; }
 }
 
 public enum TextureSourceKind

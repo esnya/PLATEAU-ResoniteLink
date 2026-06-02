@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -40,5 +41,36 @@ public sealed class ResoniteTexturePayloadTests
 
         Assert.False(string.IsNullOrWhiteSpace(payload.Identity));
         Assert.Equal(payload.Identity, payload.Source.Identity);
+    }
+
+    [Theory]
+    [InlineData(0, 1, 4)]
+    [InlineData(1, 0, 4)]
+    [InlineData(1, 1, 3)]
+    [InlineData(1, 1, 5)]
+    public void RawConstructorRejectsInvalidRawShape(int width, int height, int byteLength)
+    {
+        byte[] bytes = new byte[byteLength];
+
+        Assert.ThrowsAny<ArgumentException>(() => new ResoniteTexturePayload(width, height, "sRGB", bytes, "dataset:texture"));
+    }
+
+    [Fact]
+    public void EncodedConstructorRejectsPayloadIdentityThatDiffersFromSourceIdentity()
+    {
+        ITextureImportSource source = TextureImportSourceFactory.CreateEncodedImageInMemory(
+            "sRGB",
+            [1, 2, 3, 4],
+            "source:texture");
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+            new ResoniteTexturePayload(
+                1,
+                1,
+                "sRGB",
+                source,
+                "payload:texture"));
+
+        Assert.Contains("identity must match", exception.Message, System.StringComparison.Ordinal);
     }
 }

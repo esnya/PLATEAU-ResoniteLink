@@ -64,21 +64,6 @@ public sealed class SceneImportContractMapperTests
     }
 
     [Fact]
-    public void ToInternalMaterialBindingsRejectsUnsupportedTexturePayloadFormat()
-    {
-        MaterialBinding validBinding = CreateValidBinding();
-        MaterialBinding binding = validBinding with
-        {
-            TexturePayload = validBinding.TexturePayload! with
-            {
-                Format = (TexturePayloadFormat)999,
-            },
-        };
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => SceneImportContractMapper.ToInternal(binding));
-    }
-
-    [Fact]
     public void ToInternalMaterialBindingsReusesRawTextureSource()
     {
         TexturePayload texturePayload = new(
@@ -110,31 +95,6 @@ public sealed class SceneImportContractMapperTests
         Assert.Same(texturePayload.Source, mapped.TexturePayload.Source);
         Assert.Equal(texturePayload.Source.Identity, mapped.TexturePayload.Identity);
         Assert.True(mapped.TexturePayload.BinaryPayload.IsDefaultOrEmpty);
-    }
-
-    [Fact]
-    public void ToInternalMaterialBindingsUsesRawSourceIdentityWhenContractIdentityDiverges()
-    {
-        TexturePayload texturePayload = new TexturePayload(
-            width: 1,
-            height: 1,
-            colorProfile: "linear",
-            binaryPayload: [0, 0, 0, 255]) with
-        {
-            Identity = "stale-contract-identity",
-        };
-        MaterialBinding[] bindings =
-        [
-            CreateValidBinding() with
-            {
-                TexturePayload = texturePayload,
-            },
-        ];
-
-        ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
-
-        Assert.Same(texturePayload.Source, mapped.TexturePayload!.Source);
-        Assert.Equal(texturePayload.Source.Identity, mapped.TexturePayload.Identity);
     }
 
     [Fact]
