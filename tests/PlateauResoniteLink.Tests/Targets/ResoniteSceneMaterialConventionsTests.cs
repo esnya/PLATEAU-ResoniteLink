@@ -57,23 +57,23 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal(
             new TextureIdentity("albedo"),
             ResoniteSceneMaterialConventions.CreateTextureIdentity(
-                ResoniteSceneMaterialConventions.TextureMemberRole.Albedo));
+                ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo));
         Assert.Equal(
             new TextureIdentity("normal"),
             ResoniteSceneMaterialConventions.CreateTextureIdentity(
-                ResoniteSceneMaterialConventions.TextureMemberRole.Normal));
+                ResoniteSceneMaterialConventions.PlannedTextureRole.Normal));
         Assert.Equal(
             new TextureIdentity("height"),
             ResoniteSceneMaterialConventions.CreateTextureIdentity(
-                ResoniteSceneMaterialConventions.TextureMemberRole.Height));
+                ResoniteSceneMaterialConventions.PlannedTextureRole.Height));
         Assert.Equal(
             new TextureIdentity("metallic"),
             ResoniteSceneMaterialConventions.CreateTextureIdentity(
-                ResoniteSceneMaterialConventions.TextureMemberRole.Metallic));
+                ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic));
         Assert.Equal(
             new TextureIdentity("emission"),
             ResoniteSceneMaterialConventions.CreateTextureIdentity(
-                ResoniteSceneMaterialConventions.TextureMemberRole.Emission));
+                ResoniteSceneMaterialConventions.PlannedTextureRole.Emission));
     }
 
     [Fact]
