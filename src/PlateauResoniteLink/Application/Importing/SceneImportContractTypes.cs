@@ -143,19 +143,19 @@ public sealed record TexturePayload
         Source = source;
     }
 
-    public int? Width { get; init; }
+    public int? Width { get; }
 
-    public int? Height { get; init; }
+    public int? Height { get; }
 
-    public string? ColorProfile { get; init; }
+    public string? ColorProfile { get; }
 
-    public ImmutableArray<byte> BinaryPayload { get; init; }
+    public ImmutableArray<byte> BinaryPayload { get; }
 
-    public string? Identity { get; init; }
+    public string? Identity { get; }
 
-    public TexturePayloadFormat Format { get; init; }
+    public TexturePayloadFormat Format { get; }
 
-    public ITextureImportSource Source { get; init; }
+    public ITextureImportSource Source { get; }
 
 }
 

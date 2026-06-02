@@ -142,8 +142,8 @@ internal static class SceneImportContractMapper
         return payload.Format switch
         {
             TexturePayloadFormat.RawRgba32 => new ResoniteTexturePayload(
-                payload.Width ?? throw new InvalidOperationException("Raw texture payload requires width."),
-                payload.Height ?? throw new InvalidOperationException("Raw texture payload requires height."),
+                payload.Width.GetValueOrDefault(),
+                payload.Height.GetValueOrDefault(),
                 payload.ColorProfile,
                 payload.BinaryPayload.AsSpan().ToArray(),
                 payload.Identity),
