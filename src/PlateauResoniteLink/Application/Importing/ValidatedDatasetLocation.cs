@@ -16,24 +16,22 @@ public abstract record ValidatedDatasetLocation
     public abstract DatasetLocation ToDatasetLocation();
 }
 
-public sealed record ValidatedLocalDatasetLocation : ValidatedDatasetLocation
+public sealed record ValidatedLocalDatasetLocation(string LocalSourcePath) : ValidatedDatasetLocation(DatasetSourceKind.Local)
 {
-    public ValidatedLocalDatasetLocation(string localSourcePath)
-        : base(DatasetSourceKind.Local)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(localSourcePath);
-        LocalSourcePath = localSourcePath.Trim();
-    }
-
-    public string LocalSourcePath { get; }
+    public string LocalSourcePath { get; } = string.IsNullOrWhiteSpace(LocalSourcePath)
+        ? throw new ArgumentException("The local source path must not be empty.", nameof(LocalSourcePath))
+        : LocalSourcePath;
 
     public override DatasetLocation ToDatasetLocation() => new LocalDatasetLocation(LocalSourcePath);
 }
 
-public sealed record ValidatedRemoteDatasetLocation : ValidatedDatasetLocation
+public sealed record ValidatedRemoteDatasetLocation(Uri ServerUri) : ValidatedDatasetLocation(DatasetSourceKind.Remote)
 {
-    public ValidatedRemoteDatasetLocation(Uri serverUri)
-        : base(DatasetSourceKind.Remote)
+    public Uri ServerUri { get; } = ValidateServerUri(ServerUri);
+
+    public override DatasetLocation ToDatasetLocation() => new RemoteDatasetLocation(ServerUri);
+
+    private static Uri ValidateServerUri(Uri serverUri)
     {
         ArgumentNullException.ThrowIfNull(serverUri);
         if (!serverUri.IsAbsoluteUri)
@@ -47,10 +45,6 @@ public sealed record ValidatedRemoteDatasetLocation : ValidatedDatasetLocation
             throw new ArgumentException("The remote dataset location URI must use http or https.", nameof(serverUri));
         }
 
-        ServerUri = serverUri;
+        return serverUri;
     }
-
-    public Uri ServerUri { get; }
-
-    public override DatasetLocation ToDatasetLocation() => new RemoteDatasetLocation(ServerUri);
 }

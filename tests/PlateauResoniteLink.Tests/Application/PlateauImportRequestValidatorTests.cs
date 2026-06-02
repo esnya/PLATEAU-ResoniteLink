@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 using PlateauResoniteLink.Application.Importing;
@@ -19,7 +20,23 @@ public sealed class PlateauImportRequestValidatorTests
         Assert.Throws<ArgumentNullException>(() => new ValidatedRemoteDatasetLocation(null!));
         Assert.Throws<ArgumentException>(() => new ValidatedRemoteDatasetLocation(new Uri("/dataset.zip", UriKind.Relative)));
         Assert.Throws<ArgumentException>(() => new ValidatedRemoteDatasetLocation(new Uri("ftp://example.invalid/dataset.zip")));
-        Assert.Equal("C:/dataset", new ValidatedLocalDatasetLocation(" C:/dataset ").LocalSourcePath);
+        Assert.Equal(" C:/dataset ", new ValidatedLocalDatasetLocation(" C:/dataset ").LocalSourcePath);
+    }
+
+    [Fact]
+    public void ValidatedDatasetLocationEqualityIncludesSourcePayload()
+    {
+        ValidatedDatasetLocation[] locations =
+        [
+            new ValidatedLocalDatasetLocation("C:/dataset-a"),
+            new ValidatedLocalDatasetLocation("C:/dataset-b"),
+            new ValidatedRemoteDatasetLocation(new Uri("https://example.invalid/dataset-a.zip")),
+            new ValidatedRemoteDatasetLocation(new Uri("https://example.invalid/dataset-b.zip")),
+        ];
+
+        Assert.Equal(locations.Length, locations.Distinct().Count());
+        Assert.NotEqual(locations[0], locations[1]);
+        Assert.NotEqual(locations[2], locations[3]);
     }
 
     [Fact]
@@ -137,7 +154,7 @@ public sealed class PlateauImportRequestValidatorTests
     }
 
     [Fact]
-    public void TryNormalizeAndValidateTrimsAndNormalizesRequestData()
+    public void TryNormalizeAndValidateNormalizesRequestData()
     {
         using TemporaryDirectory sourceRoot = new();
         string geoTiffPath = Path.Combine(sourceRoot.Path, "53394525.tif");
@@ -146,8 +163,8 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: " tokyo23ku ",
             MeshCode: " 53394525 ",
-            CityGmlSource: DatasetLocation.Local($"  {sourceRoot.Path}  "),
-            DemTextureSource: DatasetLocation.Local($"  {geoTiffPath}  "),
+            CityGmlSource: DatasetLocation.Local($" {sourceRoot.Path} "),
+            DemTextureSource: DatasetLocation.Local($" {geoTiffPath} "),
             PackageNames: [" waterbody ", " tran "]);
 
         bool success = PlateauImportRequestValidator.TryNormalizeAndValidate(
