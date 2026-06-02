@@ -42,10 +42,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             new PassthroughImportedObjectUnitOptimizer());
         Action<string> progressReporter = _ => { };
 
-        ResolvedLocalPlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlLocalSourcePath: "/tmp/plateau");
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create();
 
         IImportedSceneSource result = await factory.CreateAsync(request, progressReporter);
 
@@ -76,12 +73,8 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             reader,
             composer,
             new PassthroughImportedObjectUnitOptimizer());
-        ResolvedLocalPlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlLocalSourcePath: "/tmp/plateau",
-            PackageNames: ["dem"]
-);
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
+            packageNames: ["dem"]);
 
         _ = await factory.CreateAsync(request);
 
@@ -122,12 +115,9 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             reader,
             composer,
             new PassthroughImportedObjectUnitOptimizer());
-        ResolvedLocalPlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlLocalSourcePath: "/tmp/plateau",
-            PackageNames: ["dem"],
-            DemTextureSource: new LocalDatasetLocation("C:\\ortho\\53394525.tif"));
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
+            packageNames: ["dem"],
+            demTextureLocalSourcePath: "C:\\ortho\\53394525.tif");
 
         _ = await factory.CreateAsync(request);
 

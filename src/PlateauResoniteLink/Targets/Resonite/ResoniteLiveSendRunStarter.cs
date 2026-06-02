@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -12,7 +11,7 @@ internal sealed record LiveSendRunStartRequest(
     ResoniteSceneSetupInfo SetupInfo,
     string WorkRoot,
     CommonMaterialCatalog<DefaultCommonMaterialMember> CommonMaterials,
-    PlateauImportRequest NormalizedRequest,
+    LiveSendConnectionRequest ConnectionRequest,
     ResoniteLocalOrigin RequestLocalOrigin,
     ResoniteImportMemoryProfile MemoryProfile,
     int ConnectionCount,
@@ -49,7 +48,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         ArgumentNullException.ThrowIfNull(request.SetupInfo);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.WorkRoot);
         ArgumentNullException.ThrowIfNull(request.CommonMaterials);
-        ArgumentNullException.ThrowIfNull(request.NormalizedRequest);
+        ArgumentNullException.ThrowIfNull(request.ConnectionRequest);
         ArgumentNullException.ThrowIfNull(context.Endpoint);
         ArgumentNullException.ThrowIfNull(context.ClientSession);
         ArgumentNullException.ThrowIfNull(context.Diagnostics);

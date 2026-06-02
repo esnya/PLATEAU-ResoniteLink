@@ -68,10 +68,8 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
-        ResolvedLocalPlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlLocalSourcePath: fixturePath);
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
+            cityGmlLocalSourcePath: fixturePath);
         PlateauImportRequest importRequest = request.ToImportRequest();
 
         DefaultImportedSceneSourceFactory factory = new(
