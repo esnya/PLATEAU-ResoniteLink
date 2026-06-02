@@ -118,7 +118,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
 
     public static Uri? TryGetPlannedTextureUri(
         IEnumerable<PlannedTextureAsset> textures,
-        ResoniteSceneMaterialConventions.TextureMemberRole role)
+        ResoniteSceneMaterialConventions.PlannedTextureRole role)
     {
         ArgumentNullException.ThrowIfNull(textures);
 
@@ -166,15 +166,15 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         AddTextureComponentReference(
             batchBuilder,
             plannedMaterial,
-            materialContainerSlotId,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
-            "AlbedoTexture",
-            materialMembers);
+                materialContainerSlotId,
+                ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
+                "AlbedoTexture",
+                materialMembers);
         if (AddTextureComponentReference(
                 batchBuilder,
                 plannedMaterial,
                 materialContainerSlotId,
-                ResoniteSceneMaterialConventions.TextureMemberRole.Normal,
+                ResoniteSceneMaterialConventions.PlannedTextureRole.Normal,
                 "NormalMap",
                 materialMembers))
         {
@@ -188,7 +188,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 batchBuilder,
                 plannedMaterial,
                 materialContainerSlotId,
-                ResoniteSceneMaterialConventions.TextureMemberRole.Height,
+                ResoniteSceneMaterialConventions.PlannedTextureRole.Height,
                 "HeightMap",
                 materialMembers))
         {
@@ -200,15 +200,18 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
 
         Uri? metallicTextureUri = TryGetPlannedTextureUri(
             plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Metallic);
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic);
         if (metallicTextureUri is not null)
         {
+            ResoniteSceneMaterialConventions.TextureMemberRole metallicMemberRole =
+                ResoniteSceneMaterialConventions.ToTextureMemberRole(
+                    ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic);
             ResoniteBatchOperations.PendingBatchComponent metallicTexture = batchBuilder.AddComponent(
                 materialContainerSlotId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     metallicTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic));
+                    metallicMemberRole));
             materialMembers["MetallicMap"] = new Reference
             {
                 TargetID = metallicTexture.LocalId.Value,
@@ -223,7 +226,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 batchBuilder,
                 plannedMaterial,
                 materialContainerSlotId,
-                ResoniteSceneMaterialConventions.TextureMemberRole.Emission,
+                ResoniteSceneMaterialConventions.PlannedTextureRole.Emission,
                 "EmissiveMap",
                 materialMembers))
         {
@@ -241,7 +244,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         ResoniteBatchOperations.BatchActionBuilder batchBuilder,
         PlannedDedicatedMaterialAsset plannedMaterial,
         string materialContainerSlotId,
-        ResoniteSceneMaterialConventions.TextureMemberRole textureRole,
+        ResoniteSceneMaterialConventions.PlannedTextureRole textureRole,
         string materialMemberName,
         Dictionary<string, Member> materialMembers)
     {
@@ -254,7 +257,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         ResoniteBatchOperations.PendingBatchComponent textureComponent = batchBuilder.AddComponent(
             materialContainerSlotId,
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
-            ResoniteSceneMaterialConventions.CreateTextureMembers(textureUri, textureRole));
+            ResoniteSceneMaterialConventions.CreateTextureMembers(
+                textureUri,
+                ResoniteSceneMaterialConventions.ToTextureMemberRole(textureRole)));
         materialMembers[materialMemberName] = new Reference
         {
             TargetID = textureComponent.LocalId.Value,
@@ -396,23 +401,23 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         List<PlannedTextureAsset> textures = [];
         AddPlannedTextureAsset(
             textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
             await albedoTextureTask);
         AddPlannedTextureAsset(
             textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Normal,
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Normal,
             await normalTextureTask);
         AddPlannedTextureAsset(
             textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Height,
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Height,
             await heightTextureTask);
         AddPlannedTextureAsset(
             textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Metallic,
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic,
             await metallicTextureTask);
         AddPlannedTextureAsset(
             textures,
-            ResoniteSceneMaterialConventions.TextureMemberRole.Emission,
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Emission,
             await emissionTextureTask);
         return textures;
     }
@@ -482,7 +487,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
 
     private static void AddPlannedTextureAsset(
         List<PlannedTextureAsset> textures,
-        ResoniteSceneMaterialConventions.TextureMemberRole role,
+        ResoniteSceneMaterialConventions.PlannedTextureRole role,
         Uri? assetUri)
     {
         if (assetUri is null)
