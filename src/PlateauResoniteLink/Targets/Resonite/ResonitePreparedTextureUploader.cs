@@ -211,9 +211,9 @@ internal static class ResonitePreparedTextureUploader
 
         CreatedComponent createdTextureComponent = new(new ResoniteComponentLocator(textureComponent.ID), textureComponent.ComponentType);
         Component? propertyBlockComponent = slot?.Components?
-            .Where(IsSharedTerrainMainTexturePropertyBlockComponent)
-            .OrderByDescending(component => ReferencesComponent(component, textureComponent.ID))
-            .ThenBy(static component => component.ID, StringComparer.Ordinal)
+            .Where(component => IsSharedTerrainMainTexturePropertyBlockComponent(component)
+                && ReferencesComponent(component, textureComponent.ID))
+            .OrderBy(static component => component.ID, StringComparer.Ordinal)
             .FirstOrDefault();
         CreatedComponent createdPropertyBlockComponent = propertyBlockComponent?.ID is null
             ? await CreateTerrainMainTexturePropertyBlockAsync(

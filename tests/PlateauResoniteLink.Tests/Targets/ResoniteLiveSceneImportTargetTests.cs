@@ -365,6 +365,87 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncCreatesSharedTerrainTexturePropertyBlockWhenExistingBlockReferencesDifferentTexture()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneSinkRecordingClient client = new();
+        TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/{z}/{x}/{y}.png");
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            requestedOverlay => new GeneratedTerrainTexture(
+                CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0),
+                requestedOverlay.PrimarySource));
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles:
+            [
+                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
+            ]);
+        ResoniteConstructionCityObject sharedTerrain = CreateTerrainOverlayCityObject(
+            "terrain-stale-property-block-shared",
+            "Terrain Stale Property Block Shared",
+            "dem",
+            MeshCode,
+            overlay);
+
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            metadata,
+            [sharedTerrain],
+            client,
+            terrainTextureGenerator);
+
+        AddComponent sharedTexture = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
+        AddComponent stalePropertyBlock = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Contains("/Assets/Terrain Textures/53394525", StringComparison.Ordinal));
+        stalePropertyBlock.Data.Members["Texture"] = new Reference { TargetID = "stale-texture-id" };
+        int addedComponentCountBeforeDedicatedRun = client.AddedComponents.Count;
+        ResoniteConstructionCityObject dedicatedTerrain = sharedTerrain with
+        {
+            SlotKey = "terrain-stale-property-block-dedicated",
+            DisplayName = "Terrain Stale Property Block Dedicated",
+            Materials =
+            [
+                sharedTerrain.Materials[0] with
+                {
+                    BaseColor = new ResoniteColor(0.75, 0.75, 0.75, 1.0),
+                },
+            ],
+        };
+
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            metadata,
+            [dedicatedTerrain],
+            client,
+            terrainTextureGenerator);
+
+        AddComponent newPropertyBlock = Assert.Single(
+            client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+        Component dedicatedRenderer = Assert.Single(
+            client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "Terrain Stale Property Block Dedicated", StringComparison.Ordinal))
+            .Data;
+        string dedicatedPropertyBlockId = Assert.IsType<Reference>(
+            Assert.Single(Assert.IsType<SyncList>(dedicatedRenderer.Members["MaterialPropertyBlocks"]).Elements)).TargetID;
+
+        Assert.NotEqual(stalePropertyBlock.Data.ID, newPropertyBlock.Data.ID);
+        Assert.Equal(newPropertyBlock.Data.ID, dedicatedPropertyBlockId);
+        Assert.Equal(sharedTexture.Data.ID, Assert.IsType<Reference>(newPropertyBlock.Data.Members["Texture"]).TargetID);
+        Assert.Equal("stale-texture-id", Assert.IsType<Reference>(stalePropertyBlock.Data.Members["Texture"]).TargetID);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncKeepsMaterialMeshCodeWhenOverlayBoundsUseDifferentMeshCode()
     {
         using TemporaryDirectory datasetDirectory = new();
