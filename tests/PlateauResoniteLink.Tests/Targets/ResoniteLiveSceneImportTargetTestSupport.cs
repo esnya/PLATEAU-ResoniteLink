@@ -484,21 +484,64 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 
     public static MaterialBinding ToContractMaterial(ResoniteMaterialBinding binding)
     {
-        return new MaterialBinding(
-            ToContractColor(binding.BaseColor),
+        ColorRgba baseColor = ToContractColor(binding.BaseColor);
+        TexturePayload? texturePayload = binding.TexturePayload is null ? null : ToContractTexturePayload(binding.TexturePayload);
+        MaterialDepthOffset? depthOffset = binding.DepthOffset is null
+            ? null
+            : new MaterialDepthOffset(binding.DepthOffset.Factor, binding.DepthOffset.Units);
+        Float2? textureScale = binding.TextureScale is null ? null : ToContractFloat2(binding.TextureScale);
+        Float2? textureOffset = binding.TextureOffset is null ? null : ToContractFloat2(binding.TextureOffset);
+
+        if (binding.CommonMaterial is not null
+            && binding.AssetScope == ResoniteMaterialAssetScope.Common)
+        {
+            return new SharedCommonMaterialBinding(
+                baseColor,
+                (MaterialType)binding.MaterialType,
+                texturePayload,
+                (TextureSourceKind)binding.TextureSourceKind,
+                (MaterialProjection)binding.Projection,
+                depthOffset,
+                binding.SubmeshIndices,
+                binding.CommonMaterial,
+                textureScale,
+                binding.Family,
+                textureOffset,
+                binding.TerrainOverlayMaterial,
+                binding.BundledVariantIndex);
+        }
+
+        if (binding.CommonMaterial is not null)
+        {
+            return new PresentationCommonMaterialBinding(
+                baseColor,
+                (MaterialType)binding.MaterialType,
+                texturePayload,
+                (TextureSourceKind)binding.TextureSourceKind,
+                (MaterialProjection)binding.Projection,
+                depthOffset,
+                binding.SubmeshIndices,
+                binding.CommonMaterial,
+                textureScale,
+                binding.Family,
+                textureOffset,
+                binding.TerrainOverlayMaterial,
+                binding.BundledVariantIndex);
+        }
+
+        return new PresentationMaterialBinding(
+            baseColor,
             (MaterialType)binding.MaterialType,
-            binding.TexturePayload is null ? null : ToContractTexturePayload(binding.TexturePayload),
+            texturePayload,
             (TextureSourceKind)binding.TextureSourceKind,
             (MaterialProjection)binding.Projection,
-            binding.DepthOffset is null ? null : new MaterialDepthOffset(binding.DepthOffset.Factor, binding.DepthOffset.Units),
+            depthOffset,
             binding.SubmeshIndices,
-            binding.TextureScale is null ? null : ToContractFloat2(binding.TextureScale),
+            textureScale,
             binding.Family,
-            binding.TextureOffset is null ? null : ToContractFloat2(binding.TextureOffset),
-            binding.AssetScope == ResoniteMaterialAssetScope.Common ? MaterialReuseScope.Shared : MaterialReuseScope.PerObject,
+            textureOffset,
             binding.TerrainOverlayMaterial,
-            binding.BundledVariantIndex,
-            binding.CommonMaterial);
+            binding.BundledVariantIndex);
     }
 
     private static Transform3D ToContractTransform(ResoniteTransform transform)

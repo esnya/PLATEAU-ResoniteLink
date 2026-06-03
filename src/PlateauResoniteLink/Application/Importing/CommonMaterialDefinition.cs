@@ -80,7 +80,7 @@ internal sealed class BundledCommonMaterialDefinition : CommonMaterialDefinition
             ? null
             : ToContract(bundledVariant.TextureSet.TextureOffset);
 
-        return new MaterialBinding(
+        return new SharedCommonMaterialBinding(
             BaseColor: CanonicalBaseColor,
             MaterialType: MaterialType.Standard,
             TexturePayload: null,
@@ -91,9 +91,8 @@ internal sealed class BundledCommonMaterialDefinition : CommonMaterialDefinition
             TextureScale: textureScale,
             Family: family,
             TextureOffset: textureOffset,
-            ReuseScope: MaterialReuseScope.Shared,
-            BundledVariantIndex: VariantIndex,
-            CommonMaterial: member);
+            commonMaterial: member,
+            BundledVariantIndex: VariantIndex);
     }
 }
 
@@ -112,7 +111,7 @@ internal sealed class GenericAlbedoCommonMaterialDefinition : CommonMaterialDefi
         DefaultCommonMaterialMember member,
         IReadOnlyList<int> submeshIndices)
     {
-        return new MaterialBinding(
+        return new SharedCommonMaterialBinding(
             BaseColor: CanonicalBaseColor,
             MaterialType: MaterialType.Standard,
             TexturePayload: null,
@@ -120,8 +119,7 @@ internal sealed class GenericAlbedoCommonMaterialDefinition : CommonMaterialDefi
             Projection: Projection,
             DepthOffset: DepthOffset,
             SubmeshIndices: submeshIndices,
-            ReuseScope: MaterialReuseScope.Shared,
-            CommonMaterial: member);
+            commonMaterial: member);
     }
 }
 
@@ -140,7 +138,7 @@ internal sealed class VertexColorCommonMaterialDefinition : CommonMaterialDefini
         DefaultCommonMaterialMember member,
         IReadOnlyList<int> submeshIndices)
     {
-        return new MaterialBinding(
+        return new SharedCommonMaterialBinding(
             BaseColor: CanonicalBaseColor,
             MaterialType: MaterialType.VertexColor,
             TexturePayload: null,
@@ -148,7 +146,6 @@ internal sealed class VertexColorCommonMaterialDefinition : CommonMaterialDefini
             Projection: Projection,
             DepthOffset: DepthOffset,
             SubmeshIndices: submeshIndices,
-            ReuseScope: MaterialReuseScope.Shared,
-            CommonMaterial: member);
+            commonMaterial: member);
     }
 }

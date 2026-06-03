@@ -195,7 +195,7 @@ public sealed class DemTerrainGridChunkBoundaryAlignmentPolicyTests
         IReadOnlyList<double> heightSamples,
         IReadOnlyList<TerrainGridSampleCoverage>? sampleCoverage = null)
     {
-        MaterialBinding material = new(
+        MaterialBinding material = new PresentationMaterialBinding(
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             MaterialType: MaterialType.Standard,
             TexturePayload: null,

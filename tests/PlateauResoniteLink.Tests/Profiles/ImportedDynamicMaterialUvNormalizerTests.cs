@@ -41,7 +41,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
     [Fact]
     public void NormalizeMaterialBinding_ClearsBundledFamilyUvTransformAfterNormalization()
     {
-        MaterialBinding material = new(
+        MaterialBinding material = new PresentationMaterialBinding(
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             MaterialType: MaterialType.Standard,
             TexturePayload: null,
@@ -89,7 +89,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                 {
                     SubmeshIndices = [0],
                 },
-                new MaterialBinding(
+                new PresentationMaterialBinding(
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     MaterialType: MaterialType.Standard,
                     TexturePayload: null,
@@ -148,7 +148,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                 {
                     SubmeshIndices = [0],
                 },
-                new MaterialBinding(
+                new PresentationMaterialBinding(
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     MaterialType: MaterialType.Standard,
                     TexturePayload: null,
@@ -267,7 +267,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         Float2? textureOffset,
         TerrainTextureOverlay? terrainOverlay = null)
     {
-        return new MaterialBinding(
+        return new PresentationMaterialBinding(
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             MaterialType: MaterialType.Standard,
             TexturePayload: new TexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic-uv.png"),

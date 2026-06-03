@@ -83,21 +83,16 @@ internal static class ResoniteSceneMaterialConventions
         ArgumentNullException.ThrowIfNull(material);
         material = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
-        if (material.AssetScope == ResoniteMaterialAssetScope.Common
-            && material.MaterialType == ResoniteMaterialType.Standard
-            && material.TexturePayload is null
-            && material.TerrainOverlay is null
-            && material.CommonMaterial is null
-            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-            && !string.IsNullOrWhiteSpace(material.Family)
-            && (!IsWhiteBaseColor(material.BaseColor)
-                || HasNonDefaultBundledTextureTransform(material)
-                || material.DepthOffset is not null))
+        if (ShouldDemoteBundledCommonMaterial(material))
         {
-            return material with
+            ResoniteMaterialBinding demotedMaterial = material with
             {
-                AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
+                AssetBinding = material.CommonMaterial is { } commonMaterial
+                    ? ResoniteMaterialAssetBinding.PresentationCommon(commonMaterial)
+                    : ResoniteMaterialAssetBinding.Presentation,
             };
+
+            return ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(demotedMaterial);
         }
 
         if (material.AssetScope == ResoniteMaterialAssetScope.PresentationSlotScoped
@@ -116,6 +111,21 @@ internal static class ResoniteSceneMaterialConventions
         }
 
         return material;
+    }
+
+    internal static bool ShouldDemoteBundledCommonMaterial(ResoniteMaterialBinding material)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+
+        return material.AssetScope == ResoniteMaterialAssetScope.Common
+            && material.MaterialType == ResoniteMaterialType.Standard
+            && material.TexturePayload is null
+            && material.TerrainOverlay is null
+            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && !string.IsNullOrWhiteSpace(material.Family)
+            && (!IsWhiteBaseColor(material.BaseColor)
+                || HasNonDefaultBundledTextureTransform(material)
+                || material.DepthOffset is not null);
     }
 
     public static TextureIdentity CreateTextureIdentity(TextureMemberRole role)
