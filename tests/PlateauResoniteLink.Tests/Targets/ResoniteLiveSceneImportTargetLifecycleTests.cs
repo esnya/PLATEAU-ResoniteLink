@@ -281,13 +281,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials = CommonMaterialCatalog.Create();
-        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
-            request,
-            request,
+        SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
             metadata,
-            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
-            commonMaterials);
+            commonMaterials: commonMaterials);
 
         InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() => importTarget.ExecuteAsync(
             plan,
@@ -323,11 +320,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
-        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
-            request,
-            request,
+        SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
             metadata,
-            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
             commonMaterials: CommonMaterialCatalog.Create());
 
@@ -389,13 +383,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ResoniteConstructionCityObject cityObject = CreateMixedSharedMaterialAndPayloadCityObject(
             "runtime-shared-texture",
             terrainAlignedDepthOffset);
-        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
-            request,
-            request,
+        SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
             metadata,
-            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
-            ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: false));
+            commonMaterials: ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: false));
 
         _ = await importTarget.ExecuteAsync(
             plan,
@@ -453,13 +444,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ResoniteConstructionCityObject cityObject = CreateVertexColorTriangleCityObject(
             "terrain-aligned-vertex-common",
             new ResoniteMaterialDepthOffset(-10.0, -10.0));
-        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
-            request,
-            request,
+        SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
             metadata,
-            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
-            ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: true));
+            commonMaterials: ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: true));
 
         _ = await importTarget.ExecuteAsync(
             plan,
@@ -932,12 +920,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(routedClient, session: session);
-        ResolvedLocalPlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
-            PackageNames: ["dem"]
-);
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
+            cityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
+            packageNames: ["dem"]);
         ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
             new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),

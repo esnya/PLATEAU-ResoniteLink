@@ -141,8 +141,29 @@ internal sealed class ResoniteLiveSendFinalizer(
     }
 }
 
-internal sealed record LiveSendFinalizationContext(
-    Uri Endpoint,
-    LiveSendEnqueueContext EnqueueContext,
-    ResoniteLinkSendDiagnostics Diagnostics,
-    Action<string>? ProgressReporter);
+internal sealed record LiveSendFinalizationContext
+{
+    public LiveSendFinalizationContext(
+        Uri Endpoint,
+        LiveSendEnqueueContext EnqueueContext,
+        ResoniteLinkSendDiagnostics Diagnostics,
+        Action<string>? ProgressReporter)
+    {
+        ArgumentNullException.ThrowIfNull(Endpoint);
+        ArgumentNullException.ThrowIfNull(EnqueueContext);
+        ArgumentNullException.ThrowIfNull(Diagnostics);
+
+        this.Endpoint = Endpoint;
+        this.EnqueueContext = EnqueueContext;
+        this.Diagnostics = Diagnostics;
+        this.ProgressReporter = ProgressReporter;
+    }
+
+    public Uri Endpoint { get; }
+
+    public LiveSendEnqueueContext EnqueueContext { get; }
+
+    public ResoniteLinkSendDiagnostics Diagnostics { get; }
+
+    public Action<string>? ProgressReporter { get; }
+}

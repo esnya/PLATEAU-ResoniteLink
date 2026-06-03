@@ -160,22 +160,20 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         PlateauImportRequest? normalizedRequest = null,
         CommonMaterialCatalog<DefaultCommonMaterialMember>? commonMaterials = null)
     {
-        PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? metadata.Request;
-        PlateauImportRequest resolvedRequest = CreateResolvedRequest(
+        ValidatedPlateauImportRequest effectiveNormalizedRequest = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
+            normalizedRequest ?? metadata.Request);
+        ResolvedLocalPlateauImportRequest resolvedRequest = CreateResolvedRequest(
             effectiveNormalizedRequest,
             metadata.Request,
             workDirectory);
-        PlateauImportRequest importRequest = CreateImportRequest(effectiveNormalizedRequest, resolvedRequest);
         ImportedSceneMetadata effectiveMetadata = metadata with
         {
-            Request = importRequest,
+            Request = resolvedRequest.ToImportRequest(),
         };
 
         return SceneImportExecutionPlan.Create(
-            effectiveNormalizedRequest,
             resolvedRequest,
             effectiveMetadata,
-            GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
             commonMaterials ?? CreateReferencedCommonMaterials([], enableMeshBake: false));
     }
@@ -204,49 +202,35 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return catalog.FilterToDefinitions(definitions);
     }
 
-    private static PlateauImportRequest CreateImportRequest(
-        PlateauImportRequest normalizedRequest,
-        PlateauImportRequest resolvedRequest)
-    {
-        return normalizedRequest with
-        {
-            CityGmlSource = resolvedRequest.CityGmlSource,
-            DemTextureSource = resolvedRequest.DemTextureSource,
-        };
-    }
-
-    private static PlateauImportRequest CreateResolvedRequest(
-        PlateauImportRequest normalizedRequest,
+    private static ResolvedLocalPlateauImportRequest CreateResolvedRequest(
+        ValidatedPlateauImportRequest normalizedRequest,
         PlateauImportRequest metadataRequest,
         string workDirectory)
     {
-        string? resolvedSourcePath = ResolveLocalPath(normalizedRequest.CityGmlSource, workDirectory, "source-archive")
+        string? resolvedSourcePath = ResolveLocalPath(normalizedRequest.CityGmlSource.ToDatasetLocation(), workDirectory, "source-archive")
             ?? metadataRequest.CityGmlLocalSourcePath;
         if (string.IsNullOrWhiteSpace(resolvedSourcePath))
         {
             throw new ArgumentException("Metadata request must include a local CityGML source path.", nameof(metadataRequest));
         }
 
-        DatasetLocation? resolvedDemTextureSource = metadataRequest.DemTextureSource;
+        ValidatedLocalDatasetLocation? resolvedDemTextureSource = metadataRequest.DemTextureLocalSourcePath is { } metadataDemTexturePath
+            ? new ValidatedLocalDatasetLocation(metadataDemTexturePath)
+            : null;
         if (normalizedRequest.DemTextureSource is not null)
         {
-            string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource, workDirectory, "source-ortho");
-            resolvedDemTextureSource = resolvedDemTexturePath is null
-                ? metadataRequest.DemTextureSource
-                : DatasetLocation.Local(resolvedDemTexturePath);
+            string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource.ToDatasetLocation(), workDirectory, "source-ortho");
+            if (resolvedDemTexturePath is not null)
+            {
+                resolvedDemTextureSource = new ValidatedLocalDatasetLocation(resolvedDemTexturePath);
+            }
         }
 
-        return normalizedRequest with
-        {
-            CityGmlSource = DatasetLocation.Local(resolvedSourcePath),
-            DemTextureSource = resolvedDemTextureSource,
-        };
-    }
-
-    private static string GetRequiredResolvedLocalSourcePath(PlateauImportRequest resolvedRequest)
-    {
-        return resolvedRequest.CityGmlLocalSourcePath
-            ?? throw new ArgumentException("Resolved request must include a local CityGML source path.", nameof(resolvedRequest));
+        return ResolvedLocalPlateauImportRequest.Create(
+            normalizedRequest,
+            new ValidatedLocalDatasetLocation(resolvedSourcePath),
+            resolvedDemTextureSource,
+            workDirectory);
     }
 
     private static string? ResolveLocalPath(

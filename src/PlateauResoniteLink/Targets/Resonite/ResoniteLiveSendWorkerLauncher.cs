@@ -6,10 +6,28 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed record LiveSendWorkerLaunchRequest(
-    LiveSendRunState State,
-    LiveSendQueuePlan QueuePlan,
-    ResoniteImportBudgetProfile ResourceBudget);
+internal sealed record LiveSendWorkerLaunchRequest
+{
+    public LiveSendWorkerLaunchRequest(
+        LiveSendRunState State,
+        LiveSendQueuePlan QueuePlan,
+        ResoniteImportBudgetProfile ResourceBudget)
+    {
+        ArgumentNullException.ThrowIfNull(State);
+        ArgumentNullException.ThrowIfNull(QueuePlan);
+        ArgumentNullException.ThrowIfNull(ResourceBudget);
+
+        this.State = State;
+        this.QueuePlan = QueuePlan;
+        this.ResourceBudget = ResourceBudget;
+    }
+
+    public LiveSendRunState State { get; }
+
+    public LiveSendQueuePlan QueuePlan { get; }
+
+    public ResoniteImportBudgetProfile ResourceBudget { get; }
+}
 
 internal interface IResoniteLiveSendWorkerLauncher
 {
@@ -29,15 +47,8 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
         LiveSendRunStartContext context)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(request.State);
-        ArgumentNullException.ThrowIfNull(request.QueuePlan);
-        ArgumentNullException.ThrowIfNull(request.ResourceBudget);
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(context.Endpoint);
-        ArgumentNullException.ThrowIfNull(context.ClientSession);
-        ArgumentNullException.ThrowIfNull(context.Diagnostics);
         int connectionCount = request.QueuePlan.ConnectionCount;
-        ArgumentOutOfRangeException.ThrowIfLessThan(connectionCount, 1);
 
         ReportProgress(
             context,
