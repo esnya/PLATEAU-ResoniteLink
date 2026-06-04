@@ -182,6 +182,95 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         Assert.InRange(attributes.EaveHeight.Value!.Value, 9.699999, 9.700001);
     }
 
+    [Fact]
+    public async Task SourceFilePipeline_StreamParsedCityObjectsAsync_SkipsInvalidInteriorRingsBeforeSurfaceConstruction()
+    {
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0100 139.0100 12</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-1">
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <bldg:WallSurface>
+                          <gml:Polygon gml:id="poly-1">
+                            <gml:exterior>
+                              <gml:LinearRing gml:id="ring-1">
+                                <gml:posList>35.0000 139.0000 0 35.0000 139.0010 0 35.0000 139.0010 12 35.0000 139.0000 12 35.0000 139.0000 0</gml:posList>
+                              </gml:LinearRing>
+                            </gml:exterior>
+                            <gml:interior>
+                              <gml:LinearRing gml:id="invalid-interior">
+                                <gml:posList>35.0002 139.0002 1 35.0002 139.0004 1</gml:posList>
+                              </gml:LinearRing>
+                            </gml:interior>
+                            <gml:interior />
+                          </gml:Polygon>
+                        </bldg:WallSurface>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+        InMemoryDatasetContentSource datasetSource = new(Encoding.UTF8.GetBytes(xml));
+
+        ParsedCityObject parsedCityObject = await ParseSingleBuildingAsync(datasetSource);
+        ParsedSurface surface = Assert.Single(parsedCityObject.Surfaces);
+
+        Assert.Empty(surface.InteriorRings);
+    }
+
+    [Fact]
+    public async Task SourceFilePipeline_StreamParsedCityObjectsAsync_SkipsPolygonWithInvalidExteriorRing()
+    {
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0100 139.0100 12</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-1">
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <bldg:WallSurface>
+                          <gml:Polygon gml:id="poly-1">
+                            <gml:exterior>
+                              <gml:LinearRing gml:id="invalid-exterior">
+                                <gml:posList>35.0000 139.0000 0 35.0000 139.0010 0</gml:posList>
+                              </gml:LinearRing>
+                            </gml:exterior>
+                          </gml:Polygon>
+                        </bldg:WallSurface>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+        InMemoryDatasetContentSource datasetSource = new(Encoding.UTF8.GetBytes(xml));
+
+        ParsedCityObject? parsedCityObject = await TryParseSingleBuildingAsync(datasetSource);
+
+        Assert.Null(parsedCityObject);
+    }
+
     private static async Task<ParsedCityObject> ParseSingleBuildingWithDetailAttributeAsync(string detailAttributeXml)
     {
         string xml =
@@ -226,6 +315,14 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
 
     private static async Task<ParsedCityObject> ParseSingleBuildingAsync(InMemoryDatasetContentSource datasetSource)
     {
+        ParsedCityObject? parsedCityObject = await TryParseSingleBuildingAsync(datasetSource);
+
+        Assert.NotNull(parsedCityObject);
+        return parsedCityObject;
+    }
+
+    private static async Task<ParsedCityObject?> TryParseSingleBuildingAsync(InMemoryDatasetContentSource datasetSource)
+    {
         SourceFileDescriptor sourceFile = new(
             "udx/bldg/53394525/metadata.gml",
             "bldg",
@@ -249,7 +346,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             break;
         }
 
-        return parsedCityObject!;
+        return parsedCityObject;
     }
 
     [Theory]
