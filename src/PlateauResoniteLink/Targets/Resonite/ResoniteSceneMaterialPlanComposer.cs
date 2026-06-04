@@ -19,7 +19,7 @@ internal interface IResoniteSceneMaterialPlanComposer
         ResoniteConstructionCityObject cityObject,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
+        IReadOnlyDictionary<TerrainTextureAssetKey, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByKey,
         Action<string> reportMaterialStep,
         CancellationToken cancellationToken);
 }
@@ -32,7 +32,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         ResoniteConstructionCityObject cityObject,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
+        IReadOnlyDictionary<TerrainTextureAssetKey, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByKey,
         Action<string> reportMaterialStep,
         CancellationToken cancellationToken)
     {
@@ -41,7 +41,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         ArgumentNullException.ThrowIfNull(cityObject);
         ArgumentNullException.ThrowIfNull(preparedTextureUrisByPayload);
         ArgumentNullException.ThrowIfNull(preparedTerrainTextureUrisByOverlay);
-        ArgumentNullException.ThrowIfNull(preparedTerrainTexturePropertyBlockComponentsByMeshCode);
+        ArgumentNullException.ThrowIfNull(preparedTerrainTexturePropertyBlockComponentsByKey);
         ArgumentNullException.ThrowIfNull(reportMaterialStep);
 
         Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[] materialPlanTasks
@@ -51,7 +51,6 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             ResoniteMaterialBinding material = ResolveTerrainTextureMaterialForEmission(
                 cityObject,
                 cityObject.Materials[materialIndex]);
-            material = ResoniteTerrainOverlayMaterialContract.ValidateMaterial(cityObject, materialIndex, material);
             reportMaterialStep($"Creating material {materialIndex + 1}/{cityObject.Materials.Count}.");
             if (material.AssetBinding.IsSharedCommon
                 && material.CommonMaterial is { } commonMaterial)
@@ -62,7 +61,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
                     commonMaterial,
                     preparedTextureUrisByPayload,
                     preparedTerrainTextureUrisByOverlay,
-                    preparedTerrainTexturePropertyBlockComponentsByMeshCode,
+                    preparedTerrainTexturePropertyBlockComponentsByKey,
                     cancellationToken);
                 continue;
             }
@@ -73,7 +72,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
                 materialIndex,
                 preparedTextureUrisByPayload,
                 preparedTerrainTextureUrisByOverlay,
-                preparedTerrainTexturePropertyBlockComponentsByMeshCode,
+                preparedTerrainTexturePropertyBlockComponentsByKey,
                 preserveDedicatedMaterialSlot: ResonitePackageSemantics.IsDemPackage(cityObject.PackageName),
                 cancellationToken);
         }
@@ -90,7 +89,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         DefaultCommonMaterialMember member,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode,
+        IReadOnlyDictionary<TerrainTextureAssetKey, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByKey,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(member);
@@ -117,7 +116,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             : CreateMainTextureOverrideRendererBinding(
                 sharedMaterialAsset,
                 mainTextureOverride,
-                terrainTexturePropertyBlockComponentsByMeshCode,
+                terrainTexturePropertyBlockComponentsByKey,
                 sourceMaterial);
         return (sharedMaterialAsset, rendererBinding);
     }
@@ -128,7 +127,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         int materialIndex,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
+        IReadOnlyDictionary<TerrainTextureAssetKey, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByKey,
         bool preserveDedicatedMaterialSlot,
         CancellationToken cancellationToken)
     {
@@ -161,7 +160,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
                     CreateMainTextureOverrideRendererBinding(
                         plannedMaterial,
                         mainTextureOverride,
-                        preparedTerrainTexturePropertyBlockComponentsByMeshCode,
+                        preparedTerrainTexturePropertyBlockComponentsByKey,
                         sourceMaterial));
             }
         }
@@ -187,7 +186,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
     private static PlannedMainTextureOverrideRendererMaterialBinding CreateMainTextureOverrideRendererBinding(
         PlannedMaterialAsset materialAsset,
         PlannedTextureAsset mainTexture,
-        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode,
+        IReadOnlyDictionary<TerrainTextureAssetKey, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByKey,
         ResoniteMaterialBinding sourceMaterial)
     {
         if (sourceMaterial.TerrainOverlay is null)
@@ -199,8 +198,10 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             materialAsset,
             mainTexture,
             null,
-            sourceMaterial.TerrainOverlayMaterial is not null
-            && terrainTexturePropertyBlockComponentsByMeshCode.TryGetValue(sourceMaterial.TerrainOverlayMaterial.MeshCode, out ResoniteComponentLocator propertyBlockComponent)
+            sourceMaterial.TerrainOverlayMaterial is { } terrainOverlayMaterial
+            && terrainTexturePropertyBlockComponentsByKey.TryGetValue(
+                new TerrainTextureAssetKey(terrainOverlayMaterial.MeshCode, terrainOverlayMaterial.Overlay),
+                out ResoniteComponentLocator propertyBlockComponent)
                 ? propertyBlockComponent
                 : null);
     }

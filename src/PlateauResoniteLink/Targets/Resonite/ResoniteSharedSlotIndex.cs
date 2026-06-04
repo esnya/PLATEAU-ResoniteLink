@@ -189,6 +189,17 @@ internal sealed class ResoniteSharedSlotIndex(
             return indexedSlot.Value;
         }
 
+        CreatedSlot? observedSlot = await ResoniteMaterialPlanning.TryGetExistingSharedChildSlotAsync(
+            client,
+            parent,
+            slotName,
+            cancellationToken);
+        if (observedSlot is not null)
+        {
+            slotSnapshotIndex.MarkCreated(observedSlot.Value);
+            return slotSnapshotIndex.IndexCreatedSharedSlot(parent, observedSlot.Value, position);
+        }
+
         CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, rotation, cancellationToken);
         slotSnapshotIndex.MarkCreated(createdSlot);
         return slotSnapshotIndex.IndexCreatedSharedSlot(parent, createdSlot, position);

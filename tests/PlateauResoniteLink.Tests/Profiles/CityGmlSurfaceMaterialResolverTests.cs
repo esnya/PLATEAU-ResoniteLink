@@ -40,7 +40,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
     }
 
     [Fact]
-    public void CreateMaterialBindingUsesTerrainOverlayMeshCodeWithoutMatchingActualMeshCode()
+    public void CreateMaterialBindingKeepsMaterialMeshCodeSeparateFromTerrainOverlayMeshCode()
     {
         ResolvedSurfaceMaterial representativeSurface = new(
             CreateSurface(),
@@ -60,8 +60,34 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             representativeSurface,
             materialIndex: 0);
 
-        Assert.Equal("53394525", binding.TerrainMeshCode);
+        Assert.Equal("53394600", binding.TerrainMeshCode);
         Assert.Same(representativeSurface.Material.TerrainOverlay, binding.TerrainOverlay);
+    }
+
+    [Fact]
+    public void CreateMaterialBindingFallsBackToOverlayMeshCodeWhenMaterialMeshCodeIsNotThirdLevel()
+    {
+        TerrainTextureOverlay overlay = CreateOverlay("53394525");
+        ResolvedSurfaceMaterial representativeSurface = new(
+            CreateSurface(),
+            new ResolvedMaterial(
+                MaterialType.Standard,
+                TexturePayload: null,
+                TextureSourceKind.Bundled,
+                MaterialProjection.Uv,
+                Family: "terrain",
+                TextureScale: null,
+                MaterialReuseScope.Shared,
+                TerrainOverlay: overlay),
+            depthOffset: null);
+
+        MaterialBinding binding = CityGmlSurfaceMaterialResolver.CreateMaterialBinding(
+            "533945",
+            representativeSurface,
+            materialIndex: 0);
+
+        Assert.Equal("53394525", binding.TerrainMeshCode);
+        Assert.Same(overlay, binding.TerrainOverlay);
     }
 
     [Fact]
