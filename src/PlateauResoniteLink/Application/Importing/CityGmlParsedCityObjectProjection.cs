@@ -353,13 +353,17 @@ internal static class CityGmlParsedCityObjectProjection
         ParsedSurface surface,
         ParsedCityObject cityObject)
     {
-        if (surface.InteriorRings.Length != 0
-            || surface.ExteriorRing.Vertices.Length != 4)
+        if (surface.InteriorRings.Length != 0)
         {
             return [surface];
         }
 
         if (!ShouldSubdivideTerrainAlignedCityObject(cityObject.PackageName, cityObject.LodLevel))
+        {
+            return [surface];
+        }
+
+        if (surface.ExteriorRing.Vertices.Length != 4)
         {
             return [surface];
         }
@@ -375,12 +379,17 @@ internal static class CityGmlParsedCityObjectProjection
         Float3[] positions = surface.ExteriorRing.Vertices
             .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
+        if (!RoadSurfaceQuad.TryCreate(surface.ExteriorRing, positions, out RoadSurfaceQuad quad))
+        {
+            return [surface];
+        }
+
         if (!IsNearHorizontalSurface(positions))
         {
             return [surface];
         }
 
-        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(surface.ExteriorRing, positions);
+        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(quad);
         return TerrainAlignedTransportationSurfaceSplitter.Split(surface, positions, edgePair);
     }
 
