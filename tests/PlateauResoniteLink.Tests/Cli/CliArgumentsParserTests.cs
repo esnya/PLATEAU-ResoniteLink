@@ -104,7 +104,7 @@ public sealed class CliArgumentsParserTests
 
         CliParseResult result = CliArgumentsParser.Parse(args);
 
-        Assert.Equal("Specify --dataset.", AssertFailure(result).Error);
+        Assert.Equal("Specify --dataset.", result.Error);
     }
 
     [Theory]
@@ -129,7 +129,7 @@ public sealed class CliArgumentsParserTests
 
         CliParseResult result = CliArgumentsParser.Parse(args);
 
-        Assert.Equal("Specify --mesh-code.", AssertFailure(result).Error);
+        Assert.Equal("Specify --mesh-code.", result.Error);
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public sealed class CliArgumentsParserTests
 
         Assert.Equal(
             $"The value '{metersPerVertex}' is not a valid positive terrain grid meters-per-vertex value.",
-            AssertFailure(result).Error);
+            result.Error);
     }
 
     [Fact]
