@@ -125,36 +125,36 @@ internal static class BuildingAttributeParser
         };
     }
 
-    private static BuildingMetricValue ParseIntegerMetricValue(XElement? element)
+    private static BuildingMetricValue? ParseIntegerMetricValue(XElement? element)
     {
         if (element is null)
         {
-            return BuildingMetricValue.Missing;
+            return null;
         }
 
         string rawValue = element.Value.Trim();
         if (IsPlateauMissingMetricToken(rawValue))
         {
-            return BuildingMetricValue.Missing;
+            return null;
         }
 
         return int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
             && value >= 0
-                ? BuildingMetricValue.Known(value)
-                : BuildingMetricValue.Invalid(rawValue);
+                ? new BuildingMetricValue(value)
+                : null;
     }
 
-    private static BuildingMetricValue ParseMetricValue(XElement? element, bool requireMeters)
+    private static BuildingMetricValue? ParseMetricValue(XElement? element, bool requireMeters)
     {
         if (element is null)
         {
-            return BuildingMetricValue.Missing;
+            return null;
         }
 
         string rawValue = element.Value.Trim();
         if (IsPlateauMissingMetricToken(rawValue))
         {
-            return BuildingMetricValue.Missing;
+            return null;
         }
 
         string? unitOfMeasure = element.Attribute("uom")?.Value.Trim();
@@ -162,13 +162,14 @@ internal static class BuildingAttributeParser
             && !string.IsNullOrWhiteSpace(unitOfMeasure)
             && !string.Equals(unitOfMeasure, "m", StringComparison.OrdinalIgnoreCase))
         {
-            return BuildingMetricValue.Invalid(rawValue);
+            return null;
         }
 
         return double.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+            && double.IsFinite(value)
             && value > 0.0
-                ? BuildingMetricValue.Known(value)
-                : BuildingMetricValue.Invalid(rawValue);
+                ? new BuildingMetricValue(value)
+                : null;
     }
 
     private static bool IsPlateauMissingMetricToken(string rawValue)

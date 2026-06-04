@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -49,28 +50,23 @@ internal enum PlateauBuildingStructure
     Other,
 }
 
-internal enum BuildingMetricValueKind
-{
-    Missing = 0,
-    Known,
-    Invalid,
-}
-
 internal sealed record BuildingCodeValue<T>(T Value, string Code);
 
-internal sealed record BuildingMetricValue(BuildingMetricValueKind Kind, double? Value, string? Raw)
+internal sealed record BuildingMetricValue
 {
-    public static BuildingMetricValue Missing { get; } = new(BuildingMetricValueKind.Missing, null, null);
-
-    public static BuildingMetricValue Known(double value)
+    public BuildingMetricValue(double value)
     {
-        return new BuildingMetricValue(BuildingMetricValueKind.Known, value, null);
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+
+        if (!double.IsFinite(value))
+        {
+            throw new ArgumentOutOfRangeException(nameof(value));
+        }
+
+        Value = value;
     }
 
-    public static BuildingMetricValue Invalid(string raw)
-    {
-        return new BuildingMetricValue(BuildingMetricValueKind.Invalid, null, raw);
-    }
+    public double Value { get; }
 }
 
 internal sealed record BuildingAttributeContext(
@@ -80,13 +76,13 @@ internal sealed record BuildingAttributeContext(
     IReadOnlyList<BuildingCodeValue<PlateauBuildingStructure>> Structures,
     IReadOnlyList<string> CityGmlClassCodes,
     IReadOnlyList<string> CityGmlFunctionCodes,
-    BuildingMetricValue MeasuredHeightMeters,
-    BuildingMetricValue StoreysAboveGround,
-    BuildingMetricValue StoreysBelowGround,
-    BuildingMetricValue BuildingFootprintArea,
-    BuildingMetricValue BuildingRoofEdgeArea,
-    BuildingMetricValue BuildingHeight,
-    BuildingMetricValue EaveHeight)
+    BuildingMetricValue? MeasuredHeightMeters,
+    BuildingMetricValue? StoreysAboveGround,
+    BuildingMetricValue? StoreysBelowGround,
+    BuildingMetricValue? BuildingFootprintArea,
+    BuildingMetricValue? BuildingRoofEdgeArea,
+    BuildingMetricValue? BuildingHeight,
+    BuildingMetricValue? EaveHeight)
 {
     public static BuildingAttributeContext Empty { get; } = new(
         RoofShape: null,
@@ -95,11 +91,11 @@ internal sealed record BuildingAttributeContext(
         Structures: [],
         CityGmlClassCodes: [],
         CityGmlFunctionCodes: [],
-        MeasuredHeightMeters: BuildingMetricValue.Missing,
-        StoreysAboveGround: BuildingMetricValue.Missing,
-        StoreysBelowGround: BuildingMetricValue.Missing,
-        BuildingFootprintArea: BuildingMetricValue.Missing,
-        BuildingRoofEdgeArea: BuildingMetricValue.Missing,
-        BuildingHeight: BuildingMetricValue.Missing,
-        EaveHeight: BuildingMetricValue.Missing);
+        MeasuredHeightMeters: null,
+        StoreysAboveGround: null,
+        StoreysBelowGround: null,
+        BuildingFootprintArea: null,
+        BuildingRoofEdgeArea: null,
+        BuildingHeight: null,
+        EaveHeight: null);
 }
