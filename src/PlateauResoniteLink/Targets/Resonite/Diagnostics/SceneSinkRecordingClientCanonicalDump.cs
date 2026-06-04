@@ -139,8 +139,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
         List<JsonObject> textureNodes = [];
         for (int index = 0; index < client.ImportedTexturePayloads.Count; index++)
         {
-            RawTexturePayload texture = client.ImportedTexturePayloads[index];
-            if (texture.Format != RawTexturePayloadFormat.Rgba32)
+            if (client.ImportedTexturePayloads[index] is not Rgba32RawTexturePayload texture)
             {
                 continue;
             }
@@ -164,8 +163,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
         List<JsonObject> hdrTextureNodes = [];
         for (int index = 0; index < client.ImportedTexturePayloads.Count; index++)
         {
-            RawTexturePayload texture = client.ImportedTexturePayloads[index];
-            if (texture.Format != RawTexturePayloadFormat.RgbaFloat32)
+            if (client.ImportedTexturePayloads[index] is not RgbaFloat32RawTexturePayload texture)
             {
                 continue;
             }
@@ -398,16 +396,16 @@ internal static class SceneSinkRecordingClientCanonicalDump
 
     private static string CreateTextureToken(RawTexturePayload texture)
     {
-        return texture.Format == RawTexturePayloadFormat.RgbaFloat32
-            ? string.Create(
+        return texture.Match(
+            rgba32 => string.Create(
                 CultureInfo.InvariantCulture,
-                $"hdr-texture:{texture.Width}x{texture.Height}:{HashBytes(texture.Bytes)}")
-            : string.Create(
+                $"texture:{rgba32.Width}x{rgba32.Height}:{rgba32.ColorProfile}:{HashBytes(rgba32.Bytes)}"),
+            rgbaFloat32 => string.Create(
                 CultureInfo.InvariantCulture,
-                $"texture:{texture.Width}x{texture.Height}:{texture.ColorProfile}:{HashBytes(texture.Bytes)}");
+                $"hdr-texture:{rgbaFloat32.Width}x{rgbaFloat32.Height}:{HashBytes(rgbaFloat32.Bytes)}"));
     }
 
-    private static string CreateHdrTextureToken(RawTexturePayload texture)
+    private static string CreateHdrTextureToken(RgbaFloat32RawTexturePayload texture)
     {
         return string.Create(
             CultureInfo.InvariantCulture,

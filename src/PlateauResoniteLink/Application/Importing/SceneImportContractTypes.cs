@@ -96,69 +96,89 @@ public sealed record MeshSubmesh(
     int Index,
     IReadOnlyList<int> TriangleVertexIndices);
 
-public enum TexturePayloadFormat
+public abstract record TexturePayload
 {
-    RawRgba32 = 0,
-    EncodedImage = 1,
+    private protected TexturePayload(ITextureImportSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.Identity);
+
+        Source = source;
+    }
+
+    public ITextureImportSource Source { get; }
 }
 
-public sealed record TexturePayload
+public sealed record RawRgba32TexturePayload : TexturePayload
 {
-    public TexturePayload(
-        int? width,
-        int? height,
+    public RawRgba32TexturePayload(
+        int width,
+        int height,
         string? colorProfile,
         byte[] binaryPayload,
-        string? identity = null,
-        TexturePayloadFormat format = TexturePayloadFormat.RawRgba32)
-    {
-        Width = width;
-        Height = height;
-        ColorProfile = colorProfile;
-        ArgumentNullException.ThrowIfNull(binaryPayload);
-        BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
-        Identity = identity;
-        Format = format;
-        Source = TextureImportSourceFactory.CreateInMemory(
+        string? identity = null)
+        : this(
             width,
             height,
             colorProfile,
             binaryPayload,
-            identity ?? Guid.NewGuid().ToString("N"),
-            format);
+            CreateSource(width, height, colorProfile, binaryPayload, identity))
+    {
     }
 
-    public TexturePayload(
+    private RawRgba32TexturePayload(
+        int width,
+        int height,
+        string? colorProfile,
+        byte[] binaryPayload,
+        ITextureImportSource source)
+        : base(source)
+    {
+        Rgba32RawTexturePayload.ValidateByteLength(width, height, binaryPayload);
+        Width = width;
+        Height = height;
+        BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
+    }
+
+    public int Width { get; }
+
+    public int Height { get; }
+
+    public ImmutableArray<byte> BinaryPayload { get; }
+
+    private static ITextureImportSource CreateSource(
+        int width,
+        int height,
+        string? colorProfile,
+        byte[] binaryPayload,
+        string? identity)
+    {
+        ArgumentNullException.ThrowIfNull(binaryPayload);
+        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
+        return TextureImportSourceFactory.CreateInMemoryRaw(
+            width,
+            height,
+            colorProfile,
+            binaryPayload,
+            effectiveIdentity);
+    }
+}
+
+public sealed record EncodedImageTexturePayload : TexturePayload
+{
+    public EncodedImageTexturePayload(
         int? width,
         int? height,
-        string? colorProfile,
-        ITextureImportSource source,
-        string? identity = null,
-        TexturePayloadFormat format = TexturePayloadFormat.EncodedImage)
+        ITextureImportSource source)
+        : base(source)
     {
         Width = width;
         Height = height;
-        ColorProfile = colorProfile;
-        ArgumentNullException.ThrowIfNull(source);
-        BinaryPayload = [];
-        Identity = identity ?? source.Identity;
-        Format = format;
-        Source = source;
     }
 
-    public int? Width { get; init; }
+    public int? Width { get; }
 
-    public int? Height { get; init; }
-
-    public string? ColorProfile { get; init; }
-
-    public ImmutableArray<byte> BinaryPayload { get; init; }
-
-    public string? Identity { get; init; }
-
-    public TexturePayloadFormat Format { get; init; }
-
-    public ITextureImportSource Source { get; init; }
+    public int? Height { get; }
 }
 
 public enum TextureSourceKind

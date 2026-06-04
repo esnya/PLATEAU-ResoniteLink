@@ -5,67 +5,88 @@ using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-public enum ResoniteTexturePayloadFormat
+public abstract class ResoniteTexturePayload
 {
-    RawRgba32,
-    EncodedImage,
+    private protected ResoniteTexturePayload(ITextureImportSource source)
+    {
+        Source = source ?? throw new ArgumentNullException(nameof(source));
+        if (string.IsNullOrWhiteSpace(Source.Identity))
+        {
+            throw new ArgumentException("Texture source identity must be non-empty.", nameof(source));
+        }
+    }
+
+    public ITextureImportSource Source { get; }
 }
 
-public sealed record ResoniteTexturePayload
+public sealed class RawRgba32ResoniteTexturePayload : ResoniteTexturePayload
 {
-    public ResoniteTexturePayload(
-        int? width,
-        int? height,
+    public RawRgba32ResoniteTexturePayload(
+        int width,
+        int height,
         string? colorProfile,
         byte[] binaryPayload,
-        string? identity = null,
-        ResoniteTexturePayloadFormat format = ResoniteTexturePayloadFormat.RawRgba32)
-    {
-        Width = width;
-        Height = height;
-        ColorProfile = colorProfile;
-        ArgumentNullException.ThrowIfNull(binaryPayload);
-        BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
-        Identity = identity;
-        Format = format;
-        Source = TextureImportSourceFactory.CreateInMemory(
+        string? identity = null)
+        : this(
             width,
             height,
             colorProfile,
             binaryPayload,
-            identity ?? Guid.NewGuid().ToString("N"),
-            (TexturePayloadFormat)format);
+            CreateSource(width, height, colorProfile, binaryPayload, identity))
+    {
     }
 
-    public ResoniteTexturePayload(
+    private RawRgba32ResoniteTexturePayload(
+        int width,
+        int height,
+        string? colorProfile,
+        byte[] binaryPayload,
+        ITextureImportSource source)
+        : base(source)
+    {
+        ArgumentNullException.ThrowIfNull(binaryPayload);
+        Width = width;
+        Height = height;
+        BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
+    }
+
+    public int Width { get; }
+
+    public int Height { get; }
+
+    public ImmutableArray<byte> BinaryPayload { get; }
+
+    private static ITextureImportSource CreateSource(
+        int width,
+        int height,
+        string? colorProfile,
+        byte[] binaryPayload,
+        string? identity)
+    {
+        ArgumentNullException.ThrowIfNull(binaryPayload);
+        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
+        return TextureImportSourceFactory.CreateInMemoryRaw(
+            width,
+            height,
+            colorProfile,
+            binaryPayload,
+            effectiveIdentity);
+    }
+}
+
+public sealed class EncodedImageResoniteTexturePayload : ResoniteTexturePayload
+{
+    public EncodedImageResoniteTexturePayload(
         int? width,
         int? height,
-        string? colorProfile,
-        ITextureImportSource source,
-        string? identity = null,
-        ResoniteTexturePayloadFormat format = ResoniteTexturePayloadFormat.EncodedImage)
+        ITextureImportSource source)
+        : base(source)
     {
         Width = width;
         Height = height;
-        ColorProfile = colorProfile;
-        ArgumentNullException.ThrowIfNull(source);
-        BinaryPayload = [];
-        Identity = identity ?? source.Identity;
-        Format = format;
-        Source = source;
     }
 
-    public int? Width { get; init; }
+    public int? Width { get; }
 
-    public int? Height { get; init; }
-
-    public string? ColorProfile { get; init; }
-
-    public ImmutableArray<byte> BinaryPayload { get; init; }
-
-    public string? Identity { get; init; }
-
-    public ResoniteTexturePayloadFormat Format { get; init; }
-
-    public ITextureImportSource Source { get; init; }
+    public int? Height { get; }
 }

@@ -71,7 +71,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             r, g, b, 255,
             r, g, b, 255,
         ];
-        return new ResoniteTexturePayload(2, 2, ResoniteTextureColorProfiles.Srgb, rawBytes, identity);
+        return new RawRgba32ResoniteTexturePayload(2, 2, ResoniteTextureColorProfiles.Srgb, rawBytes, identity);
     }
 
     public static ImportedSceneMetadata CreateMetadata(
@@ -568,13 +568,20 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         => Enumerable.Repeat(TerrainGridSampleCoverage.Measured, count).ToArray();
 
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
-        => new(
-            payload.Width,
-            payload.Height,
-            payload.ColorProfile,
-            payload.BinaryPayload.AsSpan().ToArray(),
-            payload.Identity,
-            (TexturePayloadFormat)payload.Format);
+        => payload switch
+        {
+            RawRgba32ResoniteTexturePayload raw => new RawRgba32TexturePayload(
+                raw.Width,
+                raw.Height,
+                raw.Source.ColorProfile,
+                raw.BinaryPayload.AsSpan().ToArray(),
+                raw.Source.Identity),
+            EncodedImageResoniteTexturePayload encoded => new EncodedImageTexturePayload(
+                encoded.Width,
+                encoded.Height,
+                encoded.Source),
+            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.GetType(), "Unsupported texture payload type."),
+        };
 
 }
 

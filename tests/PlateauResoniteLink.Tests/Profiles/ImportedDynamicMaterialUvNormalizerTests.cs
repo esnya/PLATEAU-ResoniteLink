@@ -270,7 +270,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         return new PresentationMaterialBinding(
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             MaterialType: MaterialType.Standard,
-            TexturePayload: new TexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic-uv.png"),
+            TexturePayload: new RawRgba32TexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic-uv.png"),
             TextureSourceKind: TextureSourceKind.Dataset,
             Projection: MaterialProjection.Uv,
             DepthOffset: null,

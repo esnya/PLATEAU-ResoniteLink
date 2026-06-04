@@ -139,13 +139,20 @@ internal static class SceneImportContractMapper
 
     private static ResoniteTexturePayload ToInternal(TexturePayload payload)
     {
-        return new ResoniteTexturePayload(
-            payload.Width,
-            payload.Height,
-            payload.ColorProfile,
-            payload.Source,
-            payload.Identity,
-            ToInternal(payload.Format));
+        return payload switch
+        {
+            RawRgba32TexturePayload raw => new RawRgba32ResoniteTexturePayload(
+                raw.Width,
+                raw.Height,
+                raw.Source.ColorProfile,
+                raw.BinaryPayload.AsSpan().ToArray(),
+                raw.Source.Identity),
+            EncodedImageTexturePayload encoded => new EncodedImageResoniteTexturePayload(
+                encoded.Width,
+                encoded.Height,
+                encoded.Source),
+            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.GetType(), "Unsupported texture payload type."),
+        };
     }
 
     private static ResoniteMaterialType ToInternal(MaterialType materialType)
@@ -176,16 +183,6 @@ internal static class SceneImportContractMapper
             MaterialProjection.Uv => ResoniteMaterialProjection.Uv,
             MaterialProjection.Triplanar => ResoniteMaterialProjection.Triplanar,
             _ => throw new ArgumentOutOfRangeException(nameof(projection), projection, "Unsupported material projection."),
-        };
-    }
-
-    private static ResoniteTexturePayloadFormat ToInternal(TexturePayloadFormat format)
-    {
-        return format switch
-        {
-            TexturePayloadFormat.RawRgba32 => ResoniteTexturePayloadFormat.RawRgba32,
-            TexturePayloadFormat.EncodedImage => ResoniteTexturePayloadFormat.EncodedImage,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported texture payload format."),
         };
     }
 

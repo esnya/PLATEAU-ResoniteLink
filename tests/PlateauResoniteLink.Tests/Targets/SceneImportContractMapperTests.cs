@@ -16,7 +16,7 @@ public sealed class SceneImportContractMapperTests
             new PresentationMaterialBinding(
                 BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
                 MaterialType: MaterialType.Standard,
-                TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
+                TexturePayload: CreateEncodedTexturePayload(),
                 TextureSourceKind: TextureSourceKind.Dataset,
                 Projection: MaterialProjection.Uv,
                 DepthOffset: new MaterialDepthOffset(-1.5, 2.5),
@@ -31,8 +31,8 @@ public sealed class SceneImportContractMapperTests
 
         Assert.Equal(0.1, mapped.BaseColor.R, 9);
         Assert.Equal(0.2, mapped.BaseColor.G, 9);
-        Assert.Equal("dataset:texture", mapped.TexturePayload!.Identity);
-        Assert.Equal(ResoniteTexturePayloadFormat.EncodedImage, mapped.TexturePayload.Format);
+        EncodedImageResoniteTexturePayload encodedPayload = Assert.IsType<EncodedImageResoniteTexturePayload>(mapped.TexturePayload);
+        Assert.Equal("dataset:texture", encodedPayload.Source.Identity);
         Assert.Equal(-1.5, mapped.DepthOffset!.Factor, 9);
         Assert.Equal(2.5, mapped.DepthOffset.Units, 9);
         Assert.Equal(0.25, mapped.TextureScale!.X, 9);
@@ -56,11 +56,39 @@ public sealed class SceneImportContractMapperTests
         Assert.Equal(commonMaterial, mapped.CommonMaterial);
     }
 
+    [Fact]
+    public void ToInternalMaterialBindingsMapsRawTextureDimensionsWithoutNullableGuards()
+    {
+        MaterialBinding[] bindings =
+        [
+            new PresentationMaterialBinding(
+                BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+                MaterialType: MaterialType.Standard,
+                TexturePayload: new RawRgba32TexturePayload(
+                    width: 2,
+                    height: 1,
+                    colorProfile: "sRGB",
+                    binaryPayload: [1, 2, 3, 4, 5, 6, 7, 8],
+                    identity: "raw:texture"),
+                TextureSourceKind: TextureSourceKind.Dataset,
+                Projection: MaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [0]),
+        ];
+
+        ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
+
+        RawRgba32ResoniteTexturePayload rawPayload = Assert.IsType<RawRgba32ResoniteTexturePayload>(mapped.TexturePayload);
+        Assert.Equal(2, rawPayload.Width);
+        Assert.Equal(1, rawPayload.Height);
+        Assert.Equal("raw:texture", rawPayload.Source.Identity);
+        Assert.Equal<byte>([1, 2, 3, 4, 5, 6, 7, 8], rawPayload.BinaryPayload);
+    }
+
     [Theory]
     [InlineData(nameof(MaterialBinding.MaterialType))]
     [InlineData(nameof(MaterialBinding.TextureSourceKind))]
     [InlineData(nameof(MaterialBinding.Projection))]
-    [InlineData(nameof(TexturePayload.Format))]
     public void ToInternalMaterialBindingsRejectsUnsupportedContractEnumValues(string invalidField)
     {
         MaterialBinding binding = CreateValidBinding() with
@@ -68,9 +96,6 @@ public sealed class SceneImportContractMapperTests
             MaterialType = invalidField == nameof(MaterialBinding.MaterialType) ? (MaterialType)999 : MaterialType.Standard,
             TextureSourceKind = invalidField == nameof(MaterialBinding.TextureSourceKind) ? (TextureSourceKind)999 : TextureSourceKind.Dataset,
             Projection = invalidField == nameof(MaterialBinding.Projection) ? (MaterialProjection)999 : MaterialProjection.Uv,
-            TexturePayload = invalidField == nameof(TexturePayload.Format)
-                ? new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", (TexturePayloadFormat)999)
-                : new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(() => SceneImportContractMapper.ToInternal(binding));
@@ -149,10 +174,21 @@ public sealed class SceneImportContractMapperTests
         return new PresentationMaterialBinding(
             BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
             MaterialType: MaterialType.Standard,
-            TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
+            TexturePayload: CreateEncodedTexturePayload(),
             TextureSourceKind: TextureSourceKind.Dataset,
             Projection: MaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0]);
+    }
+
+    private static TexturePayload CreateEncodedTexturePayload()
+    {
+        return new EncodedImageTexturePayload(
+            width: 2,
+            height: 2,
+            source: TextureImportSourceFactory.CreateInMemoryEncodedImage(
+                colorProfile: "sRGB",
+                bytes: [1, 2, 3, 4],
+                identity: "dataset:texture"));
     }
 }
