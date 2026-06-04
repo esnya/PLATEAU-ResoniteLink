@@ -10,7 +10,6 @@ internal static class BuildingAttributeParser
 {
     internal static BuildingAttributeContext Parse(XElement cityObjectElement)
     {
-        BuildingMetricMeasurements metrics = ParseMetrics(cityObjectElement);
         return new BuildingAttributeContext(
             RoofShape: ParseOptionalRoofShape(GetFirstDirectElementValue(cityObjectElement, "roofType")),
             Uses: ParseBuildingUses(GetDirectElementValues(cityObjectElement, "usage")),
@@ -18,7 +17,13 @@ internal static class BuildingAttributeParser
             Structures: ParseBuildingStructures(GetDescendantElementValues(cityObjectElement, "buildingStructureType")),
             CityGmlClassCodes: GetDirectElementValues(cityObjectElement, "class"),
             CityGmlFunctionCodes: GetDirectElementValues(cityObjectElement, "function"),
-            Metrics: metrics);
+            MeasuredHeightMeters: ParseMetricValue(GetFirstDirectElement(cityObjectElement, "measuredHeight"), requireMeters: true),
+            StoreysAboveGround: ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysAboveGround")),
+            StoreysBelowGround: ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysBelowGround")),
+            BuildingFootprintArea: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingFootprintArea"), requireMeters: false),
+            BuildingRoofEdgeArea: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingRoofEdgeArea"), requireMeters: false),
+            BuildingHeight: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingHeight"), requireMeters: true),
+            EaveHeight: ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "eaveHeight"), requireMeters: true));
     }
 
     private static XElement? GetFirstDirectElement(XElement element, string localName)
@@ -118,51 +123,6 @@ internal static class BuildingAttributeParser
             "9999" => PlateauBuildingStructure.Unknown,
             _ => PlateauBuildingStructure.Unknown,
         };
-    }
-
-    private static BuildingMetricMeasurements ParseMetrics(XElement cityObjectElement)
-    {
-        Dictionary<BuildingMetricKind, BuildingMetricValue> values = [];
-        AddMetric(
-            values,
-            BuildingMetricKind.MeasuredHeightMeters,
-            ParseMetricValue(GetFirstDirectElement(cityObjectElement, "measuredHeight"), requireMeters: true));
-        AddMetric(
-            values,
-            BuildingMetricKind.StoreysAboveGround,
-            ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysAboveGround")));
-        AddMetric(
-            values,
-            BuildingMetricKind.StoreysBelowGround,
-            ParseIntegerMetricValue(GetFirstDirectElement(cityObjectElement, "storeysBelowGround")));
-        AddMetric(
-            values,
-            BuildingMetricKind.BuildingFootprintArea,
-            ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingFootprintArea"), requireMeters: false));
-        AddMetric(
-            values,
-            BuildingMetricKind.BuildingRoofEdgeArea,
-            ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingRoofEdgeArea"), requireMeters: false));
-        AddMetric(
-            values,
-            BuildingMetricKind.BuildingHeight,
-            ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "buildingHeight"), requireMeters: true));
-        AddMetric(
-            values,
-            BuildingMetricKind.EaveHeight,
-            ParseMetricValue(GetFirstDescendantElement(cityObjectElement, "eaveHeight"), requireMeters: true));
-        return new BuildingMetricMeasurements(values);
-    }
-
-    private static void AddMetric(
-        Dictionary<BuildingMetricKind, BuildingMetricValue> values,
-        BuildingMetricKind kind,
-        BuildingMetricValue? metric)
-    {
-        if (metric.HasValue)
-        {
-            values.Add(kind, metric.Value);
-        }
     }
 
     private static BuildingMetricValue? ParseIntegerMetricValue(XElement? element)

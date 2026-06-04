@@ -50,9 +50,9 @@ public sealed class BuildingAttributeParserTests
 
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
-        Assert.False(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.MeasuredHeightMeters));
-        Assert.False(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.StoreysAboveGround));
-        Assert.False(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.StoreysBelowGround));
+        Assert.Null(attributes.MeasuredHeightMeters);
+        Assert.Null(attributes.StoreysAboveGround);
+        Assert.Null(attributes.StoreysBelowGround);
     }
 
     [Fact]
@@ -71,9 +71,11 @@ public sealed class BuildingAttributeParserTests
 
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
-        Assert.False(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.MeasuredHeightMeters));
-        BuildingMetricValue footprintArea = AssertMetric(attributes, BuildingMetricKind.BuildingFootprintArea);
-        BuildingMetricValue buildingHeight = AssertMetric(attributes, BuildingMetricKind.BuildingHeight);
+        Assert.Null(attributes.MeasuredHeightMeters);
+        Assert.NotNull(attributes.BuildingFootprintArea);
+        Assert.NotNull(attributes.BuildingHeight);
+        BuildingMetricValue footprintArea = attributes.BuildingFootprintArea;
+        BuildingMetricValue buildingHeight = attributes.BuildingHeight;
         Assert.Equal(160.5, footprintArea.Value);
         Assert.Equal(9.25, buildingHeight.Value);
     }
@@ -90,7 +92,7 @@ public sealed class BuildingAttributeParserTests
 
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
-        Assert.False(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.MeasuredHeightMeters));
+        Assert.Null(attributes.MeasuredHeightMeters);
     }
 
     [Fact]
@@ -108,8 +110,8 @@ public sealed class BuildingAttributeParserTests
 
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
-        Assert.False(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.MeasuredHeightMeters));
-        Assert.False(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.BuildingHeight));
+        Assert.Null(attributes.MeasuredHeightMeters);
+        Assert.Null(attributes.BuildingHeight);
     }
 
     [Fact]
@@ -134,11 +136,5 @@ public sealed class BuildingAttributeParserTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new BuildingMetricValue(double.NaN));
         Assert.Throws<ArgumentOutOfRangeException>(() => new BuildingMetricValue(double.PositiveInfinity));
         Assert.Throws<ArgumentOutOfRangeException>(() => new BuildingMetricValue(-1.0));
-    }
-
-    private static BuildingMetricValue AssertMetric(BuildingAttributeContext attributes, BuildingMetricKind kind)
-    {
-        Assert.True(attributes.Metrics.TryGet(kind, out BuildingMetricValue metric));
-        return metric;
     }
 }

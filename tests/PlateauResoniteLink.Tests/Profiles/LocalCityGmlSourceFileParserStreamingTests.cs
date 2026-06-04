@@ -171,13 +171,15 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         Assert.Contains(attributes.Structures, value => value.Value == PlateauBuildingStructure.Wood && value.Code == "601");
         Assert.Equal(["3001"], attributes.CityGmlClassCodes);
         Assert.Equal(["401"], attributes.CityGmlFunctionCodes);
-        Assert.True(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.MeasuredHeightMeters));
-        Assert.True(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.StoreysAboveGround));
-        Assert.False(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.StoreysBelowGround));
-        BuildingMetricValue footprintArea = AssertMetric(attributes, BuildingMetricKind.BuildingFootprintArea);
-        Assert.False(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.BuildingRoofEdgeArea));
-        Assert.True(attributes.Metrics.Values.ContainsKey(BuildingMetricKind.BuildingHeight));
-        BuildingMetricValue eaveHeight = AssertMetric(attributes, BuildingMetricKind.EaveHeight);
+        Assert.NotNull(attributes.MeasuredHeightMeters);
+        Assert.NotNull(attributes.StoreysAboveGround);
+        Assert.Null(attributes.StoreysBelowGround);
+        Assert.NotNull(attributes.BuildingFootprintArea);
+        Assert.Null(attributes.BuildingRoofEdgeArea);
+        Assert.NotNull(attributes.BuildingHeight);
+        Assert.NotNull(attributes.EaveHeight);
+        BuildingMetricValue footprintArea = attributes.BuildingFootprintArea;
+        BuildingMetricValue eaveHeight = attributes.EaveHeight;
         Assert.InRange(footprintArea.Value, 120.499999, 120.500001);
         Assert.InRange(eaveHeight.Value, 9.699999, 9.700001);
     }
@@ -435,13 +437,6 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
 
         throw new InvalidOperationException("No city object was parsed.");
     }
-
-    private static BuildingMetricValue AssertMetric(BuildingAttributeContext attributes, BuildingMetricKind kind)
-    {
-        Assert.True(attributes.Metrics.TryGet(kind, out BuildingMetricValue metric));
-        return metric;
-    }
-
     private sealed class GateableDatasetContentSource(byte[] payload, int gateOffset) : IPlateauDatasetContentSource
     {
         private readonly TaskCompletionSource releaseSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);

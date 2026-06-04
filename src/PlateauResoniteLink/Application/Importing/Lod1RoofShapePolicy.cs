@@ -27,19 +27,11 @@ internal static class Lod1RoofShapePolicy
             };
         }
 
-        double heightMeters = BuildingAttributeQueries.TryGetKnownPositiveMetric(
-                attributes,
-                BuildingMetricKind.MeasuredHeightMeters)
-            ?? BuildingAttributeQueries.TryGetKnownPositiveMetric(
-                attributes,
-                BuildingMetricKind.BuildingHeight)
+        double heightMeters = BuildingAttributeQueries.TryGetKnownPositiveMetric(attributes.MeasuredHeightMeters)
+            ?? BuildingAttributeQueries.TryGetKnownPositiveMetric(attributes.BuildingHeight)
             ?? geometryHeightMeters;
-        int? floorCount = BuildingAttributeQueries.TryGetKnownPositiveInteger(
-            attributes,
-            BuildingMetricKind.StoreysAboveGround);
-        double footprintArea = BuildingAttributeQueries.TryGetKnownPositiveMetric(
-                attributes,
-                BuildingMetricKind.BuildingFootprintArea)
+        int? floorCount = BuildingAttributeQueries.TryGetKnownPositiveInteger(attributes.StoreysAboveGround);
+        double footprintArea = BuildingAttributeQueries.TryGetKnownPositiveMetric(attributes.BuildingFootprintArea)
             ?? lengthMeters * widthMeters;
         bool residential = BuildingAttributeQueries.HasUse(attributes, PlateauBuildingUse.DetachedResidential)
             || BuildingAttributeQueries.HasUse(attributes, PlateauBuildingUse.MixedResidential);

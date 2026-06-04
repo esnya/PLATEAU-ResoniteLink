@@ -7,9 +7,9 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class BuildingAttributeQueries
 {
-    internal static int? TryGetKnownPositiveInteger(BuildingAttributeContext attributes, BuildingMetricKind kind)
+    internal static int? TryGetKnownPositiveInteger(BuildingMetricValue? metric)
     {
-        if (!attributes.Metrics.TryGet(kind, out BuildingMetricValue metric))
+        if (metric is null)
         {
             return null;
         }
@@ -21,9 +21,9 @@ internal static class BuildingAttributeQueries
                 : null;
     }
 
-    internal static double? TryGetKnownPositiveMetric(BuildingAttributeContext attributes, BuildingMetricKind kind)
+    internal static double? TryGetKnownPositiveMetric(BuildingMetricValue? metric)
     {
-        return attributes.Metrics.TryGet(kind, out BuildingMetricValue metric) && metric.Value > 0.0
+        return metric is not null && metric.Value > 0.0
             ? metric.Value
             : null;
     }
