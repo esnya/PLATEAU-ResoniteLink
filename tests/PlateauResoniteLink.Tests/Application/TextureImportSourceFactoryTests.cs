@@ -106,4 +106,26 @@ public sealed class TextureImportSourceFactoryTests
         Assert.Contains("cannot materialize an RGBA32 texture payload", exception.Message, System.StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RgbaFloat32RawTexturePayloadRejectsByteLengthMismatch()
+    {
+        Assert.Throws<ArgumentException>(
+            () => new RgbaFloat32RawTexturePayload(
+                width: 2,
+                height: 2,
+                colorProfile: null,
+                bytes: new byte[16]));
+    }
+
+    [Fact]
+    public void RgbaFloat32RawTexturePayloadRejectsByteLengthOverflow()
+    {
+        Assert.Throws<OverflowException>(
+            () => new RgbaFloat32RawTexturePayload(
+                width: int.MaxValue,
+                height: int.MaxValue,
+                colorProfile: null,
+                bytes: new byte[16]));
+    }
+
 }

@@ -83,6 +83,8 @@ public sealed class Rgba32RawTexturePayload : RawTexturePayload
 
 public sealed class RgbaFloat32RawTexturePayload : RawTexturePayload
 {
+    private const int BytesPerPixel = 16;
+
     public RgbaFloat32RawTexturePayload(
         int width,
         int height,
@@ -90,6 +92,25 @@ public sealed class RgbaFloat32RawTexturePayload : RawTexturePayload
         byte[] bytes)
         : base(width, height, colorProfile, bytes)
     {
+        ValidateByteLength(width, height, bytes);
+    }
+
+    internal static void ValidateByteLength(
+        int width,
+        int height,
+        byte[] bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        ArgumentNullException.ThrowIfNull(bytes);
+
+        int expectedByteLength = checked(width * height * BytesPerPixel);
+        if (bytes.Length != expectedByteLength)
+        {
+            throw new ArgumentException(
+                $"RGBA float32 texture payload length must be width * height * {BytesPerPixel} bytes ({expectedByteLength}), but was {bytes.Length}.",
+                nameof(bytes));
+        }
     }
 
     public override TResult Match<TResult>(
