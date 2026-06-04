@@ -24,6 +24,15 @@ internal static class ResoniteSceneMaterialConventions
         TerrainMainTextureOverride,
     }
 
+    internal enum PlannedTextureRole
+    {
+        Albedo,
+        Normal,
+        Height,
+        Metallic,
+        Emission,
+    }
+
     internal readonly record struct TextureSamplingPolicy(
         string? PreferredProfile,
         string? WrapMode);
@@ -128,17 +137,30 @@ internal static class ResoniteSceneMaterialConventions
                 || material.DepthOffset is not null);
     }
 
-    public static TextureIdentity CreateTextureIdentity(TextureMemberRole role)
+    public static TextureIdentity CreateTextureIdentity(PlannedTextureRole role)
     {
         return new TextureIdentity(role switch
         {
-            TextureMemberRole.Albedo => "albedo",
-            TextureMemberRole.Normal => "normal",
-            TextureMemberRole.Height => "height",
-            TextureMemberRole.Metallic => "metallic",
-            TextureMemberRole.Emission => "emission",
-            _ => throw new InvalidOperationException($"Texture role '{role}' does not have a planned texture identity."),
+            PlannedTextureRole.Albedo => "albedo",
+            PlannedTextureRole.Normal => "normal",
+            PlannedTextureRole.Height => "height",
+            PlannedTextureRole.Metallic => "metallic",
+            PlannedTextureRole.Emission => "emission",
+            _ => throw new InvalidOperationException($"Planned texture role '{role}' is unsupported."),
         });
+    }
+
+    public static TextureMemberRole ToTextureMemberRole(PlannedTextureRole role)
+    {
+        return role switch
+        {
+            PlannedTextureRole.Albedo => TextureMemberRole.Albedo,
+            PlannedTextureRole.Normal => TextureMemberRole.Normal,
+            PlannedTextureRole.Height => TextureMemberRole.Height,
+            PlannedTextureRole.Metallic => TextureMemberRole.Metallic,
+            PlannedTextureRole.Emission => TextureMemberRole.Emission,
+            _ => throw new InvalidOperationException($"Planned texture role '{role}' is unsupported."),
+        };
     }
 
     public static TextureSamplingPolicy GetTextureSamplingPolicy(TextureMemberRole role)
