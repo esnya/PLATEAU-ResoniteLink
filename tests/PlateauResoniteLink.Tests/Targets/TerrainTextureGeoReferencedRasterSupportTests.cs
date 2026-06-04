@@ -211,6 +211,34 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     }
 
     [Fact]
+    public async Task TryReadMetadataAsyncReturnsNullWhenFileCannotBeIdentifiedAsRaster()
+    {
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "not-a-raster.tif");
+        await File.WriteAllTextAsync(rasterPath, "not a raster");
+
+        GeoReferencedRasterMetadata? metadata =
+            await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
+                rasterPath,
+                CancellationToken.None);
+
+        Assert.Null(metadata);
+    }
+
+    [Fact]
+    public async Task TryReadMetadataAsyncReturnsNullWhenStreamCannotBeIdentifiedAsRaster()
+    {
+        using MemoryStream stream = new("not a raster"u8.ToArray());
+
+        GeoReferencedRasterMetadata? metadata =
+            await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
+                stream,
+                CancellationToken.None);
+
+        Assert.Null(metadata);
+    }
+
+    [Fact]
     public void TryCropUsesMercatorVerticalInterpolationForEpsg3857()
     {
         using Image<Rgba32> sourceImage = new(4, 4);
