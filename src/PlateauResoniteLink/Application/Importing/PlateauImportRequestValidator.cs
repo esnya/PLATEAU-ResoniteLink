@@ -215,9 +215,10 @@ public static class PlateauImportRequestValidator
             }
         }
 
-        if (normalizedRequest.TerrainGridMetersPerVertex <= 0)
+        if (!double.IsFinite(normalizedRequest.TerrainGridMetersPerVertex)
+            || normalizedRequest.TerrainGridMetersPerVertex <= 0)
         {
-            validationErrors.Add("The terrain grid meters-per-vertex value must be greater than zero.");
+            validationErrors.Add("The terrain grid meters-per-vertex value must be a finite value greater than zero.");
         }
 
         if (normalizedRequest.TerrainGridMaxResolution < 2)
@@ -348,7 +349,9 @@ public static class PlateauImportRequestValidator
             Dataset = TrimToEmpty(request.Dataset),
             MeshCode = TrimToEmpty(request.MeshCode),
             CityGmlSource = NormalizeDatasetLocation(request.CityGmlSource),
-            DemTextureSource = request.DemTextureSource is null ? null : NormalizeDatasetLocation(request.DemTextureSource),
+            DemTextureSource = request.DemTextureSource is null
+                ? null
+                : NormalizeDatasetLocation(request.DemTextureSource),
             PackageNames = request.PackageNames is null
                 ? null
                 : request.PackageNames.Select(static packageName => TrimToEmpty(packageName)).ToArray(),
@@ -359,8 +362,7 @@ public static class PlateauImportRequestValidator
     {
         return source switch
         {
-            LocalDatasetLocation localSource => new LocalDatasetLocation(localSource.LocalSourcePath.Trim()),
-            RemoteDatasetLocation remoteSource => remoteSource,
+            LocalDatasetLocation localSource => new LocalDatasetLocation(TrimToEmpty(localSource.LocalSourcePath)),
             _ => source,
         };
     }

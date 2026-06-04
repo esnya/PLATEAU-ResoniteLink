@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -14,6 +16,91 @@ public sealed class PlateauImportRequestValidatorTests
     {
         Assert.Throws<ArgumentException>(() => DatasetLocation.Local(" "));
         Assert.Throws<ArgumentNullException>(() => DatasetLocation.Remote(null!));
+        Assert.Throws<ArgumentException>(() => new ValidatedLocalDatasetLocation(" "));
+        Assert.Throws<ArgumentNullException>(() => new ValidatedRemoteDatasetLocation(null!));
+        Assert.Throws<ArgumentException>(() => new ValidatedRemoteDatasetLocation(new Uri("/dataset.zip", UriKind.Relative)));
+        Assert.Throws<ArgumentException>(() => new ValidatedRemoteDatasetLocation(new Uri("ftp://example.invalid/dataset.zip")));
+        Assert.Equal(" C:/dataset ", new ValidatedLocalDatasetLocation(" C:/dataset ").LocalSourcePath);
+    }
+
+    [Fact]
+    public void ValidatedDatasetLocationEqualityIncludesSourcePayload()
+    {
+        ValidatedDatasetLocation[] locations =
+        [
+            new ValidatedLocalDatasetLocation("C:/dataset-a"),
+            new ValidatedLocalDatasetLocation("C:/dataset-b"),
+            new ValidatedRemoteDatasetLocation(new Uri("https://example.invalid/dataset-a.zip")),
+            new ValidatedRemoteDatasetLocation(new Uri("https://example.invalid/dataset-b.zip")),
+        ];
+
+        Assert.Equal(locations.Length, locations.Distinct().Count());
+        Assert.NotEqual(locations[0], locations[1]);
+        Assert.NotEqual(locations[2], locations[3]);
+    }
+
+    [Fact]
+    public void PlateauImportRequestRequiresCityGmlSource()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new PlateauImportRequest("tokyo23ku", "53394525", null!));
+
+        PlateauImportRequest request = new("tokyo23ku", "53394525", DatasetLocation.Local("C:/dataset"));
+        Assert.Throws<ArgumentNullException>(() => request with { CityGmlSource = null! });
+    }
+
+    [Fact]
+    public void ValidatedPlateauImportRequestRequiresValidatedPayload()
+    {
+        ValidatedLocalDatasetLocation source = new("C:/dataset");
+        Regex meshCodePattern = new(@"\A53394525\z");
+
+        Assert.Throws<ArgumentException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: " ",
+                MeshCode: "53394525",
+                MeshCodePattern: meshCodePattern,
+                CityGmlSource: source));
+        Assert.Throws<ArgumentException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: " ",
+                MeshCodePattern: meshCodePattern,
+                CityGmlSource: source));
+        Assert.Throws<ArgumentNullException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                MeshCodePattern: null!,
+                CityGmlSource: source));
+        Assert.Throws<ArgumentNullException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                MeshCodePattern: meshCodePattern,
+                CityGmlSource: null!));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                MeshCodePattern: meshCodePattern,
+                CityGmlSource: source,
+                TerrainGridMetersPerVertex: double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new ValidatedPlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                MeshCodePattern: meshCodePattern,
+                CityGmlSource: source,
+                TerrainGridMaxResolution: 1));
+
+        ValidatedPlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: meshCodePattern,
+            CityGmlSource: source);
+
+        Assert.Throws<ArgumentNullException>(() => request with { CityGmlSource = null! });
     }
 
     [Fact]
@@ -67,7 +154,7 @@ public sealed class PlateauImportRequestValidatorTests
     }
 
     [Fact]
-    public void TryNormalizeAndValidateTrimsAndNormalizesRequestData()
+    public void TryNormalizeAndValidateNormalizesRequestData()
     {
         using TemporaryDirectory sourceRoot = new();
         string geoTiffPath = Path.Combine(sourceRoot.Path, "53394525.tif");
@@ -76,8 +163,8 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: " tokyo23ku ",
             MeshCode: " 53394525 ",
-            CityGmlSource: DatasetLocation.Local($"  {sourceRoot.Path}  "),
-            DemTextureSource: DatasetLocation.Local($"  {geoTiffPath}  "),
+            CityGmlSource: DatasetLocation.Local($" {sourceRoot.Path} "),
+            DemTextureSource: DatasetLocation.Local($" {geoTiffPath} "),
             PackageNames: [" waterbody ", " tran "]);
 
         bool success = PlateauImportRequestValidator.TryNormalizeAndValidate(
@@ -163,7 +250,21 @@ public sealed class PlateauImportRequestValidatorTests
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
-        Assert.Contains("The terrain grid meters-per-vertex value must be greater than zero.", errors);
+        Assert.Contains("The terrain grid meters-per-vertex value must be a finite value greater than zero.", errors);
+    }
+
+    [Fact]
+    public void ValidateRejectsNonFiniteTerrainGridMetersPerVertex()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("C:/dataset"),
+            TerrainGridMetersPerVertex: double.PositiveInfinity);
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains("The terrain grid meters-per-vertex value must be a finite value greater than zero.", errors);
     }
 
     [Theory]
