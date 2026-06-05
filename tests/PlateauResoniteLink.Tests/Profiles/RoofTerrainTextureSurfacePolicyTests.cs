@@ -8,11 +8,8 @@ public sealed class RoofTerrainTextureSurfacePolicyTests
     public void IsRoofTerrainTextureSurfaceComputesUnknownSurfaceNormalFromExteriorRing()
     {
         ParsedSurface surface = new(
-            PolygonId: "surface-with-hole",
             Semantic: ParsedSurfaceSemantic.Unknown,
-            ExteriorRing: new ParsedRing(
-                "surface-with-hole-exterior",
-                [
+            ExteriorRing: new ParsedRing([
                     new GeodeticPoint(35.0, 139.0, 10.0),
                     new GeodeticPoint(35.0, 139.1, 10.0),
                     new GeodeticPoint(35.1, 139.1, 10.0),
@@ -21,9 +18,7 @@ public sealed class RoofTerrainTextureSurfacePolicyTests
                 UVs: null),
             InteriorRings:
             [
-                new ParsedRing(
-                    "surface-with-hole-interior",
-                    [
+                new ParsedRing([
                         new GeodeticPoint(35.02, 139.02, 10.0),
                         new GeodeticPoint(35.08, 139.02, 80.0),
                         new GeodeticPoint(35.08, 139.08, 10.0),
@@ -44,14 +39,11 @@ public sealed class RoofTerrainTextureSurfacePolicyTests
     }
 
     [Fact]
-    public void IsRoofTerrainTextureSurfaceTreatsGeneratedNoWallWallSurfaceAsRoofSlab()
+    public void IsRoofTerrainTextureSurfaceTreatsRoofSlabWallSurfaceAsTerrainTextureSurface()
     {
         ParsedSurface surface = new(
-            PolygonId: "roof_generated_no-wall-side-0",
             Semantic: ParsedSurfaceSemantic.Wall,
-            ExteriorRing: new ParsedRing(
-                "roof_generated_no-wall-side-0-ring",
-                [
+            ExteriorRing: new ParsedRing([
                     new GeodeticPoint(35.0, 139.0, 10.0),
                     new GeodeticPoint(35.0, 139.0, 9.7),
                     new GeodeticPoint(35.0, 139.1, 9.7),
@@ -63,7 +55,7 @@ public sealed class RoofTerrainTextureSurfacePolicyTests
             TexturePayload: null);
 
         bool result = RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(
-            new ConstructionFace(surface, ConstructionCityObjectDraft.ResolveRole(surface)),
+            new ConstructionFace(surface, ConstructionFaceRole.RoofSlab),
             cityObjectMinAltitude: 0.0,
             cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
             cityObjectCartesian: null);

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
@@ -34,6 +33,6 @@ internal sealed class LiveSendRunRuntimeComponentsFactory : ILiveSendRunRuntimeC
             new TerrainTextureAssetCache(),
             new LiveSendExecutionRuntime(queuePlan, cancellationToken),
             new SemaphoreSlim(1, 1),
-            new ConcurrentDictionary<TerrainTextureSource, int>(ReferenceEqualityComparer.Instance));
+            new ConcurrentDictionary<TerrainTextureSource, int>());
     }
 }

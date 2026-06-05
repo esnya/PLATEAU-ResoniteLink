@@ -99,7 +99,7 @@ public sealed class DemTerrainOverlayAssignmentTests
         Assert.NotNull(overlay);
         Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
         Assert.Equal(boundaryLongitude, overlay.GeographicBounds.MaxLongitude, 6);
-        Assert.Equal("dem-dominant", Assert.Single(splitCityObject.Surfaces).PolygonId);
+        Assert.True(GetSurfaceBounds(Assert.Single(splitCityObject.Surfaces)).MinLongitude < boundaryLongitude);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class DemTerrainOverlayAssignmentTests
         Assert.Equal(2, results.Length);
         Assert.Contains(
             results,
-            static result => Assert.Single(result.CityObject.Surfaces).PolygonId == "dem-small-compact");
+            result => GetSurfaceBounds(Assert.Single(result.CityObject.Surfaces)).MinLongitude > boundaryLongitude + 0.00010);
     }
 
     [Fact]
@@ -180,9 +180,9 @@ public sealed class DemTerrainOverlayAssignmentTests
         Assert.Equal(2, results.Length);
         ParsedCityObject mixedOverlayObject = Assert.Single(
             results.Select(static result => result.CityObject),
-            static cityObject => cityObject.Surfaces.Any(static surface => surface.PolygonId == "dem-mixed-compact"));
-        Assert.Contains(mixedOverlayObject.Surfaces, static surface => surface.PolygonId == "dem-mixed-sliver");
-        Assert.Contains(mixedOverlayObject.Surfaces, static surface => surface.PolygonId == "dem-mixed-compact");
+            cityObject => cityObject.Surfaces.Any(surface => GetSurfaceBounds(surface).MinLongitude > boundaryLongitude + 0.00010));
+        Assert.Contains(mixedOverlayObject.Surfaces, surface => GetSurfaceBounds(surface).MaxLongitude < boundaryLongitude + 0.00001);
+        Assert.Contains(mixedOverlayObject.Surfaces, surface => GetSurfaceBounds(surface).MinLongitude > boundaryLongitude + 0.00010);
     }
 
     [Fact]
@@ -431,9 +431,8 @@ public sealed class DemTerrainOverlayAssignmentTests
         GeodeticPoint[] vertices)
     {
         return new ParsedSurface(
-            PolygonId: polygonId,
             Semantic: ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new ParsedRing($"{polygonId}-ring", vertices, UVs: null),
+            ExteriorRing: new ParsedRing(vertices, UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,

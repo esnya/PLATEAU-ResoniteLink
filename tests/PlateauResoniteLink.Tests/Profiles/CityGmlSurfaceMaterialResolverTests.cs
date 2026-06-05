@@ -65,16 +65,18 @@ public sealed class CityGmlSurfaceMaterialResolverTests
     }
 
     [Fact]
-    public void EnumerateSurfacesUsesConstructionRoleInsteadOfParsedSemanticForGeneratedNoWallSlabParts()
+    public void EnumerateSurfacesUsesConstructionRoleInsteadOfParsedSemanticForNoWallSlabParts()
     {
         ParsedSurface generatedSide = CreateSurface(
-            "lod2-roof_generated_no-wall-side-0",
+            "lod2-roof_roof-slab-side-0",
             ParsedSurfaceSemantic.Wall);
         ParsedCityObject cityObject = CreateBuildingCityObject([generatedSide]);
         DefaultMaterialResolver materialResolver = new(CommonMaterialCatalog.Create());
 
         ResolvedSurfaceMaterial resolvedSurface = Assert.Single(CityGmlSurfaceMaterialResolver.ResolveSurfaces(
-            ConstructionCityObjectDraft.FromParsedCityObject(cityObject),
+            new ConstructionCityObjectDraft(
+                cityObject,
+                [new ConstructionFace(generatedSide, ConstructionFaceRole.RoofSlab)]),
             cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
             cityObjectCartesian: null,
             demTerrainTextureOverlay: null,
@@ -106,11 +108,8 @@ public sealed class CityGmlSurfaceMaterialResolverTests
     private static ParsedSurface CreateParsedSurface(string polygonId, bool usesGeneratedDemTexture)
     {
         return new ParsedSurface(
-            PolygonId: polygonId,
             Semantic: ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new ParsedRing(
-                $"{polygonId}-ring",
-                [
+            ExteriorRing: new ParsedRing([
                     new GeodeticPoint(35.0, 139.0, 10.0),
                     new GeodeticPoint(35.0, 139.1, 10.0),
                     new GeodeticPoint(35.1, 139.1, 10.0),
@@ -125,11 +124,8 @@ public sealed class CityGmlSurfaceMaterialResolverTests
     private static ParsedSurface CreateSurface()
     {
         return new ParsedSurface(
-            PolygonId: "surface",
             Semantic: ParsedSurfaceSemantic.Roof,
-            ExteriorRing: new ParsedRing(
-                "surface-ring",
-                [
+            ExteriorRing: new ParsedRing([
                     new GeodeticPoint(35.0, 139.0, 10.0),
                     new GeodeticPoint(35.0, 139.1, 10.0),
                     new GeodeticPoint(35.1, 139.1, 10.0),
@@ -142,12 +138,11 @@ public sealed class CityGmlSurfaceMaterialResolverTests
 
     private static ParsedSurface CreateSurface(string polygonId, ParsedSurfaceSemantic semantic)
     {
+        _ = polygonId;
         ParsedSurface surface = CreateSurface();
         return surface with
         {
-            PolygonId = polygonId,
             Semantic = semantic,
-            ExteriorRing = surface.ExteriorRing with { RingId = $"{polygonId}-ring" },
         };
     }
 

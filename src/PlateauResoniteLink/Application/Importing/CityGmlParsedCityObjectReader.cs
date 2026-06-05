@@ -116,7 +116,7 @@ internal static class CityGmlParsedCityObjectReader
         }
 
         return surfaces
-            .OrderBy(static surface => ParsedSurfaceStableSortKey.Create(surface), StringComparer.Ordinal)
+            .OrderBy(static surface => surface, ParsedSurfaceStructuralComparer.Instance)
             .ToArray();
     }
 

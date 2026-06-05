@@ -1388,9 +1388,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             GeographicBounds: nonThirdMeshBounds,
             MaxTextureSize: 512);
         ParsedSurface demSurface = new(
-            PolygonId: "non-third-dem",
             Semantic: ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new ParsedRing("non-third-dem-ring", vertices.ToArray(), UVs: null),
+            ExteriorRing: new ParsedRing(vertices.ToArray(), UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
@@ -2046,17 +2045,17 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.5, sizeMeters: 4.0, reverseWinding: true),
             CreateTexturePayload("high-outer-floor"));
 
-        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
+        HashSet<ParsedSurface> culledSurfaces = GetculledSurfacesBeforeProjectionForTest(
             "bldg",
             [wallSurface, roofSurface, groundSurface, reversedGroundSurface, outerFloorSurface, highOuterFloorSurface],
             origin,
             cartesian);
 
-        Assert.Contains("ground", culledSurfaceIds);
-        Assert.Contains("ground-reversed", culledSurfaceIds);
-        Assert.Contains("outer-floor", culledSurfaceIds);
-        Assert.DoesNotContain("high-outer-floor", culledSurfaceIds);
-        Assert.DoesNotContain("roof", culledSurfaceIds);
+        Assert.Contains(groundSurface, culledSurfaces);
+        Assert.Contains(reversedGroundSurface, culledSurfaces);
+        Assert.Contains(outerFloorSurface, culledSurfaces);
+        Assert.DoesNotContain(highOuterFloorSurface, culledSurfaces);
+        Assert.DoesNotContain(roofSurface, culledSurfaces);
 
         ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
@@ -2093,13 +2092,13 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("tran-ground"));
 
-        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
+        HashSet<ParsedSurface> culledSurfaces = GetculledSurfacesBeforeProjectionForTest(
             "tran",
             [groundSurface],
             origin,
             cartesian);
 
-        Assert.Empty(culledSurfaceIds);
+        Assert.Empty(culledSurfaces);
 
         ParsedCityObject cityObject = CreateParsedCityObject("tran", [groundSurface], referenceSystem);
 
@@ -2151,15 +2150,15 @@ public sealed class LocalCityGmlObjectProjectionTests
             referenceSystem,
             lodLevel: 1);
 
-        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
+        HashSet<ParsedSurface> culledSurfaces = GetculledSurfacesBeforeProjectionForTest(
             "bldg",
             [wallSurface, bottomSurface, reversedBottomSurface, roofSurface],
             origin,
             cartesian);
 
-        Assert.Contains("lod1-bottom", culledSurfaceIds);
-        Assert.Contains("lod1-bottom-reversed", culledSurfaceIds);
-        Assert.DoesNotContain("lod1-roof", culledSurfaceIds);
+        Assert.Contains(bottomSurface, culledSurfaces);
+        Assert.Contains(reversedBottomSurface, culledSurfaces);
+        Assert.DoesNotContain(roofSurface, culledSurfaces);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
             cityObject,
@@ -2196,14 +2195,14 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("high-roof"));
 
-        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
+        HashSet<ParsedSurface> culledSurfaces = GetculledSurfacesBeforeProjectionForTest(
             "bldg",
             [bottomSurface, highDownwardRoofSurface],
             origin,
             cartesian);
 
-        Assert.Contains("bottom", culledSurfaceIds);
-        Assert.DoesNotContain("high-roof", culledSurfaceIds);
+        Assert.Contains(bottomSurface, culledSurfaces);
+        Assert.DoesNotContain(highDownwardRoofSurface, culledSurfaces);
     }
 
     [Fact]
@@ -2222,13 +2221,13 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("only-surface"));
 
-        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
+        HashSet<ParsedSurface> culledSurfaces = GetculledSurfacesBeforeProjectionForTest(
             "bldg",
             [onlySurface],
             origin,
             cartesian);
 
-        Assert.Empty(culledSurfaceIds);
+        Assert.Empty(culledSurfaces);
 
         ParsedCityObject cityObject = CreateParsedCityObject(
             "bldg",
@@ -2278,15 +2277,15 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: true),
             CreateTexturePayload("roof"));
 
-        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
+        HashSet<ParsedSurface> culledSurfaces = GetculledSurfacesBeforeProjectionForTest(
             "bldg",
             [wallSurface, exactBoundaryBottomSurface, aboveBoundaryBottomSurface, roofSurface],
             origin,
             cartesian);
 
-        Assert.Contains("bottom-inside-threshold", culledSurfaceIds);
-        Assert.DoesNotContain("bottom-outside-threshold", culledSurfaceIds);
-        Assert.DoesNotContain("roof", culledSurfaceIds);
+        Assert.Contains(exactBoundaryBottomSurface, culledSurfaces);
+        Assert.DoesNotContain(aboveBoundaryBottomSurface, culledSurfaces);
+        Assert.DoesNotContain(roofSurface, culledSurfaces);
     }
 
     [Fact]
@@ -3693,9 +3692,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         IReadOnlyList<Float2>? uvs = null)
     {
         return new ParsedSurface(
-            PolygonId: polygonId,
             Semantic: semantic,
-            ExteriorRing: new ParsedRing($"{polygonId}-ring", vertices.ToArray(), UVs: uvs),
+            ExteriorRing: new ParsedRing(vertices.ToArray(), UVs: uvs),
             InteriorRings: [],
             BaseColor: baseColor ?? new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: texturePayload);
@@ -3857,17 +3855,22 @@ public sealed class LocalCityGmlObjectProjectionTests
         return new RawRgba32TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], identity);
     }
 
-    private static HashSet<string> GetCulledSurfaceIdsBeforeProjectionForTest(
+    private static HashSet<ParsedSurface> GetculledSurfacesBeforeProjectionForTest(
         string packageName,
         IEnumerable<ParsedSurface> surfaces,
         GeodeticPoint cityObjectOrigin,
         GeographicLib.LocalCartesian cartesian)
     {
-        return CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
+        ConstructionCityObjectDraft draft = ConstructionCityObjectDraft.FromParsedCityObject(CreateParsedCityObject(
             packageName,
-            surfaces,
-            cityObjectOrigin,
-            cartesian);
+            surfaces.ToArray(),
+            CoordinateReferenceSystem.Parse("EPSG:4326")));
+        return new HashSet<ParsedSurface>(
+            CityGmlSurfaceProjectionPolicy.GetCulledSurfacesBeforeProjection(
+                draft,
+                cityObjectOrigin,
+                cartesian),
+            ReferenceEqualityComparer.Instance);
     }
 
     private static MaterialBinding[] CreateCommonMaterialBindingsForTest(
@@ -3900,7 +3903,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 : [];
 
         return CityGmlParsedCityObjectProjection.ProjectTerrainMeshModeCityObject(
-            cityObject,
+            GeneratedLod1RoofCityObjectFactory.CreateDraft(cityObject),
             globalOriginPoint,
             globalCartesian: null,
             demTerrainTextureOverlay: null,

@@ -43,24 +43,30 @@ internal static class CityGmlSurfaceMaterialResolver
         ArgumentNullException.ThrowIfNull(cityObjectOrigin);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
-        HashSet<string> culledSurfaceIds = PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName)
-            ? CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
-                cityObject.PackageName,
-                cityObject.Surfaces,
+        HashSet<ParsedSurface> culledSurfaces = PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName)
+            ? CityGmlSurfaceProjectionPolicy.GetCulledSurfacesBeforeProjection(
+                cityObject,
                 cityObjectOrigin,
                 cityObjectCartesian)
-            : [];
+            : new HashSet<ParsedSurface>(ReferenceEqualityComparer.Instance);
         double cityObjectMinAltitude = CityObjectAltitudeMetricsResolver.GetMinimumAltitude(
             cityObject.Faces.SelectMany(static face => face.Surface.Vertices),
             static point => point.Altitude);
 
-        foreach (ConstructionFace face in cityObject.Faces.Where(face => !culledSurfaceIds.Contains(face.Surface.PolygonId)))
+        for (int faceIndex = 0; faceIndex < cityObject.Faces.Length; faceIndex++)
         {
+            ConstructionFace face = cityObject.Faces[faceIndex];
+            if (culledSurfaces.Contains(face.Surface))
+            {
+                continue;
+            }
+
             yield return ResolveSurfaceMaterial(
                 cityObject,
                 cityObjectOrigin,
                 cityObjectCartesian,
                 face,
+                faceIndex,
                 cityObjectMinAltitude,
                 demTerrainTextureOverlay,
                 materialResolver);
@@ -89,7 +95,7 @@ internal static class CityGmlSurfaceMaterialResolver
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => GetMinimumSurface(group), ParsedSurfaceStructuralComparer.Instance)
             .Select((group, materialIndex) => CreateMaterialBinding(
                 cityObject.ActualMeshCode,
                 group.First(),
@@ -119,7 +125,7 @@ internal static class CityGmlSurfaceMaterialResolver
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => GetMinimumSurface(group), ParsedSurfaceStructuralComparer.Instance)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
@@ -175,11 +181,27 @@ internal static class CityGmlSurfaceMaterialResolver
             CommonMaterial: commonMaterial);
     }
 
+    private static ParsedSurface GetMinimumSurface(IEnumerable<ResolvedSurfaceMaterial> surfaces)
+    {
+        ParsedSurface? minimum = null;
+        foreach (ResolvedSurfaceMaterial surface in surfaces)
+        {
+            if (minimum is null
+                || ParsedSurfaceStructuralComparer.Instance.Compare(surface.Surface, minimum) < 0)
+            {
+                minimum = surface.Surface;
+            }
+        }
+
+        return minimum ?? throw new InvalidOperationException("Surface groups must not be empty.");
+    }
+
     private static ResolvedSurfaceMaterial ResolveSurfaceMaterial(
         ConstructionCityObjectDraft cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         ConstructionFace face,
+        int order,
         double cityObjectMinAltitude,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
@@ -201,7 +223,8 @@ internal static class CityGmlSurfaceMaterialResolver
                     TextureScale: null,
                     ReuseScope: MaterialReuseScope.PerObject,
                     TerrainOverlay: demTerrainTextureOverlay),
-                DepthOffset: null);
+                DepthOffset: null,
+                order);
         }
 
         ResolvedMaterial? roofTerrainTextureMaterial = TryCreateRoofTerrainTextureMaterial(
@@ -217,7 +240,8 @@ internal static class CityGmlSurfaceMaterialResolver
             return new ResolvedSurfaceMaterial(
                 face with { Surface = surface with { BaseColor = DefaultMaterialColor } },
                 roofTerrainTextureMaterial,
-                DepthOffset: null);
+                DepthOffset: null,
+                order);
         }
 
         if (string.Equals(cityObject.PackageName, "veg", StringComparison.OrdinalIgnoreCase)
@@ -235,7 +259,8 @@ internal static class CityGmlSurfaceMaterialResolver
                         Family: null,
                         TextureScale: null,
                         ReuseScope: MaterialReuseScope.PerObject),
-                    DepthOffset: null);
+                    DepthOffset: null,
+                    order);
             }
 
             return new ResolvedSurfaceMaterial(
@@ -248,10 +273,11 @@ internal static class CityGmlSurfaceMaterialResolver
                     Family: null,
                     TextureScale: null,
                     ReuseScope: MaterialReuseScope.PerObject),
-                DepthOffset: null);
+                DepthOffset: null,
+                order);
         }
 
-        if (IsGeneratedRoadMarkingSurface(surface))
+        if (face.MaterialTreatment == SurfaceMaterialTreatment.RoadMarking)
         {
             return new ResolvedSurfaceMaterial(
                 face,
@@ -263,7 +289,8 @@ internal static class CityGmlSurfaceMaterialResolver
                     Family: null,
                     TextureScale: null,
                     ReuseScope: MaterialReuseScope.PerObject),
-                TerrainAlignedDepthOffset);
+                TerrainAlignedDepthOffset,
+                order);
         }
 
         bool preferUvProjection = ShouldPreferUvProjection(
@@ -286,7 +313,7 @@ internal static class CityGmlSurfaceMaterialResolver
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? TerrainAlignedDepthOffset
             : null;
-        return new ResolvedSurfaceMaterial(face, resolvedMaterial, depthOffset);
+        return new ResolvedSurfaceMaterial(face, resolvedMaterial, depthOffset, order);
     }
 
     private static ResolvedMaterial? TryCreateRoofTerrainTextureMaterial(
@@ -373,11 +400,6 @@ internal static class CityGmlSurfaceMaterialResolver
             ConstructionFaceRole.OuterFloor => DefaultMaterialSurfaceRole.OuterFloor,
             _ => DefaultMaterialSurfaceRole.Unknown,
         };
-    }
-
-    private static bool IsGeneratedRoadMarkingSurface(ParsedSurface surface)
-    {
-        return surface.PolygonId.Contains("_generated_marking", StringComparison.Ordinal);
     }
 
     private static bool HasExplicitMaterialColor(ColorRgba color)

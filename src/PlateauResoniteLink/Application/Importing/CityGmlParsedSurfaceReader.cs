@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
-using System.Text;
 using System.Xml.Linq;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -23,20 +21,24 @@ internal static class CityGmlParsedSurfaceReader
             return null;
         }
 
-        string polygonId = GetAttribute(polygonElement, Gml + "id") ?? CreateStableElementId("polygon", polygonElement);
-        CityGmlResolvedAppearance appearance = appearanceStore.Resolve(polygonId);
+        string? polygonId = GetAttribute(polygonElement, Gml + "id");
+        CityGmlResolvedAppearance appearance = polygonId is null
+            ? new CityGmlResolvedAppearance(
+                new ColorRgba(1.0, 1.0, 1.0, 1.0),
+                TexturePayload: null)
+            : appearanceStore.Resolve(polygonId);
         if (TryParseRing(
             exteriorRing,
-            appearance.RingUvsByRingId,
-            fallbackRingId: polygonId) is not { } exteriorParsedRing)
+            polygonId,
+            fallbackRingId: polygonId,
+            appearanceStore) is not { } exteriorParsedRing)
         {
             return null;
         }
 
-        ParsedRing[] interiorRings = ParseInteriorRings(polygonElement, appearance.RingUvsByRingId);
+        ParsedRing[] interiorRings = ParseInteriorRings(polygonElement, polygonId, appearanceStore);
 
         return new ParsedSurface(
-            PolygonId: polygonId,
             Semantic: ParseSurfaceSemantic(polygonElement),
             ExteriorRing: exteriorParsedRing,
             InteriorRings: interiorRings,
@@ -57,15 +59,17 @@ internal static class CityGmlParsedSurfaceReader
 
     private static ParsedRing[] ParseInteriorRings(
         XElement polygonElement,
-        IReadOnlyDictionary<string, IReadOnlyList<Float2>>? ringUvsByRingId)
+        string? polygonId,
+        ICityGmlAppearanceStore appearanceStore)
     {
         List<ParsedRing> rings = [];
         foreach (XElement interiorElement in polygonElement.Elements(Gml + "interior"))
         {
             if (TryParseRing(
                 interiorElement.Element(Gml + "LinearRing"),
-                ringUvsByRingId,
-                fallbackRingId: null) is { } ring)
+                polygonId,
+                fallbackRingId: null,
+                appearanceStore) is { } ring)
             {
                 rings.Add(ring);
             }
@@ -76,32 +80,29 @@ internal static class CityGmlParsedSurfaceReader
 
     private static ParsedRing? TryParseRing(
         XElement? ringElement,
-        IReadOnlyDictionary<string, IReadOnlyList<Float2>>? ringUvsByRingId,
-        string? fallbackRingId)
+        string? polygonId,
+        string? fallbackRingId,
+        ICityGmlAppearanceStore appearanceStore)
     {
         if (ringElement is null)
         {
             return null;
         }
 
-        string ringId = GetAttribute(ringElement, Gml + "id")
+        string? ringId = GetAttribute(ringElement, Gml + "id")
             ?? fallbackRingId
-            ?? CreateStableElementId("ring", ringElement);
+            ?? polygonId;
         GeodeticPoint[] vertices = ParseRingPoints(ringElement);
         if (vertices.Length < 3)
         {
             return null;
         }
 
-        IReadOnlyList<Float2>? uvs = null;
-        if (ringUvsByRingId is not null
-            && ringUvsByRingId.TryGetValue(ringId, out IReadOnlyList<Float2>? ringUvs)
-            && ringUvs.Count == vertices.Length)
-        {
-            uvs = ringUvs;
-        }
+        IReadOnlyList<Float2>? uvs = polygonId is not null && ringId is not null
+            ? appearanceStore.ResolveRingUvs(polygonId, ringId, vertices.Length)
+            : null;
 
-        return new ParsedRing(ringId, vertices, uvs);
+        return new ParsedRing(vertices, uvs);
     }
 
     private static GeodeticPoint[] ParseRingPoints(XElement ringElement)
@@ -156,15 +157,6 @@ internal static class CityGmlParsedSurfaceReader
         }
 
         return ParsedSurfaceSemantic.Unknown;
-    }
-
-    private static string CreateStableElementId(string prefix, XElement element)
-    {
-        byte[] payload = Encoding.UTF8.GetBytes(element.ToString(SaveOptions.DisableFormatting));
-        byte[] hash = SHA256.HashData(payload);
-        return string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"{prefix}_{Convert.ToHexString(hash.AsSpan(0, 12)).ToLowerInvariant()}");
     }
 
     private static MaterialOpticalProperties? CreateMaterialOpticalProperties(CityGmlMaterialAttributes? attributes)

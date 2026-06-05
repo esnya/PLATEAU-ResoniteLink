@@ -19,7 +19,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         W: Math.Sqrt(0.5));
 
     internal static bool TryProject(
-        ParsedCityObject cityObject,
+        ConstructionCityObjectDraft cityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
@@ -51,7 +51,6 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             return false;
         }
 
-        ConstructionCityObjectDraft draft = ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         Float3 slotPosition = CreateScenePosition(cityObjectOrigin, globalOriginPoint, globalCartesian);
         Float3[] positions = cityObject.Surfaces
             .SelectMany(static surface => surface.Vertices)
@@ -121,7 +120,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         double maxHeight = localHeights.Max();
 
         MaterialBinding[] materials = CityGmlSurfaceMaterialResolver.CreateDemTerrainGridMaterials(
-            draft,
+            cityObject,
             cityObjectOrigin,
             cityObjectCartesian,
             demTerrainTextureOverlay,
@@ -132,7 +131,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         }
 
         TextureUvRect? heightMapOccupiedUvRect = TryCreateDemTerrainGridOccupiedUvRect(
-            draft,
+            cityObject,
             cityObjectOrigin,
             cityObjectCartesian,
             demTerrainTextureOverlay,
@@ -224,7 +223,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
     }
 
     private static DemTerrainGridBounds CreateDemTerrainGridBounds(
-        ParsedCityObject cityObject,
+        ConstructionCityObjectDraft cityObject,
         GeodeticPoint cityObjectOrigin,
         Float3 slotPosition,
         GeodeticPoint globalOriginPoint,
@@ -243,7 +242,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         }
 
         GeographicRectangle clippedBounds = IntersectGeographicBounds(
-            ResolveCityObjectGeographicBounds(cityObject),
+            ResolveCityObjectGeographicBounds(cityObject.Source),
             demTerrainTextureOverlay.GeographicBounds);
         double referenceLatitude = cityObjectOrigin.Latitude;
         double referenceLongitude = cityObjectOrigin.Longitude;
@@ -304,7 +303,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
     }
 
     private static TerrainGridTriangle[] CreateDemTerrainGridTriangles(
-        ParsedCityObject cityObject,
+        ConstructionCityObjectDraft cityObject,
         Float3 slotPosition,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian)
@@ -330,7 +329,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         return triangles.ToArray();
     }
 
-    private static GeodeticPoint ResolveCityObjectOrigin(ParsedCityObject cityObject)
+    private static GeodeticPoint ResolveCityObjectOrigin(ConstructionCityObjectDraft cityObject)
     {
         return CityObjectOriginResolver.Resolve(
             cityObject.GeodeticOriginOverride,

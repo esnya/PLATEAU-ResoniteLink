@@ -12,8 +12,8 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
     {
         MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("53394525")!;
         ParsedSurface top = CreateHorizontalSurface("roof", altitude: 10.0, meshBounds: meshBounds);
-        ParsedSurface bottom = CreateHorizontalSurface("roof_generated_no-wall-bottom", altitude: 9.7, meshBounds: meshBounds);
-        ParsedSurface side = CreateVerticalSurface("roof_generated_no-wall-side-0", meshBounds);
+        ParsedSurface bottom = CreateHorizontalSurface("roof_roof-slab-bottom", altitude: 9.7, meshBounds: meshBounds);
+        ParsedSurface side = CreateVerticalSurface("roof_roof-slab-side-0", meshBounds);
         ParsedCityObject cityObject = new(
             SlotKey: "bldg-no-wall",
             DisplayName: "No-wall building",
@@ -31,31 +31,43 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
             meshBounds,
         ];
 
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
-            TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
-                cityObject,
+        ConstructionCityObjectDraft draft = new(
+            cityObject,
+            [
+                new ConstructionFace(top, ConstructionFaceRole.RoofSlab),
+                new ConstructionFace(bottom, ConstructionFaceRole.RoofSlab),
+                new ConstructionFace(side, ConstructionFaceRole.RoofSlab),
+            ]);
+
+        (ConstructionCityObjectDraft CityObject, TerrainTextureOverlay? Overlay)[] results =
+            TerrainOverlayMaterialSourcePartitioner.PartitionConstructionCityObject(
+                draft,
                 [overlay],
                 requestedMeshCodeBounds)
             .ToArray();
-        ParsedCityObject[] regeneratedSplitObjects = results
-            .Select(static result => GeneratedLod1RoofCityObjectFactory.Create(result.CityObject))
-            .ToArray();
 
-        ParsedSurface[] generatedTerrainSurfaces = regeneratedSplitObjects
-            .SelectMany(static cityObject => cityObject.Surfaces)
+        ParsedSurface[] generatedTerrainSurfaces = results
+            .SelectMany(static result => result.CityObject.Surfaces)
             .Where(static surface => surface.UsesGeneratedDemTexture)
             .ToArray();
         Assert.Equal(3, generatedTerrainSurfaces.Length);
-        Assert.Contains(generatedTerrainSurfaces, static surface => surface.PolygonId == "roof");
+        Assert.Contains(
+            generatedTerrainSurfaces,
+            surface => surface.Semantic == top.Semantic
+                && surface.ExteriorRing.Vertices.SequenceEqual(top.ExteriorRing.Vertices));
 
-        ParsedSurface[] noWallSlabParts = regeneratedSplitObjects
-            .SelectMany(static cityObject => cityObject.Surfaces)
-            .Where(static surface => surface.PolygonId.Contains("_generated_no-wall-", System.StringComparison.Ordinal))
+        ConstructionFace[] roofSlabFaces = results
+            .SelectMany(static result => result.CityObject.Faces)
+            .Where(static face => face.Role == ConstructionFaceRole.RoofSlab)
             .ToArray();
-        Assert.Equal(2, noWallSlabParts.Length);
-        Assert.All(noWallSlabParts, static surface => Assert.True(surface.UsesGeneratedDemTexture));
-        ParsedSurface noWallSide = Assert.Single(noWallSlabParts, static surface => surface.PolygonId == "roof_generated_no-wall-side-0");
-        Assert.Equal(ParsedSurfaceSemantic.Wall, noWallSide.Semantic);
+        Assert.Equal(3, roofSlabFaces.Length);
+        Assert.All(roofSlabFaces, static face =>
+        {
+            Assert.True(face.Surface.UsesGeneratedDemTexture);
+            Assert.Equal(ConstructionFaceRole.RoofSlab, face.Role);
+        });
+        ConstructionFace noWallSide = Assert.Single(roofSlabFaces, static face => face.Surface.Semantic == ParsedSurfaceSemantic.Wall);
+        Assert.Equal(ParsedSurfaceSemantic.Wall, noWallSide.Surface.Semantic);
     }
 
     [Fact]
@@ -86,12 +98,8 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
 
     private static ParsedSurface CreateHorizontalSurface(string polygonId, double altitude, MeshCodeBounds meshBounds)
     {
-        return new ParsedSurface(
-            polygonId,
-            ParsedSurfaceSemantic.Roof,
-            new ParsedRing(
-                $"{polygonId}-ring",
-                [
+        return new ParsedSurface(ParsedSurfaceSemantic.Roof,
+            new ParsedRing([
                     new GeodeticPoint(meshBounds.SouthLatitude, meshBounds.WestLongitude, altitude),
                     new GeodeticPoint(meshBounds.SouthLatitude, meshBounds.EastLongitude, altitude),
                     new GeodeticPoint(meshBounds.NorthLatitude, meshBounds.EastLongitude, altitude),
@@ -106,12 +114,8 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
 
     private static ParsedSurface CreateVerticalSurface(string polygonId, MeshCodeBounds meshBounds)
     {
-        return new ParsedSurface(
-            polygonId,
-            ParsedSurfaceSemantic.Wall,
-            new ParsedRing(
-                $"{polygonId}-ring",
-                [
+        return new ParsedSurface(ParsedSurfaceSemantic.Wall,
+            new ParsedRing([
                     new GeodeticPoint(meshBounds.SouthLatitude, meshBounds.WestLongitude, 10.0),
                     new GeodeticPoint(meshBounds.SouthLatitude, meshBounds.WestLongitude, 9.7),
                     new GeodeticPoint(meshBounds.SouthLatitude, meshBounds.EastLongitude, 9.7),

@@ -28,7 +28,9 @@ public sealed class DemCityObjectAggregationTests
         Assert.Equal("DEM 50303312", result.DisplayName);
         Assert.Equal("50303312", result.ActualMeshCode);
         Assert.Equal(sourceFile.RelativePath, result.SourceFileRelativePath);
-        Assert.Equal(["polygon-a", "polygon-b"], result.Surfaces.Select(static surface => surface.PolygonId).ToArray());
+        Assert.Equal(
+            result.Surfaces,
+            result.Surfaces.OrderBy(static surface => surface, ParsedSurfaceStructuralComparer.Instance).ToArray());
     }
 
     [Fact]
@@ -61,7 +63,6 @@ public sealed class DemCityObjectAggregationTests
         CoordinateReferenceSystem referenceSystem)
     {
         ParsedRing exteriorRing = new(
-            $"{polygonId}-ring",
             [
                 new GeodeticPoint(35.0, 139.0, 0.0),
                 new GeodeticPoint(35.0, 139.001, 0.0),
@@ -69,7 +70,6 @@ public sealed class DemCityObjectAggregationTests
             ],
             UVs: null);
         ParsedSurface surface = new(
-            polygonId,
             ParsedSurfaceSemantic.Ground,
             exteriorRing,
             [],

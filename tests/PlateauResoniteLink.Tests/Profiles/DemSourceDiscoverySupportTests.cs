@@ -119,9 +119,8 @@ public sealed class DemSourceDiscoverySupportTests
             Surfaces:
             [
                 new ParsedSurface(
-                    PolygonId: "surface",
                     Semantic: ParsedSurfaceSemantic.Ground,
-                    ExteriorRing: new ParsedRing("ring", vertices, null),
+                    ExteriorRing: new ParsedRing(vertices, null),
                     InteriorRings: [],
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     TexturePayload: null,
@@ -146,9 +145,8 @@ public sealed class DemSourceDiscoverySupportTests
             Surfaces:
             [
                 new ParsedSurface(
-                    PolygonId: "empty-surface",
                     Semantic: ParsedSurfaceSemantic.Ground,
-                    ExteriorRing: new ParsedRing("empty-ring", [], null),
+                    ExteriorRing: new ParsedRing([], null),
                     InteriorRings: [],
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     TexturePayload: null,

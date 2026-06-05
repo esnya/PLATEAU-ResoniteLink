@@ -84,7 +84,7 @@ public sealed class CityGmlAppearanceStoreTests
         Assert.Equal(0.15, appearance.MaterialAttributes.Transparency!.Value, 6);
         Assert.NotNull(appearance.MaterialAttributes.EmissiveColor);
         Assert.NotNull(appearance.MaterialAttributes.SpecularColor);
-        Assert.True(appearance.RingUvsByRingId!.ContainsKey("ring-1"));
+        Assert.NotNull(store.ResolveRingUvs("poly-1", "ring-1", vertexCount: 4));
     }
 
     [Fact]

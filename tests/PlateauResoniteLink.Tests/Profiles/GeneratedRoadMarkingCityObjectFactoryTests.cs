@@ -1,5 +1,3 @@
-using System;
-
 using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
@@ -17,15 +15,19 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
                 length: 12.0,
                 texturePayload: null));
 
-        ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(road, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
+        ConstructionCityObjectDraft? marking = GeneratedRoadMarkingCityObjectFactory.Create(
+            ConstructionCityObjectDraft.FromParsedCityObject(road),
+            new GeodeticPoint(0.0, 0.0, 0.0),
+            cityObjectCartesian: null);
 
         Assert.NotNull(marking);
         Assert.Equal("road-slot_road_marking", marking.SlotKey);
         Assert.Equal("Road Marking", marking.DisplayName);
         Assert.Equal(3, marking.Surfaces.Length);
-        Assert.All(marking.Surfaces, surface =>
+        Assert.All(marking.Faces, face =>
         {
-            Assert.StartsWith("road_generated_marking_", surface.PolygonId, StringComparison.Ordinal);
+            Assert.Equal(SurfaceMaterialTreatment.RoadMarking, face.MaterialTreatment);
+            ParsedSurface surface = face.Surface;
             Assert.Equal(new ColorRgba(1.0, 1.0, 1.0, 1.0), surface.BaseColor);
             Assert.Null(surface.TexturePayload);
             Assert.Empty(surface.InteriorRings);
@@ -51,7 +53,10 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
                 length: 12.0,
                 texturePayload: null));
 
-        ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(road, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
+        ConstructionCityObjectDraft? marking = GeneratedRoadMarkingCityObjectFactory.Create(
+            ConstructionCityObjectDraft.FromParsedCityObject(road),
+            new GeodeticPoint(0.0, 0.0, 0.0),
+            cityObjectCartesian: null);
 
         Assert.Null(marking);
     }
@@ -67,7 +72,10 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
                 length: 12.0,
                 texturePayload: new RawRgba32TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], "road-texture")));
 
-        ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(road, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
+        ConstructionCityObjectDraft? marking = GeneratedRoadMarkingCityObjectFactory.Create(
+            ConstructionCityObjectDraft.FromParsedCityObject(road),
+            new GeodeticPoint(0.0, 0.0, 0.0),
+            cityObjectCartesian: null);
 
         Assert.Null(marking);
     }
@@ -91,10 +99,14 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
                     texturePayload: null),
             ]);
 
-        ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(road, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
+        ConstructionCityObjectDraft? marking = GeneratedRoadMarkingCityObjectFactory.Create(
+            ConstructionCityObjectDraft.FromParsedCityObject(road),
+            new GeodeticPoint(0.0, 0.0, 0.0),
+            cityObjectCartesian: null);
 
         Assert.NotNull(marking);
-        Assert.All(marking.Surfaces, surface => Assert.StartsWith("plain-road_generated_marking_", surface.PolygonId, StringComparison.Ordinal));
+        Assert.Equal(3, marking.Surfaces.Length);
+        Assert.All(marking.Faces, face => Assert.Equal(SurfaceMaterialTreatment.RoadMarking, face.MaterialTreatment));
     }
 
     [Fact]
@@ -108,7 +120,10 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
                 length: 12.0,
                 texturePayload: null));
 
-        ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(building, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
+        ConstructionCityObjectDraft? marking = GeneratedRoadMarkingCityObjectFactory.Create(
+            ConstructionCityObjectDraft.FromParsedCityObject(building),
+            new GeodeticPoint(0.0, 0.0, 0.0),
+            cityObjectCartesian: null);
 
         Assert.Null(marking);
     }
@@ -120,7 +135,10 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
             packageName: "tran",
             surface: CreateTriangleRoadSurface("triangle-road"));
 
-        ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(road, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
+        ConstructionCityObjectDraft? marking = GeneratedRoadMarkingCityObjectFactory.Create(
+            ConstructionCityObjectDraft.FromParsedCityObject(road),
+            new GeodeticPoint(0.0, 0.0, 0.0),
+            cityObjectCartesian: null);
 
         Assert.Null(marking);
     }
@@ -160,10 +178,8 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
             new(0.0, width, 0.0),
         ];
 
-        return new ParsedSurface(
-            polygonId,
-            ParsedSurfaceSemantic.Ground,
-            new ParsedRing($"{polygonId}-ring", vertices, UVs: null),
+        return new ParsedSurface(ParsedSurfaceSemantic.Ground,
+            new ParsedRing(vertices, UVs: null),
             InteriorRings: [],
             new ColorRgba(0.2, 0.2, 0.2, 1.0),
             texturePayload);
@@ -178,10 +194,8 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
             new(12.0, 4.0, 0.0),
         ];
 
-        return new ParsedSurface(
-            polygonId,
-            ParsedSurfaceSemantic.Ground,
-            new ParsedRing($"{polygonId}-ring", vertices, UVs: null),
+        return new ParsedSurface(ParsedSurfaceSemantic.Ground,
+            new ParsedRing(vertices, UVs: null),
             InteriorRings: [],
             new ColorRgba(0.2, 0.2, 0.2, 1.0),
             TexturePayload: null);
