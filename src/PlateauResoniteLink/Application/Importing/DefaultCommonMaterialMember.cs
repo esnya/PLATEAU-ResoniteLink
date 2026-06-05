@@ -7,8 +7,6 @@ namespace PlateauResoniteLink.Application.Importing;
 
 public sealed class DefaultCommonMaterialMember : IEquatable<DefaultCommonMaterialMember>
 {
-    private static readonly ColorRgba CanonicalBaseColor = new(1.0, 1.0, 1.0, 1.0);
-
     private DefaultCommonMaterialMember(CommonMaterialDefinition definition)
     {
         Definition = definition ?? throw new ArgumentNullException(nameof(definition));
@@ -52,57 +50,8 @@ public sealed class DefaultCommonMaterialMember : IEquatable<DefaultCommonMateri
     {
         ArgumentNullException.ThrowIfNull(submeshIndices);
 
-        return Kind switch
-        {
-            DefaultCommonMaterialMemberKind.Bundled => CreateBundledBinding(submeshIndices),
-            DefaultCommonMaterialMemberKind.GenericAlbedo => new SharedCommonMaterialBinding(
-                BaseColor: CanonicalBaseColor,
-                MaterialType: MaterialType.Standard,
-                TexturePayload: null,
-                TextureSourceKind: TextureSourceKind.Dataset,
-                Projection: Projection,
-                DepthOffset: DepthOffset,
-                SubmeshIndices: submeshIndices,
-                commonMaterial: this),
-            DefaultCommonMaterialMemberKind.VertexColor => new SharedCommonMaterialBinding(
-                BaseColor: CanonicalBaseColor,
-                MaterialType: MaterialType.VertexColor,
-                TexturePayload: null,
-                TextureSourceKind: TextureSourceKind.Bundled,
-                Projection: Projection,
-                DepthOffset: DepthOffset,
-                SubmeshIndices: submeshIndices,
-                commonMaterial: this),
-            _ => throw new InvalidOperationException($"Unsupported common material member kind '{Kind}'."),
-        };
+        return Definition.CreateBinding(this, submeshIndices);
     }
-
-    private SharedCommonMaterialBinding CreateBundledBinding(IReadOnlyList<int> submeshIndices)
-    {
-        string family = Family ?? throw new InvalidOperationException("Bundled common material member requires a family.");
-        int variantIndex = BundledVariantIndex ?? 0;
-        BundledDefaultMaterialVariant variant = BundledVariant
-            ?? throw new InvalidOperationException("Bundled common material member requires a variant.");
-        Float2 textureScale = ToContract(variant.TextureSet.TextureScale);
-        Float2? textureOffset = variant.TextureSet.TextureOffset is null
-            ? null
-            : ToContract(variant.TextureSet.TextureOffset);
-        return new SharedCommonMaterialBinding(
-            BaseColor: CanonicalBaseColor,
-            MaterialType: MaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: TextureSourceKind.Bundled,
-            Projection: Projection,
-            DepthOffset: null,
-            SubmeshIndices: submeshIndices,
-            TextureScale: textureScale,
-            Family: family,
-            TextureOffset: textureOffset,
-            commonMaterial: this,
-            BundledVariantIndex: variantIndex);
-    }
-
-    private static Float2 ToContract(ScalarPair value) => new(value.X, value.Y);
 }
 
 public enum DefaultCommonMaterialMemberKind
