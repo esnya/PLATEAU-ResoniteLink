@@ -34,6 +34,7 @@ public sealed class LocalCityGmlGeometryProjectorTests
     public void ProjectCityObjectsValidatesReferenceSystemBeforeProjectingCanonicalObjects()
     {
         LocalCityGmlGeometryProjector projector = new(new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+        CoordinateReferenceSystem sourceReferenceSystem = CoordinateReferenceSystem.Parse("EPSG:6697");
         CachedSourceFileDescriptor sourceFile = new(
             new SourceFileDescriptor(
                 RelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
@@ -48,10 +49,43 @@ public sealed class LocalCityGmlGeometryProjectorTests
                     ActualMeshCode: "53394525",
                     LodLevel: 1,
                     Surfaces: [],
-                    ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:6697"),
+                    ReferenceSystem: sourceReferenceSystem,
                     SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
-                    SharedAcrossMeshCodes: false),
-            ]);
+                    SharedAcrossMeshCodes: false,
+                    BuildingAttributes: BuildingAttributeContext.Empty),
+            ],
+            sourceReferenceSystem);
+
+        PlateauImportValidationException exception = Assert.Throws<PlateauImportValidationException>(
+            () => projector.ProjectCityObjects(
+                    sourceFile,
+                    CoordinateReferenceSystem.Parse("EPSG:6696"),
+                    new GeodeticPoint(35.0, 139.0, 0.0),
+                    globalCartesian: new LocalCartesian(35.0, 139.0, 0.0, new Geocentric(Ellipsoid.GRS80)),
+                    demTerrainTextureOverlays: [],
+                    requestedMeshCodeBounds: [],
+                    request: new PlateauImportRequest(
+                        Dataset: "tokyo23ku",
+                        MeshCode: "53394525",
+                        CityGmlSource: DatasetLocation.Local("C:\\fixture"),
+                        PackageNames: ["bldg"]))
+                .ToArray());
+
+        Assert.Contains("Mixed CityGML coordinate reference systems are not supported", exception.Errors.Single());
+    }
+
+    [Fact]
+    public void ProjectCityObjectsValidatesSourceFileReferenceSystemWhenSourceFileHasNoCityObjects()
+    {
+        LocalCityGmlGeometryProjector projector = new(new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+        CachedSourceFileDescriptor sourceFile = new(
+            new SourceFileDescriptor(
+                RelativePath: "udx/bldg/53394525/empty.gml",
+                PackageName: "bldg",
+                MatchedMeshCode: "53394525",
+                RequiresMeshCodeBoundsFilter: false),
+            [],
+            CoordinateReferenceSystem.Parse("EPSG:6697"));
 
         PlateauImportValidationException exception = Assert.Throws<PlateauImportValidationException>(
             () => projector.ProjectCityObjects(

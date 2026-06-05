@@ -13,7 +13,7 @@ public sealed class DefaultMaterialResolverTests
     [Fact]
     public void ResolveMaterialUsesDatasetTextureWhenPresent()
     {
-        TexturePayload payload = new(4, 4, "srgb", new byte[4 * 4 * 4], "udx/bldg/53394525/appearance/roof.png");
+        TexturePayload payload = new RawRgba32TexturePayload(4, 4, "srgb", new byte[4 * 4 * 4], "udx/bldg/53394525/appearance/roof.png");
 
         ResolvedMaterial material = resolver.ResolveMaterial(new DefaultMaterialRequest(
             "bldg",
@@ -21,6 +21,7 @@ public sealed class DefaultMaterialResolverTests
             PreferUvProjection: true,
             FamilyOverride: null,
             VariantSelectionKey: "bldg:uv",
+            BuildingAttributes: BuildingAttributeContext.Empty,
             SurfaceRole: DefaultMaterialSurfaceRole.Wall));
 
         Assert.Equal(MaterialType.Standard, material.MaterialType);
@@ -40,7 +41,7 @@ public sealed class DefaultMaterialResolverTests
     public void ResolveMaterialUsesDatasetTextureBeforeBuildingFallback(int surfaceRoleValue)
     {
         DefaultMaterialSurfaceRole surfaceRole = (DefaultMaterialSurfaceRole)surfaceRoleValue;
-        TexturePayload payload = new(4, 4, "srgb", new byte[4 * 4 * 4], $"udx/bldg/53394525/appearance/{surfaceRole}.png");
+        TexturePayload payload = new RawRgba32TexturePayload(4, 4, "srgb", new byte[4 * 4 * 4], $"udx/bldg/53394525/appearance/{surfaceRole}.png");
 
         ResolvedMaterial material = resolver.ResolveMaterial(new DefaultMaterialRequest(
             "bldg",
@@ -48,6 +49,7 @@ public sealed class DefaultMaterialResolverTests
             PreferUvProjection: true,
             FamilyOverride: null,
             VariantSelectionKey: $"bldg:{surfaceRole}:texture",
+            BuildingAttributes: BuildingAttributeContext.Empty,
             SurfaceRole: surfaceRole));
 
         Assert.Equal(MaterialType.Standard, material.MaterialType);
@@ -115,6 +117,7 @@ public sealed class DefaultMaterialResolverTests
             PreferUvProjection: true,
             FamilyOverride: null,
             VariantSelectionKey: $"bldg:{surfaceRole}:fallback",
+            BuildingAttributes: BuildingAttributeContext.Empty,
             SurfaceRole: surfaceRole));
 
         Assert.Equal(MaterialType.Standard, material.MaterialType);
@@ -134,7 +137,8 @@ public sealed class DefaultMaterialResolverTests
             TexturePayload: null,
             PreferUvProjection: false,
             FamilyOverride: null,
-            VariantSelectionKey: "luse:tri"));
+            VariantSelectionKey: "luse:tri",
+            BuildingAttributes: BuildingAttributeContext.Empty));
 
         Assert.Equal(MaterialType.Wireframe, material.MaterialType);
         Assert.Null(material.TexturePayload);
@@ -463,18 +467,23 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialRejectsExplicitFacadeOverrideOutsideCodebaseReachableFamilies()
+    public void ResolveMaterialAcceptsEveryTypedFamilyOverride()
     {
-        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
-            () => resolver.ResolveMaterial(new DefaultMaterialRequest(
+        foreach (DefaultMaterialFamilyOverride familyOverride in DefaultMaterialFamilyOverride.All)
+        {
+            ResolvedMaterial material = resolver.ResolveMaterial(new DefaultMaterialRequest(
                 "bldg",
                 TexturePayload: null,
                 PreferUvProjection: true,
-                FamilyOverride: BundledDefaultMaterialFamilies.Facade,
-                VariantSelectionKey: "bldg:uv:0",
-                SurfaceRole: DefaultMaterialSurfaceRole.Wall)));
+                FamilyOverride: familyOverride,
+                VariantSelectionKey: $"typed-family:{familyOverride.Family}:0",
+                BuildingAttributes: BuildingAttributeContext.Empty,
+                SurfaceRole: DefaultMaterialSurfaceRole.Wall));
 
-        Assert.Contains("not codebase-reachable", error.Message, StringComparison.Ordinal);
+            Assert.Equal(familyOverride.Family, material.Family);
+            Assert.Equal(TextureSourceKind.Bundled, material.TextureSourceKind);
+            Assert.Null(material.TexturePayload);
+        }
     }
 
     [Fact]
@@ -516,7 +525,8 @@ public sealed class DefaultMaterialResolverTests
             TexturePayload: null,
             PreferUvProjection: false,
             FamilyOverride: null,
-            VariantSelectionKey: variantSelectionKey);
+            VariantSelectionKey: variantSelectionKey,
+            BuildingAttributes: BuildingAttributeContext.Empty);
     }
 
     private static DefaultMaterialRequest CreateBuildingWallRequest(
@@ -533,7 +543,7 @@ public sealed class DefaultMaterialResolverTests
             PreferUvProjection: true,
             FamilyOverride: null,
             VariantSelectionKey: variantSelectionKey,
-            BuildingAttributes: attributes,
+            BuildingAttributes: attributes ?? BuildingAttributeContext.Empty,
             FloorsAboveGround: floorsAboveGround,
             MeasuredHeightMeters: measuredHeightMeters,
             GeometryHeightMeters: geometryHeightMeters,

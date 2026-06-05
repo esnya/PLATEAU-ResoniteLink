@@ -42,10 +42,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             new PassthroughImportedObjectUnitOptimizer());
         Action<string> progressReporter = _ => { };
 
-        PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create();
 
         IImportedSceneSource result = await factory.CreateAsync(request, progressReporter);
 
@@ -76,12 +73,8 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             reader,
             composer,
             new PassthroughImportedObjectUnitOptimizer());
-        PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
-            PackageNames: ["dem"]
-);
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
+            packageNames: ["dem"]);
 
         _ = await factory.CreateAsync(request);
 
@@ -122,12 +115,9 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             reader,
             composer,
             new PassthroughImportedObjectUnitOptimizer());
-        PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
-            PackageNames: ["dem"],
-            DemTextureSource: DatasetLocation.Local("C:\\ortho\\53394525.tif"));
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
+            packageNames: ["dem"],
+            demTextureLocalSourcePath: "C:\\ortho\\53394525.tif");
 
         _ = await factory.CreateAsync(request);
 
@@ -151,14 +141,14 @@ public sealed class DefaultImportedSceneSourceFactoryTests
                     new GeodeticPoint(35.0, 139.0, 0.0)));
         }
 
-        public PlateauImportRequest? LastRequest { get; private set; }
+        public ResolvedLocalPlateauImportRequest? LastRequest { get; private set; }
 
         public Action<string>? LastProgressReporter { get; private set; }
 
         public ImportedSceneSourceSnapshot ReadResult { get; }
 
         public Task<ImportedSceneSourceSnapshot> ReadAsync(
-            PlateauImportRequest request,
+            ResolvedLocalPlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
@@ -172,14 +162,14 @@ public sealed class DefaultImportedSceneSourceFactoryTests
     {
         internal IImportedSceneSource ImportedSceneSource { get; } = importedSceneSource;
 
-        public PlateauImportRequest? LastRequest { get; private set; }
+        public ResolvedLocalPlateauImportRequest? LastRequest { get; private set; }
 
         public ImportedSceneSourceSnapshot? LastReadResult { get; private set; }
 
         public Action<string>? LastProgressReporter { get; private set; }
 
         public IImportedSceneSource Compose(
-            PlateauImportRequest request,
+            ResolvedLocalPlateauImportRequest request,
             ImportedSceneSourceSnapshot readResult,
             IImportedObjectUnitOptimizer objectUnitOptimizer,
             Action<string>? progressReporter = null)

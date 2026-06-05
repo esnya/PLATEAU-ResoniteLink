@@ -71,7 +71,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             r, g, b, 255,
             r, g, b, 255,
         ];
-        return new ResoniteTexturePayload(2, 2, ResoniteTextureColorProfiles.Srgb, rawBytes, identity);
+        return new RawRgba32ResoniteTexturePayload(2, 2, ResoniteTextureColorProfiles.Srgb, rawBytes, identity);
     }
 
     public static ImportedSceneMetadata CreateMetadata(
@@ -160,22 +160,20 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         PlateauImportRequest? normalizedRequest = null,
         CommonMaterialCatalog<DefaultCommonMaterialMember>? commonMaterials = null)
     {
-        PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? metadata.Request;
-        PlateauImportRequest resolvedRequest = CreateResolvedRequest(
+        ValidatedPlateauImportRequest effectiveNormalizedRequest = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
+            normalizedRequest ?? metadata.Request);
+        ResolvedLocalPlateauImportRequest resolvedRequest = CreateResolvedRequest(
             effectiveNormalizedRequest,
             metadata.Request,
             workDirectory);
-        PlateauImportRequest importRequest = CreateImportRequest(effectiveNormalizedRequest, resolvedRequest);
         ImportedSceneMetadata effectiveMetadata = metadata with
         {
-            Request = importRequest,
+            Request = resolvedRequest.ToImportRequest(),
         };
 
         return SceneImportExecutionPlan.Create(
-            effectiveNormalizedRequest,
             resolvedRequest,
             effectiveMetadata,
-            GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
             commonMaterials ?? CreateReferencedCommonMaterials([], enableMeshBake: false));
     }
@@ -204,49 +202,35 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return catalog.FilterToDefinitions(definitions);
     }
 
-    private static PlateauImportRequest CreateImportRequest(
-        PlateauImportRequest normalizedRequest,
-        PlateauImportRequest resolvedRequest)
-    {
-        return normalizedRequest with
-        {
-            CityGmlSource = resolvedRequest.CityGmlSource,
-            DemTextureSource = resolvedRequest.DemTextureSource,
-        };
-    }
-
-    private static PlateauImportRequest CreateResolvedRequest(
-        PlateauImportRequest normalizedRequest,
+    private static ResolvedLocalPlateauImportRequest CreateResolvedRequest(
+        ValidatedPlateauImportRequest normalizedRequest,
         PlateauImportRequest metadataRequest,
         string workDirectory)
     {
-        string? resolvedSourcePath = ResolveLocalPath(normalizedRequest.CityGmlSource, workDirectory, "source-archive")
+        string? resolvedSourcePath = ResolveLocalPath(normalizedRequest.CityGmlSource.ToDatasetLocation(), workDirectory, "source-archive")
             ?? metadataRequest.CityGmlLocalSourcePath;
         if (string.IsNullOrWhiteSpace(resolvedSourcePath))
         {
             throw new ArgumentException("Metadata request must include a local CityGML source path.", nameof(metadataRequest));
         }
 
-        DatasetLocation? resolvedDemTextureSource = metadataRequest.DemTextureSource;
+        ValidatedLocalDatasetLocation? resolvedDemTextureSource = metadataRequest.DemTextureLocalSourcePath is { } metadataDemTexturePath
+            ? new ValidatedLocalDatasetLocation(metadataDemTexturePath)
+            : null;
         if (normalizedRequest.DemTextureSource is not null)
         {
-            string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource, workDirectory, "source-ortho");
-            resolvedDemTextureSource = resolvedDemTexturePath is null
-                ? metadataRequest.DemTextureSource
-                : DatasetLocation.Local(resolvedDemTexturePath);
+            string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource.ToDatasetLocation(), workDirectory, "source-ortho");
+            if (resolvedDemTexturePath is not null)
+            {
+                resolvedDemTextureSource = new ValidatedLocalDatasetLocation(resolvedDemTexturePath);
+            }
         }
 
-        return normalizedRequest with
-        {
-            CityGmlSource = DatasetLocation.Local(resolvedSourcePath),
-            DemTextureSource = resolvedDemTextureSource,
-        };
-    }
-
-    private static string GetRequiredResolvedLocalSourcePath(PlateauImportRequest resolvedRequest)
-    {
-        return resolvedRequest.CityGmlLocalSourcePath
-            ?? throw new ArgumentException("Resolved request must include a local CityGML source path.", nameof(resolvedRequest));
+        return ResolvedLocalPlateauImportRequest.Create(
+            normalizedRequest,
+            new ValidatedLocalDatasetLocation(resolvedSourcePath),
+            resolvedDemTextureSource,
+            workDirectory);
     }
 
     private static string? ResolveLocalPath(
@@ -541,13 +525,22 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         => Enumerable.Repeat(TerrainGridSampleCoverage.Measured, count).ToArray();
 
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
-        => new(
-            payload.Width,
-            payload.Height,
-            payload.ColorProfile,
-            payload.BinaryPayload.AsSpan().ToArray(),
-            payload.Identity,
-            (TexturePayloadFormat)payload.Format);
+        => payload switch
+        {
+            RawRgba32ResoniteTexturePayload raw => new RawRgba32TexturePayload(
+                raw.Width,
+                raw.Height,
+                raw.ColorProfile,
+                raw.BinaryPayload.AsSpan().ToArray(),
+                raw.Identity),
+            EncodedImageResoniteTexturePayload encoded => new EncodedImageTexturePayload(
+                encoded.Width,
+                encoded.Height,
+                encoded.ColorProfile,
+                encoded.Source,
+                encoded.Identity),
+            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.GetType(), "Unsupported texture payload type."),
+        };
 
 }
 

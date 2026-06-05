@@ -218,7 +218,24 @@ internal sealed class ResoniteQueuedCityObjectEnqueuer : IResoniteQueuedCityObje
     }
 }
 
-internal sealed record LiveSendEnqueueContext(
-    int ConnectionCount,
-    Func<IResoniteLinkClient> GetRoutedClient,
-    Action<string>? ProgressReporter);
+internal sealed record LiveSendEnqueueContext
+{
+    public LiveSendEnqueueContext(
+        int ConnectionCount,
+        Func<IResoniteLinkClient> GetRoutedClient,
+        Action<string>? ProgressReporter)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(ConnectionCount, 1);
+        ArgumentNullException.ThrowIfNull(GetRoutedClient);
+
+        this.ConnectionCount = ConnectionCount;
+        this.GetRoutedClient = GetRoutedClient;
+        this.ProgressReporter = ProgressReporter;
+    }
+
+    public int ConnectionCount { get; }
+
+    public Func<IResoniteLinkClient> GetRoutedClient { get; }
+
+    public Action<string>? ProgressReporter { get; }
+}

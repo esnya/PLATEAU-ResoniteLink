@@ -89,7 +89,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
         GeneratedTerrainTexture terrainTexture = await terrainTextureAssetGenerator.EnsureTextureAsync(
             terrainTextureOverlay,
             cancellationToken);
-        TerrainTextureSource[] usedSources = GetTrackedTerrainTextureSources(terrainTexture, terrainTextureOverlay);
+        TerrainTextureSource[] usedSources = GetTrackedTerrainTextureSources(terrainTexture);
         foreach (TerrainTextureSource usedSource in usedSources)
         {
             int useCount = state.DemSourceUseCounts.AddOrUpdate(
@@ -119,20 +119,11 @@ internal sealed class ResoniteQueuedTexturePreparer(
     }
 
     private static TerrainTextureSource[] GetTrackedTerrainTextureSources(
-        GeneratedTerrainTexture terrainTexture,
-        TerrainTextureOverlay terrainTextureOverlay)
+        GeneratedTerrainTexture terrainTexture)
     {
-        if (terrainTexture.UsedSources is { Count: > 0 })
-        {
-            return terrainTexture.UsedSources
-                .Distinct()
-                .ToArray();
-        }
-
-        return
-        [
-            terrainTexture.UsedSource ?? terrainTextureOverlay.PrimarySource,
-        ];
+        return terrainTexture.UsedSources
+            .Distinct()
+            .ToArray();
     }
 
     private async Task EnsureGsiFallbackLicenseAsync(
@@ -176,7 +167,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
         {
             TerrainTextureGeoReferencedRasterSource rasterSource => string.Create(
                 CultureInfo.InvariantCulture,
-                $"GeoTIFF(source='{rasterSource.ContentSource.Description}', crs='{rasterSource.Metadata?.CoordinateSystemIdentifier ?? "unknown"}')"),
+                $"Geo-referenced raster(source='{rasterSource.ContentSource.Description}', crs='{rasterSource.Metadata.CoordinateSystemIdentifier}')"),
             TerrainTextureTileSource tileSource when IsGsiFallbackSource(tileSource) => string.Create(
                 CultureInfo.InvariantCulture,
                 $"GSI seamless photo tile(z={tileSource.ZoomLevel})"),

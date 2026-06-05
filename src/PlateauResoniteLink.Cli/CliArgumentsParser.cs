@@ -273,6 +273,7 @@ public static class CliArgumentsParser
                                     System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
                                     System.Globalization.CultureInfo.InvariantCulture,
                                     out terrainGridMetersPerVertex)
+                                || !double.IsFinite(terrainGridMetersPerVertex)
                                 || terrainGridMetersPerVertex <= 0.0)
                             {
                                 return CliParseResult.Failure(
@@ -355,6 +356,16 @@ public static class CliArgumentsParser
         if (string.IsNullOrWhiteSpace(cityGmlSourceInput))
         {
             return CliParseResult.Failure("Specify --citygml-source.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dataset))
+        {
+            return CliParseResult.Failure("Specify --dataset.");
+        }
+
+        if (string.IsNullOrWhiteSpace(meshCode))
+        {
+            return CliParseResult.Failure("Specify --mesh-code.");
         }
 
         if (!TryParseDatasetLocationInput(cityGmlSourceInput, out DatasetLocation? cityGmlSource, out string? sourceError))

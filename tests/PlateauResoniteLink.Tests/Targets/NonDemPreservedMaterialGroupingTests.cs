@@ -1,4 +1,3 @@
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -10,10 +9,9 @@ public sealed class NonDemPreservedMaterialGroupingTests
     {
         ResoniteMaterialBinding commonMaterial = CreateTexturelessMaterial() with
         {
-            AssetScope = ResoniteMaterialAssetScope.Common,
-            CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
+            AssetBinding = ResoniteMaterialAssetBindingTestFactory.SharedGenericUv(),
         };
-        ResoniteTexturePayload texture = new(
+        ResoniteTexturePayload texture = new RawRgba32ResoniteTexturePayload(
             width: 1,
             height: 1,
             colorProfile: null,
@@ -32,7 +30,7 @@ public sealed class NonDemPreservedMaterialGroupingTests
         });
         NonDemPreservedMaterialGroupingKey differentTexture = NonDemPreservedMaterialGrouping.CreateKey(commonMaterial with
         {
-            TexturePayload = new ResoniteTexturePayload(
+            TexturePayload = new RawRgba32ResoniteTexturePayload(
                 width: 1,
                 height: 1,
                 colorProfile: null,
@@ -68,6 +66,7 @@ public sealed class NonDemPreservedMaterialGroupingTests
             ResoniteTextureSourceKind.Bundled,
             ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            SubmeshIndices: [0]);
+            SubmeshIndices: [0],
+            ResoniteMaterialAssetBinding.Presentation);
     }
 }

@@ -64,11 +64,12 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TexturePayload: null,
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
-                    TextureScale: null,
-                    TextureOffset: null,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse(MeshCode), overlay)),
+                    AssetBinding: ResoniteMaterialAssetBinding.Presentation,
+                    TextureScale: null,
+                    TextureOffset: null,
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay)),
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
@@ -146,10 +147,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay demOverlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/dem/{z}/{x}/{y}.png");
         TerrainTextureOverlay roofOverlayWithDifferentUri = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/roof/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
+            requestedOverlay => new GeneratedTerrainTexture(
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.0, 0.0)));
+                new ResoniteFloat2(0.0, 0.0),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -226,10 +228,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureOverlay firstOverlay = CreateThirdMeshOverlay("53394525", "https://tiles.example/{z}/{x}/{y}.png");
         TerrainTextureOverlay secondOverlay = CreateThirdMeshOverlay("53394526", "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
+            requestedOverlay => new GeneratedTerrainTexture(
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.0, 0.0)));
+                new ResoniteFloat2(0.0, 0.0),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -276,10 +279,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using SceneSinkRecordingClient client = new();
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
+            requestedOverlay => new GeneratedTerrainTexture(
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.0, 0.0)));
+                new ResoniteFloat2(0.0, 0.0),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -366,10 +370,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using SceneSinkRecordingClient client = new();
         TerrainTextureOverlay mismatchedOverlay = CreateThirdMeshOverlay("53394526", "https://tiles.example/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
+            requestedOverlay => new GeneratedTerrainTexture(
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.0, 0.0)));
+                new ResoniteFloat2(0.0, 0.0),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -414,7 +419,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     ResoniteTextureColorProfiles.Srgb,
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
-                new ResoniteFloat2(0.125, 0.375)));
+                new ResoniteFloat2(0.125, 0.375),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -448,7 +454,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse(MeshCode), overlay)),
+                    AssetBinding: ResoniteMaterialAssetBinding.Presentation,
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay)),
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
@@ -518,7 +525,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
@@ -681,7 +689,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
@@ -786,14 +795,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using SceneSinkRecordingClient client = new();
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay(MeshCode, "https://example.invalid/{z}/{x}/{y}.png");
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            _ => new GeneratedTerrainTexture(
+            requestedOverlay => new GeneratedTerrainTexture(
                 CreateRawTextureSource(
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
                     new byte[16]),
                 new ResoniteFloat2(0.5, 0.25),
-                new ResoniteFloat2(0.125, 0.375)));
+                new ResoniteFloat2(0.125, 0.375),
+                requestedOverlay.PrimarySource));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -830,7 +840,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse(MeshCode), overlay)),
+                    AssetBinding: ResoniteMaterialAssetBinding.Presentation,
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay)),
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
@@ -894,7 +905,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             CollisionEnabled: false,
             SourceFileRelativePath: $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml");
@@ -941,7 +953,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse(MeshCode), overlay)),
+                    AssetBinding: ResoniteMaterialAssetBinding.Presentation,
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay)),
             ]
         );
         ResoniteConstructionCityObject withoutOverlay = withOverlay with
@@ -987,14 +1000,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
-                    TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/uv-bake-budget.png"),
+                    TexturePayload: new RawRgba32ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/uv-bake-budget.png"),
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     TextureScale: null,
-                    TextureOffset: null,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                    TextureOffset: null
+                    ),
             ]
         );
         ResoniteConstructionCityObject withBake = baseline with
@@ -1048,7 +1062,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.RoadUv),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -1057,7 +1071,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [1]),
+                    SubmeshIndices: [1],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: sourceFile);
 
@@ -1097,7 +1112,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: sourceFile);
 
@@ -1143,7 +1159,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: sourceFile);
 
@@ -1196,7 +1213,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: sourceFile);
 
@@ -1248,9 +1266,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     TextureScale: new ResoniteFloat2(0.5, 0.5),
                     Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
                     BundledVariantIndex: 0),
             ],
             SourceFileRelativePath: sourceFile);
@@ -1322,10 +1340,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     TextureScale: new ResoniteFloat2(0.5, 0.5),
                     TextureOffset: new ResoniteFloat2(0.125, 0.25),
                     Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
                     BundledVariantIndex: 0),
             ],
             SourceFileRelativePath: sourceFile);
@@ -1388,7 +1406,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [1]),
+                    SubmeshIndices: [1],
+                    ResoniteMaterialAssetBinding.Presentation),
             ]
         );
 
@@ -1426,7 +1445,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [1]),
+                    SubmeshIndices: [1],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
@@ -1456,7 +1476,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1464,7 +1485,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0, 1]),
+                    SubmeshIndices: [0, 1],
+                    ResoniteMaterialAssetBinding.Presentation),
             ]
         );
 
@@ -1507,6 +1529,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     TextureScale: new ResoniteFloat2(2.0, 0.5),
                     TextureOffset: new ResoniteFloat2(0.25, 0.75)),
                 new ResoniteMaterialBinding(
@@ -1516,7 +1539,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0, 1]),
+                    SubmeshIndices: [0, 1],
+                    ResoniteMaterialAssetBinding.Presentation),
             ]
         );
 
@@ -1547,7 +1571,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ]
         );
 
@@ -1593,7 +1618,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ]
         );
 
@@ -1660,7 +1686,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
     }
@@ -1688,10 +1715,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TexturePayload: null,
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
-                    TextureScale: null,
-                    TextureOffset: null,
                     DepthOffset: null,
                     SubmeshIndices: [0],
+                    AssetBinding: ResoniteMaterialAssetBinding.Presentation,
+                    TextureScale: null,
+                    TextureOffset: null,
                     TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse(meshCode), overlay)),
             ],
             SourceFileRelativePath: $"udx/{packageName}/{meshCode}/plateau_{DatasetName}_{packageName}_{meshCode}.gml");
@@ -1704,7 +1732,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials = cityObject.Materials
                 .Select(static material => material with
                 {
-                    CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
+                    AssetBinding = ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv),
                 })
                 .ToArray(),
         };

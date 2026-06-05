@@ -24,6 +24,15 @@ internal static class ResoniteSceneMaterialConventions
         TerrainMainTextureOverride,
     }
 
+    internal enum PlannedTextureRole
+    {
+        Albedo,
+        Normal,
+        Height,
+        Metallic,
+        Emission,
+    }
+
     internal readonly record struct TextureSamplingPolicy(
         string? PreferredProfile,
         string? WrapMode);
@@ -83,21 +92,16 @@ internal static class ResoniteSceneMaterialConventions
         ArgumentNullException.ThrowIfNull(material);
         material = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
-        if (material.AssetScope == ResoniteMaterialAssetScope.Common
-            && material.MaterialType == ResoniteMaterialType.Standard
-            && material.TexturePayload is null
-            && material.TerrainOverlay is null
-            && material.CommonMaterial is null
-            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-            && !string.IsNullOrWhiteSpace(material.Family)
-            && (!IsWhiteBaseColor(material.BaseColor)
-                || HasNonDefaultBundledTextureTransform(material)
-                || material.DepthOffset is not null))
+        if (ShouldDemoteBundledCommonMaterial(material))
         {
-            return material with
+            ResoniteMaterialBinding demotedMaterial = material with
             {
-                AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
+                AssetBinding = material.CommonMaterial is { } commonMaterial
+                    ? ResoniteMaterialAssetBinding.PresentationCommon(commonMaterial)
+                    : ResoniteMaterialAssetBinding.Presentation,
             };
+
+            return ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(demotedMaterial);
         }
 
         if (material.AssetScope == ResoniteMaterialAssetScope.PresentationSlotScoped
@@ -118,17 +122,45 @@ internal static class ResoniteSceneMaterialConventions
         return material;
     }
 
-    public static TextureIdentity CreateTextureIdentity(TextureMemberRole role)
+    internal static bool ShouldDemoteBundledCommonMaterial(ResoniteMaterialBinding material)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+
+        return material.AssetScope == ResoniteMaterialAssetScope.Common
+            && material.MaterialType == ResoniteMaterialType.Standard
+            && material.TexturePayload is null
+            && material.TerrainOverlay is null
+            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && !string.IsNullOrWhiteSpace(material.Family)
+            && (!IsWhiteBaseColor(material.BaseColor)
+                || HasNonDefaultBundledTextureTransform(material)
+                || material.DepthOffset is not null);
+    }
+
+    public static TextureIdentity CreateTextureIdentity(PlannedTextureRole role)
     {
         return new TextureIdentity(role switch
         {
-            TextureMemberRole.Albedo => "albedo",
-            TextureMemberRole.Normal => "normal",
-            TextureMemberRole.Height => "height",
-            TextureMemberRole.Metallic => "metallic",
-            TextureMemberRole.Emission => "emission",
-            _ => throw new InvalidOperationException($"Texture role '{role}' does not have a planned texture identity."),
+            PlannedTextureRole.Albedo => "albedo",
+            PlannedTextureRole.Normal => "normal",
+            PlannedTextureRole.Height => "height",
+            PlannedTextureRole.Metallic => "metallic",
+            PlannedTextureRole.Emission => "emission",
+            _ => throw new InvalidOperationException($"Planned texture role '{role}' is unsupported."),
         });
+    }
+
+    public static TextureMemberRole ToTextureMemberRole(PlannedTextureRole role)
+    {
+        return role switch
+        {
+            PlannedTextureRole.Albedo => TextureMemberRole.Albedo,
+            PlannedTextureRole.Normal => TextureMemberRole.Normal,
+            PlannedTextureRole.Height => TextureMemberRole.Height,
+            PlannedTextureRole.Metallic => TextureMemberRole.Metallic,
+            PlannedTextureRole.Emission => TextureMemberRole.Emission,
+            _ => throw new InvalidOperationException($"Planned texture role '{role}' is unsupported."),
+        };
     }
 
     public static TextureSamplingPolicy GetTextureSamplingPolicy(TextureMemberRole role)

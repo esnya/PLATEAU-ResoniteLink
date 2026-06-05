@@ -39,11 +39,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
                      StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            NonDemCityObjectBakeCandidate? candidate = await candidateFactory.CreateAsync(bufferedCityObject, cancellationToken);
-            if (candidate is null)
-            {
-                continue;
-            }
+            NonDemCityObjectBakeCandidate candidate = await candidateFactory.CreateAsync(bufferedCityObject, cancellationToken);
 
             if (candidate.AtlasEntries.Count == 0 && !batchFitPolicy.RequiresBakeEmission(candidate))
             {

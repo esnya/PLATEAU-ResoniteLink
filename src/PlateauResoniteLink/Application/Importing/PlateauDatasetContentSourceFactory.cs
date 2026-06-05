@@ -369,7 +369,11 @@ internal static class PlateauDatasetContentSourceFactory
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                string entryKey = archiveFileLayoutPolicy.NormalizeRelativePath(entry.Key ?? string.Empty);
+                if (!TryNormalizeArchiveEntryKey(entry, archiveFileLayoutPolicy, out string entryKey))
+                {
+                    continue;
+                }
+
                 if (IsSupportedArchiveFile(entryKey))
                 {
                     await IndexArchiveAsync(
@@ -438,10 +442,8 @@ internal static class PlateauDatasetContentSourceFactory
 
             IArchiveEntry entry = archive.Entries.FirstOrDefault(candidate =>
                     !candidate.IsDirectory
-                    && string.Equals(
-                        archiveFileLayoutPolicy.NormalizeRelativePath(candidate.Key ?? string.Empty),
-                        archiveFileLayoutPolicy.NormalizeRelativePath(entryKey),
-                        StringComparison.Ordinal))
+                    && TryNormalizeArchiveEntryKey(candidate, archiveFileLayoutPolicy, out string candidateKey)
+                    && string.Equals(candidateKey, archiveFileLayoutPolicy.NormalizeRelativePath(entryKey), StringComparison.Ordinal))
                 ?? throw new FileNotFoundException($"The dataset entry '{entryKey}' was not found in '{archivePath}'.");
 
             await using Stream entryStream = await entry.OpenEntryStreamAsync(cancellationToken);
@@ -456,6 +458,42 @@ internal static class PlateauDatasetContentSourceFactory
             string extension = Path.GetExtension(path);
             return string.Equals(extension, ".zip", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(extension, ".7z", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryNormalizeArchiveEntryKey(
+            IArchiveEntry entry,
+            IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
+            out string entryKey)
+        {
+            entryKey = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(entry.Key))
+            {
+                return false;
+            }
+
+            string rawKey = entry.Key.Replace('\\', '/').Trim();
+            if (rawKey.StartsWith('/')
+                || Path.IsPathFullyQualified(rawKey)
+                || (rawKey.Length >= 2 && rawKey[1] == ':'))
+            {
+                return false;
+            }
+
+            string normalizedKey = archiveFileLayoutPolicy.NormalizeRelativePath(rawKey);
+            if (normalizedKey.Length == 0)
+            {
+                return false;
+            }
+
+            string[] segments = normalizedKey.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Any(static segment => segment is "." or ".."))
+            {
+                return false;
+            }
+
+            entryKey = normalizedKey;
+            return true;
         }
 
     }

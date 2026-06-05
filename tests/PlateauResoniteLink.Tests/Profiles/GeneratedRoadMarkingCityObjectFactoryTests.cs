@@ -65,7 +65,7 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
                 "textured-road",
                 width: 4.0,
                 length: 12.0,
-                texturePayload: new TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], "road-texture")));
+                texturePayload: new RawRgba32TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], "road-texture")));
 
         ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(road, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
 
@@ -83,7 +83,7 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
                     "textured-road",
                     width: 4.0,
                     length: 12.0,
-                    texturePayload: new TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], "road-texture")),
+                    texturePayload: new RawRgba32TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], "road-texture")),
                 CreateRoadSurface(
                     "plain-road",
                     width: 4.0,
@@ -114,26 +114,15 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
     }
 
     [Fact]
-    public void RoadSurfaceEdgePairSelectorRejectsNonQuadInputsWithClearPrecondition()
+    public void CreateSkipsNonQuadRoadSurfaceAtQuadBoundary()
     {
-        GeodeticPoint[] vertices =
-        [
-            new(0.0, 0.0, 0.0),
-            new(1.0, 0.0, 0.0),
-            new(1.0, 1.0, 0.0),
-        ];
-        Float3[] positions =
-        [
-            new(0.0, 0.0, 0.0),
-            new(1.0, 0.0, 0.0),
-            new(1.0, 0.0, 1.0),
-        ];
+        ParsedCityObject road = CreateRoadObject(
+            packageName: "tran",
+            surface: CreateTriangleRoadSurface("triangle-road"));
 
-        ArgumentException exception = Assert.Throws<ArgumentException>(
-            () => RoadSurfaceEdgePairSelector.Select(vertices, positions));
+        ParsedCityObject? marking = GeneratedRoadMarkingCityObjectFactory.Create(road, new GeodeticPoint(0.0, 0.0, 0.0), cityObjectCartesian: null);
 
-        Assert.Equal("vertices", exception.ParamName);
-        Assert.Contains("exactly four vertices", exception.Message, StringComparison.Ordinal);
+        Assert.Null(marking);
     }
 
     private static ParsedCityObject CreateRoadObject(string packageName, ParsedSurface surface)
@@ -153,6 +142,7 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
             new CoordinateReferenceSystem("local", Geocentric: null, CompatibilityKey: "local"),
             "udx/tran/road.gml",
             SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty,
             TerrainAligned: true);
     }
 
@@ -177,5 +167,23 @@ public sealed class GeneratedRoadMarkingCityObjectFactoryTests
             InteriorRings: [],
             new ColorRgba(0.2, 0.2, 0.2, 1.0),
             texturePayload);
+    }
+
+    private static ParsedSurface CreateTriangleRoadSurface(string polygonId)
+    {
+        GeodeticPoint[] vertices =
+        [
+            new(0.0, 0.0, 0.0),
+            new(12.0, 0.0, 0.0),
+            new(12.0, 4.0, 0.0),
+        ];
+
+        return new ParsedSurface(
+            polygonId,
+            ParsedSurfaceSemantic.Ground,
+            new ParsedRing($"{polygonId}-ring", vertices, UVs: null),
+            InteriorRings: [],
+            new ColorRgba(0.2, 0.2, 0.2, 1.0),
+            TexturePayload: null);
     }
 }

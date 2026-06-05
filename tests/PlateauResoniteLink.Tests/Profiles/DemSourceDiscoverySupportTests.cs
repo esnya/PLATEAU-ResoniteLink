@@ -35,6 +35,7 @@ public sealed class DemSourceDiscoverySupportTests
 
         CachedSourceFileDescriptor cachedSourceFile = Assert.Single(result.CachedDemSourceFiles);
         Assert.Equal("udx/dem/53394525/sample.gml", cachedSourceFile.RelativePath);
+        Assert.Equal(CoordinateReferenceSystem.Parse("EPSG:4326"), cachedSourceFile.ReferenceSystem);
         Assert.Equal(3, result.TerrainTriangles.Length);
         Assert.Equal(1, result.ParsedCityObjectCount);
     }
@@ -129,6 +130,7 @@ public sealed class DemSourceDiscoverySupportTests
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
             SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty,
             TerrainAligned: false,
             GeodeticOriginOverride: null);
     }
@@ -155,6 +157,7 @@ public sealed class DemSourceDiscoverySupportTests
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/empty-geometry.gml",
             SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty,
             TerrainAligned: false,
             GeodeticOriginOverride: null);
     }

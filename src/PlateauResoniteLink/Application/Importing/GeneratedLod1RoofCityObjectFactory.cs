@@ -90,7 +90,6 @@ internal static class GeneratedLod1RoofCityObjectFactory
     private static bool IsNoWallBuilding(ParsedCityObject cityObject)
     {
         return cityObject.LodLevel >= 1
-            && cityObject.BuildingAttributes is not null
             && NoWallBuildingClassCodes.Any(code => BuildingAttributePredicates.HasExactCityGmlClassCode(cityObject.BuildingAttributes, code));
     }
 
@@ -153,10 +152,10 @@ internal static class GeneratedLod1RoofCityObjectFactory
             return false;
         }
 
-        SurfaceProjectionInfo[] surfaceInfos = cityObject.Surfaces
-            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
-            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
-            .ToArray();
+        SurfaceProjectionInfo[] surfaceInfos = CreateSurfaceProjectionInfos(
+            cityObject.Surfaces,
+            cityObjectOrigin,
+            cityObjectCartesian);
         if (surfaceInfos.Length == 0)
         {
             return false;
@@ -189,19 +188,19 @@ internal static class GeneratedLod1RoofCityObjectFactory
         out ParsedSurface[]? topSurfaces)
     {
         topSurfaces = null;
-        SurfaceProjectionInfo[] surfaceInfos = cityObject.Surfaces
-            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
-            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
-            .ToArray();
+        SurfaceProjectionInfo[] surfaceInfos = CreateSurfaceProjectionInfos(
+            cityObject.Surfaces,
+            cityObjectOrigin,
+            cityObjectCartesian);
         if (surfaceInfos.Length == 0)
         {
             return false;
         }
 
-        double objectMaximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
+        double objectMaximumY = surfaceInfos.Max(static info => info.MaximumY);
         SurfaceProjectionInfo[] topSurfaceInfos = surfaceInfos
             .Where(static info => info.IsNearHorizontal)
-            .Where(info => info.MaximumY!.Value >= objectMaximumY - 0.1)
+            .Where(info => info.MaximumY >= objectMaximumY - 0.1)
             .ToArray();
         if (topSurfaceInfos.Length == 0
             || topSurfaceInfos.Any(static info => info.Surface.InteriorRings.Length != 0))
@@ -218,10 +217,10 @@ internal static class GeneratedLod1RoofCityObjectFactory
             .ToArray();
         if (lowerSurfaceInfos.Length != 0)
         {
-            double objectMinimumY = lowerSurfaceInfos.Min(static info => info.MinimumY!.Value);
+            double objectMinimumY = lowerSurfaceInfos.Min(static info => info.MinimumY);
             topSurfaceInfos = topSurfaceInfos
-                .Where(info => info.MinimumY!.Value > objectMinimumY + BuildingBottomCullBandMeters)
-                .Where(info => info.MinimumY!.Value - NoWallRoofThicknessMeters > objectMinimumY + BuildingBottomCullBandMeters)
+                .Where(info => info.MinimumY > objectMinimumY + BuildingBottomCullBandMeters)
+                .Where(info => info.MinimumY - NoWallRoofThicknessMeters > objectMinimumY + BuildingBottomCullBandMeters)
                 .ToArray();
             if (topSurfaceInfos.Length == 0)
             {
@@ -443,22 +442,22 @@ internal static class GeneratedLod1RoofCityObjectFactory
         out Lod1RoofFootprint? footprint)
     {
         footprint = null;
-        SurfaceProjectionInfo[] surfaceInfos = cityObject.Surfaces
-            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
-            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
-            .ToArray();
+        SurfaceProjectionInfo[] surfaceInfos = CreateSurfaceProjectionInfos(
+            cityObject.Surfaces,
+            cityObjectOrigin,
+            cityObjectCartesian);
         if (surfaceInfos.Length == 0)
         {
             return false;
         }
 
-        double objectMinimumY = surfaceInfos.Min(static info => info.MinimumY!.Value);
-        double objectMaximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
+        double objectMinimumY = surfaceInfos.Min(static info => info.MinimumY);
+        double objectMaximumY = surfaceInfos.Max(static info => info.MaximumY);
         double geometryHeight = objectMaximumY - objectMinimumY;
         SurfaceProjectionInfo[] topCandidates = surfaceInfos
             .Where(static info => info.IsNearHorizontal)
-            .Where(info => info.MaximumY!.Value >= objectMaximumY - 0.1)
-            .Where(info => info.MinimumY!.Value > objectMinimumY + BuildingBottomCullBandMeters)
+            .Where(info => info.MaximumY >= objectMaximumY - 0.1)
+            .Where(info => info.MinimumY > objectMinimumY + BuildingBottomCullBandMeters)
             .ToArray();
         if (topCandidates.Length != 1)
         {
@@ -491,32 +490,52 @@ internal static class GeneratedLod1RoofCityObjectFactory
             length,
             width,
             geometryHeight,
-            cityObject.BuildingAttributes ?? BuildingAttributeContext.Empty,
+            cityObject.BuildingAttributes,
             firstEdgeIsLongAxis);
         return true;
     }
 
-    private static SurfaceProjectionInfo CreateSurfaceProjectionInfo(
-        ParsedSurface surface,
+    private static SurfaceProjectionInfo[] CreateSurfaceProjectionInfos(
+        IEnumerable<ParsedSurface> surfaces,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian cityObjectCartesian)
     {
+        List<SurfaceProjectionInfo> infos = [];
+        foreach (ParsedSurface surface in surfaces)
+        {
+            if (TryCreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian, out SurfaceProjectionInfo info))
+            {
+                infos.Add(info);
+            }
+        }
+
+        return [.. infos];
+    }
+
+    private static bool TryCreateSurfaceProjectionInfo(
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian cityObjectCartesian,
+        out SurfaceProjectionInfo info)
+    {
+        info = default;
         Float3[] positions = surface.Vertices
             .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         if (positions.Length == 0)
         {
-            return new SurfaceProjectionInfo(surface, null, null, false);
+            return false;
         }
 
         Float3? normal = ComputePolygonNormal(positions);
         bool isNearHorizontal = normal is not null && Math.Abs(normal.Y) >= 0.98;
 
-        return new SurfaceProjectionInfo(
+        info = new SurfaceProjectionInfo(
             surface,
             positions.Min(static position => position.Y),
             positions.Max(static position => position.Y),
             isNearHorizontal);
+        return true;
     }
 
     private static GeodeticPoint[] RemoveClosingPoint(GeodeticPoint[] vertices)
@@ -683,8 +702,8 @@ internal static class GeneratedLod1RoofCityObjectFactory
 
     private readonly record struct SurfaceProjectionInfo(
         ParsedSurface Surface,
-        double? MinimumY,
-        double? MaximumY,
+        double MinimumY,
+        double MaximumY,
         bool IsNearHorizontal);
 
     private readonly record struct NoWallRoofRing(

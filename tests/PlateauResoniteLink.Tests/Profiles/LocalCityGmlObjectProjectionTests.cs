@@ -68,10 +68,9 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
-        PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            CityGmlSource: DatasetLocation.Local(fixturePath));
+        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
+            cityGmlLocalSourcePath: fixturePath);
+        PlateauImportRequest importRequest = request.ToImportRequest();
 
         DefaultImportedSceneSourceFactory factory = new(
             documentReader,
@@ -87,7 +86,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
-        Assert.Same(request, source.Metadata.Request);
+        Assert.Equal(importRequest, source.Metadata.Request);
         Assert.Contains("bldg", source.Metadata.SourceDataset.PackageNames);
         Assert.Contains("53394525", source.Metadata.SourceDataset.SelectedMeshCodes!);
         Assert.NotEmpty(source.Metadata.SourceDataset.SourceFiles);
@@ -538,8 +537,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             {
                 CityGmlFunctionCodes = ["401"],
                 Structures = [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
-                MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
-                BuildingFootprintArea = BuildingMetricValue.Known(100.0),
+                MeasuredHeightMeters = new BuildingMetricValue(8.0),
+                BuildingFootprintArea = new BuildingMetricValue(100.0),
             });
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -597,8 +596,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             {
                 CityGmlFunctionCodes = ["401"],
                 Structures = [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
-                MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
-                BuildingFootprintArea = BuildingMetricValue.Known(100.0),
+                MeasuredHeightMeters = new BuildingMetricValue(8.0),
+                BuildingFootprintArea = new BuildingMetricValue(100.0),
             });
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -3615,7 +3614,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             SharedAcrossMeshCodes: false,
             FloorsAboveGround: floorsAboveGround,
             MeasuredHeightMeters: measuredHeightMeters,
-            BuildingAttributes: buildingAttributes);
+            BuildingAttributes: buildingAttributes ?? BuildingAttributeContext.Empty);
     }
 
     private static BuildingAttributeContext CreateBuildingAttributes(
@@ -3855,7 +3854,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
     private static TexturePayload CreateTexturePayload(string identity)
     {
-        return new TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], identity);
+        return new RawRgba32TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], identity);
     }
 
     private static HashSet<string> GetCulledSurfaceIdsBeforeProjectionForTest(

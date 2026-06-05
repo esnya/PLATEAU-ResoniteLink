@@ -101,6 +101,28 @@ public sealed class CityGmlSurfaceProjectionPolicyTests
     }
 
     [Fact]
+    public void TryCreateFacadeUvProjectionContextSkipsEmptySurfacesBeforeResolvingHeightRange()
+    {
+        GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        LocalCartesian cartesian = CreateCartesian(origin);
+        ParsedSurface empty = CreateSurface("empty", ParsedSurfaceSemantic.Wall, []);
+        ParsedSurface wall = CreateSurface(
+            "wall",
+            ParsedSurfaceSemantic.Wall,
+            CreateVerticalQuadVertices(origin, widthMeters: 8.0, heightMeters: 6.0));
+
+        FacadeUvProjectionContext? context = CityGmlSurfaceProjectionPolicy.TryCreateFacadeUvProjectionContext(
+            "bldg",
+            [empty, wall],
+            origin,
+            cartesian);
+
+        Assert.NotNull(context);
+        Assert.InRange(context.Value.MinimumY, -1e-5, 1e-5);
+        Assert.InRange(context.Value.MaximumY, 6.0 - 1e-5, 6.0 + 1e-5);
+    }
+
+    [Fact]
     public void GetCulledSurfaceIdsBeforeProjectionKeepsGeneratedNoWallRoofBottomAtObjectMinimum()
     {
         GeodeticPoint origin = new(35.0, 139.0, 0.0);

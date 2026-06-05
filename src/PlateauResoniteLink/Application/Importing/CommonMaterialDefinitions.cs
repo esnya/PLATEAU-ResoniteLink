@@ -71,30 +71,25 @@ internal static class CommonMaterialDefinitions
     public static readonly CommonMaterialDefinition WallSchoolPublicDark = Bundled(BundledDefaultMaterialFamilies.WallSchoolPublicBand, 1, "SchoolPublicDark");
     public static readonly CommonMaterialDefinition WallWoodRuralLight = Bundled(BundledDefaultMaterialFamilies.WallWoodRural, 0, "WoodRuralLight");
 
-    private static CommonMaterialDefinition Bundled(string family, int variantIndex, string memberName)
+    private static BundledCommonMaterialDefinition Bundled(string family, int variantIndex, string memberName)
     {
-        return new CommonMaterialDefinition(
-            DefaultCommonMaterialMemberKind.Bundled,
+        return new BundledCommonMaterialDefinition(
             GetBundledProjection(family),
             memberName,
-            family: family,
-            bundledVariantIndex: variantIndex);
+            family,
+            variantIndex);
     }
 
-    private static CommonMaterialDefinition Generic(string memberName, MaterialDepthOffset? depthOffset)
+    private static GenericAlbedoCommonMaterialDefinition Generic(string memberName, MaterialDepthOffset? depthOffset)
     {
-        return new CommonMaterialDefinition(
-            DefaultCommonMaterialMemberKind.GenericAlbedo,
-            MaterialProjection.Uv,
+        return new GenericAlbedoCommonMaterialDefinition(
             memberName,
             depthOffset);
     }
 
-    private static CommonMaterialDefinition VertexColor(string memberName, MaterialDepthOffset? depthOffset)
+    private static VertexColorCommonMaterialDefinition VertexColor(string memberName, MaterialDepthOffset? depthOffset)
     {
-        return new CommonMaterialDefinition(
-            DefaultCommonMaterialMemberKind.VertexColor,
-            MaterialProjection.Uv,
+        return new VertexColorCommonMaterialDefinition(
             memberName,
             depthOffset);
     }

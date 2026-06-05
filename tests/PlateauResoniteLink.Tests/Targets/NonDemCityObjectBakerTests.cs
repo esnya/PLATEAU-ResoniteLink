@@ -29,12 +29,9 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Single(cityObject.Mesh.Submeshes);
         Assert.Equal(6, cityObject.Mesh.Vertices.Count);
         Assert.Equal("unit-a.gml", cityObject.SourceFileRelativePath);
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
-        Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, atlasPayload.Format);
-        Assert.NotNull(atlasPayload.Width);
-        Assert.NotNull(atlasPayload.Height);
-        Assert.InRange(atlasPayload.Width!.Value, 1, 32);
-        Assert.InRange(atlasPayload.Height!.Value, 1, 32);
+        RawRgba32ResoniteTexturePayload atlasPayload = Assert.IsType<RawRgba32ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+        Assert.InRange(atlasPayload.Width, 1, 32);
+        Assert.InRange(atlasPayload.Height, 1, 32);
         Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, cityObject.Materials[0].CommonMaterial);
     }
 
@@ -63,8 +60,7 @@ public sealed class NonDemCityObjectBakerTests
             new ResoniteFloat2(0.5, 0.0)));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
-        Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, atlasPayload.Format);
+        RawRgba32ResoniteTexturePayload atlasPayload = Assert.IsType<RawRgba32ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
         Assert.Equal(1, atlasPayload.Width);
         Assert.Equal(1, atlasPayload.Height);
         Assert.Null(cityObject.Materials[0].TextureScale);
@@ -152,7 +148,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.NotSame(payload, material.TexturePayload);
         Assert.NotNull(material.TexturePayload);
         Assert.Contains("atlastex-", material.TexturePayload.Identity, StringComparison.Ordinal);
-        Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, material.TexturePayload.Format);
+        Assert.IsType<RawRgba32ResoniteTexturePayload>(material.TexturePayload);
         Assert.Null(material.TextureScale);
         Assert.Null(material.TextureOffset);
     }
@@ -212,7 +208,7 @@ public sealed class NonDemCityObjectBakerTests
             new ResoniteFloat2(0.0, 0.0)));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload);
+        RawRgba32ResoniteTexturePayload atlasPayload = Assert.IsType<RawRgba32ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload);
 
         Assert.Equal(2, atlasPayload.Width);
         Assert.Equal(1, atlasPayload.Height);
@@ -261,8 +257,7 @@ public sealed class NonDemCityObjectBakerTests
             null));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
-        Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, atlasPayload.Format);
+        RawRgba32ResoniteTexturePayload atlasPayload = Assert.IsType<RawRgba32ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
         Assert.Equal(4, atlasPayload.Width);
         Assert.Equal(1, atlasPayload.Height);
         Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 0, 0));
@@ -285,7 +280,7 @@ public sealed class NonDemCityObjectBakerTests
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(material.TexturePayload);
+        RawRgba32ResoniteTexturePayload atlasPayload = Assert.IsType<RawRgba32ResoniteTexturePayload>(material.TexturePayload);
 
         Assert.Null(material.TextureScale);
         Assert.Null(material.TextureOffset);
@@ -325,7 +320,7 @@ public sealed class NonDemCityObjectBakerTests
                 "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+        RawRgba32ResoniteTexturePayload atlasPayload = Assert.IsType<RawRgba32ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
 
         Assert.Equal(2, atlasPayload.Width);
         Assert.Equal(1, atlasPayload.Height);
@@ -345,13 +340,13 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
         Assert.Contains(
             cityObject.Materials,
-            static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal)
+            static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.FacadeHighriseGlass, StringComparison.Ordinal)
                 && material.AssetScope == ResoniteMaterialAssetScope.PresentationSlotScoped);
         Assert.Contains(cityObject.Materials, static material => material.TexturePayload is not null);
     }
 
     [Fact]
-    public async Task FlushAllAsyncKeepsBundledFacadeCommonTransformOnMaterial()
+    public async Task FlushAllAsyncDemotesBundledFacadeCommonTransformToMeshUv()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
 
@@ -360,13 +355,16 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
 
         ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
-        Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
+        Assert.Equal(BundledDefaultMaterialFamilies.FacadeHighriseGlass, material.Family);
         Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
-        Assert.Equal(new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0), material.TextureScale);
-        Assert.Equal(new ResoniteFloat2(0.0, 0.5 / 6.0), material.TextureOffset);
-        Assert.Equal(new ResoniteFloat2(0.0, 0.0), cityObject.Mesh.Vertices[0].UV0);
-        Assert.Equal(new ResoniteFloat2(1.0, 0.0), cityObject.Mesh.Vertices[1].UV0);
-        Assert.Equal(new ResoniteFloat2(0.0, 1.0), cityObject.Mesh.Vertices[2].UV0);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+        Assert.Equal(0.0, cityObject.Mesh.Vertices[0].UV0.X, 12);
+        Assert.Equal(5.0 / 6.0, cityObject.Mesh.Vertices[0].UV0.Y, 12);
+        Assert.Equal(10.0 / 6.0, cityObject.Mesh.Vertices[1].UV0.X, 12);
+        Assert.Equal(5.0 / 6.0, cityObject.Mesh.Vertices[1].UV0.Y, 12);
+        Assert.Equal(0.0, cityObject.Mesh.Vertices[2].UV0.X, 12);
+        Assert.Equal(15.0 / 6.0, cityObject.Mesh.Vertices[2].UV0.Y, 12);
     }
 
     [Fact]
@@ -383,7 +381,7 @@ public sealed class NonDemCityObjectBakerTests
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         ResoniteMaterialBinding[] preservedFacadeMaterials = cityObject.Materials
-            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal))
+            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.FacadeHighriseGlass, StringComparison.Ordinal))
             .ToArray();
 
         Assert.Equal(3, cityObject.Materials.Count);
@@ -438,7 +436,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -447,6 +446,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
                     SubmeshIndices: [1],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     TextureOffset: new ResoniteFloat2(0.125, 0.25),
                     BundledVariantIndex: 0),
@@ -458,6 +458,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: new ResoniteMaterialDepthOffset(2.0, 2.0),
                     SubmeshIndices: [2],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     TextureOffset: new ResoniteFloat2(0.25, 0.5),
                     BundledVariantIndex: 1),
@@ -477,6 +478,8 @@ public sealed class NonDemCityObjectBakerTests
         Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
         Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset is null);
         Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset is null);
+        Assert.NotEqual(new ResoniteFloat2(0.0, 0.0), cityObject.Mesh.Vertices[3].UV0);
+        Assert.NotEqual(new ResoniteFloat2(0.0, 0.0), cityObject.Mesh.Vertices[6].UV0);
     }
 
     [Fact]
@@ -531,7 +534,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -543,7 +547,7 @@ public sealed class NonDemCityObjectBakerTests
                     Family: BundledDefaultMaterialFamilies.Roof,
                     TextureOffset: new ResoniteFloat2(0.125, 0.25),
                     BundledVariantIndex: 0,
-                    AssetScope: ResoniteMaterialAssetScope.Common),
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.Roof, 0)),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -555,7 +559,7 @@ public sealed class NonDemCityObjectBakerTests
                     Family: BundledDefaultMaterialFamilies.Roof,
                     TextureOffset: new ResoniteFloat2(0.25, 0.5),
                     BundledVariantIndex: 1,
-                    AssetScope: ResoniteMaterialAssetScope.Common),
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.Roof, 1)),
             ],
         };
 
@@ -569,8 +573,8 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(3, cityObject.Materials.Count);
         Assert.Equal(2, preservedRoofMaterials.Length);
         Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
-        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset == new ResoniteFloat2(0.125, 0.25));
-        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset == new ResoniteFloat2(0.25, 0.5));
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset is null);
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset is null);
     }
 
     [Fact]
@@ -665,7 +669,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -674,6 +679,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 0),
                 new ResoniteMaterialBinding(
@@ -684,6 +690,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [2],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 0),
             ],
@@ -771,7 +778,7 @@ public sealed class NonDemCityObjectBakerTests
         await AssertBufferedAsync(baker, CreateLod2Building("building-c", CreateCheckerPayload("textures/c.png", new Rgba32(0, 0, 255, 255), new Rgba32(255, 0, 255, 255), 3, 3), 4, "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+        RawRgba32ResoniteTexturePayload atlasPayload = Assert.IsType<RawRgba32ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
         Assert.Equal(16, atlasPayload.Width);
         Assert.Equal(8, atlasPayload.Height);
     }
@@ -843,9 +850,8 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    AssetScope: ResoniteMaterialAssetScope.Common,
-                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
-                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay),
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv()),
             ],
         };
         ResoniteConstructionCityObject secondCityObject = firstCityObject with
@@ -893,6 +899,36 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task TryBufferAsyncRejectsDuplicateMaterialBindingsBeforeDynamicUvNormalization()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject cityObject = CreateUvScaledLod2Building(
+            "duplicate-dynamic",
+            CreatePayload("textures/duplicate-dynamic.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            "unit-a",
+            new ResoniteFloat2(2.0, 0.5),
+            new ResoniteFloat2(0.25, 0.75));
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
+        cityObject = cityObject with
+        {
+            Materials =
+            [
+                material,
+                material with
+                {
+                    BaseColor = new ResoniteColor(0.5, 1.0, 1.0, 1.0),
+                },
+            ],
+        };
+
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
+
+        Assert.False(result.Buffered);
+        Assert.Empty(result.ReadyCityObjects);
+        Assert.Empty(await baker.FlushAllAsync());
+    }
+
+    [Fact]
     public async Task TryBufferAsyncBuffersLodlessNonDemCityObjects()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
@@ -932,7 +968,7 @@ public sealed class NonDemCityObjectBakerTests
                 "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+        RawRgba32ResoniteTexturePayload atlasPayload = Assert.IsType<RawRgba32ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
         Assert.Equal(512, atlasPayload.Width);
         Assert.Equal(512, atlasPayload.Height);
     }
@@ -1025,7 +1061,7 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal("atlasbake-unit-a-bldg-lod2-3", cityObject.SlotKey);
         Assert.Equal(
             "atlastex-unit-a.gml-3",
-            Assert.IsType<ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload).Identity);
+            Assert.IsType<RawRgba32ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload).Identity);
     }
 
     private static NonDemCityObjectBaker CreateBaker(
@@ -1110,11 +1146,9 @@ public sealed class NonDemCityObjectBakerTests
         return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
     }
 
-    private static Rgba32 ReadPixel(ResoniteTexturePayload payload, int x, int y)
+    private static Rgba32 ReadPixel(RawRgba32ResoniteTexturePayload payload, int x, int y)
     {
-        Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, payload.Format);
-        Assert.NotNull(payload.Width);
-        int width = payload.Width.Value;
+        int width = payload.Width;
         int offset = ((y * width) + x) * 4;
         ReadOnlySpan<byte> bytes = payload.BinaryPayload.AsSpan();
         return new Rgba32(
@@ -1155,7 +1189,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
@@ -1212,7 +1247,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1220,7 +1256,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [1]),
+                    SubmeshIndices: [1],
+                    ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
@@ -1244,8 +1281,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    AssetScope: ResoniteMaterialAssetScope.Common,
-                    CommonMaterial: commonMaterial),
+                    AssetBinding: ResoniteMaterialAssetBinding.SharedCommon(commonMaterial)),
             ],
         };
     }
@@ -1267,8 +1303,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
+                    AssetBinding: ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv)),
             ],
         };
     }
@@ -1305,7 +1340,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(0.4, 0.4, 0.4, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1314,8 +1350,8 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0),
                     BundledVariantIndex: 0),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
@@ -1340,6 +1376,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     TextureScale: textureScale,
                     TextureOffset: textureOffset),
             ],
@@ -1380,8 +1417,8 @@ public sealed class NonDemCityObjectBakerTests
                         BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
                         BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
                     TextureOffset: new ResoniteFloat2(0.0, 0.5 / 6.0),
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0),
                     BundledVariantIndex: 0),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
@@ -1422,6 +1459,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Facade),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -1431,6 +1469,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Facade),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
@@ -1474,7 +1513,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(0.5, 0.5, 0.5, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1483,8 +1523,8 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0),
                     BundledVariantIndex: 0),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(0.5, 0.5, 0.5, 1.0),
@@ -1494,8 +1534,8 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [2],
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+                    AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 1),
                     BundledVariantIndex: 1),
             ],
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
@@ -1539,7 +1579,8 @@ public sealed class NonDemCityObjectBakerTests
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(0.85, 0.85, 0.85, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1548,6 +1589,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 0),
                 new ResoniteMaterialBinding(
@@ -1558,6 +1600,7 @@ public sealed class NonDemCityObjectBakerTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [2],
+                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 1),
             ],

@@ -281,9 +281,7 @@ internal static class CityGmlSurfaceMaterialResolver
             FloorsAboveGround: cityObject.FloorsAboveGround,
             MeasuredHeightMeters: cityObject.MeasuredHeightMeters,
             GeometryHeightMeters: cityObject.GeometryHeightMeters,
-            FootprintAreaSquareMeters: cityObject.BuildingAttributes is null
-                ? null
-                : BuildingAttributeQueries.TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
+            FootprintAreaSquareMeters: BuildingAttributeQueries.TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
             SurfaceRole: ToDefaultMaterialSurfaceRole(face.Role)));
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? TerrainAlignedDepthOffset
