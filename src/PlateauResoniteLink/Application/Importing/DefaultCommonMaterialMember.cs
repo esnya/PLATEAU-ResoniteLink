@@ -55,7 +55,7 @@ public sealed class DefaultCommonMaterialMember : IEquatable<DefaultCommonMateri
         return Kind switch
         {
             DefaultCommonMaterialMemberKind.Bundled => CreateBundledBinding(submeshIndices),
-            DefaultCommonMaterialMemberKind.GenericAlbedo => new MaterialBinding(
+            DefaultCommonMaterialMemberKind.GenericAlbedo => new SharedCommonMaterialBinding(
                 BaseColor: CanonicalBaseColor,
                 MaterialType: MaterialType.Standard,
                 TexturePayload: null,
@@ -63,9 +63,8 @@ public sealed class DefaultCommonMaterialMember : IEquatable<DefaultCommonMateri
                 Projection: Projection,
                 DepthOffset: DepthOffset,
                 SubmeshIndices: submeshIndices,
-                ReuseScope: MaterialReuseScope.Shared,
-                CommonMaterial: this),
-            DefaultCommonMaterialMemberKind.VertexColor => new MaterialBinding(
+                commonMaterial: this),
+            DefaultCommonMaterialMemberKind.VertexColor => new SharedCommonMaterialBinding(
                 BaseColor: CanonicalBaseColor,
                 MaterialType: MaterialType.VertexColor,
                 TexturePayload: null,
@@ -73,13 +72,12 @@ public sealed class DefaultCommonMaterialMember : IEquatable<DefaultCommonMateri
                 Projection: Projection,
                 DepthOffset: DepthOffset,
                 SubmeshIndices: submeshIndices,
-                ReuseScope: MaterialReuseScope.Shared,
-                CommonMaterial: this),
+                commonMaterial: this),
             _ => throw new InvalidOperationException($"Unsupported common material member kind '{Kind}'."),
         };
     }
 
-    private MaterialBinding CreateBundledBinding(IReadOnlyList<int> submeshIndices)
+    private SharedCommonMaterialBinding CreateBundledBinding(IReadOnlyList<int> submeshIndices)
     {
         string family = Family ?? throw new InvalidOperationException("Bundled common material member requires a family.");
         int variantIndex = BundledVariantIndex ?? 0;
@@ -89,7 +87,7 @@ public sealed class DefaultCommonMaterialMember : IEquatable<DefaultCommonMateri
         Float2? textureOffset = variant.TextureSet.TextureOffset is null
             ? null
             : ToContract(variant.TextureSet.TextureOffset);
-        return new MaterialBinding(
+        return new SharedCommonMaterialBinding(
             BaseColor: CanonicalBaseColor,
             MaterialType: MaterialType.Standard,
             TexturePayload: null,
@@ -100,9 +98,8 @@ public sealed class DefaultCommonMaterialMember : IEquatable<DefaultCommonMateri
             TextureScale: textureScale,
             Family: family,
             TextureOffset: textureOffset,
-            ReuseScope: MaterialReuseScope.Shared,
-            BundledVariantIndex: variantIndex,
-            CommonMaterial: this);
+            commonMaterial: this,
+            BundledVariantIndex: variantIndex);
     }
 
     private static Float2 ToContract(ScalarPair value) => new(value.X, value.Y);

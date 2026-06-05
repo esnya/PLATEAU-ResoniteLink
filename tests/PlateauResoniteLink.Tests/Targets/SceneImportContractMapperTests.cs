@@ -77,6 +77,43 @@ public sealed class SceneImportContractMapperTests
     }
 
     [Fact]
+    public void CommonMaterialMemberCreatesTypedSharedCommonBinding()
+    {
+        DefaultCommonMaterialMember commonMaterial = CommonMaterialCatalog.Create().Generic.Uv;
+
+        MaterialBinding binding = commonMaterial.CreateBinding([0]);
+        ResoniteMaterialBinding mapped = SceneImportContractMapper.ToInternal(binding);
+
+        Assert.IsType<SharedCommonMaterialBinding>(binding);
+        Assert.Equal(MaterialReuseScope.Shared, binding.ReuseScope);
+        Assert.Equal(commonMaterial, binding.CommonMaterial);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, mapped.AssetScope);
+        Assert.Equal(commonMaterial, mapped.CommonMaterial);
+    }
+
+    [Fact]
+    public void PresentationCommonBindingKeepsPresentationScope()
+    {
+        DefaultCommonMaterialMember commonMaterial = CommonMaterialCatalog.Create().Generic.Uv;
+        MaterialBinding binding = new PresentationCommonMaterialBinding(
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            MaterialType: MaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: TextureSourceKind.Dataset,
+            Projection: MaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            commonMaterial: commonMaterial);
+
+        ResoniteMaterialBinding mapped = SceneImportContractMapper.ToInternal(binding);
+
+        Assert.Equal(MaterialReuseScope.PerObject, binding.ReuseScope);
+        Assert.Equal(commonMaterial, binding.CommonMaterial);
+        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, mapped.AssetScope);
+        Assert.Equal(commonMaterial, mapped.CommonMaterial);
+    }
+
+    [Fact]
     public void ToInternalMaterialBindingsKeepsSharedTerrainOverlayWithoutCommonMaterialPresentationScoped()
     {
         TerrainTextureOverlay overlay = new(
