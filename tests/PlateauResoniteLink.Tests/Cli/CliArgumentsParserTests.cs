@@ -83,6 +83,34 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseRequiresDatasetBeforeCreatingImportRequest()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Equal("Specify --dataset.", result.Error);
+    }
+
+    [Fact]
+    public void ParseRequiresMeshCodeBeforeCreatingImportRequest()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Equal("Specify --mesh-code.", result.Error);
+    }
+
+    [Fact]
     public void ParseParsesCanonicalSceneDumpImportWithoutResoniteLinkEndpoint()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -236,6 +264,24 @@ public sealed class CliArgumentsParserTests
         Assert.Equal(TerrainMeshMode.Grid, result.Options!.Request.TerrainMeshMode);
         Assert.Equal(4.5, result.Options.Request.TerrainGridMetersPerVertex, 6);
         Assert.Equal(512, result.Options.Request.TerrainGridMaxResolution);
+    }
+
+    [Fact]
+    public void ParseRejectsNonFiniteTerrainGridMetersPerVertex()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+                "--terrain-grid-meters-per-vertex", "Infinity",
+            ]);
+
+        Assert.Equal(
+            "The value 'Infinity' is not a valid positive terrain grid meters-per-vertex value.",
+            result.Error);
     }
 
     [Fact]
