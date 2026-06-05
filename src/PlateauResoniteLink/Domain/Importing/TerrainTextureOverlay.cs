@@ -1,5 +1,4 @@
 using System;
-using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -30,26 +29,18 @@ public sealed record TerrainTextureTileSource(string UrlTemplate, int ZoomLevel)
 
 public sealed record GeoReferencedRasterMetadata(
     GeographicRectangle GeographicBounds,
-    string CoordinateSystemIdentifier,
+    string? CoordinateSystemIdentifier,
     double PixelWidthMeters,
     double PixelHeightMeters)
 {
-    public string CoordinateSystemIdentifier { get; init; } = string.IsNullOrWhiteSpace(CoordinateSystemIdentifier)
-        ? throw new ArgumentException("Geo-referenced raster coordinate system identifier must be provided.", nameof(CoordinateSystemIdentifier))
-        : CoordinateSystemIdentifier;
-
-    public double PixelWidthMeters { get; init; } = PixelWidthMeters > 0.0
-        ? PixelWidthMeters
-        : throw new ArgumentOutOfRangeException(nameof(PixelWidthMeters));
-
-    public double PixelHeightMeters { get; init; } = PixelHeightMeters > 0.0
-        ? PixelHeightMeters
-        : throw new ArgumentOutOfRangeException(nameof(PixelHeightMeters));
+    public bool IsUsable => !string.IsNullOrWhiteSpace(CoordinateSystemIdentifier)
+        && PixelWidthMeters > 0.0
+        && PixelHeightMeters > 0.0;
 
     public string IdentityKey =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"georaster-meta-crs-{CoordinateSystemIdentifier}-pixel-{TerrainTextureDescriptorFormatting.FormatRounded(PixelWidthMeters)}x{TerrainTextureDescriptorFormatting.FormatRounded(PixelHeightMeters)}-bounds-{TerrainTextureDescriptorFormatting.FormatBounds(GeographicBounds)}");
+            $"georaster-meta-crs-{CoordinateSystemIdentifier ?? "none"}-pixel-{TerrainTextureDescriptorFormatting.FormatRounded(PixelWidthMeters)}x{TerrainTextureDescriptorFormatting.FormatRounded(PixelHeightMeters)}-bounds-{TerrainTextureDescriptorFormatting.FormatBounds(GeographicBounds)}");
 }
 
 public interface ITerrainTextureRasterContentSource
@@ -84,11 +75,11 @@ public sealed record LocalTerrainTextureRasterContentSource(string SourcePath) :
 
 public sealed record TerrainTextureGeoReferencedRasterSource(
     ITerrainTextureRasterContentSource ContentSource,
-    GeoReferencedRasterMetadata Metadata) : TerrainTextureSource
+    GeoReferencedRasterMetadata? Metadata = null) : TerrainTextureSource
 {
     public TerrainTextureGeoReferencedRasterSource(
         string sourcePath,
-        GeoReferencedRasterMetadata metadata)
+        GeoReferencedRasterMetadata? metadata = null)
         : this(new LocalTerrainTextureRasterContentSource(sourcePath), metadata)
     {
     }
@@ -96,11 +87,10 @@ public sealed record TerrainTextureGeoReferencedRasterSource(
     public ITerrainTextureRasterContentSource ContentSource { get; init; } =
         ContentSource ?? throw new ArgumentNullException(nameof(ContentSource));
 
-    public GeoReferencedRasterMetadata Metadata { get; init; } =
-        Metadata ?? throw new ArgumentNullException(nameof(Metadata));
+    public GeoReferencedRasterMetadata? Metadata { get; init; } = Metadata;
 
     public override string IdentityKey =>
-        string.Create(CultureInfo.InvariantCulture, $"georaster-{ContentSource.IdentityKey}-meta-{Metadata.IdentityKey}");
+        string.Create(CultureInfo.InvariantCulture, $"georaster-{ContentSource.IdentityKey}-meta-{Metadata?.IdentityKey ?? "none"}");
 
     public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken) =>
         ContentSource.OpenReadAsync(cancellationToken);
@@ -108,24 +98,6 @@ public sealed record TerrainTextureGeoReferencedRasterSource(
 
 public sealed record TerrainTextureOverlay
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Style",
-        "IDE0032:Use auto property",
-        Justification = "The init setter validates with-expression updates before changing overlay identity state.")]
-    private string packageName = "";
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Style",
-        "IDE0032:Use auto property",
-        Justification = "The init setter validates with-expression updates before changing overlay identity state.")]
-    private int maxTextureSize;
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Style",
-        "IDE0032:Use auto property",
-        Justification = "The init setter snapshots and rejects null source elements for with-expression updates.")]
-    private IReadOnlyList<TerrainTextureSource> sources = [];
-
     public TerrainTextureOverlay(
         string PackageName,
         ThirdRegionalMeshCode MeshCode,
@@ -134,11 +106,17 @@ public sealed record TerrainTextureOverlay
         IReadOnlyList<TerrainTextureSource> Sources,
         TerrainTextureLicenseMode LicenseMode = TerrainTextureLicenseMode.Unknown)
     {
-        this.PackageName = PackageName;
+        this.PackageName = string.IsNullOrWhiteSpace(PackageName)
+            ? throw new ArgumentException("Terrain texture package name must be provided.", nameof(PackageName))
+            : PackageName.ToLowerInvariant();
         this.MeshCode = MeshCode;
         this.GeographicBounds = GeographicBounds;
-        this.MaxTextureSize = MaxTextureSize;
-        this.Sources = Sources;
+        this.MaxTextureSize = MaxTextureSize > 0
+            ? MaxTextureSize
+            : throw new ArgumentOutOfRangeException(nameof(MaxTextureSize));
+        this.Sources = Sources is { Count: > 0 }
+            ? Sources.ToArray()
+            : throw new ArgumentException("At least one terrain texture source must be provided.", nameof(Sources));
         this.LicenseMode = LicenseMode;
     }
 
@@ -181,31 +159,15 @@ public sealed record TerrainTextureOverlay
     {
     }
 
-    public string PackageName
-    {
-        get => packageName;
-        init => packageName = string.IsNullOrWhiteSpace(value)
-            ? throw new ArgumentException("Terrain texture package name must be provided.", nameof(value))
-            : value.ToLowerInvariant();
-    }
+    public string PackageName { get; init; }
 
     public ThirdRegionalMeshCode MeshCode { get; init; }
 
     public GeographicRectangle GeographicBounds { get; init; }
 
-    public int MaxTextureSize
-    {
-        get => maxTextureSize;
-        init => maxTextureSize = value > 0
-            ? value
-            : throw new ArgumentOutOfRangeException(nameof(value));
-    }
+    public int MaxTextureSize { get; init; }
 
-    public IReadOnlyList<TerrainTextureSource> Sources
-    {
-        get => sources;
-        init => sources = CreateSourceSnapshot(value);
-    }
+    public IReadOnlyList<TerrainTextureSource> Sources { get; init; }
 
     public TerrainTextureLicenseMode LicenseMode { get; init; }
 
@@ -269,25 +231,6 @@ public sealed record TerrainTextureOverlay
                 $"Terrain texture source '{source.GetType().Name}' does not provide a web tile URL.");
     }
 
-    private static ReadOnlyCollection<TerrainTextureSource> CreateSourceSnapshot(
-        IReadOnlyList<TerrainTextureSource> sources)
-    {
-        ArgumentNullException.ThrowIfNull(sources);
-
-        if (sources.Count == 0)
-        {
-            throw new ArgumentException("At least one terrain texture source must be provided.", nameof(sources));
-        }
-
-        TerrainTextureSource[] snapshot = new TerrainTextureSource[sources.Count];
-        for (int index = 0; index < sources.Count; index++)
-        {
-            snapshot[index] = sources[index]
-                ?? throw new ArgumentException("Terrain texture sources cannot contain null.", nameof(sources));
-        }
-
-        return Array.AsReadOnly(snapshot);
-    }
 }
 
 internal static class TerrainTextureDescriptorFormatting

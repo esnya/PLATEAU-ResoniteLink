@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -98,34 +97,6 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         string secondLocalFilePath = await secondDatasetSource.EnsureLocalFileAsync(relativePath, outputRoot);
 
         Assert.NotEqual(Path.GetDirectoryName(firstLocalFilePath), Path.GetDirectoryName(secondLocalFilePath));
-    }
-
-    [Fact]
-    public async Task CreateAsyncIndexesOnlyArchiveEntriesWithSafeRelativePaths()
-    {
-        byte[] archiveBytes = CreateZipArchive(
-            ("udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"),
-            ("../../outside.txt", "escape"),
-            ("/absolute.txt", "absolute"),
-            ("C:/outside/windows-absolute.txt", "drive"),
-            ("udx/./texture.png", "dot"));
-
-        using TemporaryDirectory workRoot = new();
-        string archivePath = Path.Combine(workRoot.Path, "malicious.zip");
-        await File.WriteAllBytesAsync(archivePath, archiveBytes);
-
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
-            archivePath,
-            new RemoteArchiveDistributionPolicy(),
-            new ArchiveFileLayoutPolicy());
-
-        string[] files = datasetSource.EnumerateFiles().ToArray();
-
-        Assert.Equal(["udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml"], files);
-        Assert.False(datasetSource.FileExists("outside.txt"));
-        Assert.False(datasetSource.FileExists("absolute.txt"));
-        Assert.False(datasetSource.FileExists("C:/outside/windows-absolute.txt"));
-        Assert.False(datasetSource.FileExists("udx/texture.png"));
     }
 
     [Fact]

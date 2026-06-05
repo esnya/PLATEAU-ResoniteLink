@@ -8,37 +8,12 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed record LiveSendRunExecutionContext
-{
-    public LiveSendRunExecutionContext(
-        Uri Endpoint,
-        int ConnectionCount,
-        ILiveSendClientSession ClientSession,
-        ResoniteLinkSendDiagnostics Diagnostics,
-        Action<string>? ProgressReporter)
-    {
-        ArgumentNullException.ThrowIfNull(Endpoint);
-        ArgumentOutOfRangeException.ThrowIfLessThan(ConnectionCount, 1);
-        ArgumentNullException.ThrowIfNull(ClientSession);
-        ArgumentNullException.ThrowIfNull(Diagnostics);
-
-        this.Endpoint = Endpoint;
-        this.ConnectionCount = ConnectionCount;
-        this.ClientSession = ClientSession;
-        this.Diagnostics = Diagnostics;
-        this.ProgressReporter = ProgressReporter;
-    }
-
-    public Uri Endpoint { get; }
-
-    public int ConnectionCount { get; }
-
-    public ILiveSendClientSession ClientSession { get; }
-
-    public ResoniteLinkSendDiagnostics Diagnostics { get; }
-
-    public Action<string>? ProgressReporter { get; }
-}
+internal sealed record LiveSendRunExecutionContext(
+    Uri Endpoint,
+    int ConnectionCount,
+    ILiveSendClientSession ClientSession,
+    ResoniteLinkSendDiagnostics Diagnostics,
+    Action<string>? ProgressReporter);
 
 internal interface IResoniteLiveSendRunExecutor
 {
@@ -95,6 +70,10 @@ internal sealed class ResoniteLiveSendRunExecutor(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(objectUnits);
         ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(context.Endpoint);
+        ArgumentOutOfRangeException.ThrowIfLessThan(context.ConnectionCount, 1);
+        ArgumentNullException.ThrowIfNull(context.ClientSession);
+        ArgumentNullException.ThrowIfNull(context.Diagnostics);
 
         bool completedSuccessfully = false;
         LiveSendRunState? state = null;

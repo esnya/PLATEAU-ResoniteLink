@@ -34,10 +34,10 @@ internal sealed class NonDemCityObjectBaker(
             return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
         }
 
-        ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-        NonDemSourceFileBatchKey sourceFileKey = NonDemSourceFileBatching.CreateKey(normalizedCityObject, policy);
+        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+        NonDemSourceFileBatchKey sourceFileKey = NonDemSourceFileBatching.CreateKey(cityObject, policy);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
-        sourceFileBuffer.Add(sourceFileKey, new NonDemBufferedCityObject(normalizedCityObject, policy));
+        sourceFileBuffer.Add(sourceFileKey, new NonDemBufferedCityObject(cityObject, policy));
         BakedInputCityObjectCount++;
         return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects));
     }

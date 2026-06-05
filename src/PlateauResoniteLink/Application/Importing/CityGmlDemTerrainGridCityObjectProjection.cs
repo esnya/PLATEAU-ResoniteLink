@@ -28,7 +28,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         IDefaultMaterialResolver materialResolver,
         Action<string>? progressReporter,
         CancellationToken cancellationToken,
-        out TerrainGridProjectedCityObject? heightMapCityObject)
+        out ImportedCityObject? heightMapCityObject)
     {
         cancellationToken.ThrowIfCancellationRequested();
         heightMapCityObject = null;
@@ -151,17 +151,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             Z = slotPosition.Z + centerZ,
         };
 
-        TerrainGridGeometry geometry = new(
-            Width: width,
-            Height: height,
-            Size: new Float2(extentX, extentZ),
-            MinHeight: minHeight,
-            MaxHeight: maxHeight,
-            HeightSamples: localHeights,
-            SampleCoverage: sampleCoverage,
-            UvScale: heightMapUvScale,
-            UvOffset: heightMapUvOffset);
-        ImportedCityObject projectedCityObject = new(
+        heightMapCityObject = new ImportedCityObject(
             ObjectKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
@@ -170,10 +160,18 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             Transform: new Transform3D(
                 ToContractFloat3(adjustedSlotPosition),
                 ToContractQuaternion(GridMeshTerrainRotation)),
-            Geometry: geometry,
+            Geometry: new TerrainGridGeometry(
+                Width: width,
+                Height: height,
+                Size: new Float2(extentX, extentZ),
+                MinHeight: minHeight,
+                MaxHeight: maxHeight,
+                HeightSamples: localHeights,
+                SampleCoverage: sampleCoverage,
+                UvScale: heightMapUvScale,
+                UvOffset: heightMapUvOffset),
             Materials: materials,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
-        heightMapCityObject = new TerrainGridProjectedCityObject(projectedCityObject, geometry);
         return true;
     }
 
@@ -377,7 +375,3 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         double MinZ,
         double MaxZ);
 }
-
-internal sealed record TerrainGridProjectedCityObject(
-    ImportedCityObject CityObject,
-    TerrainGridGeometry Geometry);

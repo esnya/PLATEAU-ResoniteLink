@@ -84,7 +84,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         using HttpClient httpClient = new(handler);
         CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
 
-        ResolvedLocalPlateauImportRequest resolved = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest resolved = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", @"^533944\d$", "https://example.test/direct.zip"),
             workRoot.Path);
 
@@ -104,7 +104,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         using HttpClient httpClient = new(handler);
         CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
 
-        ResolvedLocalPlateauImportRequest resolved = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest resolved = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944|533945/branch", "https://example.test/direct.zip"),
             workRoot.Path);
 
@@ -143,11 +143,11 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         using HttpClient httpClient = new(handler);
         CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
 
-        ResolvedLocalPlateauImportRequest firstRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example-a.test/533944.zip"),
             workRoot.Path);
 
-        ResolvedLocalPlateauImportRequest secondRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest secondRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example-b.test/533944.zip"),
             workRoot.Path);
 
@@ -187,11 +187,11 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
         Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
 
-        ResolvedLocalPlateauImportRequest firstRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
-        ResolvedLocalPlateauImportRequest secondRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest secondRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "53394525", archiveUri),
             workRoot.Path);
 
@@ -214,7 +214,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         using HttpClient httpClient = new(handler);
         CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
 
-        ResolvedLocalPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
@@ -244,7 +244,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         using HttpClient httpClient = new(handler);
         CkanPlateauDatasetSourceResolver resolver = new(httpClient, archivePolicy, new ArchiveFileLayoutPolicy());
 
-        ResolvedLocalPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
@@ -297,7 +297,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         Assert.Empty(Directory.EnumerateFiles(workRoot.Path, "533944.zip", SearchOption.AllDirectories));
         Assert.Empty(Directory.EnumerateFiles(workRoot.Path, "*.tmp", SearchOption.AllDirectories));
 
-        ResolvedLocalPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
@@ -365,7 +365,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
         using TemporaryDirectory workRoot = new();
 
-        ResolvedLocalPlateauImportRequest firstRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
@@ -374,7 +374,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             workRoot.Path,
             firstRequest.CityGmlLocalSourcePath);
 
-        ResolvedLocalPlateauImportRequest secondRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest secondRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
@@ -421,7 +421,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
         using TemporaryDirectory workRoot = new();
 
-        ResolvedLocalPlateauImportRequest firstRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
@@ -433,7 +433,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             workRoot.Path,
             firstArchivePath);
 
-        ResolvedLocalPlateauImportRequest secondRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest secondRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
@@ -466,7 +466,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         using HttpClient httpClient = new(handler);
         CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
 
-        ResolvedLocalPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 

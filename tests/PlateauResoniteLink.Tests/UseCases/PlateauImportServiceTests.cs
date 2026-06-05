@@ -61,8 +61,11 @@ public sealed class PlateauImportServiceTests
         ImportExecutionResult result = await service.ExecuteAsync(rawRequest, workRoot.Path);
 
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), datasetSourceResolver.LastWorkRoot);
-        Assert.Equal("tokyo23ku", sceneSink.ConnectedDataset);
-        Assert.Equal("53394525", sceneSink.ConnectedMeshCode);
+        Assert.NotNull(sceneSink.ConnectedRequest);
+        Assert.Equal("tokyo23ku", sceneSink.ConnectedRequest!.Dataset);
+        Assert.Equal("53394525", sceneSink.ConnectedRequest.MeshCode);
+        Assert.Equal(rawSourceUri, sceneSink.ConnectedRequest.CityGmlServerUri);
+        Assert.Equal(["bldg"], sceneSink.ConnectedRequest.PackageNames);
         Assert.NotNull(importedSceneSourceFactory.LastRequest);
         Assert.Equal("tokyo23ku", importedSceneSourceFactory.LastRequest!.Dataset);
         Assert.Equal("53394525", importedSceneSourceFactory.LastRequest.MeshCode);
@@ -70,6 +73,7 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(["bldg"], importedSceneSourceFactory.LastRequest.PackageNames);
         Assert.NotNull(sceneSink.BeginRequest);
         Assert.Equal(resolvedSourcePath, sceneSink.BeginRequest!.Metadata.Request.CityGmlLocalSourcePath);
+        Assert.Equal(resolvedSourcePath, sceneSink.BeginRequest.ResolvedSourcePath);
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneSink.BeginRequest.WorkRoot);
         Assert.Equal(["bldg"], sceneSink.BeginRequest.Metadata.SourceDataset.PackageNames);
         Assert.Equal(readResult.DocumentSet.RelativeSourceFiles, sceneSink.BeginRequest.Metadata.SourceDataset.SourceFiles);
@@ -86,14 +90,14 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(source.Metadata.SceneName, result.Metadata.SceneName);
         Assert.Equal(source.Metadata.SourceDataset.PackageNames, result.Metadata.SourceDataset.PackageNames);
         Assert.Equal(["stub://destination"], result.Destinations);
-        Assert.Equal(1 + readResult.DocumentSet.RelativeSourceFiles.Count, result.DataSourceUsages.Count);
+        Assert.Equal(1 + readResult.DocumentSet.RelativeSourceFiles.Count, result.DataSourceUsages?.Count);
         Assert.Contains(
-            result.DataSourceUsages,
+            result.DataSourceUsages ?? [],
             static usage => usage.Category == ImportDataSourceCategory.CityGmlSourceFile
                 && string.Equals(usage.Identity, "udx/bldg/53394525/building.gml", StringComparison.Ordinal)
                 && usage.UsedCount == 1);
         Assert.Contains(
-            result.DataSourceUsages,
+            result.DataSourceUsages ?? [],
             static usage => usage.Category == ImportDataSourceCategory.DemTextureSource
                 && string.Equals(usage.Identity, "terrain://ortho-primary", StringComparison.Ordinal)
                 && usage.UsedCount == 2);
@@ -537,9 +541,7 @@ public sealed class PlateauImportServiceTests
     {
         public int ExecuteCallCount { get; private set; }
 
-        public string? ConnectedDataset { get; private set; }
-
-        public string? ConnectedMeshCode { get; private set; }
+        public PlateauImportRequest? ConnectedRequest { get; private set; }
 
         public SceneImportRequest? BeginRequest { get; private set; }
 
@@ -559,8 +561,7 @@ public sealed class PlateauImportServiceTests
             CancellationToken cancellationToken = default)
         {
             ExecuteCallCount++;
-            ConnectedDataset = plan.SceneImportRequest.Metadata.Request.Dataset;
-            ConnectedMeshCode = plan.SceneImportRequest.Metadata.Request.MeshCode;
+            ConnectedRequest = plan.NormalizedRequest;
             BeginRequest = plan.SceneImportRequest;
             OnExecuteBeforeRead?.Invoke(plan);
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
@@ -600,22 +601,14 @@ public sealed class PlateauImportServiceTests
 
         public string? LastWorkRoot { get; private set; }
 
-        public Task<ResolvedLocalPlateauImportRequest> ResolveAsync(
+        public Task<ValidatedPlateauImportRequest> ResolveAsync(
             ValidatedPlateauImportRequest request,
             string workRoot,
             CancellationToken cancellationToken = default)
         {
             ResolveCallCount++;
             LastWorkRoot = workRoot;
-            ValidatedLocalDatasetLocation localSource = Assert.IsType<ValidatedLocalDatasetLocation>(resolvedRequest.CityGmlSource);
-            ValidatedLocalDatasetLocation? localDemTextureSource = resolvedRequest.DemTextureSource is null
-                ? null
-                : Assert.IsType<ValidatedLocalDatasetLocation>(resolvedRequest.DemTextureSource);
-            return Task.FromResult(ResolvedLocalPlateauImportRequest.Create(
-                request,
-                localSource,
-                localDemTextureSource,
-                workRoot));
+            return Task.FromResult(resolvedRequest);
         }
     }
 
@@ -623,7 +616,7 @@ public sealed class PlateauImportServiceTests
     {
         public int ResolveCallCount { get; private set; }
 
-        public Task<ResolvedLocalPlateauImportRequest> ResolveAsync(
+        public Task<ValidatedPlateauImportRequest> ResolveAsync(
             ValidatedPlateauImportRequest request,
             string workRoot,
             CancellationToken cancellationToken = default)
@@ -639,10 +632,10 @@ public sealed class PlateauImportServiceTests
     {
         public int CreateCallCount { get; private set; }
 
-        public ResolvedLocalPlateauImportRequest? LastRequest { get; private set; }
+        public PlateauImportRequest? LastRequest { get; private set; }
 
         public Task<IImportedSceneSource> CreateAsync(
-            ResolvedLocalPlateauImportRequest request,
+            PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {

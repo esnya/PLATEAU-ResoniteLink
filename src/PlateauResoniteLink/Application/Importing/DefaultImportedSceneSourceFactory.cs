@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Domain.Importing;
+
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFactory
@@ -24,7 +26,7 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
     }
 
     public Task<IImportedSceneSource> CreateAsync(
-        ResolvedLocalPlateauImportRequest request,
+        PlateauImportRequest request,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
@@ -33,7 +35,7 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
     }
 
     private async Task<IImportedSceneSource> CreateResolvedCoreAsync(
-        ResolvedLocalPlateauImportRequest request,
+        PlateauImportRequest request,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {

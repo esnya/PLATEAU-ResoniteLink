@@ -112,78 +112,34 @@ internal static class SceneImportContractMapper
     internal static ResoniteMaterialBinding ToInternal(MaterialBinding binding)
     {
         return new ResoniteMaterialBinding(
-            BaseColor: ToInternal(binding.BaseColor),
-            MaterialType: ToInternal(binding.MaterialType),
-            TexturePayload: binding.TexturePayload is null ? null : ToInternal(binding.TexturePayload),
-            TextureSourceKind: ToInternal(binding.TextureSourceKind),
-            Projection: ToInternal(binding.Projection),
-            DepthOffset: binding.DepthOffset is null ? null : ToInternal(binding.DepthOffset),
-            SubmeshIndices: binding.SubmeshIndices,
-            AssetBinding: ToInternalAssetBinding(binding),
-            TextureScale: binding.TextureScale is null ? null : ToInternal(binding.TextureScale),
-            Family: binding.Family,
-            TextureOffset: binding.TextureOffset is null ? null : ToInternal(binding.TextureOffset),
-            TerrainOverlayMaterial: binding.TerrainOverlayMaterial,
-            BundledVariantIndex: binding.BundledVariantIndex);
-    }
-
-    private static ResoniteMaterialAssetBinding ToInternalAssetBinding(MaterialBinding binding)
-    {
-        return binding switch
-        {
-            SharedCommonMaterialBinding sharedCommon => ResoniteMaterialAssetBinding.SharedCommon(sharedCommon.CommonMaterial),
-            PresentationCommonMaterialBinding presentationCommon => ResoniteMaterialAssetBinding.PresentationCommon(presentationCommon.CommonMaterial),
-            _ => ResoniteMaterialAssetBinding.Presentation,
-        };
+            ToInternal(binding.BaseColor),
+            (ResoniteMaterialType)binding.MaterialType,
+            binding.TexturePayload is null ? null : ToInternal(binding.TexturePayload),
+            (ResoniteTextureSourceKind)binding.TextureSourceKind,
+            (ResoniteMaterialProjection)binding.Projection,
+            binding.DepthOffset is null ? null : ToInternal(binding.DepthOffset),
+            binding.SubmeshIndices,
+            binding.TextureScale is null ? null : ToInternal(binding.TextureScale),
+            binding.Family,
+            binding.TextureOffset is null ? null : ToInternal(binding.TextureOffset),
+            binding.ReuseScope == MaterialReuseScope.Shared
+                && (binding.TerrainOverlayMaterial is null || binding.CommonMaterial is not null)
+                ? ResoniteMaterialAssetScope.Common
+                : ResoniteMaterialAssetScope.PresentationSlotScoped,
+            binding.TerrainOverlayMaterial,
+            binding.BundledVariantIndex,
+            binding.CommonMaterial);
     }
 
     private static ResoniteTexturePayload ToInternal(TexturePayload payload)
     {
-        return payload switch
-        {
-            RawRgba32TexturePayload raw => new RawRgba32ResoniteTexturePayload(
-                raw.Width,
-                raw.Height,
-                raw.Source.ColorProfile,
-                raw.BinaryPayload.AsSpan().ToArray(),
-                raw.Source.Identity),
-            EncodedImageTexturePayload encoded => new EncodedImageResoniteTexturePayload(
-                encoded.Width,
-                encoded.Height,
-                encoded.Source),
-            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.GetType(), "Unsupported texture payload type."),
-        };
-    }
-
-    private static ResoniteMaterialType ToInternal(MaterialType materialType)
-    {
-        return materialType switch
-        {
-            MaterialType.Standard => ResoniteMaterialType.Standard,
-            MaterialType.Wireframe => ResoniteMaterialType.Wireframe,
-            MaterialType.VertexColor => ResoniteMaterialType.VertexColor,
-            _ => throw new ArgumentOutOfRangeException(nameof(materialType), materialType, "Unsupported material type."),
-        };
-    }
-
-    private static ResoniteTextureSourceKind ToInternal(TextureSourceKind sourceKind)
-    {
-        return sourceKind switch
-        {
-            TextureSourceKind.Dataset => ResoniteTextureSourceKind.Dataset,
-            TextureSourceKind.Bundled => ResoniteTextureSourceKind.Bundled,
-            _ => throw new ArgumentOutOfRangeException(nameof(sourceKind), sourceKind, "Unsupported texture source kind."),
-        };
-    }
-
-    private static ResoniteMaterialProjection ToInternal(MaterialProjection projection)
-    {
-        return projection switch
-        {
-            MaterialProjection.Uv => ResoniteMaterialProjection.Uv,
-            MaterialProjection.Triplanar => ResoniteMaterialProjection.Triplanar,
-            _ => throw new ArgumentOutOfRangeException(nameof(projection), projection, "Unsupported material projection."),
-        };
+        return new ResoniteTexturePayload(
+            payload.Width,
+            payload.Height,
+            payload.ColorProfile,
+            payload.Source,
+            payload.Identity,
+            (ResoniteTexturePayloadFormat)payload.Format);
     }
 
     private static ResoniteMaterialDepthOffset ToInternal(MaterialDepthOffset value) => new(value.Factor, value.Units);

@@ -15,6 +15,11 @@ internal static class TerrainTextureGeoReferencedRasterCropper
         GeoReferencedRasterMetadata metadata,
         GeographicRectangle requestedBounds)
     {
+        if (!metadata.IsUsable)
+        {
+            return null;
+        }
+
         GeographicRectangle rasterBounds = metadata.GeographicBounds;
         GeographicRectangle intersection = new(
             Math.Max(requestedBounds.MinLatitude, rasterBounds.MinLatitude),

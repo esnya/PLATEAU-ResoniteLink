@@ -20,14 +20,8 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
             NonDemMaterialBakeCategory.PreservedCommonMaterial,
             NonDemCityObjectBakeMaterialClassifier.Classify(CreateTexturelessMaterial() with
             {
-                AssetBinding = ResoniteMaterialAssetBindingTestFactory.SharedGenericUv(),
-            }));
-        Assert.Equal(
-            NonDemMaterialBakeCategory.AtlasCandidate,
-            NonDemCityObjectBakeMaterialClassifier.Classify(CreateDatasetTextureMaterial() with
-            {
-                Family = "facade",
-                AssetBinding = ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv),
+                AssetScope = ResoniteMaterialAssetScope.Common,
+                CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
             }));
         Assert.Equal(
             NonDemMaterialBakeCategory.PreservedTextureless,
@@ -61,19 +55,6 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
             {
                 RequireAtlasCandidateMaterial = false,
                 PreserveTexturelessMaterials = false,
-            }));
-        Assert.True(NonDemCityObjectBakeMaterialClassifier.CanBufferCityObjectMaterials(
-            CreateCityObject(
-                [
-                    CreateDatasetTextureMaterial() with
-                    {
-                        Family = "facade",
-                        AssetBinding = ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv),
-                    },
-                ]),
-            requireAtlasCandidate with
-            {
-                PreserveCommonMaterials = false,
             }));
     }
 
@@ -123,7 +104,7 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
     {
         return CreateTexturelessMaterial() with
         {
-            TexturePayload = new RawRgba32ResoniteTexturePayload(
+            TexturePayload = new ResoniteTexturePayload(
                 width: 1,
                 height: 1,
                 colorProfile: null,
@@ -142,7 +123,6 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
             ResoniteTextureSourceKind.Bundled,
             ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            SubmeshIndices: [0],
-            ResoniteMaterialAssetBinding.Presentation);
+            SubmeshIndices: [0]);
     }
 }

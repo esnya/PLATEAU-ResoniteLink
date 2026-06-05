@@ -116,6 +116,6 @@ internal static class NonDemCityObjectBakeMaterialClassifier
 
     private static bool CanPreserveAsCommonMaterial(ResoniteMaterialBinding material)
     {
-        return material.AssetBinding.IsSharedCommon;
+        return material.CommonMaterial is not null;
     }
 }

@@ -8,120 +8,18 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public abstract class RawTexturePayload
+public enum RawTexturePayloadFormat
 {
-    private protected RawTexturePayload(
-        int width,
-        int height,
-        string? colorProfile,
-        byte[] bytes)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        ArgumentNullException.ThrowIfNull(bytes);
-
-        Width = width;
-        Height = height;
-        ColorProfile = colorProfile;
-        Bytes = bytes;
-    }
-
-    public int Width { get; }
-
-    public int Height { get; }
-
-    public string? ColorProfile { get; }
-
-    public byte[] Bytes { get; }
-
-    public abstract TResult Match<TResult>(
-        Func<Rgba32RawTexturePayload, TResult> rgba32,
-        Func<RgbaFloat32RawTexturePayload, TResult> rgbaFloat32);
+    Rgba32 = 0,
+    RgbaFloat32 = 1,
 }
 
-public sealed class Rgba32RawTexturePayload : RawTexturePayload
-{
-    private const int BytesPerPixel = 4;
-
-    public Rgba32RawTexturePayload(
-        int width,
-        int height,
-        string? colorProfile,
-        byte[] bytes)
-        : base(width, height, colorProfile, bytes)
-    {
-        ValidateByteLength(width, height, bytes);
-    }
-
-    internal static void ValidateByteLength(
-        int width,
-        int height,
-        byte[] bytes)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        ArgumentNullException.ThrowIfNull(bytes);
-
-        int expectedByteLength = checked(width * height * BytesPerPixel);
-        if (bytes.Length != expectedByteLength)
-        {
-            throw new ArgumentException(
-                $"RGBA32 texture payload length must be width * height * {BytesPerPixel} bytes ({expectedByteLength}), but was {bytes.Length}.",
-                nameof(bytes));
-        }
-    }
-
-    public override TResult Match<TResult>(
-        Func<Rgba32RawTexturePayload, TResult> rgba32,
-        Func<RgbaFloat32RawTexturePayload, TResult> rgbaFloat32)
-    {
-        ArgumentNullException.ThrowIfNull(rgba32);
-        ArgumentNullException.ThrowIfNull(rgbaFloat32);
-        return rgba32(this);
-    }
-}
-
-public sealed class RgbaFloat32RawTexturePayload : RawTexturePayload
-{
-    private const int BytesPerPixel = 16;
-
-    public RgbaFloat32RawTexturePayload(
-        int width,
-        int height,
-        string? colorProfile,
-        byte[] bytes)
-        : base(width, height, colorProfile, bytes)
-    {
-        ValidateByteLength(width, height, bytes);
-    }
-
-    internal static void ValidateByteLength(
-        int width,
-        int height,
-        byte[] bytes)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        ArgumentNullException.ThrowIfNull(bytes);
-
-        int expectedByteLength = checked(width * height * BytesPerPixel);
-        if (bytes.Length != expectedByteLength)
-        {
-            throw new ArgumentException(
-                $"RGBA float32 texture payload length must be width * height * {BytesPerPixel} bytes ({expectedByteLength}), but was {bytes.Length}.",
-                nameof(bytes));
-        }
-    }
-
-    public override TResult Match<TResult>(
-        Func<Rgba32RawTexturePayload, TResult> rgba32,
-        Func<RgbaFloat32RawTexturePayload, TResult> rgbaFloat32)
-    {
-        ArgumentNullException.ThrowIfNull(rgba32);
-        ArgumentNullException.ThrowIfNull(rgbaFloat32);
-        return rgbaFloat32(this);
-    }
-}
+public sealed record RawTexturePayload(
+    int Width,
+    int Height,
+    string? ColorProfile,
+    byte[] Bytes,
+    RawTexturePayloadFormat Format = RawTexturePayloadFormat.Rgba32);
 
 public interface ITextureImportSource
 {
@@ -134,14 +32,9 @@ public interface ITextureImportSource
     long? EstimatedByteLength { get; }
 }
 
-internal interface IRgba32RawTexturePayloadSource : ITextureImportSource
+internal interface IRawTexturePayloadSource : ITextureImportSource
 {
-    ValueTask<Rgba32RawTexturePayload> MaterializeRgba32Async(CancellationToken cancellationToken);
-}
-
-internal interface IRgbaFloat32RawTexturePayloadSource : ITextureImportSource
-{
-    ValueTask<RgbaFloat32RawTexturePayload> MaterializeRgbaFloat32Async(CancellationToken cancellationToken);
+    ValueTask<RawTexturePayload> MaterializeRawAsync(CancellationToken cancellationToken);
 }
 
 internal static class TextureImportSourceMaterializer
@@ -151,75 +44,41 @@ internal static class TextureImportSourceMaterializer
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (source is IRgba32RawTexturePayloadSource rgba32Source)
-        {
-            return new ValueTask<RawTexturePayload>(MaterializeRgba32AsRawAsync(rgba32Source, cancellationToken));
-        }
-
-        if (source is IRgbaFloat32RawTexturePayloadSource rgbaFloat32Source)
-        {
-            return new ValueTask<RawTexturePayload>(MaterializeRgbaFloat32AsRawAsync(rgbaFloat32Source, cancellationToken));
-        }
-
-        throw new InvalidOperationException(
-            $"Texture import source '{source.GetType().Name}' cannot materialize a raw texture payload.");
-
-        static async Task<RawTexturePayload> MaterializeRgba32AsRawAsync(
-            IRgba32RawTexturePayloadSource source,
-            CancellationToken cancellationToken)
-        {
-            return await source.MaterializeRgba32Async(cancellationToken);
-        }
-
-        static async Task<RawTexturePayload> MaterializeRgbaFloat32AsRawAsync(
-            IRgbaFloat32RawTexturePayloadSource source,
-            CancellationToken cancellationToken)
-        {
-            return await source.MaterializeRgbaFloat32Async(cancellationToken);
-        }
-    }
-
-    public static ValueTask<Rgba32RawTexturePayload> MaterializeRgba32Async(
-        ITextureImportSource source,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        if (source is not IRgba32RawTexturePayloadSource rgba32Source)
+        if (source is not IRawTexturePayloadSource rawSource)
         {
             throw new InvalidOperationException(
-                $"Texture import source '{source.GetType().Name}' cannot materialize an RGBA32 texture payload.");
+                $"Texture import source '{source.GetType().Name}' cannot materialize a raw texture payload.");
         }
 
-        return rgba32Source.MaterializeRgba32Async(cancellationToken);
+        return rawSource.MaterializeRawAsync(cancellationToken);
     }
 }
 
-internal sealed class InMemoryRawTextureImportSource : IRgba32RawTexturePayloadSource
+internal sealed class InMemoryTextureImportSource : IRawTexturePayloadSource
 {
     private readonly byte[] bytes;
 
-    public InMemoryRawTextureImportSource(
-        int width,
-        int height,
+    public InMemoryTextureImportSource(
+        int? width,
+        int? height,
         string? colorProfile,
         byte[] bytes,
-        string identity)
+        string identity,
+        TexturePayloadFormat sourceFormat)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
         ArgumentNullException.ThrowIfNull(bytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(identity);
-        Rgba32RawTexturePayload.ValidateByteLength(width, height, bytes);
         Width = width;
         Height = height;
         ColorProfile = colorProfile;
         this.bytes = (byte[])bytes.Clone();
         Identity = identity;
+        SourceFormat = sourceFormat;
     }
 
-    public int Width { get; }
+    public int? Width { get; }
 
-    public int Height { get; }
+    public int? Height { get; }
 
     public string Identity { get; }
 
@@ -229,44 +88,35 @@ internal sealed class InMemoryRawTextureImportSource : IRgba32RawTexturePayloadS
 
     public long? EstimatedByteLength => bytes.Length;
 
-    public ValueTask<Rgba32RawTexturePayload> MaterializeRgba32Async(CancellationToken cancellationToken)
+    public TexturePayloadFormat SourceFormat { get; }
+
+    public async ValueTask<RawTexturePayload> MaterializeRawAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(new Rgba32RawTexturePayload(
-            Width,
-            Height,
+        return SourceFormat switch
+        {
+            TexturePayloadFormat.RawRgba32 => CreateRawPayload(),
+            TexturePayloadFormat.EncodedImage => await DecodeEncodedImageAsync(cancellationToken),
+            _ => throw new InvalidOperationException($"Unsupported texture payload format '{SourceFormat}'."),
+        };
+    }
+
+    private RawTexturePayload CreateRawPayload()
+    {
+        if (Width is null || Height is null)
+        {
+            throw new InvalidOperationException("Raw RGBA texture payload must include width and height.");
+        }
+
+        return new RawTexturePayload(
+            Width.Value,
+            Height.Value,
             ColorProfile,
-            (byte[])bytes.Clone()));
-    }
-}
-
-internal sealed class InMemoryEncodedTextureImportSource : IRgba32RawTexturePayloadSource
-{
-    private readonly byte[] bytes;
-
-    public InMemoryEncodedTextureImportSource(
-        string? colorProfile,
-        byte[] bytes,
-        string identity)
-    {
-        ArgumentNullException.ThrowIfNull(bytes);
-        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
-        ColorProfile = colorProfile;
-        this.bytes = (byte[])bytes.Clone();
-        Identity = identity;
+            (byte[])bytes.Clone());
     }
 
-    public string Identity { get; }
-
-    public string Description => $"memory:{Identity}";
-
-    public string? ColorProfile { get; }
-
-    public long? EstimatedByteLength => bytes.Length;
-
-    public async ValueTask<Rgba32RawTexturePayload> MaterializeRgba32Async(CancellationToken cancellationToken)
+    private async ValueTask<RawTexturePayload> DecodeEncodedImageAsync(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         using MemoryStream stream = new(bytes, writable: false);
         using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
         return TextureImportSourceFactory.CreateRawPayloadFromImage(
@@ -279,7 +129,7 @@ internal sealed class DatasetTextureImportSource(
     IPlateauDatasetContentSource datasetSource,
     string relativePath,
     string? colorProfile,
-    string identity) : IRgba32RawTexturePayloadSource
+    string identity) : IRawTexturePayloadSource
 {
     public string Identity { get; } = identity;
 
@@ -291,7 +141,7 @@ internal sealed class DatasetTextureImportSource(
         ? lengthSource.TryGetFileLength(relativePath)
         : null;
 
-    public async ValueTask<Rgba32RawTexturePayload> MaterializeRgba32Async(CancellationToken cancellationToken)
+    public async ValueTask<RawTexturePayload> MaterializeRawAsync(CancellationToken cancellationToken)
     {
         await using Stream stream = await datasetSource.OpenReadAsync(relativePath, cancellationToken);
         using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
@@ -302,7 +152,7 @@ internal sealed class DatasetTextureImportSource(
 internal sealed class FileTextureImportSource(
     string absolutePath,
     string colorProfile,
-    string identity) : IRgba32RawTexturePayloadSource
+    string identity) : IRawTexturePayloadSource
 {
     public string Identity { get; } = identity;
 
@@ -329,19 +179,19 @@ internal sealed class FileTextureImportSource(
         }
     }
 
-    public async ValueTask<Rgba32RawTexturePayload> MaterializeRgba32Async(CancellationToken cancellationToken)
+    public async ValueTask<RawTexturePayload> MaterializeRawAsync(CancellationToken cancellationToken)
     {
         using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(absolutePath, cancellationToken);
         return TextureImportSourceFactory.CreateRawPayloadFromImage(image, ColorProfile);
     }
 }
 
-internal sealed class GeneratedRgba32TextureImportSource(
-    Func<CancellationToken, ValueTask<Rgba32RawTexturePayload>> materializeRgba32Async,
+internal sealed class GeneratedTextureImportSource(
+    Func<CancellationToken, ValueTask<RawTexturePayload>> materializeRawAsync,
     string identity,
     string description,
     string? colorProfile,
-    long? estimatedByteLength = null) : IRgba32RawTexturePayloadSource
+    long? estimatedByteLength = null) : IRawTexturePayloadSource
 {
     public string Identity { get; } = identity;
 
@@ -351,59 +201,23 @@ internal sealed class GeneratedRgba32TextureImportSource(
 
     public long? EstimatedByteLength { get; } = estimatedByteLength;
 
-    public ValueTask<Rgba32RawTexturePayload> MaterializeRgba32Async(CancellationToken cancellationToken)
+    public ValueTask<RawTexturePayload> MaterializeRawAsync(CancellationToken cancellationToken)
     {
-        return materializeRgba32Async(cancellationToken);
-    }
-}
-
-internal sealed class GeneratedRgbaFloat32TextureImportSource(
-    Func<CancellationToken, ValueTask<RgbaFloat32RawTexturePayload>> materializeRgbaFloat32Async,
-    string identity,
-    string description,
-    string? colorProfile,
-    long? estimatedByteLength = null) : IRgbaFloat32RawTexturePayloadSource
-{
-    public string Identity { get; } = identity;
-
-    public string Description { get; } = description;
-
-    public string? ColorProfile { get; } = colorProfile;
-
-    public long? EstimatedByteLength { get; } = estimatedByteLength;
-
-    public ValueTask<RgbaFloat32RawTexturePayload> MaterializeRgbaFloat32Async(CancellationToken cancellationToken)
-    {
-        return materializeRgbaFloat32Async(cancellationToken);
+        return materializeRawAsync(cancellationToken);
     }
 }
 
 internal static class TextureImportSourceFactory
 {
-    public static ITextureImportSource CreateInMemoryRaw(
-        int width,
-        int height,
+    public static ITextureImportSource CreateInMemory(
+        int? width,
+        int? height,
         string? colorProfile,
         byte[] bytes,
-        string identity)
+        string identity,
+        TexturePayloadFormat sourceFormat)
     {
-        return new InMemoryRawTextureImportSource(
-            width,
-            height,
-            colorProfile,
-            bytes,
-            identity);
-    }
-
-    public static ITextureImportSource CreateInMemoryEncodedImage(
-        string? colorProfile,
-        byte[] bytes,
-        string identity)
-    {
-        return new InMemoryEncodedTextureImportSource(
-            colorProfile,
-            bytes,
-            identity);
+        return new InMemoryTextureImportSource(width, height, colorProfile, bytes, identity, sourceFormat);
     }
 
     public static ITextureImportSource CreateDatasetEncodedImage(
@@ -428,30 +242,15 @@ internal static class TextureImportSourceFactory
             identity ?? $"file:{Path.GetFullPath(absolutePath)}:{colorProfile}");
     }
 
-    public static ITextureImportSource CreateGeneratedRgba32Image(
-        Func<CancellationToken, ValueTask<Rgba32RawTexturePayload>> materializeRgba32Async,
+    public static ITextureImportSource CreateGeneratedImage(
+        Func<CancellationToken, ValueTask<RawTexturePayload>> materializeRawAsync,
         string identity,
         string description,
         string? colorProfile,
         long? estimatedByteLength = null)
     {
-        return new GeneratedRgba32TextureImportSource(
-            materializeRgba32Async,
-            identity,
-            description,
-            colorProfile,
-            estimatedByteLength);
-    }
-
-    public static ITextureImportSource CreateGeneratedRgbaFloat32Image(
-        Func<CancellationToken, ValueTask<RgbaFloat32RawTexturePayload>> materializeRgbaFloat32Async,
-        string identity,
-        string description,
-        string? colorProfile,
-        long? estimatedByteLength = null)
-    {
-        return new GeneratedRgbaFloat32TextureImportSource(
-            materializeRgbaFloat32Async,
+        return new GeneratedTextureImportSource(
+            materializeRawAsync,
             identity,
             description,
             colorProfile,
@@ -467,7 +266,7 @@ internal static class TextureImportSourceFactory
         ArgumentNullException.ThrowIfNull(image);
         Image<Rgba32> retainedImage = image.Clone();
         object gate = new();
-        return CreateGeneratedRgba32Image(
+        return CreateGeneratedImage(
             cancellationToken =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -482,14 +281,14 @@ internal static class TextureImportSourceFactory
             (long)image.Width * image.Height * 4);
     }
 
-    public static Rgba32RawTexturePayload CreateRawPayloadFromImage(
+    public static RawTexturePayload CreateRawPayloadFromImage(
         Image<Rgba32> image,
         string? colorProfile)
     {
         ArgumentNullException.ThrowIfNull(image);
         byte[] rawBytes = new byte[image.Width * image.Height * 4];
         image.CopyPixelDataTo(rawBytes);
-        return new Rgba32RawTexturePayload(
+        return new RawTexturePayload(
             image.Width,
             image.Height,
             colorProfile,

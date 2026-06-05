@@ -164,9 +164,12 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         RawTexturePayload rawPayload = await TextureImportSourceMaterializer.MaterializeRawAsync(
             textureSource,
             cancellationToken);
-        AssetData result = await rawPayload.Match(
-            rgba32 => ImportRawTextureAsync(rgba32, cancellationToken),
-            rgbaFloat32 => ImportRawHdrTextureAsync(rgbaFloat32, cancellationToken));
+        AssetData result = rawPayload.Format switch
+        {
+            RawTexturePayloadFormat.Rgba32 => await ImportRawTextureAsync(rawPayload, cancellationToken),
+            RawTexturePayloadFormat.RgbaFloat32 => await ImportRawHdrTextureAsync(rawPayload, cancellationToken),
+            _ => throw new InvalidOperationException($"Unsupported texture payload format '{rawPayload.Format}'."),
+        };
 
         EnsureSuccess(result, "import texture");
         return result.AssetURL ?? throw new InvalidOperationException("ResoniteLink returned a null texture asset URL.");
@@ -250,7 +253,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             "component");
     }
 
-    private Task<AssetData> ImportRawTextureAsync(Rgba32RawTexturePayload rawPayload, CancellationToken cancellationToken)
+    private Task<AssetData> ImportRawTextureAsync(RawTexturePayload rawPayload, CancellationToken cancellationToken)
     {
         return ExecuteSerializedAsync(
             "import_texture",
@@ -265,7 +268,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             cancellationToken);
     }
 
-    private Task<AssetData> ImportRawHdrTextureAsync(RgbaFloat32RawTexturePayload rawPayload, CancellationToken cancellationToken)
+    private Task<AssetData> ImportRawHdrTextureAsync(RawTexturePayload rawPayload, CancellationToken cancellationToken)
     {
         return ExecuteSerializedAsync(
             "import_texture",

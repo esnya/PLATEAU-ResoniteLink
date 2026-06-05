@@ -8,18 +8,18 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface INonDemCityObjectBakeCandidateFactory
 {
-    Task<NonDemCityObjectBakeCandidate> CreateAsync(
+    Task<NonDemCityObjectBakeCandidate?> CreateAsync(
         NonDemBufferedCityObject bufferedCityObject,
         CancellationToken cancellationToken);
 }
 
 internal sealed class NonDemCityObjectBakeCandidateFactory(
-    INonDemBakeEntryFactory entryFactory) : INonDemCityObjectBakeCandidateFactory
+    INonDemAtlasOrPreservedEntryFactory entryFactory) : INonDemCityObjectBakeCandidateFactory
 {
-    private readonly INonDemBakeEntryFactory entryFactory = entryFactory
+    private readonly INonDemAtlasOrPreservedEntryFactory entryFactory = entryFactory
         ?? throw new ArgumentNullException(nameof(entryFactory));
 
-    public async Task<NonDemCityObjectBakeCandidate> CreateAsync(
+    public async Task<NonDemCityObjectBakeCandidate?> CreateAsync(
         NonDemBufferedCityObject bufferedCityObject,
         CancellationToken cancellationToken)
     {
@@ -40,6 +40,7 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
 
         List<NonDemAtlasBatchEntry> atlasEntries = [];
         List<NonDemPreservedSubmeshEntry> preservedEntries = [];
+        bool hadAtlasCandidateMaterial = false;
         foreach (ResoniteMeshSubmesh submesh in normalizedCityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -53,12 +54,21 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
             switch (category)
             {
                 case NonDemMaterialBakeCategory.AtlasCandidate:
-                    NonDemBakeEntry bakeEntry = await entryFactory.CreateAsync(
+                    hadAtlasCandidateMaterial = true;
+                    NonDemAtlasOrPreservedEntry bakeEntry = await entryFactory.CreateAsync(
                         normalizedCityObject,
                         submesh,
                         material,
                         cancellationToken);
-                    bakeEntry.AddTo(atlasEntries, preservedEntries);
+                    if (bakeEntry.AtlasEntry is not null)
+                    {
+                        atlasEntries.Add(bakeEntry.AtlasEntry);
+                    }
+
+                    if (bakeEntry.PreservedEntry is not null)
+                    {
+                        preservedEntries.Add(bakeEntry.PreservedEntry);
+                    }
 
                     break;
                 case NonDemMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
@@ -70,6 +80,11 @@ internal sealed class NonDemCityObjectBakeCandidateFactory(
                     preservedEntries.Add(new NonDemPreservedSubmeshEntry(normalizedCityObject, normalizedSubmesh, normalizedMaterial));
                     break;
             }
+        }
+
+        if (policy.RequireAtlasCandidateMaterial && !hadAtlasCandidateMaterial)
+        {
+            return null;
         }
 
         if (atlasEntries.Count == 0 && preservedEntries.Count == 0)

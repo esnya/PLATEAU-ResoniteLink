@@ -118,312 +118,132 @@ internal sealed record PlannedDynamicTerrainMeshBundle(
     public PlannedWorldElementReference InitialMeshTarget => GridMeshTarget;
 }
 
-internal abstract record PlannedSlotTargetReference
+internal readonly record struct PlannedSlotTargetReference
 {
-    private PlannedSlotTargetReference()
+    private PlannedSlotTargetReference(ResoniteSlotLocator? canonical, BatchPlanSlotLocator? planned)
     {
+        Canonical = canonical;
+        Planned = planned;
     }
 
-    public abstract T Match<T>(
-        Func<ResoniteSlotLocator, T> canonicalSlot,
-        Func<BatchPlanSlotLocator, T> plannedSlot);
+    public ResoniteSlotLocator? Canonical { get; }
+
+    public BatchPlanSlotLocator? Planned { get; }
+
+    public bool IsCanonical => Canonical is not null;
+
+    public bool IsPlanned => Planned is not null;
 
     public static PlannedSlotTargetReference CanonicalSlot(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new CanonicalSlotTarget(locator);
+        return new PlannedSlotTargetReference(locator, null);
     }
 
     public static PlannedSlotTargetReference PlannedSlot(BatchPlanSlotLocator locator)
     {
-        return new BatchSlotTarget(locator);
-    }
-
-    internal sealed record CanonicalSlotTarget(ResoniteSlotLocator Locator) : PlannedSlotTargetReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<BatchPlanSlotLocator, T> plannedSlot)
-        {
-            return canonicalSlot(Locator);
-        }
-    }
-
-    internal sealed record BatchSlotTarget(BatchPlanSlotLocator Locator) : PlannedSlotTargetReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<BatchPlanSlotLocator, T> plannedSlot)
-        {
-            return plannedSlot(Locator);
-        }
+        return new PlannedSlotTargetReference(null, locator);
     }
 }
 
-internal abstract record PlannedWorldElementReference
+internal readonly record struct PlannedWorldElementReference
 {
-    private PlannedWorldElementReference()
+    private PlannedWorldElementReference(
+        ResoniteSlotLocator? canonicalSlot,
+        ResoniteComponentLocator? canonicalComponent,
+        BatchPlanSlotLocator? plannedSlot,
+        BatchPlanComponentLocator? plannedComponent,
+        BatchPlanFieldLocator? plannedField)
     {
+        CanonicalSlot = canonicalSlot;
+        CanonicalComponent = canonicalComponent;
+        PlannedSlot = plannedSlot;
+        PlannedComponent = plannedComponent;
+        PlannedField = plannedField;
     }
 
-    public abstract T Match<T>(
-        Func<ResoniteSlotLocator, T> canonicalSlot,
-        Func<ResoniteComponentLocator, T> canonicalComponent,
-        Func<BatchPlanSlotLocator, T> plannedSlot,
-        Func<BatchPlanComponentLocator, T> plannedComponent,
-        Func<BatchPlanFieldLocator, T> plannedField);
+    public ResoniteSlotLocator? CanonicalSlot { get; }
+
+    public ResoniteComponentLocator? CanonicalComponent { get; }
+
+    public BatchPlanSlotLocator? PlannedSlot { get; }
+
+    public BatchPlanComponentLocator? PlannedComponent { get; }
+
+    public BatchPlanFieldLocator? PlannedField { get; }
 
     public static PlannedWorldElementReference Canonical(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new CanonicalSlotElement(locator);
+        return new PlannedWorldElementReference(locator, null, null, null, null);
     }
 
     public static PlannedWorldElementReference Canonical(ResoniteComponentLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new CanonicalComponentElement(locator);
+        return new PlannedWorldElementReference(null, locator, null, null, null);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanSlotLocator locator)
     {
-        return new BatchSlotElement(locator);
+        return new PlannedWorldElementReference(null, null, locator, null, null);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanComponentLocator locator)
     {
-        return new BatchComponentElement(locator);
+        return new PlannedWorldElementReference(null, null, null, locator, null);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanFieldLocator locator)
     {
-        return new BatchFieldElement(locator);
-    }
-
-    internal sealed record CanonicalSlotElement(ResoniteSlotLocator Locator) : PlannedWorldElementReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<BatchPlanSlotLocator, T> plannedSlot,
-            Func<BatchPlanComponentLocator, T> plannedComponent,
-            Func<BatchPlanFieldLocator, T> plannedField)
-        {
-            return canonicalSlot(Locator);
-        }
-    }
-
-    internal sealed record CanonicalComponentElement(ResoniteComponentLocator Locator) : PlannedWorldElementReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<BatchPlanSlotLocator, T> plannedSlot,
-            Func<BatchPlanComponentLocator, T> plannedComponent,
-            Func<BatchPlanFieldLocator, T> plannedField)
-        {
-            return canonicalComponent(Locator);
-        }
-    }
-
-    internal sealed record BatchSlotElement(BatchPlanSlotLocator Locator) : PlannedWorldElementReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<BatchPlanSlotLocator, T> plannedSlot,
-            Func<BatchPlanComponentLocator, T> plannedComponent,
-            Func<BatchPlanFieldLocator, T> plannedField)
-        {
-            return plannedSlot(Locator);
-        }
-    }
-
-    internal sealed record BatchComponentElement(BatchPlanComponentLocator Locator) : PlannedWorldElementReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<BatchPlanSlotLocator, T> plannedSlot,
-            Func<BatchPlanComponentLocator, T> plannedComponent,
-            Func<BatchPlanFieldLocator, T> plannedField)
-        {
-            return plannedComponent(Locator);
-        }
-    }
-
-    internal sealed record BatchFieldElement(BatchPlanFieldLocator Locator) : PlannedWorldElementReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<BatchPlanSlotLocator, T> plannedSlot,
-            Func<BatchPlanComponentLocator, T> plannedComponent,
-            Func<BatchPlanFieldLocator, T> plannedField)
-        {
-            return plannedField(Locator);
-        }
+        return new PlannedWorldElementReference(null, null, null, null, locator);
     }
 }
 
-internal abstract record PlannedMember
-{
-    private protected PlannedMember()
-    {
-    }
+internal abstract record PlannedMember;
 
-    public abstract T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list);
-}
+internal sealed record PlannedLiteralMember(Member Value) : PlannedMember;
 
-internal sealed record PlannedLiteralMember(Member Value) : PlannedMember
-{
-    public override T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list)
-    {
-        return literal(Value);
-    }
-}
+internal sealed record PlannedElementReferenceMember(PlannedWorldElementReference Target) : PlannedMember;
 
-internal sealed record PlannedElementReferenceMember(PlannedWorldElementReference Target) : PlannedMember
-{
-    public override T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list)
-    {
-        return reference(Target);
-    }
-}
-
-internal abstract record PlannedAddressableFieldMember(BatchPlanFieldLocator Identity) : PlannedMember
-{
-    public abstract Member Value { get; }
-
-    public abstract Member Bind(string fieldId);
-
-    public override T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list)
-    {
-        return addressableField(this);
-    }
-
-    internal sealed record Int2(BatchPlanFieldLocator Identity, Field_int2 FieldValue)
-        : PlannedAddressableFieldMember(Identity)
-    {
-        public override Member Value => FieldValue;
-
-        public override Member Bind(string fieldId)
-        {
-            return new Field_int2
-            {
-                ID = fieldId,
-                Value = FieldValue.Value,
-            };
-        }
-    }
-
-    internal sealed record Bool(BatchPlanFieldLocator Identity, Field_bool FieldValue)
-        : PlannedAddressableFieldMember(Identity)
-    {
-        public override Member Value => FieldValue;
-
-        public override Member Bind(string fieldId)
-        {
-            return new Field_bool
-            {
-                ID = fieldId,
-                Value = FieldValue.Value,
-            };
-        }
-    }
-
-    internal sealed record Float(BatchPlanFieldLocator Identity, Field_float FieldValue)
-        : PlannedAddressableFieldMember(Identity)
-    {
-        public override Member Value => FieldValue;
-
-        public override Member Bind(string fieldId)
-        {
-            return new Field_float
-            {
-                ID = fieldId,
-                Value = FieldValue.Value,
-            };
-        }
-    }
-}
+internal sealed record PlannedAddressableFieldMember(BatchPlanFieldLocator Identity, Member Value) : PlannedMember;
 
 internal sealed record PlannedAddressableReferenceMember(
     BatchPlanFieldLocator Identity,
     PlannedWorldElementReference Target)
-    : PlannedMember
-{
-    public override T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list)
-    {
-        return addressableReference(Identity, Target);
-    }
-}
+    : PlannedMember;
 
-internal sealed record PlannedSyncListMember(IReadOnlyList<PlannedMember> Elements) : PlannedMember
-{
-    public override T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list)
-    {
-        return list(Elements);
-    }
-}
+internal sealed record PlannedSyncListMember(IReadOnlyList<PlannedMember> Elements) : PlannedMember;
 
 internal sealed record PlannedDriverTargetBundle(
     PlannedAddressableFieldMember Field,
     PlannedElementReferenceMember Target,
     PlannedLiteralMember DefaultValue)
 {
-    public static PlannedDriverTargetBundle Create(BatchPlanFieldLocator fieldIdentity, Field_bool defaultValue)
+    public static PlannedDriverTargetBundle Create(BatchPlanFieldLocator fieldIdentity, Member defaultValue)
     {
         ArgumentNullException.ThrowIfNull(defaultValue);
         return new PlannedDriverTargetBundle(
-            new PlannedAddressableFieldMember.Bool(fieldIdentity, defaultValue),
+            new PlannedAddressableFieldMember(fieldIdentity, defaultValue),
             new PlannedElementReferenceMember(PlannedWorldElementReference.Planned(fieldIdentity)),
-            new PlannedLiteralMember(new Field_bool
-            {
-                Value = defaultValue.Value,
-            }));
+            new PlannedLiteralMember(CloneDriverDefaultValue(defaultValue)));
     }
 
-    public static PlannedDriverTargetBundle Create(BatchPlanFieldLocator fieldIdentity, Field_float defaultValue)
+    private static Member CloneDriverDefaultValue(Member value)
     {
-        ArgumentNullException.ThrowIfNull(defaultValue);
-        return new PlannedDriverTargetBundle(
-            new PlannedAddressableFieldMember.Float(fieldIdentity, defaultValue),
-            new PlannedElementReferenceMember(PlannedWorldElementReference.Planned(fieldIdentity)),
-            new PlannedLiteralMember(new Field_float
+        return value switch
+        {
+            Field_bool field => new Field_bool
             {
-                Value = defaultValue.Value,
-            }));
+                Value = field.Value,
+            },
+            Field_float field => new Field_float
+            {
+                Value = field.Value,
+            },
+            _ => throw new InvalidOperationException(
+                $"Unsupported planned driver default value type '{value.GetType().Name}'."),
+        };
     }
 }
 
@@ -440,22 +260,10 @@ internal static class PlannedMembers
         return new PlannedElementReferenceMember(target);
     }
 
-    public static PlannedMember AddressableField(BatchPlanFieldLocator identity, Field_int2 value)
+    public static PlannedMember AddressableField(BatchPlanFieldLocator identity, Member value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        return new PlannedAddressableFieldMember.Int2(identity, value);
-    }
-
-    public static PlannedMember AddressableField(BatchPlanFieldLocator identity, Field_bool value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        return new PlannedAddressableFieldMember.Bool(identity, value);
-    }
-
-    public static PlannedMember AddressableField(BatchPlanFieldLocator identity, Field_float value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        return new PlannedAddressableFieldMember.Float(identity, value);
+        return new PlannedAddressableFieldMember(identity, value);
     }
 
     public static PlannedMember AddressableReference(BatchPlanFieldLocator identity, PlannedWorldElementReference target)
@@ -488,126 +296,8 @@ internal sealed record PlannedBatchComponentEmission(
     string ComponentType,
     IReadOnlyDictionary<string, PlannedMember> Members);
 
-internal sealed record PlannedBatchEmission
-{
-    private PlannedBatchEmission(
-        IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
-        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
-        IReadOnlyList<BatchPlanSlotLocator> slotResolutionTargets,
-        IReadOnlyList<BatchPlanComponentLocator> componentResolutionTargets)
-    {
-        SlotEmissions = slotEmissions;
-        ComponentEmissions = componentEmissions;
-        SlotResolutionTargets = slotResolutionTargets;
-        ComponentResolutionTargets = componentResolutionTargets;
-    }
-
-    public IReadOnlyList<PlannedBatchSlotEmission> SlotEmissions { get; }
-
-    public IReadOnlyList<PlannedBatchComponentEmission> ComponentEmissions { get; }
-
-    public IReadOnlyList<BatchPlanSlotLocator> SlotResolutionTargets { get; }
-
-    public IReadOnlyList<BatchPlanComponentLocator> ComponentResolutionTargets { get; }
-
-    public static PlannedBatchEmission Create(
-        IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
-        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
-        IReadOnlyList<BatchPlanSlotLocator> slotResolutionTargets,
-        IReadOnlyList<BatchPlanComponentLocator> componentResolutionTargets)
-    {
-        ValidatePlannedReferences(slotEmissions, componentEmissions, slotResolutionTargets, componentResolutionTargets);
-        return new PlannedBatchEmission(slotEmissions, componentEmissions, slotResolutionTargets, componentResolutionTargets);
-    }
-
-    private static void ValidatePlannedReferences(
-        IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
-        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
-        IReadOnlyList<BatchPlanSlotLocator> slotResolutionTargets,
-        IReadOnlyList<BatchPlanComponentLocator> componentResolutionTargets)
-    {
-        HashSet<BatchPlanSlotLocator> emittedSlots = [];
-        foreach (PlannedBatchSlotEmission slotEmission in slotEmissions)
-        {
-            if (slotEmission.ParentTarget is PlannedSlotTargetReference.BatchSlotTarget plannedParent
-                && !emittedSlots.Contains(plannedParent.Locator))
-            {
-                throw new InvalidOperationException("Planned slot parent target must reference an earlier planned slot.");
-            }
-
-            emittedSlots.Add(slotEmission.Identity);
-        }
-
-        foreach (BatchPlanSlotLocator slotResolutionTarget in slotResolutionTargets)
-        {
-            if (!emittedSlots.Contains(slotResolutionTarget))
-            {
-                throw new InvalidOperationException("Planned slot resolution target must reference an emitted planned slot.");
-            }
-        }
-
-        HashSet<BatchPlanComponentLocator> emittedComponents = [];
-        foreach (PlannedBatchComponentEmission componentEmission in componentEmissions)
-        {
-            if (componentEmission.ContainerTarget is PlannedSlotTargetReference.BatchSlotTarget plannedContainer
-                && !emittedSlots.Contains(plannedContainer.Locator))
-            {
-                throw new InvalidOperationException("Planned component container target must reference an emitted planned slot.");
-            }
-
-            foreach (PlannedWorldElementReference target in EnumerateMemberTargets(componentEmission.Members.Values))
-            {
-                ValidateWorldElementReference(target, emittedSlots, emittedComponents);
-            }
-
-            emittedComponents.Add(componentEmission.Identity);
-        }
-
-        foreach (BatchPlanComponentLocator componentResolutionTarget in componentResolutionTargets)
-        {
-            if (!emittedComponents.Contains(componentResolutionTarget))
-            {
-                throw new InvalidOperationException("Planned component resolution target must reference an emitted planned component.");
-            }
-        }
-    }
-
-    private static void ValidateWorldElementReference(
-        PlannedWorldElementReference target,
-        HashSet<BatchPlanSlotLocator> emittedSlots,
-        HashSet<BatchPlanComponentLocator> emittedComponents)
-    {
-        switch (target)
-        {
-            case PlannedWorldElementReference.BatchSlotElement plannedSlot
-                when !emittedSlots.Contains(plannedSlot.Locator):
-                throw new InvalidOperationException("Planned world element target must reference an emitted planned slot.");
-            case PlannedWorldElementReference.BatchComponentElement plannedComponent
-                when !emittedComponents.Contains(plannedComponent.Locator):
-                throw new InvalidOperationException("Planned world element target must reference an earlier planned component.");
-        }
-    }
-
-    private static IEnumerable<PlannedWorldElementReference> EnumerateMemberTargets(IEnumerable<PlannedMember> members)
-    {
-        foreach (PlannedMember member in members)
-        {
-            switch (member)
-            {
-                case PlannedElementReferenceMember reference:
-                    yield return reference.Target;
-                    break;
-                case PlannedAddressableReferenceMember reference:
-                    yield return reference.Target;
-                    break;
-                case PlannedSyncListMember syncList:
-                    foreach (PlannedWorldElementReference nestedTarget in EnumerateMemberTargets(syncList.Elements))
-                    {
-                        yield return nestedTarget;
-                    }
-
-                    break;
-            }
-        }
-    }
-}
+internal sealed record PlannedBatchEmission(
+    IReadOnlyList<PlannedBatchSlotEmission> SlotEmissions,
+    IReadOnlyList<PlannedBatchComponentEmission> ComponentEmissions,
+    IReadOnlyList<BatchPlanSlotLocator> SlotResolutionTargets,
+    IReadOnlyList<BatchPlanComponentLocator> ComponentResolutionTargets);

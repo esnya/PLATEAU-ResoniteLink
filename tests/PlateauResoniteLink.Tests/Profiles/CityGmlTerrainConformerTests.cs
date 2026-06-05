@@ -63,7 +63,6 @@ public sealed class CityGmlTerrainConformerTests
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4979"),
             SourceFileRelativePath: $"udx/{packageName}/53394525/{packageName}.gml",
             SharedAcrossMeshCodes: false,
-            BuildingAttributes: BuildingAttributeContext.Empty,
             TerrainAligned: false);
     }
 

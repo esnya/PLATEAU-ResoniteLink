@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 
 using PlateauResoniteLink.Domain.Importing;
@@ -10,56 +9,9 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed record NonDemMaterialAtlasTile(Image<Rgba32> Image, Rgba32 BackgroundColor);
 
-internal abstract record NonDemBakeEntry
-{
-    private NonDemBakeEntry()
-    {
-    }
-
-    internal abstract void AddTo(
-        List<NonDemAtlasBatchEntry> atlasEntries,
-        List<NonDemPreservedSubmeshEntry> preservedEntries);
-
-    internal sealed record Atlas : NonDemBakeEntry
-    {
-        public Atlas(NonDemAtlasBatchEntry entry)
-        {
-            ArgumentNullException.ThrowIfNull(entry);
-            Entry = entry;
-        }
-
-        public NonDemAtlasBatchEntry Entry { get; }
-
-        internal override void AddTo(
-            List<NonDemAtlasBatchEntry> atlasEntries,
-            List<NonDemPreservedSubmeshEntry> preservedEntries)
-        {
-            ArgumentNullException.ThrowIfNull(atlasEntries);
-            ArgumentNullException.ThrowIfNull(preservedEntries);
-            atlasEntries.Add(Entry);
-        }
-    }
-
-    internal sealed record Preserved : NonDemBakeEntry
-    {
-        public Preserved(NonDemPreservedSubmeshEntry entry)
-        {
-            ArgumentNullException.ThrowIfNull(entry);
-            Entry = entry;
-        }
-
-        public NonDemPreservedSubmeshEntry Entry { get; }
-
-        internal override void AddTo(
-            List<NonDemAtlasBatchEntry> atlasEntries,
-            List<NonDemPreservedSubmeshEntry> preservedEntries)
-        {
-            ArgumentNullException.ThrowIfNull(atlasEntries);
-            ArgumentNullException.ThrowIfNull(preservedEntries);
-            preservedEntries.Add(Entry);
-        }
-    }
-}
+internal sealed record NonDemAtlasOrPreservedEntry(
+    NonDemAtlasBatchEntry? AtlasEntry,
+    NonDemPreservedSubmeshEntry? PreservedEntry);
 
 internal readonly record struct NonDemBufferedCityObject(
     ResoniteConstructionCityObject CityObject,

@@ -11,23 +11,23 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface INonDemBakeEntryFactory
+internal interface INonDemAtlasOrPreservedEntryFactory
 {
-    Task<NonDemBakeEntry> CreateAsync(
+    Task<NonDemAtlasOrPreservedEntry> CreateAsync(
         ResoniteConstructionCityObject cityObject,
         ResoniteMeshSubmesh submesh,
         ResoniteMaterialBinding material,
         CancellationToken cancellationToken);
 }
 
-internal sealed class NonDemBakeEntryFactory(
+internal sealed class NonDemAtlasOrPreservedEntryFactory(
     ResoniteTextureImageLoader textureImageLoader,
-    int maxAtlasTextureEdge) : INonDemBakeEntryFactory
+    int maxAtlasTextureEdge) : INonDemAtlasOrPreservedEntryFactory
 {
     private readonly ResoniteTextureImageLoader textureImageLoader = textureImageLoader
         ?? throw new ArgumentNullException(nameof(textureImageLoader));
 
-    public async Task<NonDemBakeEntry> CreateAsync(
+    public async Task<NonDemAtlasOrPreservedEntry> CreateAsync(
         ResoniteConstructionCityObject cityObject,
         ResoniteMeshSubmesh submesh,
         ResoniteMaterialBinding material,
@@ -50,8 +50,9 @@ internal sealed class NonDemBakeEntryFactory(
             Rgba32 tintedUniformColor = NonDemTextureImageProcessing.MultiplyPixel(
                 uniformDatasetColor,
                 NonDemTextureImageProcessing.ToPixel(material.BaseColor));
-            return new NonDemBakeEntry.Preserved(
-                new NonDemPreservedSubmeshEntry(
+            return new NonDemAtlasOrPreservedEntry(
+                AtlasEntry: null,
+                PreservedEntry: new NonDemPreservedSubmeshEntry(
                     cityObject,
                     submesh,
                     CreateVertexColorMaterial(material, submesh.Index),
@@ -67,8 +68,8 @@ internal sealed class NonDemBakeEntryFactory(
             targetHeight);
 
         NonDemTextureImageProcessing.ApplyBaseColor(bakedImage, material.BaseColor);
-        return new NonDemBakeEntry.Atlas(
-            new NonDemAtlasBatchEntry(
+        return new NonDemAtlasOrPreservedEntry(
+            AtlasEntry: new NonDemAtlasBatchEntry(
                 cityObject,
                 submesh,
                 material,
@@ -77,7 +78,8 @@ internal sealed class NonDemBakeEntryFactory(
                     NonDemTextureImageProcessing.MultiplyPixel(
                         detectedBackgroundColor,
                         NonDemTextureImageProcessing.ToPixel(material.BaseColor))),
-                uvBounds));
+                uvBounds),
+            PreservedEntry: null);
     }
 
     private static ResoniteMaterialBinding CreateVertexColorMaterial(ResoniteMaterialBinding material, int submeshIndex)
@@ -92,11 +94,11 @@ internal sealed class NonDemBakeEntryFactory(
             TextureOffset = null,
             Family = null,
             TerrainOverlayMaterial = null,
-            AssetBinding = ResoniteMaterialAssetBinding.SharedCommon(
-                material.DepthOffset is null
-                    ? CommonMaterialCatalog.Create().VertexColor.Uv
-                    : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv),
+            AssetScope = ResoniteMaterialAssetScope.Common,
             SubmeshIndices = [submeshIndex],
+            CommonMaterial = material.DepthOffset is null
+                ? CommonMaterialCatalog.Create().VertexColor.Uv
+                : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv,
         };
     }
 

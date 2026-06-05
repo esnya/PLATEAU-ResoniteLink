@@ -2,28 +2,7 @@ using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed record ImportExecutionResult
-{
-    public ImportExecutionResult(
-        ImportedSceneMetadata Metadata,
-        IReadOnlyList<string> Destinations)
-        : this(Metadata, Destinations, [])
-    {
-    }
-
-    public ImportExecutionResult(
-        ImportedSceneMetadata Metadata,
-        IReadOnlyList<string> Destinations,
-        IReadOnlyList<ImportDataSourceUsage> DataSourceUsages)
-    {
-        this.Metadata = Metadata;
-        this.Destinations = Destinations;
-        this.DataSourceUsages = DataSourceUsages;
-    }
-
-    public ImportedSceneMetadata Metadata { get; init; }
-
-    public IReadOnlyList<string> Destinations { get; init; }
-
-    public IReadOnlyList<ImportDataSourceUsage> DataSourceUsages { get; init; }
-}
+public sealed record ImportExecutionResult(
+    ImportedSceneMetadata Metadata,
+    IReadOnlyList<string> Destinations,
+    IReadOnlyList<ImportDataSourceUsage>? DataSourceUsages = null);

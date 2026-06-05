@@ -41,7 +41,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
     [Fact]
     public void NormalizeMaterialBinding_ClearsBundledFamilyUvTransformAfterNormalization()
     {
-        MaterialBinding material = new PresentationMaterialBinding(
+        MaterialBinding material = new(
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             MaterialType: MaterialType.Standard,
             TexturePayload: null,
@@ -89,7 +89,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                 {
                     SubmeshIndices = [0],
                 },
-                new PresentationMaterialBinding(
+                new MaterialBinding(
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     MaterialType: MaterialType.Standard,
                     TexturePayload: null,
@@ -148,7 +148,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                 {
                     SubmeshIndices = [0],
                 },
-                new PresentationMaterialBinding(
+                new MaterialBinding(
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     MaterialType: MaterialType.Standard,
                     TexturePayload: null,
@@ -267,10 +267,10 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         Float2? textureOffset,
         TerrainTextureOverlay? terrainOverlay = null)
     {
-        return new PresentationMaterialBinding(
+        return new MaterialBinding(
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             MaterialType: MaterialType.Standard,
-            TexturePayload: new RawRgba32TexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic-uv.png"),
+            TexturePayload: new TexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic-uv.png"),
             TextureSourceKind: TextureSourceKind.Dataset,
             Projection: MaterialProjection.Uv,
             DepthOffset: null,
@@ -279,6 +279,6 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             TextureOffset: textureOffset,
             TerrainOverlayMaterial: terrainOverlay is null
                 ? null
-                : new TerrainOverlayMaterialBinding(terrainOverlay.MeshCode, terrainOverlay));
+                : new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), terrainOverlay));
     }
 }

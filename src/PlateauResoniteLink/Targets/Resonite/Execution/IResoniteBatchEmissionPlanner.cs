@@ -233,7 +233,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 ref nextFieldLocator);
         }
 
-        return PlannedBatchEmission.Create(
+        return new PlannedBatchEmission(
             slotEmissions,
             componentEmissions,
             slotResolutionTargets,
@@ -494,7 +494,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
 
         Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
             plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo);
+            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo);
         if (albedoTextureUri is not null)
         {
             BatchPlanComponentLocator albedoTextureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
@@ -511,7 +511,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
 
         Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
             plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Normal);
+            ResoniteSceneMaterialConventions.TextureMemberRole.Normal);
         if (normalTextureUri is not null)
         {
             BatchPlanComponentLocator normalTextureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
@@ -532,7 +532,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
 
         Uri? heightTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
             plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Height);
+            ResoniteSceneMaterialConventions.TextureMemberRole.Height);
         if (heightTextureUri is not null)
         {
             BatchPlanComponentLocator heightTextureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
@@ -553,7 +553,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
 
         Uri? metallicTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
             plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic);
+            ResoniteSceneMaterialConventions.TextureMemberRole.Metallic);
         if (metallicTextureUri is not null)
         {
             BatchPlanComponentLocator metallicTextureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
@@ -571,7 +571,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
 
         Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
             plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Emission);
+            ResoniteSceneMaterialConventions.TextureMemberRole.Emission);
         if (emissionTextureUri is not null)
         {
             BatchPlanComponentLocator emissionTextureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);

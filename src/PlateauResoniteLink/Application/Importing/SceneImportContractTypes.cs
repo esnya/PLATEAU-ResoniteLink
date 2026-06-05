@@ -96,89 +96,69 @@ public sealed record MeshSubmesh(
     int Index,
     IReadOnlyList<int> TriangleVertexIndices);
 
-public abstract record TexturePayload
+public enum TexturePayloadFormat
 {
-    private protected TexturePayload(ITextureImportSource source)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentException.ThrowIfNullOrWhiteSpace(source.Identity);
+    RawRgba32 = 0,
+    EncodedImage = 1,
+}
 
+public sealed record TexturePayload
+{
+    public TexturePayload(
+        int? width,
+        int? height,
+        string? colorProfile,
+        byte[] binaryPayload,
+        string? identity = null,
+        TexturePayloadFormat format = TexturePayloadFormat.RawRgba32)
+    {
+        Width = width;
+        Height = height;
+        ColorProfile = colorProfile;
+        ArgumentNullException.ThrowIfNull(binaryPayload);
+        BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
+        Identity = identity;
+        Format = format;
+        Source = TextureImportSourceFactory.CreateInMemory(
+            width,
+            height,
+            colorProfile,
+            binaryPayload,
+            identity ?? Guid.NewGuid().ToString("N"),
+            format);
+    }
+
+    public TexturePayload(
+        int? width,
+        int? height,
+        string? colorProfile,
+        ITextureImportSource source,
+        string? identity = null,
+        TexturePayloadFormat format = TexturePayloadFormat.EncodedImage)
+    {
+        Width = width;
+        Height = height;
+        ColorProfile = colorProfile;
+        ArgumentNullException.ThrowIfNull(source);
+        BinaryPayload = [];
+        Identity = identity ?? source.Identity;
+        Format = format;
         Source = source;
     }
 
-    public ITextureImportSource Source { get; }
-}
+    public int? Width { get; init; }
 
-public sealed record RawRgba32TexturePayload : TexturePayload
-{
-    public RawRgba32TexturePayload(
-        int width,
-        int height,
-        string? colorProfile,
-        byte[] binaryPayload,
-        string? identity = null)
-        : this(
-            width,
-            height,
-            colorProfile,
-            binaryPayload,
-            CreateSource(width, height, colorProfile, binaryPayload, identity))
-    {
-    }
+    public int? Height { get; init; }
 
-    private RawRgba32TexturePayload(
-        int width,
-        int height,
-        string? colorProfile,
-        byte[] binaryPayload,
-        ITextureImportSource source)
-        : base(source)
-    {
-        Rgba32RawTexturePayload.ValidateByteLength(width, height, binaryPayload);
-        Width = width;
-        Height = height;
-        BinaryPayload = ImmutableArray.CreateRange(binaryPayload);
-    }
+    public string? ColorProfile { get; init; }
 
-    public int Width { get; }
+    public ImmutableArray<byte> BinaryPayload { get; init; }
 
-    public int Height { get; }
+    public string? Identity { get; init; }
 
-    public ImmutableArray<byte> BinaryPayload { get; }
+    public TexturePayloadFormat Format { get; init; }
 
-    private static ITextureImportSource CreateSource(
-        int width,
-        int height,
-        string? colorProfile,
-        byte[] binaryPayload,
-        string? identity)
-    {
-        ArgumentNullException.ThrowIfNull(binaryPayload);
-        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
-        return TextureImportSourceFactory.CreateInMemoryRaw(
-            width,
-            height,
-            colorProfile,
-            binaryPayload,
-            effectiveIdentity);
-    }
-}
-
-public sealed record EncodedImageTexturePayload : TexturePayload
-{
-    public EncodedImageTexturePayload(
-        int? width,
-        int? height,
-        ITextureImportSource source)
-        : base(source)
-    {
-        Width = width;
-        Height = height;
-    }
-
-    public int? Width { get; }
-
-    public int? Height { get; }
+    public ITextureImportSource Source { get; init; }
 }
 
 public enum TextureSourceKind
@@ -218,27 +198,11 @@ public enum MaterialReuseScope
     Shared = 1,
 }
 
-public sealed record TerrainOverlayMaterialBinding
-{
-    public TerrainOverlayMaterialBinding(
-        ThirdRegionalMeshCode meshCode,
-        TerrainTextureOverlay overlay)
-    {
-        if (!ThirdRegionalMeshCode.TryParse(meshCode.Value, out _))
-        {
-            throw new ArgumentException("Terrain overlay material mesh code must be a valid third regional mesh code.", nameof(meshCode));
-        }
+public sealed record TerrainOverlayMaterialBinding(
+    ThirdRegionalMeshCode MeshCode,
+    TerrainTextureOverlay Overlay);
 
-        MeshCode = meshCode;
-        Overlay = overlay ?? throw new ArgumentNullException(nameof(overlay));
-    }
-
-    public ThirdRegionalMeshCode MeshCode { get; }
-
-    public TerrainTextureOverlay Overlay { get; }
-}
-
-public abstract record MaterialBinding(
+public sealed record MaterialBinding(
     ColorRgba BaseColor,
     MaterialType MaterialType,
     TexturePayload? TexturePayload,
@@ -249,124 +213,12 @@ public abstract record MaterialBinding(
     Float2? TextureScale = null,
     string? Family = null,
     Float2? TextureOffset = null,
+    MaterialReuseScope ReuseScope = MaterialReuseScope.PerObject,
     TerrainOverlayMaterialBinding? TerrainOverlayMaterial = null,
-    int? BundledVariantIndex = null)
+    int? BundledVariantIndex = null,
+    DefaultCommonMaterialMember? CommonMaterial = null)
 {
     public TerrainTextureOverlay? TerrainOverlay => TerrainOverlayMaterial?.Overlay;
 
     public string? TerrainMeshCode => TerrainOverlayMaterial?.MeshCode.Value;
-
-    public abstract MaterialReuseScope ReuseScope { get; }
-
-    public virtual DefaultCommonMaterialMember? CommonMaterial => null;
-}
-
-public sealed record PresentationMaterialBinding : MaterialBinding
-{
-    public PresentationMaterialBinding(
-        ColorRgba BaseColor,
-        MaterialType MaterialType,
-        TexturePayload? TexturePayload,
-        TextureSourceKind TextureSourceKind,
-        MaterialProjection Projection,
-        MaterialDepthOffset? DepthOffset,
-        IReadOnlyList<int> SubmeshIndices,
-        Float2? TextureScale = null,
-        string? Family = null,
-        Float2? TextureOffset = null,
-        TerrainOverlayMaterialBinding? TerrainOverlayMaterial = null,
-        int? BundledVariantIndex = null)
-        : base(
-            BaseColor,
-            MaterialType,
-            TexturePayload,
-            TextureSourceKind,
-            Projection,
-            DepthOffset,
-            SubmeshIndices,
-            TextureScale,
-            Family,
-            TextureOffset,
-            TerrainOverlayMaterial,
-            BundledVariantIndex)
-    {
-    }
-
-    public override MaterialReuseScope ReuseScope => MaterialReuseScope.PerObject;
-}
-
-public sealed record PresentationCommonMaterialBinding : MaterialBinding
-{
-    public PresentationCommonMaterialBinding(
-        ColorRgba BaseColor,
-        MaterialType MaterialType,
-        TexturePayload? TexturePayload,
-        TextureSourceKind TextureSourceKind,
-        MaterialProjection Projection,
-        MaterialDepthOffset? DepthOffset,
-        IReadOnlyList<int> SubmeshIndices,
-        DefaultCommonMaterialMember commonMaterial,
-        Float2? TextureScale = null,
-        string? Family = null,
-        Float2? TextureOffset = null,
-        TerrainOverlayMaterialBinding? TerrainOverlayMaterial = null,
-        int? BundledVariantIndex = null)
-        : base(
-            BaseColor,
-            MaterialType,
-            TexturePayload,
-            TextureSourceKind,
-            Projection,
-            DepthOffset,
-            SubmeshIndices,
-            TextureScale,
-            Family,
-            TextureOffset,
-            TerrainOverlayMaterial,
-            BundledVariantIndex)
-    {
-        CommonMaterial = commonMaterial ?? throw new ArgumentNullException(nameof(commonMaterial));
-    }
-
-    public override MaterialReuseScope ReuseScope => MaterialReuseScope.PerObject;
-
-    public override DefaultCommonMaterialMember CommonMaterial { get; }
-}
-
-public sealed record SharedCommonMaterialBinding : MaterialBinding
-{
-    public SharedCommonMaterialBinding(
-        ColorRgba BaseColor,
-        MaterialType MaterialType,
-        TexturePayload? TexturePayload,
-        TextureSourceKind TextureSourceKind,
-        MaterialProjection Projection,
-        MaterialDepthOffset? DepthOffset,
-        IReadOnlyList<int> SubmeshIndices,
-        DefaultCommonMaterialMember commonMaterial,
-        Float2? TextureScale = null,
-        string? Family = null,
-        Float2? TextureOffset = null,
-        TerrainOverlayMaterialBinding? TerrainOverlayMaterial = null,
-        int? BundledVariantIndex = null)
-        : base(
-            BaseColor,
-            MaterialType,
-            TexturePayload,
-            TextureSourceKind,
-            Projection,
-            DepthOffset,
-            SubmeshIndices,
-            TextureScale,
-            Family,
-            TextureOffset,
-            TerrainOverlayMaterial,
-            BundledVariantIndex)
-    {
-        CommonMaterial = commonMaterial ?? throw new ArgumentNullException(nameof(commonMaterial));
-    }
-
-    public override MaterialReuseScope ReuseScope => MaterialReuseScope.Shared;
-
-    public override DefaultCommonMaterialMember CommonMaterial { get; }
 }

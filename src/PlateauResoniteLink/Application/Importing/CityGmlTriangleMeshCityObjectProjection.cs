@@ -17,21 +17,6 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        return ProjectTriangleMesh(
-            cityObject,
-            globalOriginPoint,
-            globalCartesian,
-            demTerrainTextureOverlay,
-            materialResolver).CityObject;
-    }
-
-    internal static TriangleMeshProjectedCityObject ProjectTriangleMesh(
-        ParsedCityObject cityObject,
-        GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        TerrainTextureOverlay? demTerrainTextureOverlay,
-        IDefaultMaterialResolver materialResolver)
-    {
         double? geometryHeightMeters = cityObject.GeometryHeightMeters
             ?? ResolveGeometryHeightMeters(cityObject.Surfaces);
         cityObject = GeneratedLod1RoofCityObjectFactory.Create(cityObject) with
@@ -119,18 +104,16 @@ internal static class CityGmlTriangleMeshCityObjectProjection
             materials.Add(CityGmlSurfaceMaterialResolver.CreateMaterialBinding(cityObject.ActualMeshCode, representativeSurface, materialIndex));
         }
 
-        TriangleMeshGeometry geometry = new(new ImportedMesh(vertices.ToArray(), submeshes.ToArray()));
-        ImportedCityObject projectedCityObject = new(
+        return new ImportedCityObject(
             ObjectKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
             LodLevel: cityObject.LodLevel,
             Transform: new Transform3D(ToContractFloat3(slotPosition)),
-            Geometry: geometry,
+            Mesh: new ImportedMesh(vertices.ToArray(), submeshes.ToArray()),
             Materials: materials,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
-        return new TriangleMeshProjectedCityObject(projectedCityObject, geometry);
     }
 
     private static GeodeticPoint ResolveCityObjectOrigin(ParsedCityObject cityObject)
@@ -194,7 +177,3 @@ internal static class CityGmlTriangleMeshCityObjectProjection
 
     private static Float3 ToContractFloat3(Float3 value) => new(value.X, value.Y, value.Z);
 }
-
-internal sealed record TriangleMeshProjectedCityObject(
-    ImportedCityObject CityObject,
-    TriangleMeshGeometry Geometry);

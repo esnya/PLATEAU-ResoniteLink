@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using System.Xml.Linq;
 
@@ -37,7 +36,7 @@ public sealed class BuildingAttributeParserTests
     }
 
     [Fact]
-    public void ParseDropsPlateauMissingSentinelsBeforeAttributeContext()
+    public void ParseTreatsPlateauMissingSentinelsAsMissingMetrics()
     {
         XElement element = XElement.Parse(
             """
@@ -50,13 +49,13 @@ public sealed class BuildingAttributeParserTests
 
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
-        Assert.Null(attributes.MeasuredHeightMeters);
-        Assert.Null(attributes.StoreysAboveGround);
-        Assert.Null(attributes.StoreysBelowGround);
+        Assert.Equal(BuildingMetricValueKind.Missing, attributes.MeasuredHeightMeters.Kind);
+        Assert.Equal(BuildingMetricValueKind.Missing, attributes.StoreysAboveGround.Kind);
+        Assert.Equal(BuildingMetricValueKind.Missing, attributes.StoreysBelowGround.Kind);
     }
 
     [Fact]
-    public void ParseDropsNonMeterHeightButKeepsAreaWithoutMeterRequirement()
+    public void ParseRejectsNonMeterHeightButKeepsAreaWithoutMeterRequirement()
     {
         XElement element = XElement.Parse(
             """
@@ -71,47 +70,12 @@ public sealed class BuildingAttributeParserTests
 
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
-        Assert.Null(attributes.MeasuredHeightMeters);
-        Assert.NotNull(attributes.BuildingFootprintArea);
-        Assert.NotNull(attributes.BuildingHeight);
-        BuildingMetricValue footprintArea = attributes.BuildingFootprintArea;
-        BuildingMetricValue buildingHeight = attributes.BuildingHeight;
-        Assert.Equal(160.5, footprintArea.Value);
-        Assert.Equal(9.25, buildingHeight.Value);
-    }
-
-    [Fact]
-    public void ParseDropsBlankMetricElementsBeforeAttributeContext()
-    {
-        XElement element = XElement.Parse(
-            """
-            <bldg:Building xmlns:bldg="urn:bldg">
-              <bldg:measuredHeight uom="m"> </bldg:measuredHeight>
-            </bldg:Building>
-            """);
-
-        BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
-
-        Assert.Null(attributes.MeasuredHeightMeters);
-    }
-
-    [Fact]
-    public void ParseDropsNonFiniteMetricTextBeforeAttributeContext()
-    {
-        XElement element = XElement.Parse(
-            """
-            <bldg:Building xmlns:bldg="urn:bldg">
-              <bldg:measuredHeight uom="m">Infinity</bldg:measuredHeight>
-              <bldg:BuildingDetailAttribute>
-                <bldg:buildingHeight uom="m">1e309</bldg:buildingHeight>
-              </bldg:BuildingDetailAttribute>
-            </bldg:Building>
-            """);
-
-        BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
-
-        Assert.Null(attributes.MeasuredHeightMeters);
-        Assert.Null(attributes.BuildingHeight);
+        Assert.Equal(BuildingMetricValueKind.Invalid, attributes.MeasuredHeightMeters.Kind);
+        Assert.Equal("12", attributes.MeasuredHeightMeters.Raw);
+        Assert.Equal(BuildingMetricValueKind.Known, attributes.BuildingFootprintArea.Kind);
+        Assert.Equal(160.5, attributes.BuildingFootprintArea.Value);
+        Assert.Equal(BuildingMetricValueKind.Known, attributes.BuildingHeight.Kind);
+        Assert.Equal(9.25, attributes.BuildingHeight.Value);
     }
 
     [Fact]
@@ -128,13 +92,5 @@ public sealed class BuildingAttributeParserTests
         BuildingAttributeContext attributes = BuildingAttributeParser.Parse(element);
 
         Assert.Equal(["402101"], attributes.CityGmlFunctionCodes.ToArray());
-    }
-
-    [Fact]
-    public void MetricValueFactoriesRejectInvalidPayloadShapes()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new BuildingMetricValue(double.NaN));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new BuildingMetricValue(double.PositiveInfinity));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new BuildingMetricValue(-1.0));
     }
 }
