@@ -46,8 +46,8 @@ public sealed class ResoniteMaterialPlanningTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            Family: BundledDefaultMaterialFamilies.Facade,
-            AssetScope: ResoniteMaterialAssetScope.Common,
+            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0),
             BundledVariantIndex: 0);
         _ = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
             new BundledDefaultMaterialAssetStore(),
@@ -194,7 +194,8 @@ public sealed class ResoniteMaterialPlanningTests
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            SubmeshIndices: [0]);
+            SubmeshIndices: [0],
+            AssetBinding: ResoniteMaterialAssetBinding.Presentation);
 
         PlannedDedicatedMaterialAsset preserved = await planning.PlanDedicatedMaterialAssetAsync(
             client,
@@ -240,6 +241,7 @@ public sealed class ResoniteMaterialPlanningTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
+            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             TextureScale: new ResoniteFloat2(0.4, 0.8),
             TextureOffset: new ResoniteFloat2(0.1, 0.2),
             TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay));
@@ -264,7 +266,7 @@ public sealed class ResoniteMaterialPlanningTests
     public void AddCommonMaterialComponentsDoesNotCreateEmissionMembersWithoutEmissionSource()
     {
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
-        ResoniteMaterialBinding material = CreateBundledMaterial(BundledDefaultMaterialFamilies.Facade, 0);
+        ResoniteMaterialBinding material = CreateBundledMaterial(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0);
         PlannedDedicatedMaterialAsset plannedMaterial = new(
             material,
             [
@@ -330,7 +332,8 @@ public sealed class ResoniteMaterialPlanningTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay));
+            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
+            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay));
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextures = new()
         {
             [overlay] = new GeneratedTerrainTexture(
@@ -358,7 +361,8 @@ public sealed class ResoniteMaterialPlanningTests
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            SubmeshIndices: [0]);
+            SubmeshIndices: [0],
+            AssetBinding: ResoniteMaterialAssetBinding.Presentation);
         ResoniteMaterialBinding secondMaterial = firstMaterial with
         {
         };
@@ -414,7 +418,11 @@ public sealed class ResoniteMaterialPlanningTests
             Family: projection == ResoniteMaterialProjection.Uv
                 ? BundledDefaultMaterialFamilies.RoadUv
                 : BundledDefaultMaterialFamilies.RoadTriplanar,
-            AssetScope: ResoniteMaterialAssetScope.Common,
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(
+                projection == ResoniteMaterialProjection.Uv
+                    ? BundledDefaultMaterialFamilies.RoadUv
+                    : BundledDefaultMaterialFamilies.RoadTriplanar,
+                0),
             BundledVariantIndex: 0);
     }
 
@@ -429,7 +437,7 @@ public sealed class ResoniteMaterialPlanningTests
             DepthOffset: null,
             SubmeshIndices: [0],
             Family: family,
-            AssetScope: ResoniteMaterialAssetScope.Common,
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(family, variantIndex),
             BundledVariantIndex: variantIndex);
     }
 

@@ -89,9 +89,9 @@ public sealed class ResoniteSceneMaterialConventionsTests
             SubmeshIndices: [0],
             TextureScale: FacadeDefaultTilesPerMeter(),
             TextureOffset: new ResoniteFloat2(0.0, 0.5 / 6.0),
-            Family: BundledDefaultMaterialFamilies.Facade,
+            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
             BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0));
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
@@ -111,9 +111,9 @@ public sealed class ResoniteSceneMaterialConventionsTests
             DepthOffset: null,
             SubmeshIndices: [0],
             TextureScale: new ResoniteFloat2(0.5, 0.5),
-            Family: BundledDefaultMaterialFamilies.Facade,
+            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
             BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0));
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
@@ -134,9 +134,9 @@ public sealed class ResoniteSceneMaterialConventionsTests
             SubmeshIndices: [0],
             TextureScale: new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0),
             TextureOffset: new ResoniteFloat2(0.0, 0.5 / 6.0),
-            Family: BundledDefaultMaterialFamilies.Facade,
+            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
             BundledVariantIndex: 1,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 1));
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
@@ -156,11 +156,11 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: new ResoniteMaterialDepthOffset(2.0, 3.0),
             SubmeshIndices: [0],
+            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             TextureScale: new ResoniteFloat2(0.5, 0.25),
             TextureOffset: new ResoniteFloat2(0.125, 0.75),
-            Family: BundledDefaultMaterialFamilies.Facade,
-            BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+            BundledVariantIndex: 0);
 
         string slotName = ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex: 0);
 
@@ -182,7 +182,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+            AssetBinding: ResoniteMaterialAssetBinding.Presentation);
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex: -1));
@@ -203,7 +203,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             TextureOffset: new ResoniteFloat2(0.25, 0.75),
             Family: null,
             BundledVariantIndex: null,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv());
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
@@ -226,7 +226,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             TextureOffset: new ResoniteFloat2(0.0, 0.0),
             Family: null,
             BundledVariantIndex: null,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv());
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
@@ -248,7 +248,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Family: null,
             TextureOffset: null,
             BundledVariantIndex: null,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv());
 
         IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
 
@@ -268,7 +268,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             SubmeshIndices: [0],
             TextureScale: null,
             TextureOffset: new ResoniteFloat2(0.25, 0.75),
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv());
 
         IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
 
@@ -290,7 +290,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             SubmeshIndices: [0],
             TextureScale: null,
             Family: null,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv());
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material);
 
@@ -313,8 +313,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             SubmeshIndices: [0],
             TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
             Family: null,
-            AssetScope: ResoniteMaterialAssetScope.Common,
-            CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv());
 
         ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
 
@@ -356,14 +355,16 @@ public sealed class ResoniteSceneMaterialConventionsTests
             DepthOffset: null,
             SubmeshIndices: [0],
             TextureScale: FacadeDefaultTilesPerMeter(),
-            Family: BundledDefaultMaterialFamilies.Facade,
+            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
             BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0));
 
         ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
 
         Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
         Assert.Equal(new ResoniteColor(0.8, 0.7, 0.6, 1.0), normalized.BaseColor);
+        Assert.Null(normalized.TextureScale);
+        Assert.Null(normalized.TextureOffset);
     }
 
     [Fact]
@@ -379,15 +380,16 @@ public sealed class ResoniteSceneMaterialConventionsTests
             SubmeshIndices: [0],
             TextureScale: FacadeDefaultTilesPerMeter(),
             TextureOffset: new ResoniteFloat2(0.125, 0.25),
-            Family: BundledDefaultMaterialFamilies.Facade,
+            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
             BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0));
 
         ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
 
         Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
         Assert.Equal(new ResoniteMaterialDepthOffset(1.0, 1.0), normalized.DepthOffset);
-        Assert.Equal(new ResoniteFloat2(0.125, 0.25), normalized.TextureOffset);
+        Assert.Null(normalized.TextureScale);
+        Assert.Null(normalized.TextureOffset);
     }
 
 
@@ -427,7 +429,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             SubmeshIndices: [0],
             Family: family,
             BundledVariantIndex: 0,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(family, 0));
     }
 
     private static ResoniteMaterialBinding CreateGenericCommonMaterial(ResoniteMaterialDepthOffset? depthOffset)
@@ -440,7 +442,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: depthOffset,
             SubmeshIndices: [0],
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv());
     }
 
 }
