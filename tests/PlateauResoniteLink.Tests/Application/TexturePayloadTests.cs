@@ -36,31 +36,19 @@ public sealed class TexturePayloadTests
     }
 
     [Fact]
-    public void ConstructorCarriesIdentityAndColorProfileOnPayloadAndSource()
+    public void ConstructorCarriesDescriptionAndColorProfileOnSource()
     {
         RawRgba32TexturePayload payload = new(1, 1, "sRGB", [1, 2, 3, 4], "dataset:texture");
 
-        Assert.Equal("dataset:texture", payload.Identity);
         Assert.Equal("sRGB", payload.ColorProfile);
-        Assert.Equal("dataset:texture", payload.Source.Identity);
+        Assert.Equal("dataset:texture", payload.Source.Description);
         Assert.Equal("sRGB", payload.Source.ColorProfile);
     }
 
     [Fact]
-    public void ConstructorRejectsTextureSourceWithoutIdentity()
+    public void ConstructorRequiresTextureSource()
     {
-        Assert.Throws<ArgumentException>(
-            () => new EncodedImageTexturePayload(null, null, null, new BlankIdentityTextureImportSource()));
-    }
-
-    private sealed class BlankIdentityTextureImportSource : ITextureImportSource
-    {
-        public string Identity => " ";
-
-        public string Description => "blank";
-
-        public string? ColorProfile => null;
-
-        public long? EstimatedByteLength => null;
+        Assert.Throws<ArgumentNullException>(
+            () => new EncodedImageTexturePayload(null, null, null, null!));
     }
 }

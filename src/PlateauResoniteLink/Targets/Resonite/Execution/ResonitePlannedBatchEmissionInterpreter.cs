@@ -42,9 +42,12 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         CancellationToken cancellationToken)
     {
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
-        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId = new();
-        Dictionary<BatchPlanComponentLocator, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId = new();
-        Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId = new();
+        Dictionary<PlannedBatchSlotEmission, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId =
+            new(ReferenceEqualityComparer.Instance);
+        Dictionary<PlannedBatchComponentEmission, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId =
+            new(ReferenceEqualityComparer.Instance);
+        Dictionary<PlannedFieldReference, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId =
+            new(ReferenceEqualityComparer.Instance);
 
         foreach (PlannedBatchSlotEmission slotEmission in batchEmission.SlotEmissions)
         {
@@ -53,7 +56,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
                 slotEmission.SlotName,
                 slotEmission.Position,
                 slotEmission.Rotation);
-            pendingSlotsByPlanId[slotEmission.Identity] = pendingSlot;
+            pendingSlotsByPlanId[slotEmission] = pendingSlot;
         }
 
         foreach (PlannedBatchComponentEmission componentEmission in batchEmission.ComponentEmissions)
@@ -81,7 +84,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
                 ResolveSlotTargetId(componentEmission.ContainerTarget, pendingSlotsByPlanId),
                 componentEmission.ComponentType,
                 translatedMembers);
-            pendingComponentsByPlanId[componentEmission.Identity] = pendingComponent;
+            pendingComponentsByPlanId[componentEmission] = pendingComponent;
         }
 
         int operationCount = batchBuilder.Actions.Count;
@@ -96,12 +99,12 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
 
         CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
         canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingActions);
-        foreach (BatchPlanSlotLocator slotResolutionTarget in batchEmission.SlotResolutionTargets)
+        foreach (PlannedBatchSlotEmission slotResolutionTarget in batchEmission.SlotResolutionTargets)
         {
             _ = canonicalBatchEntityMap.ResolveSlot(pendingSlotsByPlanId[slotResolutionTarget]);
         }
 
-        foreach (BatchPlanComponentLocator componentResolutionTarget in batchEmission.ComponentResolutionTargets)
+        foreach (PlannedBatchComponentEmission componentResolutionTarget in batchEmission.ComponentResolutionTargets)
         {
             _ = canonicalBatchEntityMap.ResolveComponent(pendingComponentsByPlanId[componentResolutionTarget]);
         }
@@ -114,7 +117,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
 
     private static string ResolveSlotTargetId(
         PlannedSlotTargetReference target,
-        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId)
+        Dictionary<PlannedBatchSlotEmission, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId)
     {
         return target.Match(
             static canonicalSlot => canonicalSlot.Value,
@@ -123,9 +126,9 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
 
     private static string ResolveWorldElementId(
         PlannedWorldElementReference target,
-        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
-        Dictionary<BatchPlanComponentLocator, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId,
-        Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
+        Dictionary<PlannedBatchSlotEmission, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        Dictionary<PlannedBatchComponentEmission, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId,
+        Dictionary<PlannedFieldReference, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
         ResoniteBatchOperations.BatchActionBuilder batchBuilder)
     {
         return target.Match(
@@ -138,9 +141,9 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
 
     private static Dictionary<string, Member> TranslateMembers(
         IReadOnlyDictionary<string, PlannedMember> members,
-        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
-        Dictionary<BatchPlanComponentLocator, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId,
-        Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
+        Dictionary<PlannedBatchSlotEmission, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        Dictionary<PlannedBatchComponentEmission, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId,
+        Dictionary<PlannedFieldReference, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
         ResoniteBatchOperations.BatchActionBuilder batchBuilder)
     {
         return members.ToDictionary(
@@ -151,9 +154,9 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
 
     private static Member TranslateMember(
         PlannedMember member,
-        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
-        Dictionary<BatchPlanComponentLocator, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId,
-        Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
+        Dictionary<PlannedBatchSlotEmission, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        Dictionary<PlannedBatchComponentEmission, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId,
+        Dictionary<PlannedFieldReference, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
         ResoniteBatchOperations.BatchActionBuilder batchBuilder)
     {
         return member.Match(
@@ -192,14 +195,14 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
     }
 
     private static Reference TranslateAddressableReference(
-        BatchPlanFieldLocator identity,
+        PlannedFieldReference field,
         PlannedWorldElementReference target,
-        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
-        Dictionary<BatchPlanComponentLocator, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId,
-        Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
+        Dictionary<PlannedBatchSlotEmission, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        Dictionary<PlannedBatchComponentEmission, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId,
+        Dictionary<PlannedFieldReference, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
         ResoniteBatchOperations.BatchActionBuilder batchBuilder)
     {
-        string fieldId = ResolveFieldId(identity, pendingFieldsByPlanId, batchBuilder).Value;
+        string fieldId = ResolveFieldId(field, pendingFieldsByPlanId, batchBuilder).Value;
         return new Reference
         {
             ID = fieldId,
@@ -214,25 +217,25 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
 
     private static Member TranslateAddressableField(
         PlannedAddressableFieldMember addressableField,
-        Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
+        Dictionary<PlannedFieldReference, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
         ResoniteBatchOperations.BatchActionBuilder batchBuilder)
     {
-        string fieldId = ResolveFieldId(addressableField.Identity, pendingFieldsByPlanId, batchBuilder).Value;
+        string fieldId = ResolveFieldId(addressableField.Field, pendingFieldsByPlanId, batchBuilder).Value;
         return addressableField.Bind(fieldId);
     }
 
     private static ResoniteBatchOperations.BatchTemporaryFieldId ResolveFieldId(
-        BatchPlanFieldLocator locator,
-        Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
+        PlannedFieldReference field,
+        Dictionary<PlannedFieldReference, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
         ResoniteBatchOperations.BatchActionBuilder batchBuilder)
     {
-        if (pendingFieldsByPlanId.TryGetValue(locator, out ResoniteBatchOperations.BatchTemporaryFieldId fieldId))
+        if (pendingFieldsByPlanId.TryGetValue(field, out ResoniteBatchOperations.BatchTemporaryFieldId fieldId))
         {
             return fieldId;
         }
 
         ResoniteBatchOperations.BatchTemporaryFieldId allocatedFieldId = batchBuilder.AllocateFieldId();
-        pendingFieldsByPlanId[locator] = allocatedFieldId;
+        pendingFieldsByPlanId[field] = allocatedFieldId;
         return allocatedFieldId;
     }
 }

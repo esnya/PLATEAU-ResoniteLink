@@ -26,7 +26,7 @@ internal static class ResoniteTextureImportFactory
     public static ResoniteTexturePayload CreatePayloadFromImage(
         Image<Rgba32> image,
         string colorProfile = ResoniteTextureColorProfiles.Srgb,
-        string? identity = null)
+        string? description = null)
     {
         ArgumentNullException.ThrowIfNull(image);
         ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
@@ -39,6 +39,6 @@ internal static class ResoniteTextureImportFactory
             image.Height,
             colorProfile,
             rawPayload.Bytes,
-            identity ?? Guid.NewGuid().ToString("N"));
+            description);
     }
 }

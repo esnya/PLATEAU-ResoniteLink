@@ -16,7 +16,7 @@ public sealed class NonDemPreservedMaterialGroupingTests
             height: 1,
             colorProfile: null,
             binaryPayload: [255, 255, 255, 255],
-            identity: "shared.png");
+            description: "shared.png");
 
         NonDemPreservedMaterialGroupingKey first = NonDemPreservedMaterialGrouping.CreateKey(commonMaterial with
         {
@@ -35,7 +35,7 @@ public sealed class NonDemPreservedMaterialGroupingTests
                 height: 1,
                 colorProfile: null,
                 binaryPayload: [255, 255, 255, 255],
-                identity: "shared.png"),
+                description: "shared.png"),
         });
 
         Assert.True(NonDemPreservedMaterialGrouping.KeyComparer.Equals(first, second));

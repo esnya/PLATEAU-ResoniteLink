@@ -402,7 +402,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Contains("object_slot='terrain-mismatched-overlay'", exception.Message, StringComparison.Ordinal);
         Assert.Contains($"actual_mesh_code='{MeshCode}'", exception.Message, StringComparison.Ordinal);
         Assert.Contains("terrain_mesh='53394525'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("sources='tile-z17-https://tiles.example/{z}/{x}/{y}.png'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("sources='tile:17:https://tiles.example/{z}/{x}/{y}.png'", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -697,8 +697,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         Assert.Equal(
             new TerrainTextureTileSource(
                 LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
-                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel).IdentityKey,
-            demSourceUsage.Identity);
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel).Description,
+            demSourceUsage.Description);
         Assert.Equal(1, demSourceUsage.UsedCount);
         Assert.Empty(routedClient.UpdatedComponents);
         Assert.DoesNotContain(
@@ -760,20 +760,20 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 CreateDemCityObject("dem-mixed", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
         ImportDataSourceUsage[] usages = executionResult.DataSourceUsages
-            .OrderBy(static usage => usage.Identity, StringComparer.Ordinal)
+            .OrderBy(static usage => usage.Description, StringComparer.Ordinal)
             .ToArray();
         Assert.Equal(2, usages.Length);
         Assert.Contains(
             usages,
             static usage => usage.Category == ImportDataSourceCategory.DemTextureSource
-                && usage.Identity == new TerrainTextureTileSource(
+                && usage.Description == new TerrainTextureTileSource(
                     LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel).IdentityKey
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel).Description
                 && usage.UsedCount == 1);
         Assert.Contains(
             usages,
             usage => usage.Category == ImportDataSourceCategory.DemTextureSource
-                && usage.Identity == rasterSource.IdentityKey
+                && usage.Description == rasterSource.Description
                 && usage.UsedCount == 1);
 
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");

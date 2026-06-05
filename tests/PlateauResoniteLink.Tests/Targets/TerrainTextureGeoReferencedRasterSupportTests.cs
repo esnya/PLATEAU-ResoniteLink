@@ -611,8 +611,6 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
     private sealed class ThrowingRasterContentSource(Exception exception) : ITerrainTextureRasterContentSource
     {
-        public string IdentityKey => "throwing-raster";
-
         public string Description => "throwing-raster";
 
         public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken)

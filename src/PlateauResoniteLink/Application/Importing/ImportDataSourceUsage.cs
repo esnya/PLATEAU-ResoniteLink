@@ -8,5 +8,5 @@ public enum ImportDataSourceCategory
 
 public sealed record ImportDataSourceUsage(
     ImportDataSourceCategory Category,
-    string Identity,
+    string Description,
     int UsedCount);

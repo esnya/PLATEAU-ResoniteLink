@@ -110,10 +110,8 @@ internal sealed class ResonitePreparedCityObjectImporter(
             plannedGeometryAsset,
             plannedMaterials.MaterialAssets,
             new PlannedRenderer(
-                plannedGeometryAsset.Identity,
                 plannedMaterials.RendererMaterialBindings),
             new PlannedCollider(
-                plannedGeometryAsset.Identity,
                 cityObject.CollisionEnabled));
         PlannedBatchEmission batchEmission = batchEmissionPlanner.Create(objectSlots, emissionPlan);
 

@@ -226,7 +226,6 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         return relativePaths
             .Select(relativePath =>
                 (ITerrainTextureRasterContentSource)new DatasetTerrainTextureRasterContentSource(
-                    $"dataset:{contentSource.SourcePath}:{relativePath}",
                     relativePath,
                     EnsureLocalRasterFileAsync))
             .ToArray();
@@ -278,12 +277,9 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
     }
 
     private sealed class DatasetTerrainTextureRasterContentSource(
-        string identityKey,
         string relativePath,
         Func<string, CancellationToken, Task<string>> ensureLocalFileAsync) : ITerrainTextureRasterContentSource
     {
-        public string IdentityKey => identityKey;
-
         public string Description => relativePath;
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage(

@@ -122,8 +122,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
     {
         ArgumentNullException.ThrowIfNull(textures);
 
-        TextureIdentity identity = ResoniteSceneMaterialConventions.CreateTextureIdentity(role);
-        return textures.FirstOrDefault(texture => texture.Identity == identity)?.AssetUri;
+        return textures.FirstOrDefault(texture => texture.Role == role)?.AssetUri;
     }
 
     public static PlannedTextureAsset? PlanMainTextureOverride(
@@ -148,7 +147,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         }
 
         return new PlannedTextureAsset(
-            new TextureIdentity("main"),
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
             textureUri);
     }
 
@@ -496,7 +495,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         }
 
         textures.Add(new PlannedTextureAsset(
-            ResoniteSceneMaterialConventions.CreateTextureIdentity(role),
+            role,
             assetUri));
     }
 

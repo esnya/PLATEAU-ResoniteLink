@@ -269,10 +269,10 @@ public sealed class CliApplication
         {
             cancellationToken.ThrowIfCancellationRequested();
             await standardOutput.WriteLineAsync($"  {FormatDataSourceCategory(categoryGroup.Key)}:");
-            foreach (ImportDataSourceUsage usage in categoryGroup.OrderBy(static usage => usage.Identity, StringComparer.Ordinal))
+            foreach (ImportDataSourceUsage usage in categoryGroup.OrderBy(static usage => usage.Description, StringComparer.Ordinal))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await standardOutput.WriteLineAsync($"    {usage.Identity} ({usage.UsedCount.ToString(CultureInfo.InvariantCulture)})");
+                await standardOutput.WriteLineAsync($"    {usage.Description} ({usage.UsedCount.ToString(CultureInfo.InvariantCulture)})");
             }
         }
     }

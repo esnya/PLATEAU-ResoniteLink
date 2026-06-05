@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
@@ -217,7 +216,6 @@ internal static class ResoniteCityObjectPreparation
                 cancellationToken.ThrowIfCancellationRequested();
                 return ValueTask.FromResult(CreateTerrainGridDisplacementPayload(geometry));
             },
-            $"terrain-grid-height:{RuntimeHelpers.GetHashCode(geometry)}:{geometry.Width}x{geometry.Height}",
             $"terrain-grid-height:{geometry.Width}x{geometry.Height}",
             colorProfile: null,
             estimatedByteLength: checked((long)geometry.Width * geometry.Height * 4L * sizeof(float)));
@@ -298,7 +296,7 @@ internal static class ResoniteCityObjectPreparation
         {
             return CreateResoniteFloat2(TextureUvRect.RemapValue(
                 new ScalarPair(sourceUv.X, sourceUv.Y),
-                TextureUvRect.Identity,
+                TextureUvRect.Unit,
                 occupiedUvRect));
         }
 
@@ -316,7 +314,7 @@ internal static class ResoniteCityObjectPreparation
             ? TextureUvRect.FromScaleOffsetValue(
                 geometry.UvScale is null ? new ScalarPair(1.0, 1.0) : new ScalarPair(geometry.UvScale.X, geometry.UvScale.Y),
                 geometry.UvOffset is null ? new ScalarPair(0.0, 0.0) : new ScalarPair(geometry.UvOffset.X, geometry.UvOffset.Y))
-            : TextureUvRect.Identity;
+            : TextureUvRect.Unit;
 
         TerrainTextureOverlay? overlay = cityObject.Materials
             .Select(static material => material.TerrainOverlay)

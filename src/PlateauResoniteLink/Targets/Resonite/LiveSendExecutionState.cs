@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Domain.Importing;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class LiveSendProgressSink
@@ -148,5 +150,5 @@ internal sealed class LiveSendRunState
 
     public required SemaphoreSlim GsiFallbackLicenseGate { get; init; }
 
-    public required ConcurrentDictionary<string, int> DemSourceUseCounts { get; init; }
+    public required ConcurrentDictionary<TerrainTextureSource, int> DemSourceUseCounts { get; init; }
 }

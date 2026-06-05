@@ -117,13 +117,13 @@ public sealed class NonDemCityObjectBakerTests
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
 
-        string?[] identities = cityObject.Materials
-            .Select(static material => material.TexturePayload?.Identity)
+        ResoniteTexturePayload?[] payloads = cityObject.Materials
+            .Select(static material => material.TexturePayload)
             .ToArray();
         Assert.Collection(
-            identities,
-            static identity => Assert.Equal("textures/b.png", identity),
-            static identity => Assert.Equal("textures/a.png", identity));
+            payloads,
+            payload => Assert.Same(payloadB, payload),
+            payload => Assert.Same(payloadA, payload));
     }
 
     [Fact]
@@ -147,7 +147,6 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(CommonMaterialCatalog.Create().Generic.Uv, material.CommonMaterial);
         Assert.NotSame(payload, material.TexturePayload);
         Assert.NotNull(material.TexturePayload);
-        Assert.Contains("atlastex-", material.TexturePayload.Identity, StringComparison.Ordinal);
         Assert.IsType<RawRgba32ResoniteTexturePayload>(material.TexturePayload);
         Assert.Null(material.TextureScale);
         Assert.Null(material.TextureOffset);
@@ -179,7 +178,7 @@ public sealed class NonDemCityObjectBakerTests
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
 
-        Dictionary<string, double> averageXByPayloadIdentity = [];
+        Dictionary<ResoniteTexturePayload, double> averageXByPayload = new(ReferenceEqualityComparer.Instance);
         foreach (ResoniteMaterialBinding material in cityObject.Materials)
         {
             int submeshIndex = Assert.Single(material.SubmeshIndices);
@@ -189,10 +188,10 @@ public sealed class NonDemCityObjectBakerTests
             double averageX = submesh.TriangleVertexIndices
                 .Select(index => cityObject.Mesh.Vertices[index].Position.X)
                 .Average();
-            averageXByPayloadIdentity.Add(material.TexturePayload?.Identity ?? string.Empty, averageX);
+            averageXByPayload.Add(material.TexturePayload ?? throw new InvalidOperationException("Preserved material must keep a texture payload."), averageX);
         }
 
-        Assert.True(averageXByPayloadIdentity["textures/left.png"] < averageXByPayloadIdentity["textures/right.png"]);
+        Assert.True(averageXByPayload[payloadLeft] < averageXByPayload[payloadRight]);
     }
 
     [Fact]
@@ -594,7 +593,6 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(oversizedCandidate.DisplayName, cityObject.DisplayName);
         Assert.Equal(oversizedCandidate.Materials.Count, cityObject.Materials.Count);
         Assert.All(cityObject.Materials, static material => Assert.NotNull(material.TexturePayload));
-        Assert.DoesNotContain(cityObject.Materials, static material => material.TexturePayload?.Identity?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
     }
 
     [Fact]
@@ -619,7 +617,6 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Equal(new ResoniteFloat2(0.25, 0.75), cityObject.Mesh.Vertices[0].UV0);
         Assert.Equal(new ResoniteFloat2(2.25, 0.75), cityObject.Mesh.Vertices[1].UV0);
         Assert.Equal(new ResoniteFloat2(0.25, 1.25), cityObject.Mesh.Vertices[2].UV0);
-        Assert.DoesNotContain(cityObject.Materials, static candidate => candidate.TexturePayload?.Identity?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
     }
 
     [Fact]
@@ -798,7 +795,6 @@ public sealed class NonDemCityObjectBakerTests
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         Assert.Equal(oversizedCandidate.SlotKey, cityObject.SlotKey);
-        Assert.DoesNotContain(cityObject.Materials, static material => material.TexturePayload?.Identity?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
     }
 
     [Fact]
@@ -1059,9 +1055,7 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
 
         Assert.Equal("atlasbake-unit-a-bldg-lod2-3", cityObject.SlotKey);
-        Assert.Equal(
-            "atlastex-unit-a.gml-3",
-            Assert.IsType<RawRgba32ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload).Identity);
+        Assert.IsType<RawRgba32ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload);
     }
 
     private static NonDemCityObjectBaker CreateBaker(
@@ -1088,7 +1082,7 @@ public sealed class NonDemCityObjectBakerTests
     private static ResoniteTexturePayload CreatePayload(string identity, Rgba32 color, int width, int height)
     {
         using Image<Rgba32> image = new(width, height, color);
-        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, description: identity);
     }
 
     private static ResoniteTexturePayload CreatePayload(string identity, IReadOnlyList<Rgba32> pixels, int width, int height)
@@ -1103,7 +1097,7 @@ public sealed class NonDemCityObjectBakerTests
             }
         }
 
-        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, description: identity);
     }
 
     private static ResoniteTexturePayload CreateStripedPayload(string identity, IReadOnlyList<Rgba32> colors)
@@ -1114,7 +1108,7 @@ public sealed class NonDemCityObjectBakerTests
             image[x, 0] = colors[x];
         }
 
-        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, description: identity);
     }
 
     private static ResoniteTexturePayload CreateCheckerPayload(string identity, Rgba32 primary, Rgba32 secondary, int width, int height)
@@ -1128,7 +1122,7 @@ public sealed class NonDemCityObjectBakerTests
             }
         }
 
-        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, description: identity);
     }
 
     private static ResoniteTexturePayload CreateVerticalSplitPayload(string identity, Rgba32 left, Rgba32 right, int width, int height)
@@ -1143,7 +1137,7 @@ public sealed class NonDemCityObjectBakerTests
             }
         }
 
-        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, description: identity);
     }
 
     private static Rgba32 ReadPixel(RawRgba32ResoniteTexturePayload payload, int x, int y)
