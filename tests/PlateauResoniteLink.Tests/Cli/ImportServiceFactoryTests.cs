@@ -81,16 +81,12 @@ public sealed class ImportServiceFactoryTests
 
     private sealed class StubPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
     {
-        public Task<ResolvedLocalPlateauImportRequest> ResolveAsync(
+        public Task<ValidatedPlateauImportRequest> ResolveAsync(
             ValidatedPlateauImportRequest request,
             string workRoot,
             CancellationToken cancellationToken = default)
         {
-            ValidatedLocalDatasetLocation localSource = Assert.IsType<ValidatedLocalDatasetLocation>(request.CityGmlSource);
-            ValidatedLocalDatasetLocation? localDemTextureSource = request.DemTextureSource is null
-                ? null
-                : Assert.IsType<ValidatedLocalDatasetLocation>(request.DemTextureSource);
-            return Task.FromResult(ResolvedLocalPlateauImportRequest.Create(request, localSource, localDemTextureSource, workRoot));
+            return Task.FromResult(request);
         }
     }
 
@@ -138,7 +134,7 @@ public sealed class ImportServiceFactoryTests
         public int CreateCallCount { get; private set; }
 
         public Task<IImportedSceneSource> CreateAsync(
-            ResolvedLocalPlateauImportRequest request,
+            PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
@@ -147,7 +143,7 @@ public sealed class ImportServiceFactoryTests
             ImportedSceneMetadata metadata = new(
                 "3.0",
                 $"PLATEAU {request.Dataset} {request.MeshCode}",
-                request.ToImportRequest(),
+                request,
                 new PlateauSourceDataset(["bldg"], [], []),
                 new Attribution(
                     new LicenseMetadata(true, "credit", "license", "https://example.invalid")),
@@ -186,7 +182,7 @@ public sealed class ImportServiceFactoryTests
                                 new MeshSubmesh(0, [0, 1, 2]),
                             ])),
                         [
-                            new PresentationMaterialBinding(new ColorRgba(1, 1, 1, 1),
+                            new MaterialBinding(new ColorRgba(1, 1, 1, 1),
                                 MaterialType.Standard,
                                 null,
                                 TextureSourceKind.Dataset,

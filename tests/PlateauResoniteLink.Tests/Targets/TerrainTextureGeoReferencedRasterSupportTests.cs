@@ -38,6 +38,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             geoAsciiParams: null);
 
         Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
         Assert.Equal("EPSG:6676", metadata.CoordinateSystemIdentifier);
         Assert.Equal(1.0, metadata.PixelWidthMeters);
         Assert.Equal(1.0, metadata.PixelHeightMeters);
@@ -48,7 +49,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     }
 
     [Fact]
-    public void TryCreateMetadataReturnsNullWhenCoordinateSystemIsMissing()
+    public void TryCreateMetadataReturnsUnusableMetadataWhenCoordinateSystemIsMissing()
     {
         GeoReferencedRasterMetadata? metadata = TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
             pixelWidth: 10,
@@ -60,26 +61,9 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             geoDoubleParams: null,
             geoAsciiParams: null);
 
-        Assert.Null(metadata);
-    }
-
-    [Fact]
-    public async Task TryReadMetadataAsyncReturnsNullWhenRasterContentSourceCannotOpen()
-    {
-        GeoReferencedRasterMetadata? metadata = await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
-            new ThrowingRasterContentSource(new IOException("candidate raster unavailable")),
-            CancellationToken.None);
-
-        Assert.Null(metadata);
-    }
-
-    [Fact]
-    public async Task TryReadMetadataAsyncPropagatesCancellationFromRasterContentSource()
-    {
-        await Assert.ThrowsAsync<OperationCanceledException>(
-            async () => await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
-                new ThrowingRasterContentSource(new OperationCanceledException("cancelled")),
-                CancellationToken.None));
+        Assert.NotNull(metadata);
+        Assert.False(metadata.IsUsable);
+        Assert.Null(metadata.CoordinateSystemIdentifier);
     }
 
     [Fact]
@@ -108,6 +92,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
 
         Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
         Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
         Assert.InRange(metadata.GeographicBounds.MinLatitude, 35.76, 35.77);
         Assert.InRange(metadata.GeographicBounds.MaxLatitude, 35.77, 35.78);
@@ -141,6 +126,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
                 geoDoubleParams: snapshot.GeoDoubleParams,
                 geoAsciiParams: snapshot.GeoAsciiParams));
 
+        Assert.True(metadata.IsUsable);
         Assert.Equal("EPSG:4326", metadata.CoordinateSystemIdentifier);
         Assert.InRange(metadata.GeographicBounds.MinLatitude, 34.9989, 34.9991);
         Assert.InRange(metadata.GeographicBounds.MaxLongitude, 139.0009, 139.0011);
@@ -166,6 +152,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
 
         Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
         Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
     }
 
@@ -183,6 +170,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
 
         Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
         Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
     }
 
@@ -208,34 +196,6 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.Equal((ushort)4326, Assert.Single(snapshot.GeoKeyDirectory.Skip(7)));
         Assert.NotNull(snapshot.ModelTiePoint);
         Assert.NotNull(snapshot.PixelScale);
-    }
-
-    [Fact]
-    public async Task TryReadMetadataAsyncReturnsNullWhenFileCannotBeIdentifiedAsRaster()
-    {
-        using TemporaryDirectory workDirectory = new();
-        string rasterPath = Path.Combine(workDirectory.Path, "not-a-raster.tif");
-        await File.WriteAllTextAsync(rasterPath, "not a raster");
-
-        GeoReferencedRasterMetadata? metadata =
-            await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
-                rasterPath,
-                CancellationToken.None);
-
-        Assert.Null(metadata);
-    }
-
-    [Fact]
-    public async Task TryReadMetadataAsyncReturnsNullWhenStreamCannotBeIdentifiedAsRaster()
-    {
-        using MemoryStream stream = new("not a raster"u8.ToArray());
-
-        GeoReferencedRasterMetadata? metadata =
-            await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
-                stream,
-                CancellationToken.None);
-
-        Assert.Null(metadata);
     }
 
     [Fact]
@@ -382,8 +342,8 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.NotEqual(Materialize(tileOnlyTexture.TextureSource).Bytes, Materialize(rasterOnlyTexture.TextureSource).Bytes);
         Assert.NotEqual(Materialize(tileOnlyTexture.TextureSource).Bytes, Materialize(mixedTexture.TextureSource).Bytes);
         Assert.NotEqual(Materialize(rasterOnlyTexture.TextureSource).Bytes, Materialize(mixedTexture.TextureSource).Bytes);
-        Assert.Single(rasterOnlyTexture.UsedSources);
-        Assert.Equal(2, mixedTexture.UsedSources.Count);
+        Assert.Single(rasterOnlyTexture.UsedSources ?? []);
+        Assert.Equal(2, (mixedTexture.UsedSources ?? []).Count);
     }
 
     [Fact]
@@ -534,16 +494,16 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             new Rgba32(12, 34, 56, 255),
             outputImage[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)]);
         Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
-        Assert.Contains(texture.UsedSources, static source => source is TerrainTextureGeoReferencedRasterSource);
+        Assert.Contains(texture.UsedSources ?? [], static source => source is TerrainTextureGeoReferencedRasterSource);
         Assert.Contains(
-            texture.UsedSources,
+            texture.UsedSources ?? [],
             static source => source is TerrainTextureTileSource tileSource
                 && tileSource.UrlTemplate == "https://tiles.example/{z}/{x}/{y}.png");
         Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
     }
 
     [Fact]
-    public async Task EnsureTextureAsyncSkipsUnavailableGeoReferencedRasterSourceBeforeTileFallback()
+    public async Task EnsureTextureAsyncSkipsUnsupportedGeoReferencedRasterSource()
     {
         GeographicRectangle bounds = new(0.0, WebMercatorTileMath.MaxLatitude, -180.0, 180.0);
         TerrainTextureOverlay overlay = new(
@@ -553,9 +513,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             MaxTextureSize: 1024,
             Sources:
             [
-                new TerrainTextureGeoReferencedRasterSource(
-                    "missing.tif",
-                    new GeoReferencedRasterMetadata(bounds, "EPSG:4326", 1.0, 1.0)),
+                new TerrainTextureGeoReferencedRasterSource("missing.tif"),
                 new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 1),
             ]);
 
@@ -565,61 +523,9 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
+        Assert.Equal(4, handler.RequestCount);
         Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
-        Assert.True(handler.RequestCount > 0);
-    }
-
-    [Fact]
-    public async Task EnsureTextureAsyncSkipsNonOverlappingGeoReferencedRasterSourceBeforeTileFallback()
-    {
-        using TemporaryDirectory workDirectory = new();
-        string rasterPath = Path.Combine(workDirectory.Path, "terrain.png");
-        using (Image<Rgba32> rasterImage = new(2, 2, new Rgba32(12, 34, 56, 255)))
-        {
-            await rasterImage.SaveAsPngAsync(rasterPath);
-        }
-
-        GeographicRectangle requestedBounds = new(35.0, 35.001, 139.0, 139.001);
-        TerrainTextureOverlay overlay = new(
-            PackageName: "dem",
-            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-            GeographicBounds: requestedBounds,
-            MaxTextureSize: 1024,
-            Sources:
-            [
-                new TerrainTextureGeoReferencedRasterSource(
-                    rasterPath,
-                    new GeoReferencedRasterMetadata(
-                        new GeographicRectangle(36.0, 36.001, 140.0, 140.001),
-                        "EPSG:4326",
-                        1.0,
-                        1.0)),
-                new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 1),
-            ]);
-
-        using TerrainTextureAssetGeneratorTestsProxyMapTileHandler handler = new();
-        using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
-
-        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
-
         Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
-        Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
-        Assert.True(handler.RequestCount > 0);
-    }
-
-    private sealed class ThrowingRasterContentSource(Exception exception) : ITerrainTextureRasterContentSource
-    {
-        public string IdentityKey => "throwing-raster";
-
-        public string Description => "throwing-raster";
-
-        public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            throw exception;
-        }
     }
 
     private sealed class NeverCalledMapTileHandler : HttpMessageHandler

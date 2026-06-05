@@ -23,80 +23,26 @@ internal interface ITerrainTextureAssetGenerator
         CancellationToken cancellationToken);
 }
 
-internal sealed record GeneratedTerrainTexture
+internal sealed record GeneratedTerrainTexture(
+    ITextureImportSource TextureSource,
+    TextureUvRect OccupiedUvRect,
+    TerrainTextureSource? UsedSource = null,
+    IReadOnlyList<TerrainTextureSource>? UsedSources = null)
 {
     public GeneratedTerrainTexture(
         ITextureImportSource textureSource,
         ResoniteFloat2 canvasScale,
         ResoniteFloat2 canvasOffset,
-        TerrainTextureSource usedSource)
+        TerrainTextureSource? usedSource = null,
+        IReadOnlyList<TerrainTextureSource>? usedSources = null)
         : this(
             textureSource,
             TextureUvRect.FromScaleOffsetValue(
                 new ScalarPair(canvasScale.X, canvasScale.Y),
                 new ScalarPair(canvasOffset.X, canvasOffset.Y)),
-            CreateSingleUsedSourceSnapshot(usedSource))
-    {
-    }
-
-    public GeneratedTerrainTexture(
-        ITextureImportSource textureSource,
-        ResoniteFloat2 canvasScale,
-        ResoniteFloat2 canvasOffset,
-        IReadOnlyList<TerrainTextureSource> usedSources)
-        : this(
-            textureSource,
-            TextureUvRect.FromScaleOffsetValue(
-                new ScalarPair(canvasScale.X, canvasScale.Y),
-                new ScalarPair(canvasOffset.X, canvasOffset.Y)),
+            usedSource,
             usedSources)
     {
-    }
-
-    public GeneratedTerrainTexture(
-        ITextureImportSource textureSource,
-        TextureUvRect occupiedUvRect,
-        IReadOnlyList<TerrainTextureSource> usedSources)
-    {
-        ArgumentNullException.ThrowIfNull(textureSource);
-
-        TerrainTextureSource[] trackedSources = CreateUsedSourceSnapshot(usedSources);
-        if (trackedSources.Length == 0)
-        {
-            throw new ArgumentException("Generated terrain texture must track at least one source.", nameof(usedSources));
-        }
-
-        TextureSource = textureSource;
-        OccupiedUvRect = occupiedUvRect;
-        UsedSources = Array.AsReadOnly(trackedSources);
-    }
-
-    public ITextureImportSource TextureSource { get; }
-
-    public TextureUvRect OccupiedUvRect { get; }
-
-    public TerrainTextureSource UsedSource => UsedSources[0];
-
-    public IReadOnlyList<TerrainTextureSource> UsedSources { get; }
-
-    private static TerrainTextureSource[] CreateSingleUsedSourceSnapshot(TerrainTextureSource usedSource)
-    {
-        ArgumentNullException.ThrowIfNull(usedSource);
-        return [usedSource];
-    }
-
-    private static TerrainTextureSource[] CreateUsedSourceSnapshot(IReadOnlyList<TerrainTextureSource> usedSources)
-    {
-        ArgumentNullException.ThrowIfNull(usedSources);
-
-        TerrainTextureSource[] sources = new TerrainTextureSource[usedSources.Count];
-        for (int index = 0; index < usedSources.Count; index++)
-        {
-            sources[index] = usedSources[index]
-                ?? throw new ArgumentException("Generated terrain texture sources cannot contain null.", nameof(usedSources));
-        }
-
-        return sources.Distinct().ToArray();
     }
 }
 
@@ -126,10 +72,6 @@ internal sealed class TerrainTextureAssetGenerator(
         return cachedTexture.GeneratedTexture;
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Reliability",
-        "CA2000:Dispose objects before losing scope",
-        Justification = "Each non-null TerrainTextureSourceImage is disposed by the using block before the next source is evaluated.")]
     private async Task<CachedTerrainTexture> CreateTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
@@ -137,7 +79,7 @@ internal sealed class TerrainTextureAssetGenerator(
         Image<Rgba32>? composedTexture = null;
         TextureUvRect? composedOccupiedUvRect = null;
         List<TerrainTextureSource> usedSources = [];
-        TerrainTextureSource? textureIdentitySource = null;
+        TerrainTextureSource? usedSource = null;
 
         for (int sourceIndex = 0; sourceIndex < terrainTextureOverlay.Sources.Count; sourceIndex++)
         {
@@ -148,8 +90,8 @@ internal sealed class TerrainTextureAssetGenerator(
                     terrainTextureOverlay,
                     tileSource,
                     cancellationToken),
-                TerrainTextureGeoReferencedRasterSource rasterSource => await CreateTextureFromGeoReferencedRasterSourceAsync(
-                    terrainTextureOverlay.GeographicBounds,
+                TerrainTextureGeoReferencedRasterSource rasterSource => await TryCreateTextureFromGeoReferencedRasterSourceAsync(
+                    terrainTextureOverlay,
                     rasterSource,
                     cancellationToken),
                 _ => null,
@@ -171,7 +113,7 @@ internal sealed class TerrainTextureAssetGenerator(
                 {
                     composedTexture = image.Clone();
                     composedOccupiedUvRect = sourceImage.OccupiedUvRect;
-                    textureIdentitySource = terrainTextureSource;
+                    usedSource = terrainTextureSource;
                     usedSources.Add(terrainTextureSource);
                 }
                 else
@@ -179,7 +121,7 @@ internal sealed class TerrainTextureAssetGenerator(
                     using Image<Rgba32> resizedImage = ResizeSourceImage(image, composedTexture.Width, composedTexture.Height);
                     if (FillTransparentPixels(composedTexture, resizedImage))
                     {
-                        textureIdentitySource = terrainTextureSource;
+                        usedSource = terrainTextureSource;
                         usedSources.Add(terrainTextureSource);
                     }
                 }
@@ -198,15 +140,14 @@ internal sealed class TerrainTextureAssetGenerator(
 
         using (composedTexture)
         {
-            TerrainTextureSource terrainTextureSource = textureIdentitySource
-                ?? throw new InvalidOperationException("Generated terrain texture must have at least one rendered source.");
+            TerrainTextureSource terrainTextureSource = usedSource ?? terrainTextureOverlay.PrimarySource;
             GeneratedTerrainTexture generatedTexture = CreateGeneratedTexture(
                 composedTexture,
                 terrainTextureOverlay.MaxTextureSize,
                 terrainTextureSource,
                 usedSources,
                 composedOccupiedUvRect);
-            return new CachedTerrainTexture(generatedTexture);
+            return new CachedTerrainTexture(generatedTexture, terrainTextureSource);
         }
     }
 
@@ -214,34 +155,45 @@ internal sealed class TerrainTextureAssetGenerator(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "The returned source image owns and disposes the cropped raster image.")]
-    private static async Task<TerrainTextureSourceImage?> CreateTextureFromGeoReferencedRasterSourceAsync(
-        GeographicRectangle geographicBounds,
+    private static async Task<TerrainTextureSourceImage?> TryCreateTextureFromGeoReferencedRasterSourceAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
         TerrainTextureGeoReferencedRasterSource rasterSource,
         CancellationToken cancellationToken)
     {
-        Image<Rgba32> sourceImage;
         try
         {
-            await using Stream sourceStream = await rasterSource.OpenReadAsync(cancellationToken);
-            sourceImage = await Image.LoadAsync<Rgba32>(sourceStream, cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            return null;
-        }
-
-        using (sourceImage)
-        {
-            Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(
-                sourceImage,
-                rasterSource.Metadata,
-                geographicBounds);
-            if (cropped is null)
+            GeoReferencedRasterMetadata? metadata = rasterSource.Metadata
+                ?? await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(rasterSource, cancellationToken);
+            if (metadata is null || !metadata.IsUsable)
             {
                 return null;
             }
 
-            return new TerrainTextureSourceImage(cropped, null);
+            await using Stream sourceStream = await rasterSource.OpenReadAsync(cancellationToken);
+            using Image<Rgba32> sourceImage = await Image.LoadAsync<Rgba32>(sourceStream, cancellationToken);
+            Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(
+                sourceImage,
+                metadata,
+                terrainTextureOverlay.GeographicBounds);
+            return cropped is null
+                ? null
+                : new TerrainTextureSourceImage(cropped, null);
+        }
+        catch (UnknownImageFormatException)
+        {
+            return null;
+        }
+        catch (InvalidImageContentException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 
@@ -312,20 +264,9 @@ internal sealed class TerrainTextureAssetGenerator(
         generatedTexture = new GeneratedTerrainTexture(
             CreateTextureSource(canvasImage, usedSource),
             occupiedUvRect,
-            CreateUsedSourcesWithIdentityFirst(usedSource, usedSources));
+            usedSource,
+            usedSources.Distinct().ToArray());
         return true;
-    }
-
-    private static TerrainTextureSource[] CreateUsedSourcesWithIdentityFirst(
-        TerrainTextureSource identitySource,
-        IReadOnlyList<TerrainTextureSource> usedSources)
-    {
-        return
-        [
-            identitySource,
-            .. usedSources
-                .Where(source => source != identitySource),
-        ];
     }
 
     private static TextureUvRect CreateOccupiedUvRect(
@@ -472,6 +413,8 @@ internal sealed class TerrainTextureAssetGenerator(
             ResoniteTextureColorProfiles.Srgb);
     }
 
-    private sealed record CachedTerrainTexture(GeneratedTerrainTexture GeneratedTexture);
+    private sealed record CachedTerrainTexture(
+        GeneratedTerrainTexture GeneratedTexture,
+        TerrainTextureSource UsedSource);
 
 }

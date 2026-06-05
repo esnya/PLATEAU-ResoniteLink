@@ -17,17 +17,6 @@ public sealed record PlateauImportRequest(
     double TerrainGridMetersPerVertex = 2.0,
     int TerrainGridMaxResolution = 1024)
 {
-#pragma warning disable IDE0032 // Backing field keeps with-expressions from assigning a null CityGmlSource.
-    private DatasetLocation cityGmlSource =
-        CityGmlSource ?? throw new ArgumentNullException(nameof(CityGmlSource));
-#pragma warning restore IDE0032
-
-    public DatasetLocation CityGmlSource
-    {
-        get => cityGmlSource;
-        init => cityGmlSource = value ?? throw new ArgumentNullException(nameof(CityGmlSource));
-    }
-
     public DatasetSourceKind CityGmlSourceKind => CityGmlSource.SourceKind;
 
     public string? CityGmlLocalSourcePath => CityGmlSource is LocalDatasetLocation localSource ? localSource.LocalSourcePath : null;

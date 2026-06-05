@@ -25,9 +25,14 @@ internal sealed class ResoniteTextureImageLoader
         ITextureImportSource textureSource,
         CancellationToken cancellationToken)
     {
-        Rgba32RawTexturePayload rawPayload = await TextureImportSourceMaterializer.MaterializeRgba32Async(
+        RawTexturePayload rawPayload = await TextureImportSourceMaterializer.MaterializeRawAsync(
             textureSource,
             cancellationToken);
+        if (rawPayload.Format != RawTexturePayloadFormat.Rgba32)
+        {
+            throw new InvalidOperationException(
+                $"Unsupported texture payload format '{rawPayload.Format}' for image loading.");
+        }
 
         return Image.LoadPixelData<Rgba32>(
             rawPayload.Bytes,

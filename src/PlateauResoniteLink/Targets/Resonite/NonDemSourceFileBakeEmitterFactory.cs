@@ -15,7 +15,7 @@ internal sealed class NonDemSourceFileBakeEmitterFactory(
             atlasBudget.TilePaddingPixels);
         return new NonDemSourceFileBakeEmitter(
             new NonDemCityObjectBakeCandidateFactory(
-                new NonDemBakeEntryFactory(textureImageLoader, atlasBudget.EffectiveMaxAtlasTextureEdge)),
+                new NonDemAtlasOrPreservedEntryFactory(textureImageLoader, atlasBudget.EffectiveMaxAtlasTextureEdge)),
             new NonDemCityObjectBakeAssembler(
                 layoutFactory,
                 new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),

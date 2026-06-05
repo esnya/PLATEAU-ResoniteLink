@@ -68,9 +68,10 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
-        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
-            cityGmlLocalSourcePath: fixturePath);
-        PlateauImportRequest importRequest = request.ToImportRequest();
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local(fixturePath));
 
         DefaultImportedSceneSourceFactory factory = new(
             documentReader,
@@ -86,7 +87,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
-        Assert.Equal(importRequest, source.Metadata.Request);
+        Assert.Same(request, source.Metadata.Request);
         Assert.Contains("bldg", source.Metadata.SourceDataset.PackageNames);
         Assert.Contains("53394525", source.Metadata.SourceDataset.SelectedMeshCodes!);
         Assert.NotEmpty(source.Metadata.SourceDataset.SourceFiles);
@@ -537,8 +538,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             {
                 CityGmlFunctionCodes = ["401"],
                 Structures = [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
-                MeasuredHeightMeters = new BuildingMetricValue(8.0),
-                BuildingFootprintArea = new BuildingMetricValue(100.0),
+                MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
+                BuildingFootprintArea = BuildingMetricValue.Known(100.0),
             });
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -596,8 +597,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             {
                 CityGmlFunctionCodes = ["401"],
                 Structures = [new BuildingCodeValue<PlateauBuildingStructure>(structure, CreateStructureTypeCode(structure))],
-                MeasuredHeightMeters = new BuildingMetricValue(8.0),
-                BuildingFootprintArea = new BuildingMetricValue(100.0),
+                MeasuredHeightMeters = BuildingMetricValue.Known(8.0),
+                BuildingFootprintArea = BuildingMetricValue.Known(100.0),
             });
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -1149,7 +1150,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectParsedCityObjectUsesOverlayCoveringTexturelessBuildingRoofInsteadOfActualMeshCode()
+    public void ProjectParsedCityObjectUsesSourceOverlayForTexturelessBuildingRoofOutsideSourceBounds()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay selectedRequestOverlay = CreateThirdMeshOverlay("53394525");
@@ -1181,12 +1182,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
 
         MaterialBinding material = Assert.Single(projected.Materials);
-        Assert.Same(selectedAdjacentOverlay, material.TerrainOverlay);
-        Assert.Equal("53394526", material.TerrainMeshCode);
+        Assert.Same(selectedRequestOverlay, material.TerrainOverlay);
+        Assert.Equal("53394525", material.TerrainMeshCode);
     }
 
     [Fact]
-    public void ProjectParsedCityObjectUsesOverlayCoveringTexturelessBuildingRoofInsteadOfSourceMeshCode()
+    public void ProjectParsedCityObjectUsesSourceMeshOverlayBeforeActualMeshOverlay()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay sourceOverlay = CreateThirdMeshOverlay("53394525");
@@ -1219,8 +1220,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
 
         MaterialBinding material = Assert.Single(projected.Materials);
-        Assert.Same(actualOverlay, material.TerrainOverlay);
-        Assert.Equal("53394526", material.TerrainMeshCode);
+        Assert.Same(sourceOverlay, material.TerrainOverlay);
+        Assert.Equal("53394525", material.TerrainMeshCode);
     }
 
     [Fact]
@@ -1499,7 +1500,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectKeepsMaterialMeshCodeForMismatchedTerrainOverlayRoof()
+    public void ProjectCityObjectUsesProvidedTerrainOverlayMeshCodeForTexturelessRoof()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         TerrainTextureOverlay mismatchedOverlay = CreateThirdMeshOverlay("53394526");
@@ -1521,7 +1522,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(mismatchedOverlay, material.TerrainOverlay);
-        Assert.Equal("53394525", material.TerrainMeshCode);
+        Assert.Equal("53394526", material.TerrainMeshCode);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
     }
 
@@ -2071,10 +2072,10 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
 
         Assert.Equal(3, projected.Materials.Count);
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Identity == "ground");
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Identity == "ground-reversed");
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Identity == "outer-floor");
-        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Source.Identity == "high-outer-floor");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "ground");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "ground-reversed");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "outer-floor");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "high-outer-floor");
     }
 
     [Fact]
@@ -2111,7 +2112,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
 
         Assert.Single(projected.Materials);
-        Assert.Equal("tran-ground", projected.Materials[0].TexturePayload?.Source.Identity);
+        Assert.Equal("tran-ground", projected.Materials[0].TexturePayload?.Identity);
         Assert.NotEmpty(projected.Mesh.Vertices);
     }
 
@@ -2169,10 +2170,10 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
 
         Assert.Equal(2, projected.Materials.Count);
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Identity == "lod1-bottom");
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Identity == "lod1-bottom-reversed");
-        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Source.Identity == "lod1-roof");
-        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Source.Identity == "lod1-wall");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-bottom");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-bottom-reversed");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-roof");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-wall");
     }
 
     [Fact]
@@ -2244,7 +2245,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
 
         Assert.Single(projected.Materials);
-        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Source.Identity == "only-surface");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "only-surface");
     }
 
     [Fact]
@@ -2328,10 +2329,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             cartesian);
 
         Assert.DoesNotContain(materialBindings, static binding => binding.BaseColor == new ColorRgba(1.0, 0.0, 0.0, 1.0));
-        Assert.Contains(
-            materialBindings,
-            static binding => binding is SharedCommonMaterialBinding shared
-                && shared.CommonMaterial.Kind == DefaultCommonMaterialMemberKind.Bundled);
+        Assert.Contains(materialBindings, static binding => binding.BaseColor == new ColorRgba(0.0, 0.0, 1.0, 1.0));
     }
 
     [Fact]
@@ -2379,7 +2377,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.NotNull(explicitMaterial.TexturePayload);
         Assert.Contains(
             "udx/dem/53394525/appearance/mixed_surface.png",
-            explicitMaterial.TexturePayload!.Source.Identity,
+            explicitMaterial.TexturePayload!.Identity,
             StringComparison.Ordinal);
     }
 
@@ -3617,7 +3615,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             SharedAcrossMeshCodes: false,
             FloorsAboveGround: floorsAboveGround,
             MeasuredHeightMeters: measuredHeightMeters,
-            BuildingAttributes: buildingAttributes ?? BuildingAttributeContext.Empty);
+            BuildingAttributes: buildingAttributes);
     }
 
     private static BuildingAttributeContext CreateBuildingAttributes(
@@ -3857,7 +3855,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
     private static TexturePayload CreateTexturePayload(string identity)
     {
-        return new RawRgba32TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], identity);
+        return new TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], identity);
     }
 
     private static HashSet<string> GetCulledSurfaceIdsBeforeProjectionForTest(

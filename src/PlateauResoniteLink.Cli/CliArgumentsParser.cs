@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 
@@ -274,7 +273,6 @@ public static class CliArgumentsParser
                                     System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
                                     System.Globalization.CultureInfo.InvariantCulture,
                                     out terrainGridMetersPerVertex)
-                                || !double.IsFinite(terrainGridMetersPerVertex)
                                 || terrainGridMetersPerVertex <= 0.0)
                             {
                                 return CliParseResult.Failure(
@@ -332,7 +330,7 @@ public static class CliArgumentsParser
                             if (TryParsePackagePatternOption(token, args, ref index, out string? packageName, out string? patternValue))
                             {
                                 packagePatterns ??= new(StringComparer.OrdinalIgnoreCase);
-                                packagePatterns[packageName] = patternValue;
+                                packagePatterns[packageName!] = patternValue!;
                                 break;
                             }
 
@@ -352,16 +350,6 @@ public static class CliArgumentsParser
             {
                 ["tran"] = new HashSet<int> { 1 }
             };
-        }
-
-        if (string.IsNullOrWhiteSpace(dataset))
-        {
-            return CliParseResult.Failure("Specify --dataset.");
-        }
-
-        if (string.IsNullOrWhiteSpace(meshCode))
-        {
-            return CliParseResult.Failure("Specify --mesh-code.");
         }
 
         if (string.IsNullOrWhiteSpace(cityGmlSourceInput))
@@ -387,9 +375,9 @@ public static class CliArgumentsParser
         }
 
         PlateauImportRequest request = new(
-            Dataset: dataset,
-            MeshCode: meshCode,
-            CityGmlSource: cityGmlSource,
+            Dataset: dataset ?? string.Empty,
+            MeshCode: meshCode ?? string.Empty,
+            CityGmlSource: cityGmlSource!,
             DemTextureSource: demTextureSource,
             PackageNames: packageNames,
             GlobalExcludeLodLevels: globalExcludeLods,
@@ -727,9 +715,7 @@ public static class CliArgumentsParser
         string token,
         string[] args,
         ref int index,
-        [NotNullWhen(true)]
         out string? packageName,
-        [NotNullWhen(true)]
         out string? patternValue)
     {
         packageName = null;
@@ -750,9 +736,7 @@ public static class CliArgumentsParser
 
     private static bool TryParseDatasetLocationInput(
         string input,
-        [NotNullWhen(true)]
         out DatasetLocation? source,
-        [NotNullWhen(false)]
         out string? error)
     {
         string trimmedInput = input.Trim();

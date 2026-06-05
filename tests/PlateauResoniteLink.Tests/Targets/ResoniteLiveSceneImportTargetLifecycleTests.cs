@@ -281,10 +281,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials = CommonMaterialCatalog.Create();
-        SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
+        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
+            request,
+            request,
             metadata,
+            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
-            commonMaterials: commonMaterials);
+            commonMaterials);
 
         InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() => importTarget.ExecuteAsync(
             plan,
@@ -320,8 +323,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
-        SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
+        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
+            request,
+            request,
             metadata,
+            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
             commonMaterials: CommonMaterialCatalog.Create());
 
@@ -350,7 +356,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 Projection: ResoniteMaterialProjection.Uv,
                 DepthOffset: terrainAlignedDepthOffset,
                 SubmeshIndices: [0],
-                AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv()));
+                AssetScope: ResoniteMaterialAssetScope.Common));
         bool terrainAlignedGenericSlotExistedWhenSendWorkersStarted = false;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         await using ResoniteLiveSceneImportTarget importTarget = new(
@@ -383,10 +389,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ResoniteConstructionCityObject cityObject = CreateMixedSharedMaterialAndPayloadCityObject(
             "runtime-shared-texture",
             terrainAlignedDepthOffset);
-        SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
+        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
+            request,
+            request,
             metadata,
+            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
-            commonMaterials: ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: false));
+            ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: false));
 
         _ = await importTarget.ExecuteAsync(
             plan,
@@ -422,7 +431,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 Projection: ResoniteMaterialProjection.Uv,
                 DepthOffset: new ResoniteMaterialDepthOffset(-10.0, -10.0),
                 SubmeshIndices: [0],
-                AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv()));
+                AssetScope: ResoniteMaterialAssetScope.Common));
         bool materialSlotExistedWhenSendWorkersStarted = false;
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
@@ -444,10 +453,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ResoniteConstructionCityObject cityObject = CreateVertexColorTriangleCityObject(
             "terrain-aligned-vertex-common",
             new ResoniteMaterialDepthOffset(-10.0, -10.0));
-        SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
+        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
+            request,
+            request,
             metadata,
+            request.CityGmlLocalSourcePath!,
             workDirectory.Path,
-            commonMaterials: ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: true));
+            ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: true));
 
         _ = await importTarget.ExecuteAsync(
             plan,
@@ -535,7 +547,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             [
                 demObject.Materials[0] with
                 {
-                AssetBinding = ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv),
+                    CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
                 },
             ],
         };
@@ -692,7 +704,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             .ToArray();
         Assert.Contains(creditStrings, static creditString => creditString.Contains("GSI Maps Terms", StringComparison.Ordinal));
         Assert.Contains(creditStrings, static creditString => !creditString.Contains("GSI Maps Terms", StringComparison.Ordinal));
-        ImportDataSourceUsage demSourceUsage = Assert.Single(executionResult.DataSourceUsages);
+        ImportDataSourceUsage demSourceUsage = Assert.Single(executionResult.DataSourceUsages ?? []);
         Assert.Equal(ImportDataSourceCategory.DemTextureSource, demSourceUsage.Category);
         Assert.Equal(
             new TerrainTextureTileSource(
@@ -740,7 +752,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                [gsiFallbackSource, rasterSource]));
+                gsiFallbackSource,
+                [rasterSource, gsiFallbackSource]));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -759,9 +772,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             CreateImportedObjectUnits(
                 CreateDemCityObject("dem-mixed", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
-        ImportDataSourceUsage[] usages = executionResult.DataSourceUsages
+        ImportDataSourceUsage[] usages = executionResult.DataSourceUsages?
             .OrderBy(static usage => usage.Identity, StringComparer.Ordinal)
-            .ToArray();
+            .ToArray()
+            ?? [];
         Assert.Equal(2, usages.Length);
         Assert.Contains(
             usages,
@@ -920,9 +934,12 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(routedClient, session: session);
-        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
-            cityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
-            packageNames: ["dem"]);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages")),
+            PackageNames: ["dem"]
+);
         ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
             new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),
@@ -1094,8 +1111,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     ResoniteTextureSourceKind.Dataset,
                     ResoniteMaterialProjection.Uv,
                     null,
-                    [0],
-                    ResoniteMaterialAssetBinding.Presentation),
+                    [0]),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: sourceFileRelativePath);
@@ -1122,8 +1138,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     ResoniteMaterialProjection.Uv,
                     null,
                     [0],
-                    AssetBinding: ResoniteMaterialAssetBinding.Presentation,
-                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay)),
+                    TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay)),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: sourceFileRelativePath);
@@ -1155,8 +1170,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     TextureScale: textureScale,
                     Family: family,
                     TextureOffset: textureOffset,
+                    AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: variantIndex,
-                    AssetBinding: ResoniteMaterialAssetBinding.SharedCommon(CommonMaterialCatalog.Create().FacadeHighriseGlass.Facade001)),
+                    CommonMaterial: CommonMaterialCatalog.Create().FacadeHighriseGlass.Facade001),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
@@ -1184,9 +1200,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: depthOffset,
                     SubmeshIndices: [0],
-                    AssetBinding: ResoniteMaterialAssetBinding.SharedCommon(depthOffset is null
+                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    CommonMaterial: depthOffset is null
                         ? CommonMaterialCatalog.Create().VertexColor.Uv
-                        : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv)),
+                        : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
@@ -1214,9 +1231,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: payloadDepthOffset,
                     SubmeshIndices: [0],
-                    AssetBinding: ResoniteMaterialAssetBinding.SharedCommon(payloadDepthOffset is null
+                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    CommonMaterial: payloadDepthOffset is null
                         ? CommonMaterialCatalog.Create().VertexColor.Uv
-                        : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv)),
+                        : CommonMaterialCatalog.Create().VertexColor.TerrainAlignedUv),
                 new ResoniteMaterialBinding(
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
@@ -1229,7 +1247,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
-                    AssetBinding: ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv)),
+                    CommonMaterial: CommonMaterialCatalog.Create().Generic.Uv),
             ],
             CollisionEnabled: true,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");

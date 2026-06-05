@@ -662,8 +662,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     ResoniteTextureSourceKind.Bundled,
                     ResoniteMaterialProjection.Uv,
                     null,
-                    [0],
-                    ResoniteMaterialAssetBinding.Presentation),
+                    [0]),
             ],
             SourceFileRelativePath: sourceFileRelativePath);
     }

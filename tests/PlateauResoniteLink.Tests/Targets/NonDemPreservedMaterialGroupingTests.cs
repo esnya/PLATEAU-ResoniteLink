@@ -10,9 +10,10 @@ public sealed class NonDemPreservedMaterialGroupingTests
     {
         ResoniteMaterialBinding commonMaterial = CreateTexturelessMaterial() with
         {
-            AssetBinding = ResoniteMaterialAssetBindingTestFactory.SharedGenericUv(),
+            AssetScope = ResoniteMaterialAssetScope.Common,
+            CommonMaterial = CommonMaterialCatalog.Create().Generic.Uv,
         };
-        ResoniteTexturePayload texture = new RawRgba32ResoniteTexturePayload(
+        ResoniteTexturePayload texture = new(
             width: 1,
             height: 1,
             colorProfile: null,
@@ -31,7 +32,7 @@ public sealed class NonDemPreservedMaterialGroupingTests
         });
         NonDemPreservedMaterialGroupingKey differentTexture = NonDemPreservedMaterialGrouping.CreateKey(commonMaterial with
         {
-            TexturePayload = new RawRgba32ResoniteTexturePayload(
+            TexturePayload = new ResoniteTexturePayload(
                 width: 1,
                 height: 1,
                 colorProfile: null,
@@ -58,26 +59,6 @@ public sealed class NonDemPreservedMaterialGroupingTests
         Assert.False(NonDemPreservedMaterialGrouping.KeyComparer.Equals(red, blue));
     }
 
-    [Fact]
-    public void CreateKeyKeepsPresentationCommonMaterialTintDistinct()
-    {
-        ResoniteMaterialBinding presentationCommonMaterial = CreateTexturelessMaterial() with
-        {
-            AssetBinding = ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv),
-        };
-
-        NonDemPreservedMaterialGroupingKey red = NonDemPreservedMaterialGrouping.CreateKey(presentationCommonMaterial with
-        {
-            BaseColor = new ResoniteColor(1.0, 0.0, 0.0, 1.0),
-        });
-        NonDemPreservedMaterialGroupingKey blue = NonDemPreservedMaterialGrouping.CreateKey(presentationCommonMaterial with
-        {
-            BaseColor = new ResoniteColor(0.0, 0.0, 1.0, 1.0),
-        });
-
-        Assert.False(NonDemPreservedMaterialGrouping.KeyComparer.Equals(red, blue));
-    }
-
     private static ResoniteMaterialBinding CreateTexturelessMaterial()
     {
         return new ResoniteMaterialBinding(
@@ -87,7 +68,6 @@ public sealed class NonDemPreservedMaterialGroupingTests
             ResoniteTextureSourceKind.Bundled,
             ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            SubmeshIndices: [0],
-            ResoniteMaterialAssetBinding.Presentation);
+            SubmeshIndices: [0]);
     }
 }

@@ -188,14 +188,17 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
     {
         if (!texturePayloadsByResolvedPath.TryGetValue(resolvedTexturePath, out TexturePayload? texturePayload))
         {
-            texturePayload = new EncodedImageTexturePayload(
+            texturePayload = new TexturePayload(
                 null,
                 null,
+                "sRGB",
                 TextureImportSourceFactory.CreateDatasetEncodedImage(
                     datasetSource,
                     resolvedTexturePath,
                     "sRGB",
-                    $"dataset:{resolvedTexturePath}"));
+                    $"dataset:{resolvedTexturePath}"),
+                $"dataset:{resolvedTexturePath}",
+                TexturePayloadFormat.EncodedImage);
             texturePayloadsByResolvedPath[resolvedTexturePath] = texturePayload;
         }
 

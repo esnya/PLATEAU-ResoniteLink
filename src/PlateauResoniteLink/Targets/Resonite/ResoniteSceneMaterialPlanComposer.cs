@@ -19,7 +19,7 @@ internal interface IResoniteSceneMaterialPlanComposer
         ResoniteConstructionCityObject cityObject,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<TerrainTextureAssetKey, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByKey,
+        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
         Action<string> reportMaterialStep,
         CancellationToken cancellationToken);
 }
@@ -32,7 +32,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         ResoniteConstructionCityObject cityObject,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<TerrainTextureAssetKey, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByKey,
+        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
         Action<string> reportMaterialStep,
         CancellationToken cancellationToken)
     {
@@ -41,7 +41,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         ArgumentNullException.ThrowIfNull(cityObject);
         ArgumentNullException.ThrowIfNull(preparedTextureUrisByPayload);
         ArgumentNullException.ThrowIfNull(preparedTerrainTextureUrisByOverlay);
-        ArgumentNullException.ThrowIfNull(preparedTerrainTexturePropertyBlockComponentsByKey);
+        ArgumentNullException.ThrowIfNull(preparedTerrainTexturePropertyBlockComponentsByMeshCode);
         ArgumentNullException.ThrowIfNull(reportMaterialStep);
 
         Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[] materialPlanTasks
@@ -51,17 +51,16 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             ResoniteMaterialBinding material = ResolveTerrainTextureMaterialForEmission(
                 cityObject,
                 cityObject.Materials[materialIndex]);
+            material = ResoniteTerrainOverlayMaterialContract.ValidateMaterial(cityObject, materialIndex, material);
             reportMaterialStep($"Creating material {materialIndex + 1}/{cityObject.Materials.Count}.");
-            if (material.AssetBinding.IsSharedCommon
-                && material.CommonMaterial is { } commonMaterial)
+            if (material.CommonMaterial is not null)
             {
                 materialPlanTasks[materialIndex] = PlanSharedCommonRendererMaterialAsync(
                     state,
                     material,
-                    commonMaterial,
                     preparedTextureUrisByPayload,
                     preparedTerrainTextureUrisByOverlay,
-                    preparedTerrainTexturePropertyBlockComponentsByKey,
+                    preparedTerrainTexturePropertyBlockComponentsByMeshCode,
                     cancellationToken);
                 continue;
             }
@@ -72,7 +71,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
                 materialIndex,
                 preparedTextureUrisByPayload,
                 preparedTerrainTextureUrisByOverlay,
-                preparedTerrainTexturePropertyBlockComponentsByKey,
+                preparedTerrainTexturePropertyBlockComponentsByMeshCode,
                 preserveDedicatedMaterialSlot: ResonitePackageSemantics.IsDemPackage(cityObject.PackageName),
                 cancellationToken);
         }
@@ -86,14 +85,13 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
     private static async Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)> PlanSharedCommonRendererMaterialAsync(
         LiveSendRunState runState,
         ResoniteMaterialBinding sourceMaterial,
-        DefaultCommonMaterialMember member,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<TerrainTextureAssetKey, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByKey,
+        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(member);
-
+        DefaultCommonMaterialMember member = sourceMaterial.CommonMaterial
+            ?? throw new InvalidOperationException("Common renderer material requires a typed common material member.");
         string familySlotName = ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(
             SceneImportContractMapper.ToInternal(member.CreateBinding([0])));
         if (runState.Materials.CommonMaterialFamilyWarmupTasks.TryGetValue(familySlotName, out Task? familyWarmupTask))
@@ -116,7 +114,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             : CreateMainTextureOverrideRendererBinding(
                 sharedMaterialAsset,
                 mainTextureOverride,
-                terrainTexturePropertyBlockComponentsByKey,
+                terrainTexturePropertyBlockComponentsByMeshCode,
                 sourceMaterial);
         return (sharedMaterialAsset, rendererBinding);
     }
@@ -127,7 +125,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         int materialIndex,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<TerrainTextureAssetKey, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByKey,
+        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
         bool preserveDedicatedMaterialSlot,
         CancellationToken cancellationToken)
     {
@@ -160,7 +158,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
                     CreateMainTextureOverrideRendererBinding(
                         plannedMaterial,
                         mainTextureOverride,
-                        preparedTerrainTexturePropertyBlockComponentsByKey,
+                        preparedTerrainTexturePropertyBlockComponentsByMeshCode,
                         sourceMaterial));
             }
         }
@@ -186,7 +184,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
     private static PlannedMainTextureOverrideRendererMaterialBinding CreateMainTextureOverrideRendererBinding(
         PlannedMaterialAsset materialAsset,
         PlannedTextureAsset mainTexture,
-        IReadOnlyDictionary<TerrainTextureAssetKey, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByKey,
+        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode,
         ResoniteMaterialBinding sourceMaterial)
     {
         if (sourceMaterial.TerrainOverlay is null)
@@ -198,10 +196,8 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             materialAsset,
             mainTexture,
             null,
-            sourceMaterial.TerrainOverlayMaterial is { } terrainOverlayMaterial
-            && terrainTexturePropertyBlockComponentsByKey.TryGetValue(
-                new TerrainTextureAssetKey(terrainOverlayMaterial.MeshCode, terrainOverlayMaterial.Overlay),
-                out ResoniteComponentLocator propertyBlockComponent)
+            sourceMaterial.TerrainOverlayMaterial is not null
+            && terrainTexturePropertyBlockComponentsByMeshCode.TryGetValue(sourceMaterial.TerrainOverlayMaterial.MeshCode, out ResoniteComponentLocator propertyBlockComponent)
                 ? propertyBlockComponent
                 : null);
     }

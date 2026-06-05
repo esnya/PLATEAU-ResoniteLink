@@ -46,8 +46,8 @@ public sealed class ResoniteMaterialPlanningTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
-            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            AssetScope: ResoniteMaterialAssetScope.Common,
             BundledVariantIndex: 0);
         _ = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
             new BundledDefaultMaterialAssetStore(),
@@ -123,20 +123,20 @@ public sealed class ResoniteMaterialPlanningTests
 
         Assert.Equal(importCountAfterBase + 3, ImportedRgba32Textures(client).Count);
         Assert.NotEqual(
-            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo),
-            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo));
+            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
+            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Albedo));
         Assert.NotEqual(
-            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Normal),
-            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Normal));
+            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Normal),
+            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Normal));
         Assert.NotEqual(
-            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Height),
-            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Height));
+            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Height),
+            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Height));
         Assert.Equal(
-            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic),
-            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic));
+            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Metallic),
+            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Metallic));
         Assert.Equal(
-            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Emission),
-            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Emission));
+            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Emission),
+            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Emission));
     }
 
     [Fact]
@@ -163,23 +163,23 @@ public sealed class ResoniteMaterialPlanningTests
 
         Assert.Equal(importCountAfterBase + 2, ImportedRgba32Textures(client).Count);
         Assert.NotEqual(
-            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo),
-            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo));
+            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
+            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Albedo));
         Assert.Equal(
-            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Normal),
-            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Normal));
+            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Normal),
+            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Normal));
         Assert.Equal(
-            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Height),
-            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Height));
+            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Height),
+            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Height));
         Assert.Equal(
-            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic),
-            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic));
+            GetTextureUri(basePlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Metallic),
+            GetTextureUri(colorVariantPlannedAsset, ResoniteSceneMaterialConventions.TextureMemberRole.Metallic));
         Assert.Null(ResoniteMaterialPlanning.TryGetPlannedTextureUri(
             basePlannedAsset.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Emission));
+            ResoniteSceneMaterialConventions.TextureMemberRole.Emission));
         Assert.NotNull(ResoniteMaterialPlanning.TryGetPlannedTextureUri(
             colorVariantPlannedAsset.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Emission));
+            ResoniteSceneMaterialConventions.TextureMemberRole.Emission));
     }
 
     [Fact]
@@ -194,8 +194,7 @@ public sealed class ResoniteMaterialPlanningTests
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation);
+            SubmeshIndices: [0]);
 
         PlannedDedicatedMaterialAsset preserved = await planning.PlanDedicatedMaterialAssetAsync(
             client,
@@ -241,17 +240,15 @@ public sealed class ResoniteMaterialPlanningTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             TextureScale: new ResoniteFloat2(0.4, 0.8),
             TextureOffset: new ResoniteFloat2(0.1, 0.2),
-            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay));
+            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay));
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextures = new()
         {
             [overlay] = new GeneratedTerrainTexture(
                 CreateRawTextureSource(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
                 new ResoniteFloat2(0.5, 0.25),
-                new ResoniteFloat2(0.0, 0.0),
-                overlay.PrimarySource),
+                new ResoniteFloat2(0.0, 0.0)),
         };
 
         ResoniteMaterialBinding effectiveMaterial = ResoniteMaterialPlanning.ResolveTerrainTextureCanvasMaterial(
@@ -266,12 +263,12 @@ public sealed class ResoniteMaterialPlanningTests
     public void AddCommonMaterialComponentsDoesNotCreateEmissionMembersWithoutEmissionSource()
     {
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
-        ResoniteMaterialBinding material = CreateBundledMaterial(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0);
+        ResoniteMaterialBinding material = CreateBundledMaterial(BundledDefaultMaterialFamilies.Facade, 0);
         PlannedDedicatedMaterialAsset plannedMaterial = new(
             material,
             [
                 new PlannedTextureAsset(
-                    ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo),
+                    ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
                     new Uri("resdb:///texture/albedo", UriKind.Absolute)),
             ],
             PreserveDedicatedMaterialSlot: false);
@@ -294,10 +291,10 @@ public sealed class ResoniteMaterialPlanningTests
             material,
             [
                 new PlannedTextureAsset(
-                    ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo),
+                    ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
                     new Uri("resdb:///texture/albedo", UriKind.Absolute)),
                 new PlannedTextureAsset(
-                    ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.PlannedTextureRole.Emission),
+                    ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.TextureMemberRole.Emission),
                     new Uri("resdb:///texture/emission", UriKind.Absolute)),
             ],
             PreserveDedicatedMaterialSlot: false);
@@ -332,15 +329,13 @@ public sealed class ResoniteMaterialPlanningTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
-            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(overlay.MeshCode, overlay));
+            TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay));
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextures = new()
         {
             [overlay] = new GeneratedTerrainTexture(
                 CreateRawTextureSource(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
                 new ResoniteFloat2(0.5, 0.25),
-                new ResoniteFloat2(0.0, 0.0),
-                overlay.PrimarySource),
+                new ResoniteFloat2(0.0, 0.0)),
         };
 
         ResoniteMaterialBinding effectiveMaterial = ResoniteMaterialPlanning.ResolveTerrainTextureCanvasMaterial(
@@ -357,12 +352,11 @@ public sealed class ResoniteMaterialPlanningTests
         ResoniteMaterialBinding firstMaterial = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new RawRgba32ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], identity: "payload-a"),
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], identity: "payload-a"),
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation);
+            SubmeshIndices: [0]);
         ResoniteMaterialBinding secondMaterial = firstMaterial with
         {
         };
@@ -418,11 +412,7 @@ public sealed class ResoniteMaterialPlanningTests
             Family: projection == ResoniteMaterialProjection.Uv
                 ? BundledDefaultMaterialFamilies.RoadUv
                 : BundledDefaultMaterialFamilies.RoadTriplanar,
-            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(
-                projection == ResoniteMaterialProjection.Uv
-                    ? BundledDefaultMaterialFamilies.RoadUv
-                    : BundledDefaultMaterialFamilies.RoadTriplanar,
-                0),
+            AssetScope: ResoniteMaterialAssetScope.Common,
             BundledVariantIndex: 0);
     }
 
@@ -437,13 +427,13 @@ public sealed class ResoniteMaterialPlanningTests
             DepthOffset: null,
             SubmeshIndices: [0],
             Family: family,
-            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(family, variantIndex),
+            AssetScope: ResoniteMaterialAssetScope.Common,
             BundledVariantIndex: variantIndex);
     }
 
     private static Uri GetTextureUri(
         PlannedDedicatedMaterialAsset plannedAsset,
-        ResoniteSceneMaterialConventions.PlannedTextureRole role)
+        ResoniteSceneMaterialConventions.TextureMemberRole role)
     {
         return ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedAsset.Textures, role)
             ?? throw new InvalidOperationException($"Missing planned texture role '{role}'.");

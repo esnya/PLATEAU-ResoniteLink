@@ -47,7 +47,7 @@ internal sealed record ConstructionCityObjectDraft(
 
     public double? MeasuredHeightMeters => Source.MeasuredHeightMeters;
 
-    public BuildingAttributeContext BuildingAttributes => Source.BuildingAttributes;
+    public BuildingAttributeContext? BuildingAttributes => Source.BuildingAttributes;
 
     public double? GeometryHeightMeters => Source.GeometryHeightMeters;
 

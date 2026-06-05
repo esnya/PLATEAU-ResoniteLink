@@ -51,7 +51,8 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
     {
         ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
 
-        if (source is not LocalDatasetLocation localSource)
+        if (source is not LocalDatasetLocation localSource
+            || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
             return null;
         }
@@ -154,17 +155,19 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken)
     {
-        foreach (ITerrainTextureRasterContentSource rasterSource in ResolveCandidateRasterSources(meshCode))
+        foreach (TerrainTextureGeoReferencedRasterSource rasterSource in ResolveCandidateRasterSources(meshCode))
         {
             GeoReferencedRasterMetadata? metadata = await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
                 rasterSource,
                 cancellationToken);
-            if (metadata is null || !Contains(metadata.GeographicBounds, overlayBounds))
+            if (metadata is null
+                || !metadata.IsUsable
+                || !Contains(metadata.GeographicBounds, overlayBounds))
             {
                 continue;
             }
 
-            return new TerrainTextureGeoReferencedRasterSource(rasterSource, metadata);
+            return rasterSource with { Metadata = metadata };
         }
 
         return null;
@@ -189,11 +192,11 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         }
     }
 
-    private ITerrainTextureRasterContentSource[] ResolveCandidateRasterSources(ThirdRegionalMeshCode meshCode)
+    private TerrainTextureGeoReferencedRasterSource[] ResolveCandidateRasterSources(ThirdRegionalMeshCode meshCode)
     {
         if (directRasterPath is not null)
         {
-            return [new LocalTerrainTextureRasterContentSource(directRasterPath)];
+            return [new TerrainTextureGeoReferencedRasterSource(directRasterPath)];
         }
 
         if (contentSource is null)
@@ -224,11 +227,11 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         }
 
         return relativePaths
-            .Select(relativePath =>
-                (ITerrainTextureRasterContentSource)new DatasetTerrainTextureRasterContentSource(
+            .Select(relativePath => new TerrainTextureGeoReferencedRasterSource(
+                new DatasetTerrainTextureRasterContentSource(
                     $"dataset:{contentSource.SourcePath}:{relativePath}",
                     relativePath,
-                    EnsureLocalRasterFileAsync))
+                    EnsureLocalRasterFileAsync)))
             .ToArray();
     }
 

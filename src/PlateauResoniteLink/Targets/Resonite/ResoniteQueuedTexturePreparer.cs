@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -41,11 +40,16 @@ internal sealed class ResoniteQueuedTexturePreparer(
         ArgumentNullException.ThrowIfNull(routedClient);
         ArgumentNullException.ThrowIfNull(cityObject);
 
-        (ThirdRegionalMeshCode TerrainMeshCode, TerrainTextureOverlay TerrainOverlay)[] distinctTerrainOverlayBindings = cityObject.Materials
+        (ThirdRegionalMeshCode TerrainMeshCode, TerrainTextureOverlay TerrainOverlay)[] distinctTerrainOverlays = cityObject.Materials
             .Select((material, materialIndex) => (Material: material, MaterialIndex: materialIndex))
             .Where(static entry => entry.Material.TerrainOverlayMaterial is not null)
             .Select(entry => (
-                TerrainMeshCode: entry.Material.TerrainOverlayMaterial!.MeshCode,
+                TerrainMeshCode: ResoniteTerrainOverlayMaterialContract.ValidateMeshCode(
+                    cityObject,
+                    entry.MaterialIndex,
+                    entry.Material,
+                    entry.Material.TerrainOverlayMaterial!.MeshCode,
+                    entry.Material.TerrainOverlayMaterial.Overlay),
                 TerrainOverlay: entry.Material.TerrainOverlayMaterial!.Overlay))
             .Distinct()
             .OrderBy(static entry => entry.TerrainMeshCode.Value, StringComparer.Ordinal)
@@ -54,58 +58,38 @@ internal sealed class ResoniteQueuedTexturePreparer(
             .ThenBy(static entry => entry.TerrainOverlay.GeographicBounds.MinLongitude)
             .ToArray();
 
-        TerrainTextureOverlay[] distinctTerrainOverlays = distinctTerrainOverlayBindings
-            .Select(static entry => entry.TerrainOverlay)
-            .Distinct()
-            .OrderBy(static overlay => overlay.PackageName, StringComparer.Ordinal)
-            .ThenBy(static overlay => overlay.MeshCode.Value, StringComparer.Ordinal)
-            .ThenBy(static overlay => overlay.GeographicBounds.MinLatitude)
-            .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
-            .ToArray();
-
-        Task<(TerrainTextureOverlay Overlay, GeneratedTerrainTexture Texture)>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
-            .Select(async overlay => (
-                Overlay: overlay,
-                Texture: await PrepareTerrainOverlayTextureAsync(
+        Task<PreparedTextureReference?>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
+            .Select(entry => PrepareTerrainOverlayTextureReferenceAsync(
                 state,
                 routedClient,
                 progressReporter,
-                overlay,
-                cancellationToken)))
-            .ToArray();
-        Task<PreparedTextureReference?>[] directTexturePreparationTasks = cityObject.Materials
-            .Where(static material => material.TexturePayload is not null)
-            .Select(PrepareDirectMaterialTextureReferenceAsync)
-            .ToArray();
-        await Task.WhenAll(terrainOverlayTexturePreparationTasks);
-        PreparedTextureReference?[] preparedDirectTextureResults = await Task.WhenAll(directTexturePreparationTasks);
-        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> terrainTexturesByOverlay = terrainOverlayTexturePreparationTasks
-            .Select(static task => task.Result)
-            .ToDictionary(static result => result.Overlay, static result => result.Texture);
-        PreparedTerrainOverlayTextureReference[] preparedTerrainTextureReferences = distinctTerrainOverlayBindings
-            .Select(entry => new PreparedTerrainOverlayTextureReference(
                 entry.TerrainMeshCode,
                 entry.TerrainOverlay,
-                terrainTexturesByOverlay[entry.TerrainOverlay]))
+                cancellationToken))
             .ToArray();
-        return preparedTerrainTextureReferences
-            .Cast<PreparedTextureReference>()
-            .Concat(preparedDirectTextureResults.OfType<PreparedTextureReference>())
+        PreparedTextureReference?[] preparedTextureResults = await Task.WhenAll(
+            terrainOverlayTexturePreparationTasks
+                .Concat(cityObject.Materials
+                    .Where(static material => material.TexturePayload is not null)
+                    .Select(PrepareDirectMaterialTextureReferenceAsync)
+                    .ToArray()));
+        return preparedTextureResults
             .OfType<PreparedTextureReference>()
             .ToArray();
     }
 
-    private async Task<GeneratedTerrainTexture> PrepareTerrainOverlayTextureAsync(
+    private async Task<PreparedTextureReference?> PrepareTerrainOverlayTextureReferenceAsync(
         LiveSendRunState state,
         IResoniteLinkClient routedClient,
         Action<string>? progressReporter,
+        ThirdRegionalMeshCode terrainMeshCode,
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
         GeneratedTerrainTexture terrainTexture = await terrainTextureAssetGenerator.EnsureTextureAsync(
             terrainTextureOverlay,
             cancellationToken);
-        TerrainTextureSource[] usedSources = GetTrackedTerrainTextureSources(terrainTexture);
+        TerrainTextureSource[] usedSources = GetTrackedTerrainTextureSources(terrainTexture, terrainTextureOverlay);
         foreach (TerrainTextureSource usedSource in usedSources)
         {
             int useCount = state.DemSourceUseCounts.AddOrUpdate(
@@ -128,15 +112,27 @@ internal sealed class ResoniteQueuedTexturePreparer(
             }
         }
 
-        return terrainTexture;
+        return new PreparedTerrainOverlayTextureReference(
+            terrainMeshCode,
+            terrainTextureOverlay,
+            terrainTexture);
     }
 
     private static TerrainTextureSource[] GetTrackedTerrainTextureSources(
-        GeneratedTerrainTexture terrainTexture)
+        GeneratedTerrainTexture terrainTexture,
+        TerrainTextureOverlay terrainTextureOverlay)
     {
-        return terrainTexture.UsedSources
-            .Distinct()
-            .ToArray();
+        if (terrainTexture.UsedSources is { Count: > 0 })
+        {
+            return terrainTexture.UsedSources
+                .Distinct()
+                .ToArray();
+        }
+
+        return
+        [
+            terrainTexture.UsedSource ?? terrainTextureOverlay.PrimarySource,
+        ];
     }
 
     private async Task EnsureGsiFallbackLicenseAsync(
@@ -180,7 +176,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
         {
             TerrainTextureGeoReferencedRasterSource rasterSource => string.Create(
                 CultureInfo.InvariantCulture,
-                $"Geo-referenced raster(source='{rasterSource.ContentSource.Description}', crs='{rasterSource.Metadata.CoordinateSystemIdentifier}')"),
+                $"GeoTIFF(source='{rasterSource.ContentSource.Description}', crs='{rasterSource.Metadata?.CoordinateSystemIdentifier ?? "unknown"}')"),
             TerrainTextureTileSource tileSource when IsGsiFallbackSource(tileSource) => string.Create(
                 CultureInfo.InvariantCulture,
                 $"GSI seamless photo tile(z={tileSource.ZoomLevel})"),

@@ -209,7 +209,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         int yieldedCount = 0;
         ProjectionTerrainOverlayContext projectionTerrainOverlayContext = await terrainOverlayContextResolver.GetAsync(cancellationToken);
         bool isDemSourceFile = string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
-        StreamingDemProjectionSource? demProjectionSource = null;
+        List<ParsedCityObject> parsedDemCityObjects = [];
         X3DMaterialWarningStatistics fileWarningStatistics = new();
 
         await foreach (ParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync(cancellationToken))
@@ -218,19 +218,16 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             parsedCount++;
             fileWarningStatistics.Add(parsedCityObject);
             x3DMaterialWarningStatistics.Add(parsedCityObject);
-            CoordinateReferenceSystem parsedReferenceSystem = parsedCityObject.ReferenceSystem;
-            CoordinateReferenceSystem resolvedObjectReferenceSystem = ResolveReferenceSystem(parsedReferenceSystem);
-            resolvedReferenceSystem ??= resolvedObjectReferenceSystem;
+            resolvedReferenceSystem ??= ResolveReferenceSystem(parsedCityObject.ReferenceSystem);
             globalCartesian ??= CreateGlobalCartesian(resolvedReferenceSystem);
             if (isDemSourceFile)
             {
-                demProjectionSource ??= new StreamingDemProjectionSource(sourceFile.SourceFile);
-                demProjectionSource.Add(parsedCityObject);
+                parsedDemCityObjects.Add(parsedCityObject);
                 continue;
             }
 
             foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
-                         new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject], parsedReferenceSystem),
+                         new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
                          resolvedReferenceSystem,
                          globalOriginPoint,
                          globalCartesian,
@@ -247,18 +244,17 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             }
         }
 
-        if (demProjectionSource is not null)
+        if (isDemSourceFile && parsedDemCityObjects.Count > 0)
         {
             ParsedCityObject[] aggregatedDemCityObjects =
                 DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
-                    demProjectionSource.SourceFile,
-                    demProjectionSource.CityObjects);
+                    sourceFile.SourceFile,
+                    parsedDemCityObjects);
             foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
-                         new CachedSourceFileDescriptor(
-                             demProjectionSource.SourceFile,
-                             aggregatedDemCityObjects,
-                             demProjectionSource.ReferenceSystem),
-                         demProjectionSource.ReferenceSystem,
+                         new CachedSourceFileDescriptor(sourceFile.SourceFile, aggregatedDemCityObjects),
+                         resolvedReferenceSystem
+                             ?? throw new PlateauImportValidationException(
+                                 [$"CityGML file '{sourceFile.SourceFile.RelativePath}' does not declare a supported coordinate reference system."]),
                          globalOriginPoint,
                          globalCartesian,
                          projectionTerrainOverlayContext.Overlays,
@@ -281,27 +277,6 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                 "import",
                 $"City object producer projected '{sourceFile.SourceFile.RelativePath}' "
                 + $"(parsed_city_objects={parsedCount}, yielded={yieldedCount}, elapsed={fileStopwatch.Elapsed.TotalSeconds:F3}s)."));
-    }
-
-    private sealed class StreamingDemProjectionSource(SourceFileDescriptor sourceFile)
-    {
-        private readonly List<ParsedCityObject> cityObjects = [];
-        private CoordinateReferenceSystem? referenceSystem;
-
-        public SourceFileDescriptor SourceFile { get; } = sourceFile;
-
-        public CoordinateReferenceSystem ReferenceSystem => referenceSystem
-            ?? throw new InvalidOperationException(
-                $"DEM projection source '{SourceFile.RelativePath}' has no parsed city objects and no reference system.");
-
-        public IReadOnlyList<ParsedCityObject> CityObjects => cityObjects;
-
-        public void Add(ParsedCityObject cityObject)
-        {
-            referenceSystem ??= cityObject.ReferenceSystem;
-            ValidateCompatibleReferenceSystem(referenceSystem, cityObject.ReferenceSystem);
-            cityObjects.Add(cityObject);
-        }
     }
 
     private async IAsyncEnumerable<ImportedObjectUnit> CreateObjectUnitsAsync(
@@ -363,7 +338,9 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
 
     private CoordinateReferenceSystem ResolveReferenceSystem(ParsedSourceFileResult parsedSourceFile)
     {
-        return ResolveReferenceSystem(parsedSourceFile.ReferenceSystem);
+        return ResolveReferenceSystem(parsedSourceFile.ReferenceSystem
+            ?? throw new PlateauImportValidationException(
+                [$"CityGML file '{parsedSourceFile.SourceFile.RelativePath}' does not declare a supported coordinate reference system."]));
     }
 
     private static void ValidateCompatibleReferenceSystem(

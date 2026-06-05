@@ -193,12 +193,12 @@ internal sealed class DefaultDemTextureSourcePolicy(
                 region.MeshCode,
                 region.GeographicBounds,
                 cancellationToken);
-            if (rasterSource is not null)
+            if (rasterSource?.Metadata is { IsUsable: true } metadata)
             {
                 candidates.Add(new DemTextureSourceCandidate(
                     DemTextureSourcePreference.GeoReferencedRaster,
                     rasterSource,
-                    EffectivePixelAreaSquareMeters: rasterSource.Metadata.PixelWidthMeters * rasterSource.Metadata.PixelHeightMeters));
+                    EffectivePixelAreaSquareMeters: metadata.PixelWidthMeters * metadata.PixelHeightMeters));
             }
         }
 

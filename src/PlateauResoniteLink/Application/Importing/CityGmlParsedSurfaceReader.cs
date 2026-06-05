@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
@@ -10,7 +11,7 @@ internal static class CityGmlParsedSurfaceReader
 {
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
 
-    internal static ParsedSurface? TryParse(XElement polygonElement, ICityGmlAppearanceStore appearanceStore)
+    internal static ParsedSurface? Parse(XElement polygonElement, ICityGmlAppearanceStore appearanceStore)
     {
         ArgumentNullException.ThrowIfNull(polygonElement);
         ArgumentNullException.ThrowIfNull(appearanceStore);
@@ -25,15 +26,24 @@ internal static class CityGmlParsedSurfaceReader
 
         string polygonId = GetAttribute(polygonElement, Gml + "id") ?? CreateStableElementId("polygon", polygonElement);
         CityGmlResolvedAppearance appearance = appearanceStore.Resolve(polygonId);
-        if (TryParseRing(
+        ParsedRing? exteriorParsedRing = ParseRing(
             exteriorRing,
             appearance.RingUvsByRingId,
-            fallbackRingId: polygonId) is not { } exteriorParsedRing)
+            fallbackRingId: polygonId);
+        if (exteriorParsedRing is null)
         {
             return null;
         }
 
-        ParsedRing[] interiorRings = ParseInteriorRings(polygonElement, appearance.RingUvsByRingId);
+        ParsedRing[] interiorRings = polygonElement
+            .Elements(Gml + "interior")
+            .Select(interiorElement => ParseRing(
+                interiorElement.Element(Gml + "LinearRing"),
+                appearance.RingUvsByRingId,
+                fallbackRingId: null))
+            .Where(static ring => ring is not null)
+            .Select(static ring => ring!)
+            .ToArray();
 
         return new ParsedSurface(
             PolygonId: polygonId,
@@ -55,26 +65,7 @@ internal static class CityGmlParsedSurfaceReader
             : surface;
     }
 
-    private static ParsedRing[] ParseInteriorRings(
-        XElement polygonElement,
-        IReadOnlyDictionary<string, IReadOnlyList<Float2>>? ringUvsByRingId)
-    {
-        List<ParsedRing> rings = [];
-        foreach (XElement interiorElement in polygonElement.Elements(Gml + "interior"))
-        {
-            if (TryParseRing(
-                interiorElement.Element(Gml + "LinearRing"),
-                ringUvsByRingId,
-                fallbackRingId: null) is { } ring)
-            {
-                rings.Add(ring);
-            }
-        }
-
-        return rings.ToArray();
-    }
-
-    private static ParsedRing? TryParseRing(
+    private static ParsedRing? ParseRing(
         XElement? ringElement,
         IReadOnlyDictionary<string, IReadOnlyList<Float2>>? ringUvsByRingId,
         string? fallbackRingId)

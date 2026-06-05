@@ -24,8 +24,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             ],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
-            SharedAcrossMeshCodes: false,
-            BuildingAttributes: BuildingAttributeContext.Empty);
+            SharedAcrossMeshCodes: false);
 
         ResolvedSurfaceMaterial? representativeSurface = CityGmlSurfaceMaterialResolver.EnumerateSurfaces(
                 ConstructionCityObjectDraft.FromParsedCityObject(cityObject),
@@ -40,7 +39,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
     }
 
     [Fact]
-    public void CreateMaterialBindingKeepsMaterialMeshCodeSeparateFromTerrainOverlayMeshCode()
+    public void CreateMaterialBindingUsesTerrainOverlayMeshCodeWithoutMatchingActualMeshCode()
     {
         ResolvedSurfaceMaterial representativeSurface = new(
             CreateSurface(),
@@ -60,34 +59,8 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             representativeSurface,
             materialIndex: 0);
 
-        Assert.Equal("53394600", binding.TerrainMeshCode);
-        Assert.Same(representativeSurface.Material.TerrainOverlay, binding.TerrainOverlay);
-    }
-
-    [Fact]
-    public void CreateMaterialBindingFallsBackToOverlayMeshCodeWhenMaterialMeshCodeIsNotThirdLevel()
-    {
-        TerrainTextureOverlay overlay = CreateOverlay("53394525");
-        ResolvedSurfaceMaterial representativeSurface = new(
-            CreateSurface(),
-            new ResolvedMaterial(
-                MaterialType.Standard,
-                TexturePayload: null,
-                TextureSourceKind.Bundled,
-                MaterialProjection.Uv,
-                Family: "terrain",
-                TextureScale: null,
-                MaterialReuseScope.Shared,
-                TerrainOverlay: overlay),
-            depthOffset: null);
-
-        MaterialBinding binding = CityGmlSurfaceMaterialResolver.CreateMaterialBinding(
-            "533945",
-            representativeSurface,
-            materialIndex: 0);
-
         Assert.Equal("53394525", binding.TerrainMeshCode);
-        Assert.Same(overlay, binding.TerrainOverlay);
+        Assert.Same(representativeSurface.Material.TerrainOverlay, binding.TerrainOverlay);
     }
 
     [Fact]
@@ -188,8 +161,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             Surfaces: surfaces,
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/bldg/53394525/sample.gml",
-            SharedAcrossMeshCodes: false,
-            BuildingAttributes: BuildingAttributeContext.Empty);
+            SharedAcrossMeshCodes: false);
     }
 
     private static TerrainTextureOverlay CreateOverlay(string meshCode)

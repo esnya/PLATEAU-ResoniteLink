@@ -14,9 +14,7 @@ public static class ResoniteDynamicMaterialUvNormalizer
 
         return material.MaterialType == ResoniteMaterialType.Standard
             && material.Projection == ResoniteMaterialProjection.Uv
-            && (material.AssetScope != ResoniteMaterialAssetScope.Common
-                || material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
-                || ResoniteSceneMaterialConventions.ShouldDemoteBundledCommonMaterial(material))
+            && material.AssetScope != ResoniteMaterialAssetScope.Common
             && HasNormalizableTextureTransform(material);
     }
 
@@ -57,7 +55,7 @@ public static class ResoniteDynamicMaterialUvNormalizer
         {
             Geometry = new ResoniteTriangleMeshGeometry(new ResoniteImportedMesh(normalizedVertices, normalizedSubmeshes)),
             Materials = cityObject.Materials
-                .Select(NormalizeMaterialBindingAfterMeshUvNormalization)
+                .Select(NormalizeMaterialBinding)
                 .ToArray(),
         };
     }
@@ -79,28 +77,6 @@ public static class ResoniteDynamicMaterialUvNormalizer
                 TextureScale = null,
                 TextureOffset = null,
             };
-        }
-
-        if (material.AssetScope == ResoniteMaterialAssetScope.Common)
-        {
-            return material;
-        }
-
-        return ShouldNormalizeTextureTransform(material)
-            ? material with
-            {
-                TextureScale = null,
-                TextureOffset = null,
-            }
-            : material;
-    }
-
-    private static ResoniteMaterialBinding NormalizeMaterialBindingAfterMeshUvNormalization(ResoniteMaterialBinding material)
-    {
-        ResoniteMaterialBinding normalizedMaterial = NormalizeMaterialBinding(material);
-        if (normalizedMaterial != material)
-        {
-            return normalizedMaterial;
         }
 
         return ShouldNormalizeTextureTransform(material)

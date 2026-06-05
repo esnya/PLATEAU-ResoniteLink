@@ -13,8 +13,7 @@ internal sealed record SourceFileDescriptor(
 
 internal sealed record CachedSourceFileDescriptor(
     SourceFileDescriptor SourceFile,
-    ParsedCityObject[] CityObjects,
-    CoordinateReferenceSystem ReferenceSystem)
+    ParsedCityObject[] CityObjects)
 {
     public string RelativePath => SourceFile.RelativePath;
 
@@ -70,6 +69,6 @@ internal sealed class SourceFilePipeline
 internal sealed record ParsedSourceFileResult(
     SourceFileDescriptor SourceFile,
     ParsedCityObject[] CityObjects,
-    CoordinateReferenceSystem ReferenceSystem,
+    CoordinateReferenceSystem? ReferenceSystem,
     TerrainHeightTriangle[] TerrainTriangles,
     TimeSpan Elapsed);

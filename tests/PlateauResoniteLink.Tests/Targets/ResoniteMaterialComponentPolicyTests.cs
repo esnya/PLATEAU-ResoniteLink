@@ -29,8 +29,8 @@ public sealed class ResoniteMaterialComponentPolicyTests
             SubmeshIndices: [0],
             TextureScale: new ResoniteFloat2(0.5, 0.25),
             TextureOffset: new ResoniteFloat2(0.125, 0.75),
-            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
-            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            AssetScope: ResoniteMaterialAssetScope.Common,
             BundledVariantIndex: 0);
 
         string componentType = ResoniteMaterialComponentPolicy.GetComponentType(material);
@@ -69,8 +69,8 @@ public sealed class ResoniteMaterialComponentPolicyTests
             SubmeshIndices: [0],
             TextureScale: new ResoniteFloat2(1.0, 1.0),
             TextureOffset: new ResoniteFloat2(0.0, 0.0),
-            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
-            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseGlass, 0),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            AssetScope: ResoniteMaterialAssetScope.Common,
             BundledVariantIndex: 0);
 
         Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
@@ -90,7 +90,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv());
+            AssetScope: ResoniteMaterialAssetScope.Common);
 
         Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
 
@@ -104,14 +104,14 @@ public sealed class ResoniteMaterialComponentPolicyTests
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new RawRgba32ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             TextureScale: new ResoniteFloat2(0.5, 0.25),
-            TextureOffset: new ResoniteFloat2(0.125, 0.75));
+            TextureOffset: new ResoniteFloat2(0.125, 0.75),
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
             () => ResoniteMaterialComponentPolicy.CreateMembers(material));
@@ -131,7 +131,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Projection: ResoniteMaterialProjection.Triplanar,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             TextureScale: new ResoniteFloat2(0.25, 0.125),
             Family: BundledDefaultMaterialFamilies.RoadTriplanar,
             BundledVariantIndex: 0);
@@ -142,8 +141,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation);
+            SubmeshIndices: [0]);
 
         Dictionary<string, Member> triplanarMembers = ResoniteMaterialComponentPolicy.CreateMembers(triplanarMaterial);
         Dictionary<string, Member> wireframeMembers = ResoniteMaterialComponentPolicy.CreateMembers(wireframeMaterial);
@@ -172,14 +170,14 @@ public sealed class ResoniteMaterialComponentPolicyTests
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new RawRgba32ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/direct-terrain-grid-style.png"),
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/direct-terrain-grid-style.png"),
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             TextureScale: new ResoniteFloat2(1.0, 1.0),
-            TextureOffset: new ResoniteFloat2(0.125, 0.75));
+            TextureOffset: new ResoniteFloat2(0.125, 0.75),
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
         ResoniteMaterialBinding normalized = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
@@ -192,13 +190,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
     [Fact]
     public void CreateMembersRejectsOffsetOnlyUvTransformBeforeNormalization()
     {
-        TerrainTextureOverlay overlay = new(
-            PackageName: "dem",
-            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
-            ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
-            MaxTextureSize: 512);
         ResoniteMaterialBinding material = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
@@ -207,17 +198,17 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             TextureOffset: new ResoniteFloat2(0.125, 0.75),
             TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(
                 ThirdRegionalMeshCode.Parse("53394525"),
                 new TerrainTextureOverlay(
-                    PackageName: "dem",
-                    MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
-                    UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
-                    ZoomLevel: 17,
-                    GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
-                    MaxTextureSize: 512)));
+                PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
+                UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
+                ZoomLevel: 17,
+                GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                    MaxTextureSize: 512)),
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
             () => ResoniteMaterialComponentPolicy.CreateMembers(material));
@@ -236,8 +227,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
-            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+            Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0);
 
         bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
@@ -294,8 +284,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
                 Projection: ResoniteMaterialProjection.Uv,
                 DepthOffset: null,
                 SubmeshIndices: [0],
-                AssetBinding: ResoniteMaterialAssetBinding.Presentation,
-                Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
+                Family: BundledDefaultMaterialFamilies.Facade,
                 BundledVariantIndex: variantIndex);
 
             bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
@@ -322,7 +311,6 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Projection: ResoniteMaterialProjection.Triplanar,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             Family: BundledDefaultMaterialFamilies.CityFurniture,
             BundledVariantIndex: 0);
 
@@ -365,7 +353,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Family: BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
             BundledVariantIndex: 0,
             TextureScale: new ResoniteFloat2(1.0 / 3.0, 1.0 / 3.0),
-            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 0));
+            AssetScope: ResoniteMaterialAssetScope.Common);
 
         bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
             new BundledDefaultMaterialAssetStore(),
@@ -402,7 +390,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Family: BundledDefaultMaterialFamilies.WallResidentialPlasterLow,
             BundledVariantIndex: 1,
             TextureScale: new ResoniteFloat2(1.0 / 3.0, 1.0 / 3.0),
-            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.WallResidentialPlasterLow, 1));
+            AssetScope: ResoniteMaterialAssetScope.Common);
 
         bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
             new BundledDefaultMaterialAssetStore(),
@@ -434,7 +422,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
             SubmeshIndices: [0],
             Family: BundledDefaultMaterialFamilies.FacadeHighriseNightLow,
             BundledVariantIndex: 0,
-            AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedBundled(BundledDefaultMaterialFamilies.FacadeHighriseNightLow, 0));
+            AssetScope: ResoniteMaterialAssetScope.Common);
 
         bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
             new BundledDefaultMaterialAssetStore(),

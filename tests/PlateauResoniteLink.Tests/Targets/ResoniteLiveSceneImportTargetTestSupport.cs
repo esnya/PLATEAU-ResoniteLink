@@ -71,7 +71,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             r, g, b, 255,
             r, g, b, 255,
         ];
-        return new RawRgba32ResoniteTexturePayload(2, 2, ResoniteTextureColorProfiles.Srgb, rawBytes, identity);
+        return new ResoniteTexturePayload(2, 2, ResoniteTextureColorProfiles.Srgb, rawBytes, identity);
     }
 
     public static ImportedSceneMetadata CreateMetadata(
@@ -160,20 +160,22 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         PlateauImportRequest? normalizedRequest = null,
         CommonMaterialCatalog<DefaultCommonMaterialMember>? commonMaterials = null)
     {
-        ValidatedPlateauImportRequest effectiveNormalizedRequest = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
-            normalizedRequest ?? metadata.Request);
-        ResolvedLocalPlateauImportRequest resolvedRequest = CreateResolvedRequest(
+        PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? metadata.Request;
+        PlateauImportRequest resolvedRequest = CreateResolvedRequest(
             effectiveNormalizedRequest,
             metadata.Request,
             workDirectory);
+        PlateauImportRequest importRequest = CreateImportRequest(effectiveNormalizedRequest, resolvedRequest);
         ImportedSceneMetadata effectiveMetadata = metadata with
         {
-            Request = resolvedRequest.ToImportRequest(),
+            Request = importRequest,
         };
 
         return SceneImportExecutionPlan.Create(
+            effectiveNormalizedRequest,
             resolvedRequest,
             effectiveMetadata,
+            GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
             commonMaterials ?? CreateReferencedCommonMaterials([], enableMeshBake: false));
     }
@@ -202,35 +204,49 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return catalog.FilterToDefinitions(definitions);
     }
 
-    private static ResolvedLocalPlateauImportRequest CreateResolvedRequest(
-        ValidatedPlateauImportRequest normalizedRequest,
+    private static PlateauImportRequest CreateImportRequest(
+        PlateauImportRequest normalizedRequest,
+        PlateauImportRequest resolvedRequest)
+    {
+        return normalizedRequest with
+        {
+            CityGmlSource = resolvedRequest.CityGmlSource,
+            DemTextureSource = resolvedRequest.DemTextureSource,
+        };
+    }
+
+    private static PlateauImportRequest CreateResolvedRequest(
+        PlateauImportRequest normalizedRequest,
         PlateauImportRequest metadataRequest,
         string workDirectory)
     {
-        string? resolvedSourcePath = ResolveLocalPath(normalizedRequest.CityGmlSource.ToDatasetLocation(), workDirectory, "source-archive")
+        string? resolvedSourcePath = ResolveLocalPath(normalizedRequest.CityGmlSource, workDirectory, "source-archive")
             ?? metadataRequest.CityGmlLocalSourcePath;
         if (string.IsNullOrWhiteSpace(resolvedSourcePath))
         {
             throw new ArgumentException("Metadata request must include a local CityGML source path.", nameof(metadataRequest));
         }
 
-        ValidatedLocalDatasetLocation? resolvedDemTextureSource = metadataRequest.DemTextureLocalSourcePath is { } metadataDemTexturePath
-            ? new ValidatedLocalDatasetLocation(metadataDemTexturePath)
-            : null;
+        DatasetLocation? resolvedDemTextureSource = metadataRequest.DemTextureSource;
         if (normalizedRequest.DemTextureSource is not null)
         {
-            string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource.ToDatasetLocation(), workDirectory, "source-ortho");
-            if (resolvedDemTexturePath is not null)
-            {
-                resolvedDemTextureSource = new ValidatedLocalDatasetLocation(resolvedDemTexturePath);
-            }
+            string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource, workDirectory, "source-ortho");
+            resolvedDemTextureSource = resolvedDemTexturePath is null
+                ? metadataRequest.DemTextureSource
+                : DatasetLocation.Local(resolvedDemTexturePath);
         }
 
-        return ResolvedLocalPlateauImportRequest.Create(
-            normalizedRequest,
-            new ValidatedLocalDatasetLocation(resolvedSourcePath),
-            resolvedDemTextureSource,
-            workDirectory);
+        return normalizedRequest with
+        {
+            CityGmlSource = DatasetLocation.Local(resolvedSourcePath),
+            DemTextureSource = resolvedDemTextureSource,
+        };
+    }
+
+    private static string GetRequiredResolvedLocalSourcePath(PlateauImportRequest resolvedRequest)
+    {
+        return resolvedRequest.CityGmlLocalSourcePath
+            ?? throw new ArgumentException("Resolved request must include a local CityGML source path.", nameof(resolvedRequest));
     }
 
     private static string? ResolveLocalPath(
@@ -484,64 +500,21 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 
     public static MaterialBinding ToContractMaterial(ResoniteMaterialBinding binding)
     {
-        ColorRgba baseColor = ToContractColor(binding.BaseColor);
-        TexturePayload? texturePayload = binding.TexturePayload is null ? null : ToContractTexturePayload(binding.TexturePayload);
-        MaterialDepthOffset? depthOffset = binding.DepthOffset is null
-            ? null
-            : new MaterialDepthOffset(binding.DepthOffset.Factor, binding.DepthOffset.Units);
-        Float2? textureScale = binding.TextureScale is null ? null : ToContractFloat2(binding.TextureScale);
-        Float2? textureOffset = binding.TextureOffset is null ? null : ToContractFloat2(binding.TextureOffset);
-
-        if (binding.CommonMaterial is not null
-            && binding.AssetScope == ResoniteMaterialAssetScope.Common)
-        {
-            return new SharedCommonMaterialBinding(
-                baseColor,
-                (MaterialType)binding.MaterialType,
-                texturePayload,
-                (TextureSourceKind)binding.TextureSourceKind,
-                (MaterialProjection)binding.Projection,
-                depthOffset,
-                binding.SubmeshIndices,
-                binding.CommonMaterial,
-                textureScale,
-                binding.Family,
-                textureOffset,
-                binding.TerrainOverlayMaterial,
-                binding.BundledVariantIndex);
-        }
-
-        if (binding.CommonMaterial is not null)
-        {
-            return new PresentationCommonMaterialBinding(
-                baseColor,
-                (MaterialType)binding.MaterialType,
-                texturePayload,
-                (TextureSourceKind)binding.TextureSourceKind,
-                (MaterialProjection)binding.Projection,
-                depthOffset,
-                binding.SubmeshIndices,
-                binding.CommonMaterial,
-                textureScale,
-                binding.Family,
-                textureOffset,
-                binding.TerrainOverlayMaterial,
-                binding.BundledVariantIndex);
-        }
-
-        return new PresentationMaterialBinding(
-            baseColor,
+        return new MaterialBinding(
+            ToContractColor(binding.BaseColor),
             (MaterialType)binding.MaterialType,
-            texturePayload,
+            binding.TexturePayload is null ? null : ToContractTexturePayload(binding.TexturePayload),
             (TextureSourceKind)binding.TextureSourceKind,
             (MaterialProjection)binding.Projection,
-            depthOffset,
+            binding.DepthOffset is null ? null : new MaterialDepthOffset(binding.DepthOffset.Factor, binding.DepthOffset.Units),
             binding.SubmeshIndices,
-            textureScale,
+            binding.TextureScale is null ? null : ToContractFloat2(binding.TextureScale),
             binding.Family,
-            textureOffset,
+            binding.TextureOffset is null ? null : ToContractFloat2(binding.TextureOffset),
+            binding.AssetScope == ResoniteMaterialAssetScope.Common ? MaterialReuseScope.Shared : MaterialReuseScope.PerObject,
             binding.TerrainOverlayMaterial,
-            binding.BundledVariantIndex);
+            binding.BundledVariantIndex,
+            binding.CommonMaterial);
     }
 
     private static Transform3D ToContractTransform(ResoniteTransform transform)
@@ -568,20 +541,13 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         => Enumerable.Repeat(TerrainGridSampleCoverage.Measured, count).ToArray();
 
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
-        => payload switch
-        {
-            RawRgba32ResoniteTexturePayload raw => new RawRgba32TexturePayload(
-                raw.Width,
-                raw.Height,
-                raw.Source.ColorProfile,
-                raw.BinaryPayload.AsSpan().ToArray(),
-                raw.Source.Identity),
-            EncodedImageResoniteTexturePayload encoded => new EncodedImageTexturePayload(
-                encoded.Width,
-                encoded.Height,
-                encoded.Source),
-            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.GetType(), "Unsupported texture payload type."),
-        };
+        => new(
+            payload.Width,
+            payload.Height,
+            payload.ColorProfile,
+            payload.BinaryPayload.AsSpan().ToArray(),
+            payload.Identity,
+            (TexturePayloadFormat)payload.Format);
 
 }
 

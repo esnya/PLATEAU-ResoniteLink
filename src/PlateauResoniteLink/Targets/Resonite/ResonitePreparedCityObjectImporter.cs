@@ -85,7 +85,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
                 cityObject,
                 uploadedTextureAssets.TextureUrisByPayload,
                 uploadedTextureAssets.TerrainTextureUrisByOverlay,
-                uploadedTextureAssets.TerrainTexturePropertyBlockComponentsByKey,
+                uploadedTextureAssets.TerrainTexturePropertyBlockComponentsByMeshCode,
                 message => ReportImportStep(progressReporter, cityObject, message),
                 importStepCancellation.Token);
             plannedMaterials = await materialPlanningTask;

@@ -13,7 +13,7 @@ namespace PlateauResoniteLink.Application.Importing;
 internal static class ImportedSceneSourceDiscoveryPipeline
 {
     internal static async Task<ImportedSceneSourceSnapshot> ReadDocumentSetCoreAsync(
-        ResolvedLocalPlateauImportRequest request,
+        PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
@@ -25,8 +25,14 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
         ArgumentNullException.ThrowIfNull(lodSelector);
 
+        if (request.CityGmlSource is not LocalDatasetLocation localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
+        {
+            throw new PlateauImportValidationException(
+                [LocalCityGmlImportErrorMessages.MissingLocalSourcePath()]);
+        }
+
         IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(
-            request.CityGmlLocalSourcePath,
+            localSource.LocalSourcePath!,
             cancellationToken);
         Stopwatch totalStopwatch = Stopwatch.StartNew();
         Stopwatch scanStopwatch = Stopwatch.StartNew();
@@ -53,7 +59,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         if (sourceFiles.Length == 0)
         {
             throw new PlateauImportValidationException(
-                [LocalCityGmlImportErrorMessages.NoMatchingFiles(request.ToImportRequest(), request.CityGmlLocalSourcePath)]);
+                [LocalCityGmlImportErrorMessages.NoMatchingFiles(request, localSource.LocalSourcePath!)]);
         }
 
         LodFilteringStrategy lodFilteringStrategy = new(

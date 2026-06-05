@@ -4,46 +4,71 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class RoadSurfaceEdgePairSelector
 {
-    internal static EdgePairSelection Select(RoadSurfaceQuad quad)
+    internal static EdgePairSelection Select(
+        GeodeticPoint[] vertices,
+        Float3[] positions)
     {
-        double edge01 = Distance(quad.Position0, quad.Position1);
-        double edge12 = Distance(quad.Position1, quad.Position2);
-        double edge23 = Distance(quad.Position2, quad.Position3);
-        double edge30 = Distance(quad.Position3, quad.Position0);
+        ValidateQuadInputs(vertices, positions);
+
+        double edge01 = Distance(positions[0], positions[1]);
+        double edge12 = Distance(positions[1], positions[2]);
+        double edge23 = Distance(positions[2], positions[3]);
+        double edge30 = Distance(positions[3], positions[0]);
 
         double pair01Length = (edge01 + edge23) * 0.5;
         double pair12Length = (edge12 + edge30) * 0.5;
 
         return pair01Length >= pair12Length
             ? new EdgePairSelection(
-                [quad.Vertex0, quad.Vertex1],
-                [quad.Vertex3, quad.Vertex2],
-                [quad.Position0, quad.Position1],
-                [quad.Position3, quad.Position2],
-                CreateUvs(quad.Uv0, quad.Uv1),
-                CreateUvs(quad.Uv3, quad.Uv2),
+                [vertices[0], vertices[1]],
+                [vertices[3], vertices[2]],
+                [positions[0], positions[1]],
+                [positions[3], positions[2]],
+                Side0Uvs: null,
+                Side1Uvs: null,
                 pair01Length,
-                (Distance(quad.Position0, quad.Position3) + Distance(quad.Position1, quad.Position2)) * 0.5,
+                (Distance(positions[0], positions[3]) + Distance(positions[1], positions[2])) * 0.5,
                 edge01,
                 edge23)
             : new EdgePairSelection(
-                [quad.Vertex1, quad.Vertex2],
-                [quad.Vertex0, quad.Vertex3],
-                [quad.Position1, quad.Position2],
-                [quad.Position0, quad.Position3],
-                CreateUvs(quad.Uv1, quad.Uv2),
-                CreateUvs(quad.Uv0, quad.Uv3),
+                [vertices[1], vertices[2]],
+                [vertices[0], vertices[3]],
+                [positions[1], positions[2]],
+                [positions[0], positions[3]],
+                Side0Uvs: null,
+                Side1Uvs: null,
                 pair12Length,
-                (Distance(quad.Position1, quad.Position0) + Distance(quad.Position2, quad.Position3)) * 0.5,
+                (Distance(positions[1], positions[0]) + Distance(positions[2], positions[3])) * 0.5,
                 edge12,
                 edge30);
     }
 
-    private static Float2[]? CreateUvs(Float2? first, Float2? second)
+    internal static EdgePairSelection Select(
+        ParsedRing ring,
+        Float3[] positions)
     {
-        return first is not null && second is not null
-            ? [first, second]
-            : null;
+        ArgumentNullException.ThrowIfNull(ring);
+
+        EdgePairSelection pair = Select(ring.Vertices, positions);
+        if (ring.UVs is null || ring.UVs.Count != ring.Vertices.Length)
+        {
+            return pair;
+        }
+
+        bool usesFirstEdge = AreSamePoint(pair.Side0[0], ring.Vertices[0])
+            && AreSamePoint(pair.Side0[1], ring.Vertices[1]);
+
+        return usesFirstEdge
+            ? pair with
+            {
+                Side0Uvs = [ring.UVs[0], ring.UVs[1]],
+                Side1Uvs = [ring.UVs[3], ring.UVs[2]],
+            }
+            : pair with
+            {
+                Side0Uvs = [ring.UVs[1], ring.UVs[2]],
+                Side1Uvs = [ring.UVs[0], ring.UVs[3]],
+            };
     }
 
     private static double Distance(Float3 left, Float3 right)
@@ -53,65 +78,27 @@ internal static class RoadSurfaceEdgePairSelector
         double deltaZ = left.Z - right.Z;
         return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
     }
-}
 
-internal readonly record struct RoadSurfaceQuad(
-    GeodeticPoint Vertex0,
-    GeodeticPoint Vertex1,
-    GeodeticPoint Vertex2,
-    GeodeticPoint Vertex3,
-    Float3 Position0,
-    Float3 Position1,
-    Float3 Position2,
-    Float3 Position3,
-    Float2? Uv0,
-    Float2? Uv1,
-    Float2? Uv2,
-    Float2? Uv3)
-{
-    internal static bool TryCreate(
-        ParsedRing ring,
-        Float3[] positions,
-        out RoadSurfaceQuad quad)
-    {
-        ArgumentNullException.ThrowIfNull(ring);
-        ArgumentNullException.ThrowIfNull(positions);
-
-        Float2[]? uvs = ring.UVs is { Count: 4 }
-            ? [ring.UVs[0], ring.UVs[1], ring.UVs[2], ring.UVs[3]]
-            : null;
-        return TryCreate(ring.Vertices, positions, uvs, out quad);
-    }
-
-    private static bool TryCreate(
-        GeodeticPoint[] vertices,
-        Float3[] positions,
-        Float2[]? uvs,
-        out RoadSurfaceQuad quad)
+    private static void ValidateQuadInputs<TPoint>(TPoint[] vertices, Float3[] positions)
     {
         ArgumentNullException.ThrowIfNull(vertices);
         ArgumentNullException.ThrowIfNull(positions);
-
-        if (vertices.Length != 4 || positions.Length != 4)
+        if (vertices.Length != 4)
         {
-            quad = default;
-            return false;
+            throw new ArgumentException("Road surface edge-pair selection requires exactly four vertices.", nameof(vertices));
         }
 
-        quad = new RoadSurfaceQuad(
-            vertices[0],
-            vertices[1],
-            vertices[2],
-            vertices[3],
-            positions[0],
-            positions[1],
-            positions[2],
-            positions[3],
-            uvs?[0],
-            uvs?[1],
-            uvs?[2],
-            uvs?[3]);
-        return true;
+        if (positions.Length != 4)
+        {
+            throw new ArgumentException("Road surface edge-pair selection requires exactly four positions.", nameof(positions));
+        }
+    }
+
+    private static bool AreSamePoint(GeodeticPoint left, GeodeticPoint right)
+    {
+        return Math.Abs(left.Latitude - right.Latitude) < 1e-8
+            && Math.Abs(left.Longitude - right.Longitude) < 1e-8
+            && Math.Abs(left.Altitude - right.Altitude) < 1e-8;
     }
 }
 

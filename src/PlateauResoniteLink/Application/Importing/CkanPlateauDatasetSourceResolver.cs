@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -27,7 +26,7 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
         this.archiveFileLayoutPolicy = archiveFileLayoutPolicy ?? throw new ArgumentNullException(nameof(archiveFileLayoutPolicy));
     }
 
-    public async Task<ResolvedLocalPlateauImportRequest> ResolveAsync(
+    public async Task<ValidatedPlateauImportRequest> ResolveAsync(
         ValidatedPlateauImportRequest request,
         string workRoot,
         CancellationToken cancellationToken = default)
@@ -38,78 +37,39 @@ internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceRe
         _ = archiveFileLayoutPolicy.CreateSafePathSegment(request.Dataset);
         _ = TryCreateSafePathSegment(request.MeshCode, out _);
 
-        ValidatedLocalDatasetLocation resolvedSource = await ResolveRequiredLocalDatasetLocationAsync(
+        ValidatedDatasetLocation resolvedSource = await ResolveOptionalRemoteDatasetLocationAsync(
             request.CityGmlSource,
             workRoot,
-            resourcePrefix: ResolvedLocalPlateauImportRequest.RemoteCityGmlResourcePrefix,
+            resourcePrefix: "source-archive",
             invalidateLocalFileCache: true,
-            cancellationToken);
-        ValidatedLocalDatasetLocation? resolvedDemTextureSource = await ResolveOptionalLocalDatasetLocationAsync(
+            cancellationToken) ?? throw new InvalidOperationException("The normalized CityGML source must resolve to a local or remote location.");
+        ValidatedDatasetLocation? resolvedDemTextureSource = await ResolveOptionalRemoteDatasetLocationAsync(
             request.DemTextureSource,
             workRoot,
-            resourcePrefix: ResolvedLocalPlateauImportRequest.RemoteDemTextureResourcePrefix,
+            resourcePrefix: "source-ortho",
             invalidateLocalFileCache: false,
             cancellationToken);
 
-        return ResolvedLocalPlateauImportRequest.Create(
-            request,
-            resolvedSource,
-            resolvedDemTextureSource,
-            workRoot);
-    }
-
-    private async Task<ValidatedLocalDatasetLocation> ResolveRequiredLocalDatasetLocationAsync(
-        ValidatedDatasetLocation source,
-        string workRoot,
-        string resourcePrefix,
-        bool invalidateLocalFileCache,
-        CancellationToken cancellationToken)
-    {
-        return source switch
+        return request with
         {
-            ValidatedLocalDatasetLocation localSource => localSource,
-            ValidatedRemoteDatasetLocation remoteSource => await ResolveRemoteDatasetLocationAsync(
-                remoteSource,
-                workRoot,
-                resourcePrefix,
-                invalidateLocalFileCache,
-                cancellationToken),
-            _ => throw new UnreachableException("Validated dataset locations are restricted to local and remote locations."),
+            CityGmlSource = resolvedSource,
+            DemTextureSource = resolvedDemTextureSource!,
         };
     }
 
-    private async Task<ValidatedLocalDatasetLocation?> ResolveOptionalLocalDatasetLocationAsync(
+    private async Task<ValidatedDatasetLocation?> ResolveOptionalRemoteDatasetLocationAsync(
         ValidatedDatasetLocation? source,
         string workRoot,
         string resourcePrefix,
         bool invalidateLocalFileCache,
         CancellationToken cancellationToken)
     {
-        if (source is null)
+        if (source is null || source is ValidatedLocalDatasetLocation)
         {
-            return null;
+            return source;
         }
 
-        return source switch
-        {
-            ValidatedLocalDatasetLocation localSource => localSource,
-            ValidatedRemoteDatasetLocation remoteSource => await ResolveRemoteDatasetLocationAsync(
-                remoteSource,
-                workRoot,
-                resourcePrefix,
-                invalidateLocalFileCache,
-                cancellationToken),
-            _ => throw new UnreachableException("Validated dataset locations are restricted to local and remote locations."),
-        };
-    }
-
-    private async Task<ValidatedLocalDatasetLocation> ResolveRemoteDatasetLocationAsync(
-        ValidatedRemoteDatasetLocation remoteSource,
-        string workRoot,
-        string resourcePrefix,
-        bool invalidateLocalFileCache,
-        CancellationToken cancellationToken)
-    {
+        ValidatedRemoteDatasetLocation remoteSource = (ValidatedRemoteDatasetLocation)source;
         string resourcePath = RemoteDatasetResourceLayout.GetRemoteResourcePath(
             workRoot,
             remoteSource.ServerUri,

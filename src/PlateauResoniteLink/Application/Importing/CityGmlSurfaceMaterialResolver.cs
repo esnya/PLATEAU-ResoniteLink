@@ -94,7 +94,7 @@ internal static class CityGmlSurfaceMaterialResolver
                 cityObject.ActualMeshCode,
                 group.First(),
                 materialIndex))
-            .Where(static material => material is SharedCommonMaterialBinding)
+            .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
             .ToArray();
     }
 
@@ -138,12 +138,11 @@ internal static class CityGmlSurfaceMaterialResolver
         ResolvedSurfaceMaterial representativeSurface,
         int materialIndex)
     {
+        ThirdRegionalMeshCode? terrainMeshCode = representativeSurface.Material.TerrainOverlay?.MeshCode;
         TerrainOverlayMaterialBinding? terrainOverlayMaterial = representativeSurface.Material.TerrainOverlay is null
             ? null
             : new TerrainOverlayMaterialBinding(
-                ThirdRegionalMeshCode.TryParse(actualMeshCode, out ThirdRegionalMeshCode parsedActualMeshCode)
-                    ? parsedActualMeshCode
-                    : representativeSurface.Material.TerrainOverlay.MeshCode,
+                terrainMeshCode!.Value,
                 representativeSurface.Material.TerrainOverlay);
         ColorRgba baseColor = representativeSurface.Material.TerrainOverlay is null
             ? ToContractColor(representativeSurface.Surface.BaseColor)
@@ -159,43 +158,7 @@ internal static class CityGmlSurfaceMaterialResolver
             representativeSurface.Material.TextureOffset,
             representativeSurface.Material.TerrainOverlay,
             representativeSurface.Material.CommonMaterial);
-        if (commonMaterial is not null)
-        {
-            if (representativeSurface.Material.ReuseScope == MaterialReuseScope.Shared)
-            {
-                return new SharedCommonMaterialBinding(
-                    BaseColor: baseColor,
-                    MaterialType: representativeSurface.Material.MaterialType,
-                    TexturePayload: representativeSurface.Material.TexturePayload,
-                    TextureSourceKind: representativeSurface.Material.TextureSourceKind,
-                    Projection: representativeSurface.Material.Projection,
-                    DepthOffset: representativeSurface.DepthOffset,
-                    SubmeshIndices: [materialIndex],
-                    commonMaterial,
-                    TextureScale: representativeSurface.Material.TextureScale,
-                    Family: representativeSurface.Material.Family,
-                    TextureOffset: representativeSurface.Material.TextureOffset,
-                    TerrainOverlayMaterial: terrainOverlayMaterial,
-                    BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);
-            }
-
-            return new PresentationCommonMaterialBinding(
-                BaseColor: baseColor,
-                MaterialType: representativeSurface.Material.MaterialType,
-                TexturePayload: representativeSurface.Material.TexturePayload,
-                TextureSourceKind: representativeSurface.Material.TextureSourceKind,
-                Projection: representativeSurface.Material.Projection,
-                DepthOffset: representativeSurface.DepthOffset,
-                SubmeshIndices: [materialIndex],
-                commonMaterial,
-                TextureScale: representativeSurface.Material.TextureScale,
-                Family: representativeSurface.Material.Family,
-                TextureOffset: representativeSurface.Material.TextureOffset,
-                TerrainOverlayMaterial: terrainOverlayMaterial,
-                BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);
-        }
-
-        return new PresentationMaterialBinding(
+        return new MaterialBinding(
             BaseColor: baseColor,
             MaterialType: representativeSurface.Material.MaterialType,
             TexturePayload: representativeSurface.Material.TexturePayload,
@@ -206,8 +169,10 @@ internal static class CityGmlSurfaceMaterialResolver
             TextureScale: representativeSurface.Material.TextureScale,
             Family: representativeSurface.Material.Family,
             TextureOffset: representativeSurface.Material.TextureOffset,
+            ReuseScope: representativeSurface.Material.ReuseScope,
             TerrainOverlayMaterial: terrainOverlayMaterial,
-            BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);
+            BundledVariantIndex: representativeSurface.Material.BundledVariantIndex,
+            CommonMaterial: commonMaterial);
     }
 
     private static ResolvedSurfaceMaterial ResolveSurfaceMaterial(
@@ -316,7 +281,9 @@ internal static class CityGmlSurfaceMaterialResolver
             FloorsAboveGround: cityObject.FloorsAboveGround,
             MeasuredHeightMeters: cityObject.MeasuredHeightMeters,
             GeometryHeightMeters: cityObject.GeometryHeightMeters,
-            FootprintAreaSquareMeters: BuildingAttributeQueries.TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
+            FootprintAreaSquareMeters: cityObject.BuildingAttributes is null
+                ? null
+                : BuildingAttributeQueries.TryGetKnownPositiveMetric(cityObject.BuildingAttributes.BuildingFootprintArea),
             SurfaceRole: ToDefaultMaterialSurfaceRole(face.Role)));
         MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? TerrainAlignedDepthOffset

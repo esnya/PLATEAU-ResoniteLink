@@ -78,7 +78,10 @@ public static class ImportedDynamicMaterialUvNormalizer
                 TextureScale = null,
                 TextureOffset = null,
             };
-            return WithResolvedCommonMaterial(normalized);
+            return normalized with
+            {
+                CommonMaterial = ResolveCommonMaterial(normalized),
+            };
         }
 
         if (!ShouldNormalizeTextureTransform(material))
@@ -91,7 +94,10 @@ public static class ImportedDynamicMaterialUvNormalizer
             TextureScale = null,
             TextureOffset = null,
         };
-        return WithResolvedCommonMaterial(transformNormalized);
+        return transformNormalized with
+        {
+            CommonMaterial = ResolveCommonMaterial(transformNormalized),
+        };
     }
 
     public static Float2 ApplyTextureTransform(
@@ -180,60 +186,6 @@ public static class ImportedDynamicMaterialUvNormalizer
             material.TextureOffset,
             material.TerrainOverlay,
             material.CommonMaterial);
-    }
-
-    private static MaterialBinding WithResolvedCommonMaterial(MaterialBinding material)
-    {
-        DefaultCommonMaterialMember? commonMaterial = ResolveCommonMaterial(material);
-        if (commonMaterial is null)
-        {
-            return new PresentationMaterialBinding(
-                material.BaseColor,
-                material.MaterialType,
-                material.TexturePayload,
-                material.TextureSourceKind,
-                material.Projection,
-                material.DepthOffset,
-                material.SubmeshIndices,
-                material.TextureScale,
-                material.Family,
-                material.TextureOffset,
-                material.TerrainOverlayMaterial,
-                material.BundledVariantIndex);
-        }
-
-        if (material.ReuseScope == MaterialReuseScope.Shared)
-        {
-            return new SharedCommonMaterialBinding(
-                material.BaseColor,
-                material.MaterialType,
-                material.TexturePayload,
-                material.TextureSourceKind,
-                material.Projection,
-                material.DepthOffset,
-                material.SubmeshIndices,
-                commonMaterial,
-                material.TextureScale,
-                material.Family,
-                material.TextureOffset,
-                material.TerrainOverlayMaterial,
-                material.BundledVariantIndex);
-        }
-
-        return new PresentationCommonMaterialBinding(
-            material.BaseColor,
-            material.MaterialType,
-            material.TexturePayload,
-            material.TextureSourceKind,
-            material.Projection,
-            material.DepthOffset,
-            material.SubmeshIndices,
-            commonMaterial,
-            material.TextureScale,
-            material.Family,
-            material.TextureOffset,
-            material.TerrainOverlayMaterial,
-            material.BundledVariantIndex);
     }
 
     private static void EnsureUniqueMaterialAssignments(ImportedCityObject cityObject)

@@ -16,10 +16,7 @@ internal static class DemSourceDiscoverySupport
 
         CachedSourceFileDescriptor[] cachedDemSourceFiles = demParsedSourceFiles
             .Where(static parsed => parsed.CityObjects.Length > 0)
-            .Select(static parsed => new CachedSourceFileDescriptor(
-                parsed.SourceFile,
-                parsed.CityObjects,
-                parsed.ReferenceSystem))
+            .Select(static parsed => new CachedSourceFileDescriptor(parsed.SourceFile, parsed.CityObjects))
             .ToArray();
         TerrainHeightTriangle[] terrainTriangles = demParsedSourceFiles
             .SelectMany(static parsed => parsed.TerrainTriangles)

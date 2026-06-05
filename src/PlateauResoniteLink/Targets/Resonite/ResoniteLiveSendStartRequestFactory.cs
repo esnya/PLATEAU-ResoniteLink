@@ -1,7 +1,6 @@
 using System;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -30,7 +29,7 @@ internal sealed class ResoniteLiveSendStartRequestFactory : IResoniteLiveSendSta
             CreateSceneSetupInfo(request),
             request.WorkRoot,
             request.CommonMaterials,
-            new LiveSendConnectionRequest(request.Metadata.Request.Dataset, request.Metadata.Request.MeshCode),
+            plan.NormalizedRequest,
             CreateLocalOrigin(request.Metadata.GeodeticOrigin),
             memoryProfile,
             connectionCount,

@@ -17,8 +17,10 @@ public sealed class DefaultImportedSceneSourceComposerTests
     [Fact]
     public void ComposeMapsDocumentSetBoundaryIntoImportedSceneMetadata()
     {
-        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create();
-        PlateauImportRequest importRequest = request.ToImportRequest();
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"));
 
         TerrainTextureOverlay overlay = new(
             PackageName: "bldg",
@@ -49,7 +51,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
-        Assert.Equal(importRequest, source.Metadata.Request);
+        Assert.Same(request, source.Metadata.Request);
         Assert.Equal(documentSet.PackageNames, source.Metadata.SourceDataset.PackageNames);
         Assert.Equal(documentSet.RelativeSourceFiles, source.Metadata.SourceDataset.SourceFiles);
         Assert.Equal(documentSet.SelectedMeshCodes, source.Metadata.SourceDataset.SelectedMeshCodes);
@@ -68,10 +70,12 @@ public sealed class DefaultImportedSceneSourceComposerTests
     [Fact]
     public async Task ComposedStreamingSourcePreflightValidatesExplicitDemTextureSource()
     {
-        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
-            packageNames: ["dem"],
-            demTextureLocalSourcePath: "C:\\tmp\\plateau\\ortho.tif");
-        PlateauImportRequest importRequest = request.ToImportRequest();
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem"],
+            DemTextureSource: DatasetLocation.Local("/tmp/plateau/ortho.tif"));
         ImportedSceneSourceSnapshot readResult = new(
             new ImportedSceneSourceDataset(
                 new EmptyDatasetContentSource(),
@@ -102,7 +106,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
         await preflight.ValidateBeforeSinkSetupAsync();
 
         Assert.Equal(1, demTextureSourcePolicy.ResolveCallCount);
-        Assert.Equal(importRequest, demTextureSourcePolicy.LastRequest);
+        Assert.Same(request, demTextureSourcePolicy.LastRequest);
         Assert.NotEmpty(demTextureSourcePolicy.LastOverlayRegions!);
     }
 

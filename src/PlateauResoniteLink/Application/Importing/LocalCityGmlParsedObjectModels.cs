@@ -43,10 +43,10 @@ internal sealed record ParsedCityObject(
     CoordinateReferenceSystem ReferenceSystem,
     string SourceFileRelativePath,
     bool SharedAcrossMeshCodes,
-    BuildingAttributeContext BuildingAttributes,
     bool TerrainAligned = false,
     GeodeticPoint? GeodeticOriginOverride = null,
     int? FloorsAboveGround = null,
     double? MeasuredHeightMeters = null,
+    BuildingAttributeContext? BuildingAttributes = null,
     double? GeometryHeightMeters = null,
     string? SourceMeshCode = null);

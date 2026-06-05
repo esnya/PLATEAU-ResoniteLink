@@ -50,11 +50,11 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             TextureScale: new ResoniteFloat2(1.0, 1.0),
             TextureOffset: new ResoniteFloat2(0.0, 0.0),
             Family: BundledDefaultMaterialFamilies.Facade,
-            BundledVariantIndex: 0);
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
         ResoniteMaterialBinding normalized = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
@@ -104,14 +104,13 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     TexturePayload: null,
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [1],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
-            TextureScale: new ResoniteFloat2(1.0, 1.0),
+                    DepthOffset: null,
+                    SubmeshIndices: [1],
+                    TextureScale: new ResoniteFloat2(1.0, 1.0),
                     TextureOffset: new ResoniteFloat2(0.0, 0.0),
                     Family: BundledDefaultMaterialFamilies.Facade,
-                    BundledVariantIndex: bundledVariantIndex
-                    ),
+                    BundledVariantIndex: bundledVariantIndex,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             SourceFileRelativePath: "unit-a.gml");
 
@@ -157,6 +156,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     BundledVariantIndex = 0,
                     TextureScale = textureScale,
                     TextureOffset = textureOffset,
+                    AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
                 },
             ],
         };
@@ -207,12 +207,11 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     Projection: ResoniteMaterialProjection.Triplanar,
                     DepthOffset: null,
                     SubmeshIndices: [1],
-                                        AssetBinding: ResoniteMaterialAssetBinding.Presentation,
                     TextureScale: new ResoniteFloat2(1.0, 1.0),
                     TextureOffset: new ResoniteFloat2(0.0, 0.0),
                     Family: null,
-                    BundledVariantIndex: null
-                    ),
+                    BundledVariantIndex: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             SourceFileRelativePath: "unit-a.gml");
 
@@ -289,16 +288,16 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         return new ResoniteMaterialBinding(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new RawRgba32ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic-uv.png"),
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic-uv.png"),
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
             TextureScale: textureScale,
             TextureOffset: textureOffset,
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
             TerrainOverlayMaterial: terrainOverlay is null
                 ? null
-                : new TerrainOverlayMaterialBinding(terrainOverlay.MeshCode, terrainOverlay));
+                : new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), terrainOverlay));
     }
 }

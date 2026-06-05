@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class LiveSendProgressSink
@@ -53,81 +51,27 @@ internal sealed class CommonMaterialAssetCache
 
 internal sealed class TerrainTextureAssetCache
 {
-    public AsyncInFlightResultCache<TerrainTextureAssetKey, SharedTerrainTextureAsset> AssetsByOverlay { get; } = new();
+    public AsyncInFlightResultCache<string, SharedTerrainTextureAsset> AssetsByMeshCode { get; } = new();
 }
-
-internal sealed record TerrainTextureAssetKey(
-    ThirdRegionalMeshCode MeshCode,
-    TerrainTextureOverlay Overlay);
 
 internal sealed record SharedTerrainTextureAsset(
     Uri TextureUri,
     CreatedComponent TextureComponent,
     CreatedComponent MainTexturePropertyBlockComponent);
 
-internal sealed record LiveSendRunPlan
-{
-    public LiveSendRunPlan(
-        ResoniteSceneSetupInfo SetupInfo,
-        string ResolvedWorkRoot,
-        ResoniteLocalOrigin RequestLocalOrigin,
-        IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath,
-        ResoniteImportBudgetProfile ResourceBudget,
-        LiveSendQueuePlan Queue,
-        bool MeshBakeEnabled)
-    {
-        ArgumentNullException.ThrowIfNull(SetupInfo);
-        ArgumentException.ThrowIfNullOrWhiteSpace(ResolvedWorkRoot);
-        ArgumentNullException.ThrowIfNull(SourceFileSlotNamesByRelativePath);
-        ArgumentNullException.ThrowIfNull(ResourceBudget);
-        ArgumentNullException.ThrowIfNull(Queue);
+internal sealed record LiveSendRunPlan(
+    ResoniteSceneSetupInfo SetupInfo,
+    string ResolvedWorkRoot,
+    ResoniteLocalOrigin RequestLocalOrigin,
+    IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath,
+    ResoniteImportBudgetProfile ResourceBudget,
+    LiveSendQueuePlan Queue,
+    bool MeshBakeEnabled);
 
-        this.SetupInfo = SetupInfo;
-        this.ResolvedWorkRoot = ResolvedWorkRoot;
-        this.RequestLocalOrigin = RequestLocalOrigin;
-        this.SourceFileSlotNamesByRelativePath = SourceFileSlotNamesByRelativePath;
-        this.ResourceBudget = ResourceBudget;
-        this.Queue = Queue;
-        this.MeshBakeEnabled = MeshBakeEnabled;
-    }
-
-    public ResoniteSceneSetupInfo SetupInfo { get; }
-
-    public string ResolvedWorkRoot { get; }
-
-    public ResoniteLocalOrigin RequestLocalOrigin { get; }
-
-    public IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath { get; }
-
-    public ResoniteImportBudgetProfile ResourceBudget { get; }
-
-    public LiveSendQueuePlan Queue { get; }
-
-    public bool MeshBakeEnabled { get; }
-}
-
-internal sealed record LiveSendQueuePlan
-{
-    public LiveSendQueuePlan(
-        int ConnectionCount,
-        int QueueCapacity,
-        long MemoryBudgetBytes)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(ConnectionCount, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(QueueCapacity, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(MemoryBudgetBytes, 1);
-
-        this.ConnectionCount = ConnectionCount;
-        this.QueueCapacity = QueueCapacity;
-        this.MemoryBudgetBytes = MemoryBudgetBytes;
-    }
-
-    public int ConnectionCount { get; }
-
-    public int QueueCapacity { get; }
-
-    public long MemoryBudgetBytes { get; }
-}
+internal sealed record LiveSendQueuePlan(
+    int ConnectionCount,
+    int QueueCapacity,
+    long MemoryBudgetBytes);
 
 internal sealed record LiveSendRunContext(
     LiveSendRunPlan Plan,

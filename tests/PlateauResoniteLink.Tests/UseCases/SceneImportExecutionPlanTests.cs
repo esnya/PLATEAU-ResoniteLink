@@ -4,7 +4,6 @@ using System.Diagnostics.CodeAnalysis;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.UseCases;
 
@@ -12,59 +11,141 @@ namespace PlateauResoniteLink.Tests.UseCases;
 public sealed class SceneImportExecutionPlanTests
 {
     [Fact]
-    public void CreateCarriesResolvedLocalRequest()
+    public void Constructor_AllowsResolvedLocalCityGmlSourceForRemoteInput()
     {
         string workRoot = "work";
         Uri remoteCityGmlUri = new("https://example.test/tokyo23ku.zip");
-        ValidatedPlateauImportRequest validatedRequest = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394525",
-                CityGmlSource: DatasetLocation.Remote(remoteCityGmlUri),
-                PackageNames: ["bldg"]));
-        string resolvedSourcePath = RemoteDatasetResourceLayout.GetRemoteResourcePath(
-            workRoot,
-            remoteCityGmlUri,
-            ResolvedLocalPlateauImportRequest.RemoteCityGmlResourcePrefix);
-        ResolvedLocalPlateauImportRequest resolvedRequest = ResolvedLocalPlateauImportRequest.Create(
-            validatedRequest,
-            new ValidatedLocalDatasetLocation(resolvedSourcePath),
-            demTextureSource: null,
-            workRoot);
-        ImportedSceneMetadata metadata = CreateMetadata(resolvedRequest.ToImportRequest());
+        PlateauImportRequest normalizedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Remote(remoteCityGmlUri),
+            PackageNames: ["bldg"]);
+        PlateauImportRequest resolvedRequest = normalizedRequest with
+        {
+            CityGmlSource = DatasetLocation.Local(
+                RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, remoteCityGmlUri, "source-archive")),
+        };
 
-        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
+        SceneImportExecutionPlan plan = new(
+            normalizedRequest,
             resolvedRequest,
-            metadata,
-            workRoot,
-            CommonMaterialCatalog.Create());
+            new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, CommonMaterialCatalog.Create()));
 
-        Assert.Equal(metadata.SourceDataset, plan.SceneImportRequest.Metadata.SourceDataset);
-        Assert.Equal(resolvedSourcePath, plan.SceneImportRequest.Metadata.Request.CityGmlLocalSourcePath);
+        Assert.Equal(normalizedRequest, plan.NormalizedRequest);
+        Assert.Equal(resolvedRequest, plan.ResolvedRequest);
+        Assert.Equal(resolvedRequest.CityGmlLocalSourcePath, plan.SceneImportRequest.Metadata.Request.CityGmlLocalSourcePath);
     }
 
     [Fact]
-    public void CreateRejectsMetadataRequestThatDoesNotMatchResolvedLocalRequest()
+    public void Constructor_RejectsDifferentRemoteCityGmlSource()
+    {
+        PlateauImportRequest normalizedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Remote(new Uri("https://example.test/tokyo23ku.zip")),
+            PackageNames: ["bldg"]);
+        PlateauImportRequest mismatchedRequest = normalizedRequest with
+        {
+            CityGmlSource = DatasetLocation.Remote(new Uri("https://example.test/other.zip")),
+        };
+
+        Assert.Throws<ArgumentException>(
+            () => new SceneImportExecutionPlan(
+                normalizedRequest,
+                mismatchedRequest,
+                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", CommonMaterialCatalog.Create())));
+    }
+
+    [Fact]
+    public void Constructor_RejectsDifferentLocalDemTextureSource()
+    {
+        PlateauImportRequest normalizedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("raw-source"),
+            DemTextureSource: DatasetLocation.Local("ortho-a.tif"),
+            PackageNames: ["bldg"]);
+        PlateauImportRequest mismatchedRequest = normalizedRequest with
+        {
+            DemTextureSource = DatasetLocation.Local("ortho-b.tif"),
+        };
+
+        Assert.Throws<ArgumentException>(
+            () => new SceneImportExecutionPlan(
+                normalizedRequest,
+                mismatchedRequest,
+                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", CommonMaterialCatalog.Create())));
+    }
+
+    [Fact]
+    public void Constructor_RejectsDifferentTerrainMeshMode()
+    {
+        PlateauImportRequest normalizedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("raw-source"),
+            TerrainMeshMode: TerrainMeshMode.Static,
+            PackageNames: ["bldg"]);
+        PlateauImportRequest mismatchedRequest = normalizedRequest with
+        {
+            TerrainMeshMode = TerrainMeshMode.Dynamic,
+        };
+
+        Assert.Throws<ArgumentException>(
+            () => new SceneImportExecutionPlan(
+                normalizedRequest,
+                mismatchedRequest,
+                new SceneImportRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", CommonMaterialCatalog.Create())));
+    }
+
+    [Fact]
+    public void Constructor_AllowsResolvedLocalDemTextureSourceForRemoteInput()
     {
         string workRoot = "work";
-        ResolvedLocalPlateauImportRequest resolvedRequest = ResolvedLocalPlateauImportRequestTestFactory.Create(
-            dataset: "tokyo23ku",
-            meshCode: "53394525",
-            cityGmlLocalSourcePath: "/tmp/plateau");
-        ImportedSceneMetadata metadata = CreateMetadata(
-            resolvedRequest.ToImportRequest() with
-            {
-                MeshCode = "53394526",
-            });
+        Uri remoteDemTextureUri = new("https://example.test/ortho-a.tif");
+        PlateauImportRequest normalizedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("raw-source"),
+            DemTextureSource: DatasetLocation.Remote(remoteDemTextureUri),
+            PackageNames: ["bldg"]);
+        PlateauImportRequest resolvedRequest = normalizedRequest with
+        {
+            DemTextureSource = DatasetLocation.Local(
+                RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho")),
+        };
 
-        ArgumentException exception = Assert.Throws<ArgumentException>(
-            () => SceneImportExecutionPlan.Create(
+        SceneImportExecutionPlan plan = new(
+            normalizedRequest,
+            resolvedRequest,
+            new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, CommonMaterialCatalog.Create()));
+
+        Assert.Equal(
+            RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho"),
+            plan.SceneImportRequest.Metadata.Request.DemTextureLocalSourcePath);
+    }
+
+    [Fact]
+    public void Constructor_RejectsResolvedLocalDemTextureSourceThatDoesNotMatchExpectedRemoteMaterializationPath()
+    {
+        string workRoot = "work";
+        Uri remoteDemTextureUri = new("https://example.test/ortho-a.tif");
+        PlateauImportRequest normalizedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("raw-source"),
+            DemTextureSource: DatasetLocation.Remote(remoteDemTextureUri),
+            PackageNames: ["bldg"]);
+        PlateauImportRequest resolvedRequest = normalizedRequest with
+        {
+            DemTextureSource = DatasetLocation.Local("unexpected-local-ortho.tif"),
+        };
+
+        Assert.Throws<ArgumentException>(
+            () => new SceneImportExecutionPlan(
+                normalizedRequest,
                 resolvedRequest,
-                metadata,
-                workRoot,
-                CommonMaterialCatalog.Create()));
-
-        Assert.Equal("metadataRequest", exception.ParamName);
+                new SceneImportRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, CommonMaterialCatalog.Create())));
     }
 
     private static ImportedSceneMetadata CreateMetadata(PlateauImportRequest request)

@@ -58,33 +58,6 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
         Assert.Equal(ParsedSurfaceSemantic.Wall, noWallSide.Semantic);
     }
 
-    [Fact]
-    public void PartitionParsedCityObjectUsesSelectedOverlayMeshCodeWithoutParsingCityObjectMeshCode()
-    {
-        MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("53394525")!;
-        ParsedCityObject cityObject = new(
-            SlotKey: "bldg-invalid-mesh",
-            DisplayName: "Invalid mesh building",
-            PackageName: "bldg",
-            ActualMeshCode: "not-a-mesh",
-            LodLevel: 2,
-            Surfaces: [CreateHorizontalSurface("roof", altitude: 10.0, meshBounds: meshBounds)],
-            ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
-            SourceFileRelativePath: "udx/bldg/not-a-mesh/bldg.gml",
-            SharedAcrossMeshCodes: false,
-            BuildingAttributes: BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] });
-
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) result = Assert.Single(
-            TerrainOverlayMaterialSourcePartitioner.PartitionParsedCityObject(
-                cityObject,
-                [CreateOverlay(meshBounds)],
-                [meshBounds]));
-
-        Assert.NotNull(result.Overlay);
-        Assert.Equal("53394525", result.CityObject.ActualMeshCode);
-        Assert.All(result.CityObject.Surfaces, static surface => Assert.True(surface.UsesGeneratedDemTexture));
-    }
-
     private static ParsedSurface CreateHorizontalSurface(string polygonId, double altitude, MeshCodeBounds meshBounds)
     {
         return new ParsedSurface(

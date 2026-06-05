@@ -38,7 +38,9 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
     {
         ArgumentNullException.ThrowIfNull(runPlan);
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.CommonMaterials);
         ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(context.ClientSession);
 
         ReportProgress(
             context,

@@ -82,56 +82,6 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("Specify --citygml-source.", result.Error);
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData(" ")]
-    public void ParseImportRequiresDatasetAtCliBoundary(string? dataset)
-    {
-        string[] args = dataset is null
-            ? [
-                "import",
-                "--mesh-code", "53394525",
-                "--citygml-source", "/data/plateau",
-                "--resonitelink-port", "12345",
-            ]
-            : [
-                "import",
-                "--dataset", dataset,
-                "--mesh-code", "53394525",
-                "--citygml-source", "/data/plateau",
-                "--resonitelink-port", "12345",
-            ];
-
-        CliParseResult result = CliArgumentsParser.Parse(args);
-
-        Assert.Equal("Specify --dataset.", result.Error);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData(" ")]
-    public void ParseImportRequiresMeshCodeAtCliBoundary(string? meshCode)
-    {
-        string[] args = meshCode is null
-            ? [
-                "import",
-                "--dataset", "tokyo23ku",
-                "--citygml-source", "/data/plateau",
-                "--resonitelink-port", "12345",
-            ]
-            : [
-                "import",
-                "--dataset", "tokyo23ku",
-                "--mesh-code", meshCode,
-                "--citygml-source", "/data/plateau",
-                "--resonitelink-port", "12345",
-            ];
-
-        CliParseResult result = CliArgumentsParser.Parse(args);
-
-        Assert.Equal("Specify --mesh-code.", result.Error);
-    }
-
     [Fact]
     public void ParseParsesCanonicalSceneDumpImportWithoutResoniteLinkEndpoint()
     {
@@ -286,27 +236,6 @@ public sealed class CliArgumentsParserTests
         Assert.Equal(TerrainMeshMode.Grid, result.Options!.Request.TerrainMeshMode);
         Assert.Equal(4.5, result.Options.Request.TerrainGridMetersPerVertex, 6);
         Assert.Equal(512, result.Options.Request.TerrainGridMaxResolution);
-    }
-
-    [Theory]
-    [InlineData("NaN")]
-    [InlineData("Infinity")]
-    [InlineData("-Infinity")]
-    public void ParseRejectsNonFiniteTerrainGridMetersPerVertex(string metersPerVertex)
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "import",
-                "--dataset", "tokyo23ku",
-                "--mesh-code", "53394525",
-                "--citygml-source", "/data/plateau",
-                "--resonitelink-port", "12345",
-                "--terrain-grid-meters-per-vertex", metersPerVertex,
-            ]);
-
-        Assert.Equal(
-            $"The value '{metersPerVertex}' is not a valid positive terrain grid meters-per-vertex value.",
-            result.Error);
     }
 
     [Fact]

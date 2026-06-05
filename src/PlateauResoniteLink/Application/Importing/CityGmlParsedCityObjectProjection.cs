@@ -32,7 +32,7 @@ internal static class CityGmlParsedCityObjectProjection
 
         LocalCityGmlObjectProjection.ValidateCompatibleReferenceSystem(
             referenceSystem,
-            sourceFile.ReferenceSystem);
+            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem ?? referenceSystem);
 
         ParsedCityObject[] projectedInputCityObjects =
             DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
@@ -251,7 +251,7 @@ internal static class CityGmlParsedCityObjectProjection
             materialResolver,
             progressReporter,
             cancellationToken,
-            out TerrainGridProjectedCityObject? heightMapCityObject);
+            out ImportedCityObject? heightMapCityObject);
         if (!hasGrid)
         {
             return request.TerrainMeshMode == TerrainMeshMode.Dynamic
@@ -261,23 +261,24 @@ internal static class CityGmlParsedCityObjectProjection
 
         if (request.TerrainMeshMode == TerrainMeshMode.Grid)
         {
-            return heightMapCityObject!.CityObject;
+            return heightMapCityObject!;
         }
 
-        TriangleMeshProjectedCityObject staticCityObject = CityGmlTriangleMeshCityObjectProjection.ProjectTriangleMesh(
+        ImportedCityObject staticCityObject = CityGmlTriangleMeshCityObjectProjection.Project(
             cityObject,
             globalOriginPoint,
             globalCartesian,
             demTerrainTextureOverlay,
             materialResolver);
+        TriangleMeshGeometry staticMesh = AssertTriangleMeshGeometry(staticCityObject);
         TriangleMeshGeometry rebasedStaticMesh = TriangleMeshTransformRebaser.Rebase(
-            staticCityObject.Geometry,
-            staticCityObject.CityObject.Transform,
-            heightMapCityObject!.CityObject.Transform);
-        return heightMapCityObject.CityObject with
+            staticMesh,
+            staticCityObject.Transform,
+            heightMapCityObject!.Transform);
+        return heightMapCityObject with
         {
-            Geometry = new DynamicTerrainGeometry(rebasedStaticMesh, heightMapCityObject.Geometry),
-            Materials = staticCityObject.CityObject.Materials,
+            Geometry = new DynamicTerrainGeometry(rebasedStaticMesh, AssertTerrainGridGeometry(heightMapCityObject)),
+            Materials = staticCityObject.Materials,
         };
     }
 
@@ -352,17 +353,13 @@ internal static class CityGmlParsedCityObjectProjection
         ParsedSurface surface,
         ParsedCityObject cityObject)
     {
-        if (surface.InteriorRings.Length != 0)
+        if (surface.InteriorRings.Length != 0
+            || surface.ExteriorRing.Vertices.Length != 4)
         {
             return [surface];
         }
 
         if (!ShouldSubdivideTerrainAlignedCityObject(cityObject.PackageName, cityObject.LodLevel))
-        {
-            return [surface];
-        }
-
-        if (surface.ExteriorRing.Vertices.Length != 4)
         {
             return [surface];
         }
@@ -378,17 +375,12 @@ internal static class CityGmlParsedCityObjectProjection
         Float3[] positions = surface.ExteriorRing.Vertices
             .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
-        if (!RoadSurfaceQuad.TryCreate(surface.ExteriorRing, positions, out RoadSurfaceQuad quad))
-        {
-            return [surface];
-        }
-
         if (!IsNearHorizontalSurface(positions))
         {
             return [surface];
         }
 
-        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(quad);
+        EdgePairSelection edgePair = RoadSurfaceEdgePairSelector.Select(surface.ExteriorRing, positions);
         return TerrainAlignedTransportationSurfaceSplitter.Split(surface, positions, edgePair);
     }
 
@@ -458,6 +450,18 @@ internal static class CityGmlParsedCityObjectProjection
             origin.Longitude,
             origin.Altitude,
             cartesian);
+    }
+
+    private static TriangleMeshGeometry AssertTriangleMeshGeometry(ImportedCityObject cityObject)
+    {
+        return cityObject.Geometry as TriangleMeshGeometry
+            ?? throw new InvalidOperationException("Dynamic terrain static variant must be projected as a triangle mesh.");
+    }
+
+    private static TerrainGridGeometry AssertTerrainGridGeometry(ImportedCityObject cityObject)
+    {
+        return cityObject.Geometry as TerrainGridGeometry
+            ?? throw new InvalidOperationException("Dynamic terrain grid variant must be projected as a terrain grid.");
     }
 
     private static bool HasRenderableGeometry(ImportedCityObject cityObject)
