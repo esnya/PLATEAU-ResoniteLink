@@ -44,7 +44,6 @@ internal static class DemTerrainOverlaySurfaceClipper
             foreach (ParsedSurface clippedSurface in ClipSurfaceCore(
                          surface,
                          [overlay.GeographicBounds],
-                         suffixFactory: (_, localPolygonIndex) => $"{CreateOverlayToken(overlay.GeographicBounds)}_{localPolygonIndex:D2}",
                          progressReporter,
                          cancellationToken))
             {
@@ -78,7 +77,6 @@ internal static class DemTerrainOverlaySurfaceClipper
         return ClipSurfaceCore(
             surface,
             bounds,
-            suffixFactory: (boundIndex, polygonIndex) => $"{CreateOverlayToken(bounds[boundIndex])}_{boundIndex:D2}_{polygonIndex:D2}",
             progressReporter,
             cancellationToken);
     }
@@ -86,7 +84,6 @@ internal static class DemTerrainOverlaySurfaceClipper
     private static List<ParsedSurface> ClipSurfaceCore(
         ParsedSurface surface,
         IReadOnlyList<GeographicRectangle> bounds,
-        Func<int, int, string> suffixFactory,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
@@ -112,12 +109,10 @@ internal static class DemTerrainOverlaySurfaceClipper
                 progressReporter?.Invoke(
                     PlateauLog.Debug(
                         "import",
-                        $"Clipping DEM surface '{surface.PolygonId}' to geographic bound "
-                        + $"{boundIndex + 1}/{bounds.Count} "
+                        $"Clipping DEM surface to geographic bound {boundIndex + 1}/{bounds.Count} "
                         + $"(vertices={surface.ExteriorRing.Vertices.Length})."));
             }
 
-            int polygonIndex = 0;
             foreach (IReadOnlyList<ResolvedSurfaceVertex> polygon in ClipToOverlay(surface, bound, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -128,17 +123,13 @@ internal static class DemTerrainOverlaySurfaceClipper
                     continue;
                 }
 
-                string suffix = suffixFactory(boundIndex, polygonIndex);
                 results.Add(surface with
                 {
-                    PolygonId = $"{surface.PolygonId}_{suffix}",
                     ExteriorRing = new ParsedRing(
-                        $"{surface.ExteriorRing.RingId}_{suffix}",
                         vertices,
                         uvs),
                     UsesGeneratedDemTexture = surface.UsesGeneratedDemTexture,
                 });
-                polygonIndex++;
             }
         }
 
@@ -799,10 +790,4 @@ internal static class DemTerrainOverlaySurfaceClipper
         return signedArea * 0.5;
     }
 
-    private static string CreateOverlayToken(GeographicRectangle rectangle)
-    {
-        long south = (long)Math.Round(rectangle.MinLatitude * 1_000_000.0, MidpointRounding.AwayFromZero);
-        long west = (long)Math.Round(rectangle.MinLongitude * 1_000_000.0, MidpointRounding.AwayFromZero);
-        return $"{south}_{west}";
-    }
 }

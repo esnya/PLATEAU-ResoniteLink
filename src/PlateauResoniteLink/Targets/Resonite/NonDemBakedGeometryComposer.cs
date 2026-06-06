@@ -44,7 +44,6 @@ internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
 
         if (layout is not null)
         {
-            string textureIdentity = NonDemSourceFileBatching.CreateAtlasTextureIdentity(sourceFileKey, batchIndex);
             List<int> atlasTriangleIndices = [];
             foreach (NonDemAtlasPlacement<NonDemAtlasBatchEntry> placement in layout.Placements
                          .OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal)
@@ -64,8 +63,7 @@ internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     TexturePayload: ResoniteTextureImportFactory.CreatePayloadFromImage(
-                        atlasImage ?? throw new InvalidOperationException("Non-DEM atlas image is required when an atlas layout exists."),
-                        identity: textureIdentity),
+                        atlasImage ?? throw new InvalidOperationException("Non-DEM atlas image is required when an atlas layout exists.")),
                     AssetBinding: ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv)));
         }
 

@@ -69,10 +69,8 @@ public sealed class CityGmlTerrainConformerTests
 
     private static ParsedSurface CreateSurface(string polygonId, GeodeticPoint[] vertices)
     {
-        return new ParsedSurface(
-            polygonId,
-            ParsedSurfaceSemantic.Ground,
-            new ParsedRing($"{polygonId}-ring", vertices, UVs: null),
+        return new ParsedSurface(ParsedSurfaceSemantic.Ground,
+            new ParsedRing(vertices, UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(0.5, 0.5, 0.5, 1.0),
             TexturePayload: null);

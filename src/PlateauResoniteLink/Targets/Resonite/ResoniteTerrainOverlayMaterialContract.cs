@@ -56,7 +56,7 @@ internal static class ResoniteTerrainOverlayMaterialContract
             ? "<null>"
             : string.Create(
                 CultureInfo.InvariantCulture,
-                $"package='{overlay.PackageName}', bounds='{FormatGeographicBounds(overlay.GeographicBounds)}', sources='{overlay.SourceDescriptorKey}'");
+                $"package='{overlay.PackageName}', bounds='{FormatGeographicBounds(overlay.GeographicBounds)}', sources='{overlay.SourceDescription}'");
         return new InvalidOperationException(
             "Terrain overlay material requires a third-level mesh-code that matches the overlay geographic bounds. "
             + $"reason='{reason}', object_slot='{cityObject.SlotKey}', object_name='{cityObject.DisplayName}', "

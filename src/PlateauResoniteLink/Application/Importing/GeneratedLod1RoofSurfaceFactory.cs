@@ -41,19 +41,19 @@ internal static class GeneratedLod1RoofSurfaceFactory
 
         List<ParsedSurface> surfaces =
         [
-            CreateGeneratedRoofSurface(footprint, "shed-roof", ParsedSurfaceSemantic.Roof, roof),
+            CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, roof),
         ];
         if (firstLong)
         {
-            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-high-wall", ParsedSurfaceSemantic.Wall, [c[3], c[2], highEdge[0], highEdge[1]]));
-            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-side-wall-a", ParsedSurfaceSemantic.Wall, [c[1], c[2], highEdge[0]]));
-            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-side-wall-b", ParsedSurfaceSemantic.Wall, [c[0], highEdge[1], c[3]]));
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Wall, [c[3], c[2], highEdge[0], highEdge[1]]));
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Wall, [c[1], c[2], highEdge[0]]));
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Wall, [c[0], highEdge[1], c[3]]));
         }
         else
         {
-            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-high-wall", ParsedSurfaceSemantic.Wall, [c[1], c[2], highEdge[1], highEdge[0]]));
-            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-side-wall-a", ParsedSurfaceSemantic.Wall, [c[0], c[1], highEdge[0]]));
-            surfaces.Add(CreateGeneratedRoofSurface(footprint, "shed-side-wall-b", ParsedSurfaceSemantic.Wall, [c[3], highEdge[1], c[2]]));
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Wall, [c[1], c[2], highEdge[1], highEdge[0]]));
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Wall, [c[0], c[1], highEdge[0]]));
+            surfaces.Add(CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Wall, [c[3], highEdge[1], c[2]]));
         }
 
         return surfaces.ToArray();
@@ -73,10 +73,10 @@ internal static class GeneratedLod1RoofSurfaceFactory
             ridge1 = Elevate(Lerp(c[1], c[2], 0.5), rise);
             return
             [
-                CreateGeneratedRoofSurface(footprint, "gable-roof-a", ParsedSurfaceSemantic.Roof, [c[0], c[1], ridge1, ridge0]),
-                CreateGeneratedRoofSurface(footprint, "gable-roof-b", ParsedSurfaceSemantic.Roof, [c[3], ridge0, ridge1, c[2]]),
-                CreateGeneratedRoofSurface(footprint, "gable-wall-a", ParsedSurfaceSemantic.Wall, [c[0], ridge0, c[3]]),
-                CreateGeneratedRoofSurface(footprint, "gable-wall-b", ParsedSurfaceSemantic.Wall, [c[1], c[2], ridge1]),
+                CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [c[0], c[1], ridge1, ridge0]),
+                CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [c[3], ridge0, ridge1, c[2]]),
+                CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Wall, [c[0], ridge0, c[3]]),
+                CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Wall, [c[1], c[2], ridge1]),
             ];
         }
 
@@ -84,10 +84,10 @@ internal static class GeneratedLod1RoofSurfaceFactory
         ridge1 = Elevate(Lerp(c[3], c[2], 0.5), rise);
         return
         [
-            CreateGeneratedRoofSurface(footprint, "gable-roof-a", ParsedSurfaceSemantic.Roof, [c[0], ridge0, ridge1, c[3]]),
-            CreateGeneratedRoofSurface(footprint, "gable-roof-b", ParsedSurfaceSemantic.Roof, [ridge0, c[1], c[2], ridge1]),
-            CreateGeneratedRoofSurface(footprint, "gable-wall-a", ParsedSurfaceSemantic.Wall, [c[0], c[1], ridge0]),
-            CreateGeneratedRoofSurface(footprint, "gable-wall-b", ParsedSurfaceSemantic.Wall, [c[3], ridge1, c[2]]),
+            CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [c[0], ridge0, ridge1, c[3]]),
+            CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [ridge0, c[1], c[2], ridge1]),
+            CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Wall, [c[0], c[1], ridge0]),
+            CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Wall, [c[3], ridge1, c[2]]),
         ];
     }
 
@@ -104,10 +104,10 @@ internal static class GeneratedLod1RoofSurfaceFactory
             GeodeticPoint longRidge1 = Elevate(Lerp(leftMid, rightMid, 0.75), rise);
             return
             [
-                CreateGeneratedRoofSurface(footprint, "hip-roof-a", ParsedSurfaceSemantic.Roof, [c[0], c[1], longRidge1, longRidge0]),
-                CreateGeneratedRoofSurface(footprint, "hip-roof-b", ParsedSurfaceSemantic.Roof, [c[3], longRidge0, longRidge1, c[2]]),
-                CreateGeneratedRoofSurface(footprint, "hip-roof-c", ParsedSurfaceSemantic.Roof, [c[0], longRidge0, c[3]]),
-                CreateGeneratedRoofSurface(footprint, "hip-roof-d", ParsedSurfaceSemantic.Roof, [c[1], c[2], longRidge1]),
+                CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [c[0], c[1], longRidge1, longRidge0]),
+                CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [c[3], longRidge0, longRidge1, c[2]]),
+                CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [c[0], longRidge0, c[3]]),
+                CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [c[1], c[2], longRidge1]),
             ];
         }
 
@@ -117,20 +117,18 @@ internal static class GeneratedLod1RoofSurfaceFactory
         GeodeticPoint shortRidge1 = Elevate(Lerp(bottomMid, topMid, 0.75), rise);
         return
         [
-            CreateGeneratedRoofSurface(footprint, "hip-roof-a", ParsedSurfaceSemantic.Roof, [c[0], shortRidge0, shortRidge1, c[3]]),
-            CreateGeneratedRoofSurface(footprint, "hip-roof-b", ParsedSurfaceSemantic.Roof, [shortRidge0, c[1], c[2], shortRidge1]),
-            CreateGeneratedRoofSurface(footprint, "hip-roof-c", ParsedSurfaceSemantic.Roof, [c[0], c[1], shortRidge0]),
-            CreateGeneratedRoofSurface(footprint, "hip-roof-d", ParsedSurfaceSemantic.Roof, [c[3], shortRidge1, c[2]]),
+            CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [c[0], shortRidge0, shortRidge1, c[3]]),
+            CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [shortRidge0, c[1], c[2], shortRidge1]),
+            CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [c[0], c[1], shortRidge0]),
+            CreateGeneratedRoofSurface(footprint, ParsedSurfaceSemantic.Roof, [c[3], shortRidge1, c[2]]),
         ];
     }
 
     private static ParsedSurface CreateGeneratedRoofSurface(
         Lod1RoofFootprint footprint,
-        string suffix,
         ParsedSurfaceSemantic semantic,
         GeodeticPoint[] vertices)
     {
-        string polygonId = $"{footprint.TopSurface.PolygonId}_generated_{suffix}";
         GeodeticPoint[] orientedVertices =
             semantic == ParsedSurfaceSemantic.Wall
                 ? OrientGeneratedWallVerticesForOutwardMeshFaces(footprint, vertices)
@@ -139,10 +137,8 @@ internal static class GeneratedLod1RoofSurfaceFactory
                 : vertices;
         GeodeticPoint[] closedVertices = [.. orientedVertices, orientedVertices[0]];
         return new ParsedSurface(
-            polygonId,
             semantic,
             new ParsedRing(
-                $"{polygonId}-ring",
                 closedVertices,
                 UVs: null),
             InteriorRings: [],

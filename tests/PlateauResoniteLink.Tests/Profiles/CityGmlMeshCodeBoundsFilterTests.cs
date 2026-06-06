@@ -86,10 +86,8 @@ public sealed class CityGmlMeshCodeBoundsFilterTests
         double longitude = (bounds.WestLongitude + bounds.EastLongitude) / 2.0;
         GeodeticPoint point = new(latitude, longitude, 0.0);
 
-        return new ParsedSurface(
-            "polygon",
-            ParsedSurfaceSemantic.Ground,
-            new ParsedRing("ring", [point, point, point], UVs: null),
+        return new ParsedSurface(ParsedSurfaceSemantic.Ground,
+            new ParsedRing([point, point, point], UVs: null),
             InteriorRings: [],
             new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null);

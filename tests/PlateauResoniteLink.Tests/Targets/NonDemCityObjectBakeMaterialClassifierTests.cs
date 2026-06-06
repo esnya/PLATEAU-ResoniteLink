@@ -107,7 +107,7 @@ public sealed class NonDemCityObjectBakeMaterialClassifierTests
                 height: 1,
                 colorProfile: null,
                 binaryPayload: [255, 255, 255, 255],
-                identity: "dataset.png"),
+                description: "dataset.png"),
             TextureSourceKind = ResoniteTextureSourceKind.Dataset,
         };
     }

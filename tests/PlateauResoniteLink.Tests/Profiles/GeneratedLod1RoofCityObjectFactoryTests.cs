@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -38,17 +39,15 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
                 RoofShape = new BuildingCodeValue<CityGmlRoofShape>(CityGmlRoofShape.Shed, "shed"),
             });
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
-        Assert.DoesNotContain(generated.Surfaces, static surface => surface.PolygonId.Contains("_generated_shed-", System.StringComparison.Ordinal));
         Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Wall);
         Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Ground);
         Assert.Equal(6, generated.Surfaces.Length);
-        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "lod1-top");
 
         ParsedSurface underside = Assert.Single(
             generated.Surfaces,
-            static surface => surface.PolygonId == "lod1-top_generated_no-wall-bottom");
+            static surface => ComputeResoniteNormal(surface).Y < -0.9);
         Assert.Same(texture, underside.TexturePayload);
         Assert.All(underside.ExteriorRing.Vertices, vertex => Assert.InRange(vertex.Altitude, 9.7 - 1e-8, 10.0 + 1e-8));
         Assert.True(ComputeParsedNormalY(underside) > 0.9);
@@ -58,7 +57,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
 
         ParsedSurface side = Assert.Single(
             generated.Surfaces,
-            static surface => surface.PolygonId == "lod1-top_generated_no-wall-side-0");
+            static surface => ComputeResoniteNormal(surface).Z < -0.9);
         Assert.Same(texture, side.TexturePayload);
         Assert.True(ComputeParsedNormalY(side) is < 0.1 and > -0.1);
         Assert.Equal(
@@ -85,14 +84,14 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
             lodLevel: 1);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.NotSame(cityObject, generated);
         Assert.Equal(6, generated.Surfaces.Length);
-        ParsedSurface generatedTop = Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod1-roof-only");
+        ParsedSurface generatedTop = Assert.Single(generated.Surfaces, static surface => ComputeResoniteNormal(surface).Y > 0.9);
         Assert.Same(texture, generatedTop.TexturePayload);
-        Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod1-roof-only_generated_no-wall-bottom");
-        Assert.Equal(4, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_no-wall-side-", System.StringComparison.Ordinal)));
+        Assert.Single(generated.Surfaces, static surface => ComputeResoniteNormal(surface).Y < -0.9);
+        Assert.Equal(4, generated.Surfaces.Count(static surface => Math.Abs(ComputeResoniteNormal(surface).Y) < 0.1));
     }
 
     [Theory]
@@ -125,9 +124,9 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
             lodLevel: 1);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
-        ParsedSurface generatedTop = Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod1-top");
+        ParsedSurface generatedTop = Assert.Single(generated.Surfaces, static surface => ComputeResoniteNormal(surface).Y > 0.9);
         Assert.Same(texture, generatedTop.TexturePayload);
         Assert.True(ComputeResoniteNormal(generatedTop).Y > 0.9);
     }
@@ -162,9 +161,9 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
             lodLevel: 2);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
-        ParsedSurface generatedTop = Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-top");
+        ParsedSurface generatedTop = Assert.Single(generated.Surfaces, surface => ReferenceEquals(surface, top));
         Assert.Same(top, generatedTop);
         Assert.Equal(vertices, generatedTop.ExteriorRing.Vertices);
         Assert.Equal(uvs, generatedTop.ExteriorRing.UVs);
@@ -187,14 +186,13 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             CoordinateReferenceSystem.Parse("EPSG:6697"),
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] });
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
-        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "lod1-pentagon-top");
         Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Wall);
         Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Ground);
         Assert.Equal(7, generated.Surfaces.Length);
-        Assert.Equal(5, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_no-wall-side-", System.StringComparison.Ordinal)));
-        Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod1-pentagon-top_generated_no-wall-bottom");
+        Assert.Equal(5, generated.Surfaces.Count(static surface => Math.Abs(ComputeResoniteNormal(surface).Y) < 0.1));
+        Assert.Single(generated.Surfaces, static surface => ComputeResoniteNormal(surface).Y < -0.9);
     }
 
     [Fact]
@@ -220,13 +218,11 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             CoordinateReferenceSystem.Parse("EPSG:6697"),
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] });
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
-        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "lod1-roof-a");
-        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "lod1-roof-b");
         Assert.Equal(10, generated.Surfaces.Length);
-        Assert.Equal(6, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_no-wall-side-", System.StringComparison.Ordinal)));
-        Assert.Equal(2, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_no-wall-bottom", System.StringComparison.Ordinal)));
+        Assert.Equal(6, generated.Surfaces.Count(static surface => Math.Abs(ComputeResoniteNormal(surface).Y) < 0.1));
+        Assert.Equal(2, generated.Surfaces.Count(static surface => ComputeResoniteNormal(surface).Y < -0.9));
     }
 
     [Fact]
@@ -245,7 +241,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             CoordinateReferenceSystem.Parse("EPSG:6697"),
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] });
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.Same(cityObject, generated);
     }
@@ -279,25 +275,18 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty with { CityGmlClassCodes = [classCode] },
             lodLevel: 2);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
-        Assert.Same(roofA, Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof-a"));
-        Assert.Same(roofB, Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof-b"));
+        Assert.Contains(generated.Surfaces, surface => ReferenceEquals(surface, roofA));
+        Assert.Contains(generated.Surfaces, surface => ReferenceEquals(surface, roofB));
         Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Wall);
         Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Ground);
         Assert.Equal(10, generated.Surfaces.Length);
-        Assert.Equal(6, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_no-wall-side-", System.StringComparison.Ordinal)));
-        Assert.Equal(2, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_no-wall-bottom", System.StringComparison.Ordinal)));
+        Assert.Equal(6, generated.Surfaces.Count(static surface => Math.Abs(ComputeResoniteNormal(surface).Y) < 0.1));
+        Assert.Equal(2, generated.Surfaces.Count(static surface => ComputeResoniteNormal(surface).Y < -0.9));
         Assert.All(generated.Surfaces, static surface => Assert.Equal(ParsedSurfaceSemantic.Roof, surface.Semantic));
 
-        ParsedSurface underside = Assert.Single(
-            generated.Surfaces,
-            static surface => surface.PolygonId == "lod2-roof-a_generated_no-wall-bottom");
-        Assert.True(ComputeResoniteNormal(underside).Y < -0.9);
-        ParsedSurface side = Assert.Single(
-            generated.Surfaces,
-            static surface => surface.PolygonId == "lod2-roof-a_generated_no-wall-side-0");
-        Assert.True(ComputeResoniteNormal(side).Z < -0.9);
+        Assert.Equal(6, generated.Surfaces.Count(static surface => Math.Abs(ComputeResoniteNormal(surface).Y) < 0.1));
     }
 
     [Fact]
@@ -317,14 +306,14 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
             lodLevel: 2);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.NotSame(cityObject, generated);
         Assert.Equal(6, generated.Surfaces.Length);
-        ParsedSurface generatedTop = Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof-only");
+        ParsedSurface generatedTop = Assert.Single(generated.Surfaces, static surface => ComputeResoniteNormal(surface).Y > 0.9);
         Assert.Same(texture, generatedTop.TexturePayload);
-        Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof-only_generated_no-wall-bottom");
-        Assert.Equal(4, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_no-wall-side-", System.StringComparison.Ordinal)));
+        Assert.Single(generated.Surfaces, static surface => ComputeResoniteNormal(surface).Y < -0.9);
+        Assert.Equal(4, generated.Surfaces.Count(static surface => Math.Abs(ComputeResoniteNormal(surface).Y) < 0.1));
     }
 
     [Fact]
@@ -343,11 +332,11 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
             lodLevel: 2);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.NotSame(cityObject, generated);
         Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Ground);
-        Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof_generated_no-wall-bottom");
+        Assert.Single(generated.Surfaces, static surface => ComputeResoniteNormal(surface).Y < -0.9);
     }
 
     [Fact]
@@ -368,11 +357,11 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
             lodLevel: 2);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.NotSame(cityObject, generated);
         Assert.DoesNotContain(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Wall);
-        Assert.Single(generated.Surfaces, static surface => surface.PolygonId == "lod2-roof_generated_no-wall-bottom");
+        Assert.Single(generated.Surfaces, static surface => ComputeResoniteNormal(surface).Y < -0.9);
     }
 
     [Theory]
@@ -397,7 +386,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             },
             lodLevel: 2);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.Same(cityObject, generated);
     }
@@ -406,9 +395,8 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     public void CreateLeavesNonNoWallLod2BuildingBeforeResolvingLocalOrigin()
     {
         ParsedSurface emptyRoof = new(
-            "lod2-empty-roof",
             ParsedSurfaceSemantic.Roof,
-            new ParsedRing("lod2-empty-roof-ring", [], null),
+            new ParsedRing([], null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null);
@@ -418,7 +406,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty,
             lodLevel: 2);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.Same(cityObject, generated);
     }
@@ -427,9 +415,8 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     public void CreateLeavesNoWallLod2BuildingWithEmptyGeometryBeforeResolvingLocalOrigin()
     {
         ParsedSurface emptyRoof = new(
-            "lod2-empty-no-wall-roof",
             ParsedSurfaceSemantic.Roof,
-            new ParsedRing("lod2-empty-no-wall-roof-ring", [], null),
+            new ParsedRing([], null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null);
@@ -439,7 +426,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
             lodLevel: 2);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.Same(cityObject, generated);
     }
@@ -457,7 +444,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
             lodLevel: 2);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.Same(cityObject, generated);
     }
@@ -474,7 +461,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
             BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
             lodLevel: 2);
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.Same(cityObject, generated);
     }
@@ -498,13 +485,14 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
                 RoofShape = new BuildingCodeValue<CityGmlRoofShape>(CityGmlRoofShape.Shed, "shed"),
             });
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
-        Assert.DoesNotContain(generated.Surfaces, static surface => surface.PolygonId == "lod1-top");
-        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "lod1-bottom");
-        Assert.Equal(4, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_", System.StringComparison.Ordinal)));
+        Assert.DoesNotContain(generated.Surfaces, surface => ReferenceEquals(surface, top));
+        Assert.Contains(generated.Surfaces, surface => ReferenceEquals(surface, bottom));
+        Assert.Equal(5, generated.Surfaces.Length);
+        Assert.Equal(4, generated.Surfaces.Count(surface => !ReferenceEquals(surface, bottom)));
         Assert.All(
-            generated.Surfaces.Where(static surface => surface.PolygonId.Contains("_generated_", System.StringComparison.Ordinal)),
+            generated.Surfaces.Where(surface => !ReferenceEquals(surface, bottom)),
             static surface => Assert.Null(surface.TexturePayload));
     }
 
@@ -528,19 +516,21 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
                 RoofShape = new BuildingCodeValue<CityGmlRoofShape>(CityGmlRoofShape.Shed, "shed"),
             });
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
-        Assert.DoesNotContain(generated.Surfaces, static surface => surface.PolygonId == "lod1-top");
-        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "empty");
-        Assert.Equal(4, generated.Surfaces.Count(static surface => surface.PolygonId.Contains("_generated_", System.StringComparison.Ordinal)));
+        Assert.DoesNotContain(generated.Surfaces, surface => ReferenceEquals(surface, top));
+        Assert.Contains(generated.Surfaces, surface => ReferenceEquals(surface, empty));
+        Assert.Equal(6, generated.Surfaces.Length);
+        Assert.Equal(4, generated.Surfaces.Count(surface => !ReferenceEquals(surface, empty) && !ReferenceEquals(surface, bottom)));
     }
 
     [Fact]
-    public void CreateSkipsObjectThatAlreadyHasGeneratedRoofSurface()
+    public void CreateDoesNotUseRoofLikeSurfaceNameAsGenerationState()
     {
+        const string topSurfaceName = "lod1-top_roof_shed-roof";
         ParsedCityObject cityObject = CreateCityObject(
             [
-                CreateSurface("lod1-top_generated_shed-roof", ParsedSurfaceSemantic.Roof, altitude: 10.0),
+                CreateSurface(topSurfaceName, ParsedSurfaceSemantic.Roof, altitude: 10.0),
                 CreateSurface("lod1-bottom", ParsedSurfaceSemantic.Ground, altitude: 0.0),
             ],
             CoordinateReferenceSystem.Parse("EPSG:6697"),
@@ -549,17 +539,21 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
                 RoofShape = new BuildingCodeValue<CityGmlRoofShape>(CityGmlRoofShape.Shed, "shed"),
             });
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
-        Assert.Same(cityObject, generated);
+        Assert.NotSame(cityObject, generated);
+        Assert.Equal(5, generated.Surfaces.Length);
+        Assert.Equal(4, generated.Surfaces.Count(static surface => surface.Semantic != ParsedSurfaceSemantic.Ground));
+        Assert.Single(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Ground);
     }
 
     [Fact]
-    public void CreateSkipsObjectWhoseGeneratedRoofSurfaceIdContainsEarlierGeneratedToken()
+    public void CreateDoesNotUseNestedRoofLikeSurfaceNameAsGenerationState()
     {
+        const string topSurfaceName = "source_roof_part_roof_shed-roof";
         ParsedCityObject cityObject = CreateCityObject(
             [
-                CreateSurface("source_generated_part_generated_shed-roof", ParsedSurfaceSemantic.Roof, altitude: 10.0),
+                CreateSurface(topSurfaceName, ParsedSurfaceSemantic.Roof, altitude: 10.0),
                 CreateSurface("lod1-bottom", ParsedSurfaceSemantic.Ground, altitude: 0.0),
             ],
             CoordinateReferenceSystem.Parse("EPSG:6697"),
@@ -568,19 +562,22 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
                 RoofShape = new BuildingCodeValue<CityGmlRoofShape>(CityGmlRoofShape.Shed, "shed"),
             });
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
-        Assert.Same(cityObject, generated);
+        Assert.NotSame(cityObject, generated);
+        Assert.Equal(5, generated.Surfaces.Length);
+        Assert.Equal(4, generated.Surfaces.Count(static surface => surface.Semantic != ParsedSurfaceSemantic.Ground));
+        Assert.Single(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Ground);
     }
 
     [Fact]
-    public void CreateDoesNotTreatOtherGeneratedSurfaceIdsAsGeneratedRoof()
+    public void CreateDoesNotTreatOtherSurfaceNamesAsGeneratedRoofState()
     {
         ParsedCityObject cityObject = CreateCityObject(
             [
                 CreateSurface("lod1-top", ParsedSurfaceSemantic.Roof, altitude: 10.0),
                 CreateSurface("lod1-bottom", ParsedSurfaceSemantic.Ground, altitude: 0.0),
-                CreateSurface("tran_generated_marking", ParsedSurfaceSemantic.Wall, altitude: 1.0),
+                CreateSurface("tran_road-marking", ParsedSurfaceSemantic.Wall, altitude: 1.0),
             ],
             CoordinateReferenceSystem.Parse("EPSG:6697"),
             BuildingAttributeContext.Empty with
@@ -588,11 +585,11 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
                 RoofShape = new BuildingCodeValue<CityGmlRoofShape>(CityGmlRoofShape.Shed, "shed"),
             });
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.NotSame(cityObject, generated);
-        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId == "tran_generated_marking");
-        Assert.Contains(generated.Surfaces, static surface => surface.PolygonId.Contains("_generated_shed-", System.StringComparison.Ordinal));
+        Assert.Contains(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Wall);
+        Assert.Contains(generated.Surfaces, static surface => surface.Semantic == ParsedSurfaceSemantic.Roof);
     }
 
     [Fact]
@@ -609,7 +606,7 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
                 RoofShape = new BuildingCodeValue<CityGmlRoofShape>(CityGmlRoofShape.Shed, "shed"),
             });
 
-        ParsedCityObject generated = GeneratedLod1RoofCityObjectFactory.Create(cityObject);
+        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
 
         Assert.Same(cityObject, generated);
     }
@@ -651,10 +648,10 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
         IReadOnlyList<Float2>? uvs = null,
         TexturePayload? texturePayload = null)
     {
+        _ = polygonId;
         return new ParsedSurface(
-            polygonId,
             semantic,
-            new ParsedRing($"{polygonId}-ring", vertices, uvs),
+            new ParsedRing(vertices, uvs),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             texturePayload);
@@ -665,14 +662,13 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
         ParsedSurfaceSemantic semantic,
         double altitude)
     {
+        _ = polygonId;
         return new ParsedSurface(
-            polygonId,
-            semantic,
-            new ParsedRing($"{polygonId}-ring", CreateClosedQuadVertices(altitude, longitudeOffset: 0.0, longitudeWidth: 0.00020), null),
+            Semantic: semantic,
+            ExteriorRing: new ParsedRing(CreateClosedQuadVertices(altitude, longitudeOffset: 0.0, longitudeWidth: 0.00020), null),
+            InteriorRings:
             [
-                new ParsedRing(
-                    $"{polygonId}-interior",
-                    CreateClosedQuadVertices(altitude, longitudeOffset: 0.00005, longitudeWidth: 0.00005),
+                new ParsedRing(CreateClosedQuadVertices(altitude, longitudeOffset: 0.00005, longitudeWidth: 0.00005),
                     null),
             ],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
@@ -748,6 +744,11 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     private static TexturePayload CreateTexturePayload(string identity)
     {
         return new RawRgba32TexturePayload(1, 1, "sRGB", [255, 255, 255, 255], identity);
+    }
+
+    private static ParsedCityObject CreateGeneratedCityObject(ParsedCityObject cityObject)
+    {
+        return GeneratedLod1RoofCityObjectFactory.CreateDraft(cityObject).Source;
     }
 
     private static double ComputeParsedNormalY(ParsedSurface surface)

@@ -4,7 +4,6 @@ using System.Linq;
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed record ParsedRing(
-    string RingId,
     GeodeticPoint[] Vertices,
     IReadOnlyList<Float2>? UVs);
 
@@ -20,7 +19,6 @@ internal enum ParsedSurfaceSemantic
 }
 
 internal sealed record ParsedSurface(
-    string PolygonId,
     ParsedSurfaceSemantic Semantic,
     ParsedRing ExteriorRing,
     ParsedRing[] InteriorRings,

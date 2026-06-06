@@ -785,11 +785,8 @@ public sealed class StreamingImportedSceneSourceTests
             ?
             [
                 new ParsedSurface(
-                    PolygonId: $"dem-surface-{index:000}",
                     Semantic: ParsedSurfaceSemantic.Ground,
-                    ExteriorRing: new ParsedRing(
-                        $"dem-ring-{index:000}",
-                        [
+                    ExteriorRing: new ParsedRing([
                             new GeodeticPoint(35.01, 139.01, 0.0),
                             new GeodeticPoint(35.01, 139.02, 0.0),
                             new GeodeticPoint(35.02, 139.02, 0.0),
@@ -829,11 +826,8 @@ public sealed class StreamingImportedSceneSourceTests
             Surfaces:
             [
                 new ParsedSurface(
-                    PolygonId: "dem-surface-53394525",
                     Semantic: ParsedSurfaceSemantic.Ground,
-                    ExteriorRing: new ParsedRing(
-                        "dem-ring-53394525",
-                        [
+                    ExteriorRing: new ParsedRing([
                             new GeodeticPoint(35.684, 139.688, 0.0),
                             new GeodeticPoint(35.684, 139.689, 0.0),
                             new GeodeticPoint(35.685, 139.689, 0.0),
@@ -864,11 +858,8 @@ public sealed class StreamingImportedSceneSourceTests
             Surfaces:
             [
                 new ParsedSurface(
-                    PolygonId: "surface-renderable",
                     Semantic: ParsedSurfaceSemantic.Wall,
-                    ExteriorRing: new ParsedRing(
-                        "ring-renderable",
-                        [
+                    ExteriorRing: new ParsedRing([
                             new GeodeticPoint(35.01, 139.01, 0.0),
                             new GeodeticPoint(35.01, 139.02, 0.0),
                             new GeodeticPoint(35.02, 139.02, 0.0),

@@ -112,7 +112,7 @@ internal static class DemTerrainOverlayAssignment
             PlateauLog.Debug(
                 "import",
                 $"Splitting DEM city object '{parsedCityObject.SlotKey}' "
-                + $"(generated_surfaces={generatedSurfaces.Length}, non_generated_surfaces={parsedCityObject.Surfaces.Length - generatedSurfaces.Length}, "
+                + $"(terrain_texture_surfaces={generatedSurfaces.Length}, non_roof_surfaces={parsedCityObject.Surfaces.Length - generatedSurfaces.Length}, "
                 + $"overlays={demTerrainTextureOverlays.Count}, requested_mesh_code_bounds={requestedMeshBounds.Length})."));
 
         ParsedSurface[] nonGeneratedSurfaces = parsedCityObject.Surfaces
@@ -190,7 +190,7 @@ internal static class DemTerrainOverlayAssignment
                     }
 
                     throw new InvalidOperationException(
-                        $"Mesh-code-bounds-clipped DEM surface '{requestedMeshClippedSurface.PolygonId}' has no matching terrain overlay coverage.");
+                        "Mesh-code-bounds-clipped DEM surface has no matching terrain overlay coverage.");
                 }
 
                 IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
@@ -217,7 +217,7 @@ internal static class DemTerrainOverlayAssignment
                     }
 
                     throw new InvalidOperationException(
-                        $"Mesh-code-bounds-clipped DEM surface '{requestedMeshClippedSurface.PolygonId}' did not produce any terrain-overlay-clipped geometry.");
+                        "Mesh-code-bounds-clipped DEM surface did not produce any terrain-overlay-clipped geometry.");
                 }
 
                 splitGeneratedSurfaces.AddRange(clippedSurfaces);
@@ -619,7 +619,7 @@ internal static class DemTerrainOverlayAssignment
             .OrderBy(static entry => entry.Overlay.PackageName, StringComparer.Ordinal)
             .ThenBy(static entry => entry.Overlay.GeographicBounds.MinLatitude)
             .ThenBy(static entry => entry.Overlay.GeographicBounds.MinLongitude)
-            .ThenBy(static entry => entry.Surface.PolygonId, StringComparer.Ordinal)
+            .ThenBy(static entry => entry.Surface, ParsedSurfaceStructuralComparer.Instance)
             .ToArray();
         return true;
     }

@@ -8,8 +8,6 @@ namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal interface IGeometryImportSource
 {
-    string Identity { get; }
-
     string Description { get; }
 
     int VertexCount { get; }

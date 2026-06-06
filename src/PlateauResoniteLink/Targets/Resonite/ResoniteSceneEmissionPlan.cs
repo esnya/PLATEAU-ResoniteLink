@@ -5,30 +5,23 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal readonly record struct GeometryIdentity(string Value);
-
-internal readonly record struct TextureIdentity(string Value);
-
-internal abstract record PlannedGeometryAsset(GeometryIdentity Identity, string MeshAssetSlotName);
+internal abstract record PlannedGeometryAsset(string MeshAssetSlotName);
 
 internal sealed record PlannedTriangleMeshGeometryAsset(
-    GeometryIdentity Identity,
     string MeshAssetSlotName,
     Uri MeshUri)
-    : PlannedGeometryAsset(Identity, MeshAssetSlotName);
+    : PlannedGeometryAsset(MeshAssetSlotName);
 
 internal sealed record PlannedTerrainGridGeometryAsset(
-    GeometryIdentity Identity,
     string MeshAssetSlotName,
     string TerrainGridAssetSlotName,
     ResoniteTerrainGridGeometry Geometry,
     Uri HeightTextureUri,
     ResoniteFloat2? UvScale = null,
     ResoniteFloat2? UvOffset = null)
-    : PlannedGeometryAsset(Identity, MeshAssetSlotName);
+    : PlannedGeometryAsset(MeshAssetSlotName);
 
 internal sealed record PlannedDynamicTerrainGeometryAsset(
-    GeometryIdentity Identity,
     string MeshAssetSlotName,
     Uri StaticMeshUri,
     string TerrainGridAssetSlotName,
@@ -36,10 +29,10 @@ internal sealed record PlannedDynamicTerrainGeometryAsset(
     Uri HeightTextureUri,
     ResoniteFloat2? UvScale = null,
     ResoniteFloat2? UvOffset = null)
-    : PlannedGeometryAsset(Identity, MeshAssetSlotName);
+    : PlannedGeometryAsset(MeshAssetSlotName);
 
 internal sealed record PlannedTextureAsset(
-    TextureIdentity Identity,
+    ResoniteSceneMaterialConventions.PlannedTextureRole Role,
     Uri AssetUri);
 
 internal abstract record PlannedMaterialAsset;
@@ -78,7 +71,6 @@ internal sealed record PlannedTerrainMainTextureOverrideRendererMaterialBinding(
     : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture);
 
 internal sealed record PlannedRenderer(
-    GeometryIdentity GeometryIdentity,
     IReadOnlyList<PlannedRendererMaterialBinding> MaterialBindings);
 
 internal sealed record PlannedSceneMaterialPlan(
@@ -86,7 +78,6 @@ internal sealed record PlannedSceneMaterialPlan(
     IReadOnlyList<PlannedRendererMaterialBinding> RendererMaterialBindings);
 
 internal sealed record PlannedCollider(
-    GeometryIdentity GeometryIdentity,
     bool CollisionEnabled);
 
 internal sealed record PlannedSceneObjectEmission(
@@ -95,21 +86,16 @@ internal sealed record PlannedSceneObjectEmission(
     PlannedRenderer Renderer,
     PlannedCollider Collider);
 
-internal readonly record struct BatchPlanSlotLocator(int Value);
-
-internal readonly record struct BatchPlanComponentLocator(int Value);
-
-internal readonly record struct BatchPlanFieldLocator(int Value);
-
 internal sealed record PlannedTerrainGridMeshBundle(
-    BatchPlanComponentLocator ComponentIdentity,
-    BatchPlanFieldLocator PointsIdentity,
+    PlannedFieldReference PointsField,
     Field_int2 Points,
     Field_float2 Size,
     Field_float DisplacementMagnitude,
     PlannedWorldElementReference DisplacementTexture,
     Field_float2? UvScale,
     Field_float2? UvOffset);
+
+internal sealed class PlannedFieldReference;
 
 internal sealed record PlannedDynamicTerrainMeshBundle(
     PlannedWorldElementReference GridMeshTarget,
@@ -126,7 +112,7 @@ internal abstract record PlannedSlotTargetReference
 
     public abstract T Match<T>(
         Func<ResoniteSlotLocator, T> canonicalSlot,
-        Func<BatchPlanSlotLocator, T> plannedSlot);
+        Func<PlannedBatchSlotEmission, T> plannedSlot);
 
     public static PlannedSlotTargetReference CanonicalSlot(ResoniteSlotLocator locator)
     {
@@ -134,28 +120,29 @@ internal abstract record PlannedSlotTargetReference
         return new CanonicalSlotTarget(locator);
     }
 
-    public static PlannedSlotTargetReference PlannedSlot(BatchPlanSlotLocator locator)
+    public static PlannedSlotTargetReference PlannedSlot(PlannedBatchSlotEmission slot)
     {
-        return new BatchSlotTarget(locator);
+        ArgumentNullException.ThrowIfNull(slot);
+        return new BatchSlotTarget(slot);
     }
 
     internal sealed record CanonicalSlotTarget(ResoniteSlotLocator Locator) : PlannedSlotTargetReference
     {
         public override T Match<T>(
             Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<BatchPlanSlotLocator, T> plannedSlot)
+            Func<PlannedBatchSlotEmission, T> plannedSlot)
         {
             return canonicalSlot(Locator);
         }
     }
 
-    internal sealed record BatchSlotTarget(BatchPlanSlotLocator Locator) : PlannedSlotTargetReference
+    internal sealed record BatchSlotTarget(PlannedBatchSlotEmission Slot) : PlannedSlotTargetReference
     {
         public override T Match<T>(
             Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<BatchPlanSlotLocator, T> plannedSlot)
+            Func<PlannedBatchSlotEmission, T> plannedSlot)
         {
-            return plannedSlot(Locator);
+            return plannedSlot(Slot);
         }
     }
 }
@@ -169,9 +156,9 @@ internal abstract record PlannedWorldElementReference
     public abstract T Match<T>(
         Func<ResoniteSlotLocator, T> canonicalSlot,
         Func<ResoniteComponentLocator, T> canonicalComponent,
-        Func<BatchPlanSlotLocator, T> plannedSlot,
-        Func<BatchPlanComponentLocator, T> plannedComponent,
-        Func<BatchPlanFieldLocator, T> plannedField);
+        Func<PlannedBatchSlotEmission, T> plannedSlot,
+        Func<PlannedBatchComponentEmission, T> plannedComponent,
+        Func<PlannedFieldReference, T> plannedField);
 
     public static PlannedWorldElementReference Canonical(ResoniteSlotLocator locator)
     {
@@ -185,19 +172,22 @@ internal abstract record PlannedWorldElementReference
         return new CanonicalComponentElement(locator);
     }
 
-    public static PlannedWorldElementReference Planned(BatchPlanSlotLocator locator)
+    public static PlannedWorldElementReference Planned(PlannedBatchSlotEmission slot)
     {
-        return new BatchSlotElement(locator);
+        ArgumentNullException.ThrowIfNull(slot);
+        return new BatchSlotElement(slot);
     }
 
-    public static PlannedWorldElementReference Planned(BatchPlanComponentLocator locator)
+    public static PlannedWorldElementReference Planned(PlannedBatchComponentEmission component)
     {
-        return new BatchComponentElement(locator);
+        ArgumentNullException.ThrowIfNull(component);
+        return new BatchComponentElement(component);
     }
 
-    public static PlannedWorldElementReference Planned(BatchPlanFieldLocator locator)
+    public static PlannedWorldElementReference Planned(PlannedFieldReference field)
     {
-        return new BatchFieldElement(locator);
+        ArgumentNullException.ThrowIfNull(field);
+        return new BatchFieldElement(field);
     }
 
     internal sealed record CanonicalSlotElement(ResoniteSlotLocator Locator) : PlannedWorldElementReference
@@ -205,9 +195,9 @@ internal abstract record PlannedWorldElementReference
         public override T Match<T>(
             Func<ResoniteSlotLocator, T> canonicalSlot,
             Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<BatchPlanSlotLocator, T> plannedSlot,
-            Func<BatchPlanComponentLocator, T> plannedComponent,
-            Func<BatchPlanFieldLocator, T> plannedField)
+            Func<PlannedBatchSlotEmission, T> plannedSlot,
+            Func<PlannedBatchComponentEmission, T> plannedComponent,
+            Func<PlannedFieldReference, T> plannedField)
         {
             return canonicalSlot(Locator);
         }
@@ -218,50 +208,50 @@ internal abstract record PlannedWorldElementReference
         public override T Match<T>(
             Func<ResoniteSlotLocator, T> canonicalSlot,
             Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<BatchPlanSlotLocator, T> plannedSlot,
-            Func<BatchPlanComponentLocator, T> plannedComponent,
-            Func<BatchPlanFieldLocator, T> plannedField)
+            Func<PlannedBatchSlotEmission, T> plannedSlot,
+            Func<PlannedBatchComponentEmission, T> plannedComponent,
+            Func<PlannedFieldReference, T> plannedField)
         {
             return canonicalComponent(Locator);
         }
     }
 
-    internal sealed record BatchSlotElement(BatchPlanSlotLocator Locator) : PlannedWorldElementReference
+    internal sealed record BatchSlotElement(PlannedBatchSlotEmission Slot) : PlannedWorldElementReference
     {
         public override T Match<T>(
             Func<ResoniteSlotLocator, T> canonicalSlot,
             Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<BatchPlanSlotLocator, T> plannedSlot,
-            Func<BatchPlanComponentLocator, T> plannedComponent,
-            Func<BatchPlanFieldLocator, T> plannedField)
+            Func<PlannedBatchSlotEmission, T> plannedSlot,
+            Func<PlannedBatchComponentEmission, T> plannedComponent,
+            Func<PlannedFieldReference, T> plannedField)
         {
-            return plannedSlot(Locator);
+            return plannedSlot(Slot);
         }
     }
 
-    internal sealed record BatchComponentElement(BatchPlanComponentLocator Locator) : PlannedWorldElementReference
+    internal sealed record BatchComponentElement(PlannedBatchComponentEmission Component) : PlannedWorldElementReference
     {
         public override T Match<T>(
             Func<ResoniteSlotLocator, T> canonicalSlot,
             Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<BatchPlanSlotLocator, T> plannedSlot,
-            Func<BatchPlanComponentLocator, T> plannedComponent,
-            Func<BatchPlanFieldLocator, T> plannedField)
+            Func<PlannedBatchSlotEmission, T> plannedSlot,
+            Func<PlannedBatchComponentEmission, T> plannedComponent,
+            Func<PlannedFieldReference, T> plannedField)
         {
-            return plannedComponent(Locator);
+            return plannedComponent(Component);
         }
     }
 
-    internal sealed record BatchFieldElement(BatchPlanFieldLocator Locator) : PlannedWorldElementReference
+    internal sealed record BatchFieldElement(PlannedFieldReference Field) : PlannedWorldElementReference
     {
         public override T Match<T>(
             Func<ResoniteSlotLocator, T> canonicalSlot,
             Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<BatchPlanSlotLocator, T> plannedSlot,
-            Func<BatchPlanComponentLocator, T> plannedComponent,
-            Func<BatchPlanFieldLocator, T> plannedField)
+            Func<PlannedBatchSlotEmission, T> plannedSlot,
+            Func<PlannedBatchComponentEmission, T> plannedComponent,
+            Func<PlannedFieldReference, T> plannedField)
         {
-            return plannedField(Locator);
+            return plannedField(Field);
         }
     }
 }
@@ -276,7 +266,7 @@ internal abstract record PlannedMember
         Func<Member, T> literal,
         Func<PlannedWorldElementReference, T> reference,
         Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
+        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
         Func<IReadOnlyList<PlannedMember>, T> list);
 }
 
@@ -286,7 +276,7 @@ internal sealed record PlannedLiteralMember(Member Value) : PlannedMember
         Func<Member, T> literal,
         Func<PlannedWorldElementReference, T> reference,
         Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
+        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
         Func<IReadOnlyList<PlannedMember>, T> list)
     {
         return literal(Value);
@@ -299,14 +289,14 @@ internal sealed record PlannedElementReferenceMember(PlannedWorldElementReferenc
         Func<Member, T> literal,
         Func<PlannedWorldElementReference, T> reference,
         Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
+        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
         Func<IReadOnlyList<PlannedMember>, T> list)
     {
         return reference(Target);
     }
 }
 
-internal abstract record PlannedAddressableFieldMember(BatchPlanFieldLocator Identity) : PlannedMember
+internal abstract record PlannedAddressableFieldMember(PlannedFieldReference Field) : PlannedMember
 {
     public abstract Member Value { get; }
 
@@ -316,14 +306,14 @@ internal abstract record PlannedAddressableFieldMember(BatchPlanFieldLocator Ide
         Func<Member, T> literal,
         Func<PlannedWorldElementReference, T> reference,
         Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
+        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
         Func<IReadOnlyList<PlannedMember>, T> list)
     {
         return addressableField(this);
     }
 
-    internal sealed record Int2(BatchPlanFieldLocator Identity, Field_int2 FieldValue)
-        : PlannedAddressableFieldMember(Identity)
+    internal sealed record Int2(PlannedFieldReference Field, Field_int2 FieldValue)
+        : PlannedAddressableFieldMember(Field)
     {
         public override Member Value => FieldValue;
 
@@ -337,8 +327,8 @@ internal abstract record PlannedAddressableFieldMember(BatchPlanFieldLocator Ide
         }
     }
 
-    internal sealed record Bool(BatchPlanFieldLocator Identity, Field_bool FieldValue)
-        : PlannedAddressableFieldMember(Identity)
+    internal sealed record Bool(PlannedFieldReference Field, Field_bool FieldValue)
+        : PlannedAddressableFieldMember(Field)
     {
         public override Member Value => FieldValue;
 
@@ -352,8 +342,8 @@ internal abstract record PlannedAddressableFieldMember(BatchPlanFieldLocator Ide
         }
     }
 
-    internal sealed record Float(BatchPlanFieldLocator Identity, Field_float FieldValue)
-        : PlannedAddressableFieldMember(Identity)
+    internal sealed record Float(PlannedFieldReference Field, Field_float FieldValue)
+        : PlannedAddressableFieldMember(Field)
     {
         public override Member Value => FieldValue;
 
@@ -369,7 +359,7 @@ internal abstract record PlannedAddressableFieldMember(BatchPlanFieldLocator Ide
 }
 
 internal sealed record PlannedAddressableReferenceMember(
-    BatchPlanFieldLocator Identity,
+    PlannedFieldReference Field,
     PlannedWorldElementReference Target)
     : PlannedMember
 {
@@ -377,10 +367,10 @@ internal sealed record PlannedAddressableReferenceMember(
         Func<Member, T> literal,
         Func<PlannedWorldElementReference, T> reference,
         Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
+        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
         Func<IReadOnlyList<PlannedMember>, T> list)
     {
-        return addressableReference(Identity, Target);
+        return addressableReference(Field, Target);
     }
 }
 
@@ -390,7 +380,7 @@ internal sealed record PlannedSyncListMember(IReadOnlyList<PlannedMember> Elemen
         Func<Member, T> literal,
         Func<PlannedWorldElementReference, T> reference,
         Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<BatchPlanFieldLocator, PlannedWorldElementReference, T> addressableReference,
+        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
         Func<IReadOnlyList<PlannedMember>, T> list)
     {
         return list(Elements);
@@ -402,24 +392,28 @@ internal sealed record PlannedDriverTargetBundle(
     PlannedElementReferenceMember Target,
     PlannedLiteralMember DefaultValue)
 {
-    public static PlannedDriverTargetBundle Create(BatchPlanFieldLocator fieldIdentity, Field_bool defaultValue)
+    public static PlannedDriverTargetBundle Create(Field_bool defaultValue)
     {
         ArgumentNullException.ThrowIfNull(defaultValue);
+        PlannedFieldReference fieldReference = new();
+        PlannedAddressableFieldMember field = new PlannedAddressableFieldMember.Bool(fieldReference, defaultValue);
         return new PlannedDriverTargetBundle(
-            new PlannedAddressableFieldMember.Bool(fieldIdentity, defaultValue),
-            new PlannedElementReferenceMember(PlannedWorldElementReference.Planned(fieldIdentity)),
+            field,
+            new PlannedElementReferenceMember(PlannedWorldElementReference.Planned(fieldReference)),
             new PlannedLiteralMember(new Field_bool
             {
                 Value = defaultValue.Value,
             }));
     }
 
-    public static PlannedDriverTargetBundle Create(BatchPlanFieldLocator fieldIdentity, Field_float defaultValue)
+    public static PlannedDriverTargetBundle Create(Field_float defaultValue)
     {
         ArgumentNullException.ThrowIfNull(defaultValue);
+        PlannedFieldReference fieldReference = new();
+        PlannedAddressableFieldMember field = new PlannedAddressableFieldMember.Float(fieldReference, defaultValue);
         return new PlannedDriverTargetBundle(
-            new PlannedAddressableFieldMember.Float(fieldIdentity, defaultValue),
-            new PlannedElementReferenceMember(PlannedWorldElementReference.Planned(fieldIdentity)),
+            field,
+            new PlannedElementReferenceMember(PlannedWorldElementReference.Planned(fieldReference)),
             new PlannedLiteralMember(new Field_float
             {
                 Value = defaultValue.Value,
@@ -440,27 +434,31 @@ internal static class PlannedMembers
         return new PlannedElementReferenceMember(target);
     }
 
-    public static PlannedMember AddressableField(BatchPlanFieldLocator identity, Field_int2 value)
+    public static PlannedAddressableFieldMember AddressableField(PlannedFieldReference field, Field_int2 value)
     {
+        ArgumentNullException.ThrowIfNull(field);
         ArgumentNullException.ThrowIfNull(value);
-        return new PlannedAddressableFieldMember.Int2(identity, value);
+        return new PlannedAddressableFieldMember.Int2(field, value);
     }
 
-    public static PlannedMember AddressableField(BatchPlanFieldLocator identity, Field_bool value)
+    public static PlannedAddressableFieldMember AddressableField(PlannedFieldReference field, Field_bool value)
     {
+        ArgumentNullException.ThrowIfNull(field);
         ArgumentNullException.ThrowIfNull(value);
-        return new PlannedAddressableFieldMember.Bool(identity, value);
+        return new PlannedAddressableFieldMember.Bool(field, value);
     }
 
-    public static PlannedMember AddressableField(BatchPlanFieldLocator identity, Field_float value)
+    public static PlannedAddressableFieldMember AddressableField(PlannedFieldReference field, Field_float value)
     {
+        ArgumentNullException.ThrowIfNull(field);
         ArgumentNullException.ThrowIfNull(value);
-        return new PlannedAddressableFieldMember.Float(identity, value);
+        return new PlannedAddressableFieldMember.Float(field, value);
     }
 
-    public static PlannedMember AddressableReference(BatchPlanFieldLocator identity, PlannedWorldElementReference target)
+    public static PlannedMember AddressableReference(PlannedFieldReference field, PlannedWorldElementReference target)
     {
-        return new PlannedAddressableReferenceMember(identity, target);
+        ArgumentNullException.ThrowIfNull(field);
+        return new PlannedAddressableReferenceMember(field, target);
     }
 
     public static PlannedMember List(params PlannedMember[] elements)
@@ -476,14 +474,12 @@ internal static class PlannedMembers
 }
 
 internal sealed record PlannedBatchSlotEmission(
-    BatchPlanSlotLocator Identity,
     PlannedSlotTargetReference ParentTarget,
     string SlotName,
     ResoniteFloat3? Position,
     ResoniteFloatQ? Rotation);
 
 internal sealed record PlannedBatchComponentEmission(
-    BatchPlanComponentLocator Identity,
     PlannedSlotTargetReference ContainerTarget,
     string ComponentType,
     IReadOnlyDictionary<string, PlannedMember> Members);
@@ -493,8 +489,8 @@ internal sealed record PlannedBatchEmission
     private PlannedBatchEmission(
         IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
         IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
-        IReadOnlyList<BatchPlanSlotLocator> slotResolutionTargets,
-        IReadOnlyList<BatchPlanComponentLocator> componentResolutionTargets)
+        IReadOnlyList<PlannedBatchSlotEmission> slotResolutionTargets,
+        IReadOnlyList<PlannedBatchComponentEmission> componentResolutionTargets)
     {
         SlotEmissions = slotEmissions;
         ComponentEmissions = componentEmissions;
@@ -506,15 +502,15 @@ internal sealed record PlannedBatchEmission
 
     public IReadOnlyList<PlannedBatchComponentEmission> ComponentEmissions { get; }
 
-    public IReadOnlyList<BatchPlanSlotLocator> SlotResolutionTargets { get; }
+    public IReadOnlyList<PlannedBatchSlotEmission> SlotResolutionTargets { get; }
 
-    public IReadOnlyList<BatchPlanComponentLocator> ComponentResolutionTargets { get; }
+    public IReadOnlyList<PlannedBatchComponentEmission> ComponentResolutionTargets { get; }
 
     public static PlannedBatchEmission Create(
         IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
         IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
-        IReadOnlyList<BatchPlanSlotLocator> slotResolutionTargets,
-        IReadOnlyList<BatchPlanComponentLocator> componentResolutionTargets)
+        IReadOnlyList<PlannedBatchSlotEmission> slotResolutionTargets,
+        IReadOnlyList<PlannedBatchComponentEmission> componentResolutionTargets)
     {
         ValidatePlannedReferences(slotEmissions, componentEmissions, slotResolutionTargets, componentResolutionTargets);
         return new PlannedBatchEmission(slotEmissions, componentEmissions, slotResolutionTargets, componentResolutionTargets);
@@ -523,22 +519,22 @@ internal sealed record PlannedBatchEmission
     private static void ValidatePlannedReferences(
         IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
         IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
-        IReadOnlyList<BatchPlanSlotLocator> slotResolutionTargets,
-        IReadOnlyList<BatchPlanComponentLocator> componentResolutionTargets)
+        IReadOnlyList<PlannedBatchSlotEmission> slotResolutionTargets,
+        IReadOnlyList<PlannedBatchComponentEmission> componentResolutionTargets)
     {
-        HashSet<BatchPlanSlotLocator> emittedSlots = [];
+        HashSet<PlannedBatchSlotEmission> emittedSlots = new(ReferenceEqualityComparer.Instance);
         foreach (PlannedBatchSlotEmission slotEmission in slotEmissions)
         {
             if (slotEmission.ParentTarget is PlannedSlotTargetReference.BatchSlotTarget plannedParent
-                && !emittedSlots.Contains(plannedParent.Locator))
+                && !emittedSlots.Contains(plannedParent.Slot))
             {
                 throw new InvalidOperationException("Planned slot parent target must reference an earlier planned slot.");
             }
 
-            emittedSlots.Add(slotEmission.Identity);
+            emittedSlots.Add(slotEmission);
         }
 
-        foreach (BatchPlanSlotLocator slotResolutionTarget in slotResolutionTargets)
+        foreach (PlannedBatchSlotEmission slotResolutionTarget in slotResolutionTargets)
         {
             if (!emittedSlots.Contains(slotResolutionTarget))
             {
@@ -546,11 +542,11 @@ internal sealed record PlannedBatchEmission
             }
         }
 
-        HashSet<BatchPlanComponentLocator> emittedComponents = [];
+        HashSet<PlannedBatchComponentEmission> emittedComponents = new(ReferenceEqualityComparer.Instance);
         foreach (PlannedBatchComponentEmission componentEmission in componentEmissions)
         {
             if (componentEmission.ContainerTarget is PlannedSlotTargetReference.BatchSlotTarget plannedContainer
-                && !emittedSlots.Contains(plannedContainer.Locator))
+                && !emittedSlots.Contains(plannedContainer.Slot))
             {
                 throw new InvalidOperationException("Planned component container target must reference an emitted planned slot.");
             }
@@ -560,10 +556,10 @@ internal sealed record PlannedBatchEmission
                 ValidateWorldElementReference(target, emittedSlots, emittedComponents);
             }
 
-            emittedComponents.Add(componentEmission.Identity);
+            emittedComponents.Add(componentEmission);
         }
 
-        foreach (BatchPlanComponentLocator componentResolutionTarget in componentResolutionTargets)
+        foreach (PlannedBatchComponentEmission componentResolutionTarget in componentResolutionTargets)
         {
             if (!emittedComponents.Contains(componentResolutionTarget))
             {
@@ -574,16 +570,16 @@ internal sealed record PlannedBatchEmission
 
     private static void ValidateWorldElementReference(
         PlannedWorldElementReference target,
-        HashSet<BatchPlanSlotLocator> emittedSlots,
-        HashSet<BatchPlanComponentLocator> emittedComponents)
+        HashSet<PlannedBatchSlotEmission> emittedSlots,
+        HashSet<PlannedBatchComponentEmission> emittedComponents)
     {
         switch (target)
         {
             case PlannedWorldElementReference.BatchSlotElement plannedSlot
-                when !emittedSlots.Contains(plannedSlot.Locator):
+                when !emittedSlots.Contains(plannedSlot.Slot):
                 throw new InvalidOperationException("Planned world element target must reference an emitted planned slot.");
             case PlannedWorldElementReference.BatchComponentElement plannedComponent
-                when !emittedComponents.Contains(plannedComponent.Locator):
+                when !emittedComponents.Contains(plannedComponent.Component):
                 throw new InvalidOperationException("Planned world element target must reference an earlier planned component.");
         }
     }

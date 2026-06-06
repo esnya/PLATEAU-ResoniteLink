@@ -354,7 +354,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
         int? lodLevel)
     {
         ParsedRing exteriorRing = new(
-            $"{objectKey}-ring",
             [
                 new GeodeticPoint(35.0000, 139.0000, 0.0),
                 new GeodeticPoint(35.0000, 139.0010, 0.0),
@@ -363,7 +362,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             ],
             UVs: null);
         ParsedSurface surface = new(
-            $"{objectKey}-polygon",
             ParsedSurfaceSemantic.Ground,
             exteriorRing,
             [],

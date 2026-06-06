@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -102,8 +101,6 @@ internal static class ResoniteMeshImportFactory
 
     private sealed class ResoniteMeshImportSource(ResoniteImportedMesh mesh) : IRawGeometryPayloadSource
     {
-        public string Identity => $"mesh:{RuntimeHelpers.GetHashCode(mesh)}";
-
         public string Description => $"triangle-mesh:{VertexCount}:{SubmeshCount}";
 
         public int VertexCount => mesh.Vertices.Count;

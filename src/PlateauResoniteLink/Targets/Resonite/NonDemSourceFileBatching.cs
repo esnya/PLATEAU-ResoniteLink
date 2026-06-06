@@ -46,13 +46,6 @@ internal static class NonDemSourceFileBatching
             $"AtlasBake {sourceFileKey.PackageName} LOD{lodToken} #{batchIndex + 1} [{batchSlotKey}]");
     }
 
-    public static string CreateAtlasTextureIdentity(NonDemSourceFileBatchKey sourceFileKey, int batchIndex)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"atlastex-{sourceFileKey.SourceFileRelativePath}-{batchIndex + 1}");
-    }
-
     private sealed class SourceFileBatchKeyComparer : IComparer<NonDemSourceFileBatchKey>
     {
         public int Compare(NonDemSourceFileBatchKey x, NonDemSourceFileBatchKey y)

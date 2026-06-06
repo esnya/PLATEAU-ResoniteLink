@@ -32,7 +32,6 @@ internal sealed record CityGmlGeoreferencedTexture(
 internal sealed record CityGmlResolvedAppearance(
     ColorRgba BaseColor,
     TexturePayload? TexturePayload,
-    IReadOnlyDictionary<string, IReadOnlyList<Float2>>? RingUvsByRingId,
     CityGmlMaterialAttributes? MaterialAttributes = null,
     CityGmlParameterizedTexture? ParameterizedTexture = null,
     CityGmlGeoreferencedTexture? GeoreferencedTexture = null);

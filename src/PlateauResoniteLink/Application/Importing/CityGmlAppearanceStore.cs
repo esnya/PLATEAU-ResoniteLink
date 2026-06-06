@@ -82,10 +82,21 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
         return new CityGmlResolvedAppearance(
             BaseColor: baseColor,
             TexturePayload: texturePayload,
-            RingUvsByRingId: parameterizedTexture?.RingCoordinates,
             MaterialAttributes: materialAttributes,
             ParameterizedTexture: parameterizedTexture,
             GeoreferencedTexture: georeferencedTexturesByPolygonId.GetValueOrDefault(polygonId));
+    }
+
+    public IReadOnlyList<Float2>? ResolveRingUvs(string polygonId, string ringId, int vertexCount)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(polygonId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(ringId);
+
+        return parameterizedTexturesByPolygonId.GetValueOrDefault(polygonId)
+                ?.RingCoordinates.GetValueOrDefault(ringId) is { } ringUvs
+            && ringUvs.Count == vertexCount
+                ? ringUvs
+                : null;
     }
 
     private void ApplyParameterizedTexture(XElement textureElement)
@@ -195,9 +206,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
                 TextureImportSourceFactory.CreateDatasetEncodedImage(
                     datasetSource,
                     resolvedTexturePath,
-                    "sRGB",
-                    $"dataset:{resolvedTexturePath}"),
-                $"dataset:{resolvedTexturePath}");
+                    "sRGB"));
             texturePayloadsByResolvedPath[resolvedTexturePath] = texturePayload;
         }
 

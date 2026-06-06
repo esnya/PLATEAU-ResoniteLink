@@ -42,8 +42,15 @@ internal static class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
+        ParsedCityObject heightResolvedCityObject = cityObject.GeometryHeightMeters.HasValue
+            ? cityObject
+            : cityObject with
+            {
+                GeometryHeightMeters = CityObjectAltitudeMetricsResolver.TryGetGeometryHeightMeters(
+                    cityObject.Surfaces.SelectMany(static surface => surface.Vertices)),
+            };
         return CityGmlTriangleMeshCityObjectProjection.Project(
-            cityObject,
+            GeneratedLod1RoofCityObjectFactory.CreateDraft(heightResolvedCityObject),
             globalOriginPoint,
             globalCartesian,
             demTerrainTextureOverlay,

@@ -93,7 +93,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
         foreach (TerrainTextureSource usedSource in usedSources)
         {
             int useCount = state.DemSourceUseCounts.AddOrUpdate(
-                usedSource.IdentityKey,
+                usedSource,
                 1,
                 static (_, current) => checked(current + 1));
             if (useCount == 1)

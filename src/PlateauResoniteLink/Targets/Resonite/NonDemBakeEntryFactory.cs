@@ -120,7 +120,7 @@ internal sealed class NonDemBakeEntryFactory(
 
         if (double.IsPositiveInfinity(minU) || double.IsPositiveInfinity(minV))
         {
-            return TextureUvRect.Identity;
+            return TextureUvRect.Unit;
         }
 
         double width = Math.Max(1.0 / 1024.0, maxU - minU);

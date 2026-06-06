@@ -11,7 +11,7 @@ namespace PlateauResoniteLink.Application.Importing;
 internal static class CityGmlTriangleMeshCityObjectProjection
 {
     internal static ImportedCityObject Project(
-        ParsedCityObject cityObject,
+        ConstructionCityObjectDraft cityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
@@ -26,19 +26,12 @@ internal static class CityGmlTriangleMeshCityObjectProjection
     }
 
     internal static TriangleMeshProjectedCityObject ProjectTriangleMesh(
-        ParsedCityObject cityObject,
+        ConstructionCityObjectDraft cityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        double? geometryHeightMeters = cityObject.GeometryHeightMeters
-            ?? ResolveGeometryHeightMeters(cityObject.Surfaces);
-        cityObject = GeneratedLod1RoofCityObjectFactory.Create(cityObject) with
-        {
-            GeometryHeightMeters = geometryHeightMeters,
-        };
-        ConstructionCityObjectDraft draft = ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         GeodeticPoint cityObjectOrigin = ResolveCityObjectOrigin(cityObject);
 
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
@@ -60,7 +53,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
             .. CityGmlSurfaceMaterialResolver.ResolveSurfaces(
-                draft,
+                cityObject,
                 cityObjectOrigin,
                 cityObjectCartesian,
                 demTerrainTextureOverlay,
@@ -76,11 +69,10 @@ internal static class CityGmlTriangleMeshCityObjectProjection
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
                     resolvedSurface.Material.TextureOffset))
-            .OrderBy(static group => group.Min(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface)), StringComparer.Ordinal)
+            .OrderBy(static group => GetMinimumSurface(group), ParsedSurfaceStructuralComparer.Instance)
             .ToArray();
         FacadeUvProjectionContext? facadeUvProjectionContext = CityGmlSurfaceProjectionPolicy.TryCreateFacadeUvProjectionContext(
-            cityObject.PackageName,
-            draft.Surfaces,
+            cityObject,
             cityObjectOrigin,
             cityObjectCartesian);
 
@@ -90,7 +82,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
             List<int> indices = [];
 
             foreach (ResolvedSurfaceMaterial resolvedSurface in materialGroup
-                         .OrderBy(static surface => ParsedSurfaceStableSortKey.Create(surface.Surface), StringComparer.Ordinal))
+                         .OrderBy(static surface => surface.Surface, ParsedSurfaceStructuralComparer.Instance))
             {
                 SurfaceMeshTessellation tessellation = CityGmlSurfaceMeshTessellator.Tessellate(
                     new SurfaceMeshTessellationRequest(
@@ -133,17 +125,11 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         return new TriangleMeshProjectedCityObject(projectedCityObject, geometry);
     }
 
-    private static GeodeticPoint ResolveCityObjectOrigin(ParsedCityObject cityObject)
+    private static GeodeticPoint ResolveCityObjectOrigin(ConstructionCityObjectDraft cityObject)
     {
         return CityObjectOriginResolver.Resolve(
             cityObject.GeodeticOriginOverride,
             cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
-    }
-
-    private static double? ResolveGeometryHeightMeters(IEnumerable<ParsedSurface> surfaces)
-    {
-        return CityObjectAltitudeMetricsResolver.TryGetGeometryHeightMeters(
-            surfaces.SelectMany(static surface => surface.Vertices));
     }
 
     private static DemUvProjection? TryCreateDemUvProjection(TerrainTextureOverlay? demTerrainTextureOverlay)
@@ -193,6 +179,21 @@ internal static class CityGmlTriangleMeshCityObjectProjection
     }
 
     private static Float3 ToContractFloat3(Float3 value) => new(value.X, value.Y, value.Z);
+
+    private static ParsedSurface GetMinimumSurface(IEnumerable<ResolvedSurfaceMaterial> surfaces)
+    {
+        ParsedSurface? minimum = null;
+        foreach (ResolvedSurfaceMaterial surface in surfaces)
+        {
+            if (minimum is null
+                || ParsedSurfaceStructuralComparer.Instance.Compare(surface.Surface, minimum) < 0)
+            {
+                minimum = surface.Surface;
+            }
+        }
+
+        return minimum ?? throw new InvalidOperationException("Material groups must not be empty.");
+    }
 }
 
 internal sealed record TriangleMeshProjectedCityObject(

@@ -13,11 +13,8 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     public void ClipGeneratedSurfaceToOverlaysPreservesSourceWinding()
     {
         ParsedSurface surface = new(
-            PolygonId: "dem-surface",
             Semantic: ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new ParsedRing(
-                "ring-1",
-                [
+            ExteriorRing: new ParsedRing([
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
                     new GeodeticPoint(35.0100, 139.0000, 20.0),
                     new GeodeticPoint(35.0100, 139.0200, 30.0),
@@ -54,11 +51,8 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     public void ClipGeneratedSurfaceToOverlaysPreservesAreaAcrossBoundarySplit()
     {
         ParsedSurface surface = new(
-            PolygonId: "dem-surface-area",
             Semantic: ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new ParsedRing(
-                "ring-area",
-                [
+            ExteriorRing: new ParsedRing([
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
                     new GeodeticPoint(35.0100, 139.0000, 20.0),
                     new GeodeticPoint(35.0100, 139.0200, 30.0),
@@ -99,11 +93,8 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     public void ClipGeneratedSurfaceToOverlaysPreservesClockwiseSourceWinding()
     {
         ParsedSurface surface = new(
-            PolygonId: "dem-surface-clockwise",
             Semantic: ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new ParsedRing(
-                "ring-clockwise",
-                [
+            ExteriorRing: new ParsedRing([
                     new GeodeticPoint(35.0100, 139.0200, 30.0),
                     new GeodeticPoint(35.0100, 139.0000, 20.0),
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
@@ -138,11 +129,8 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     {
         const double boundaryLongitude = 139.0100;
         ParsedSurface surface = new(
-            PolygonId: "dem-boundary-overlap",
             Semantic: ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new ParsedRing(
-                "ring-overlap",
-                [
+            ExteriorRing: new ParsedRing([
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
                     new GeodeticPoint(35.0100, 139.0000, 20.0),
                     new GeodeticPoint(35.0100, boundaryLongitude + 0.0000005, 30.0),
@@ -186,11 +174,8 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     public void ClipGeneratedSurfaceToOverlaysInterpolatesNeutralUvs()
     {
         ParsedSurface surface = new(
-            PolygonId: "dem-surface-uv",
             Semantic: ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new ParsedRing(
-                "ring-uv",
-                [
+            ExteriorRing: new ParsedRing([
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
                     new GeodeticPoint(35.0100, 139.0000, 20.0),
                     new GeodeticPoint(35.0100, 139.0200, 30.0),
@@ -231,11 +216,8 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     public void ClipGeneratedSurfaceToOverlaysPreservesDisconnectedConcaveIntersectionComponents()
     {
         ParsedSurface surface = new(
-            PolygonId: "dem-surface-disconnected-concave",
             Semantic: ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new ParsedRing(
-                "ring-disconnected",
-                [
+            ExteriorRing: new ParsedRing([
                     new GeodeticPoint(35.0000, 139.0000, 10.0),
                     new GeodeticPoint(35.0000, 139.0100, 10.0),
                     new GeodeticPoint(35.0001, 139.0100, 10.0),

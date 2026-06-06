@@ -265,7 +265,7 @@ internal static class CityGmlSurfaceMeshTessellator
                         : new Float2(0.0, 0.0),
                 vertexColor))
             .ToArray();
-        return new TessellatedRing(ring.RingId, vertices);
+        return new TessellatedRing(vertices);
     }
 
     private static Float2 CreateGeneratedDemUv(
@@ -640,7 +640,6 @@ internal static class CityGmlSurfaceMeshTessellator
         ColorRgba? Color);
 
     private sealed record TessellatedRing(
-        string RingId,
         IReadOnlyList<TessellatedVertex> Vertices);
 
     private sealed record TessVertexPayload(

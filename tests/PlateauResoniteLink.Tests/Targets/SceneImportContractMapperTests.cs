@@ -33,7 +33,7 @@ public sealed class SceneImportContractMapperTests
         Assert.Equal(0.1, mapped.BaseColor.R, 9);
         Assert.Equal(0.2, mapped.BaseColor.G, 9);
         EncodedImageResoniteTexturePayload encodedPayload = Assert.IsType<EncodedImageResoniteTexturePayload>(mapped.TexturePayload);
-        Assert.Equal("dataset:texture", encodedPayload.Identity);
+        Assert.Equal("dataset:texture", encodedPayload.Source.Description);
         Assert.Equal(-1.5, mapped.DepthOffset!.Factor, 9);
         Assert.Equal(2.5, mapped.DepthOffset.Units, 9);
         Assert.Equal(0.25, mapped.TextureScale!.X, 9);
@@ -55,7 +55,7 @@ public sealed class SceneImportContractMapperTests
                     height: 1,
                     colorProfile: "sRGB",
                     binaryPayload: [1, 2, 3, 4, 5, 6, 7, 8],
-                    identity: "raw:texture"),
+                    description: "raw:texture"),
                 TextureSourceKind: TextureSourceKind.Dataset,
                 Projection: MaterialProjection.Uv,
                 DepthOffset: null,
@@ -67,7 +67,7 @@ public sealed class SceneImportContractMapperTests
         RawRgba32ResoniteTexturePayload rawPayload = Assert.IsType<RawRgba32ResoniteTexturePayload>(mapped.TexturePayload);
         Assert.Equal(2, rawPayload.Width);
         Assert.Equal(1, rawPayload.Height);
-        Assert.Equal("raw:texture", rawPayload.Identity);
+        Assert.Equal("raw:texture", rawPayload.Source.Description);
         Assert.Equal<byte>([1, 2, 3, 4, 5, 6, 7, 8], rawPayload.BinaryPayload);
     }
 
@@ -215,6 +215,6 @@ public sealed class SceneImportContractMapperTests
             source: TextureImportSourceFactory.CreateInMemoryEncodedImage(
                 colorProfile: "sRGB",
                 bytes: [1, 2, 3, 4],
-                identity: "dataset:texture"));
+                description: "dataset:texture"));
     }
 }

@@ -3,7 +3,8 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed record ResolvedSurfaceMaterial(
     ConstructionFace Face,
     ResolvedMaterial Material,
-    MaterialDepthOffset? DepthOffset)
+    MaterialDepthOffset? DepthOffset,
+    int Order = 0)
 {
     public ResolvedSurfaceMaterial(
         ParsedSurface surface,

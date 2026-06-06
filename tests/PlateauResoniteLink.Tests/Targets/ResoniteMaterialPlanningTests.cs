@@ -63,7 +63,7 @@ public sealed class ResoniteMaterialPlanningTests
 
         PlannedTextureAsset metallicAsset = Assert.Single(
             plannedAsset.Textures,
-            texture => string.Equals(texture.Identity.Value, "metallic", StringComparison.Ordinal));
+            texture => texture.Role == ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic);
         int metallicImportIndex = int.Parse(
             metallicAsset.AssetUri.Segments[^1].TrimEnd('/'),
             CultureInfo.InvariantCulture);
@@ -71,7 +71,7 @@ public sealed class ResoniteMaterialPlanningTests
         Assert.Equal(ResoniteTextureColorProfiles.Linear, metallicTexture.ColorProfile);
         Assert.Contains(
             plannedAsset.Textures,
-            texture => string.Equals(texture.Identity.Value, "metallic", StringComparison.Ordinal));
+            texture => texture.Role == ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic);
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public sealed class ResoniteMaterialPlanningTests
             material,
             [
                 new PlannedTextureAsset(
-                    ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo),
+                    ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
                     new Uri("resdb:///texture/albedo", UriKind.Absolute)),
             ],
             PreserveDedicatedMaterialSlot: false);
@@ -294,10 +294,10 @@ public sealed class ResoniteMaterialPlanningTests
             material,
             [
                 new PlannedTextureAsset(
-                    ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo),
+                    ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
                     new Uri("resdb:///texture/albedo", UriKind.Absolute)),
                 new PlannedTextureAsset(
-                    ResoniteSceneMaterialConventions.CreateTextureIdentity(ResoniteSceneMaterialConventions.PlannedTextureRole.Emission),
+                    ResoniteSceneMaterialConventions.PlannedTextureRole.Emission,
                     new Uri("resdb:///texture/emission", UriKind.Absolute)),
             ],
             PreserveDedicatedMaterialSlot: false);
@@ -352,12 +352,12 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
-    public void PlanMainTextureOverrideUsesPreparedUriWithRoleIdentity()
+    public void PlanMainTextureOverrideUsesPreparedUriWithAlbedoRole()
     {
         ResoniteMaterialBinding firstMaterial = new(
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new RawRgba32ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], identity: "payload-a"),
+            TexturePayload: new RawRgba32ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], description: "payload-a"),
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
@@ -396,10 +396,10 @@ public sealed class ResoniteMaterialPlanningTests
         Assert.NotNull(repeatedFirstOverride);
         Assert.NotNull(secondOverride);
         Assert.NotNull(thirdOverride);
-        Assert.Equal(new TextureIdentity("main"), firstOverride!.Identity);
-        Assert.Equal(firstOverride.Identity, repeatedFirstOverride!.Identity);
-        Assert.Equal(firstOverride.Identity, secondOverride!.Identity);
-        Assert.Equal(firstOverride.Identity, thirdOverride!.Identity);
+        Assert.Equal(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, firstOverride!.Role);
+        Assert.Equal(firstOverride.Role, repeatedFirstOverride!.Role);
+        Assert.Equal(firstOverride.Role, secondOverride!.Role);
+        Assert.Equal(firstOverride.Role, thirdOverride!.Role);
         Assert.Equal(new Uri("resdb:///texture/first", UriKind.Absolute), firstOverride.AssetUri);
         Assert.Equal(firstOverride.AssetUri, repeatedFirstOverride.AssetUri);
         Assert.Equal(new Uri("resdb:///texture/second", UriKind.Absolute), secondOverride.AssetUri);

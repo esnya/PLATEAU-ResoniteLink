@@ -87,7 +87,6 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
             {
                 strips.Add(CreateStripSurface(
                     surface,
-                    $"terrain_strip_{index - 1:D2}",
                     previousSamples[0],
                     previousSamples[1],
                     currentSamples[1],
@@ -97,7 +96,6 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
             {
                 strips.Add(CreateStripSurface(
                     surface,
-                    $"terrain_fan_start_{index - 1:D2}",
                     previousSamples[0],
                     currentSamples[1],
                     currentSamples[0]));
@@ -106,7 +104,6 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
             {
                 strips.Add(CreateStripSurface(
                     surface,
-                    $"terrain_fan_end_{index - 1:D2}",
                     previousSamples[0],
                     previousSamples[1],
                     currentSamples[0]));
@@ -118,7 +115,6 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
 
     private static ParsedSurface CreateStripSurface(
         ParsedSurface sourceSurface,
-        string suffix,
         params SurfaceSliceSample[] samples)
     {
         Float2[]? uvs = null;
@@ -138,9 +134,7 @@ internal static class TerrainAlignedTransportationSurfaceSplitter
 
         return sourceSurface with
         {
-            PolygonId = $"{sourceSurface.PolygonId}_{suffix}",
             ExteriorRing = new ParsedRing(
-                $"{sourceSurface.ExteriorRing.RingId}_{suffix}",
                 [.. samples.Select(static sample => sample.Point)],
                 uvs),
         };

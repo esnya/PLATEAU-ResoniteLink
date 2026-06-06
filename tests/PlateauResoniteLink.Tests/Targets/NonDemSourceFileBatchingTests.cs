@@ -41,9 +41,6 @@ public sealed class NonDemSourceFileBatchingTests
 
         Assert.Equal("atlasbake-53394525_bldg_6697_op-bldg-lod2-2", slotKey);
         Assert.Equal("AtlasBake bldg LOD2 #2 [atlasbake-53394525_bldg_6697_op-bldg-lod2-2]", displayName);
-        Assert.Equal(
-            "atlastex-udx/bldg/53394525_bldg_6697_op.gml-2",
-            NonDemSourceFileBatching.CreateAtlasTextureIdentity(key, batchIndex: 1));
     }
 
     [Fact]

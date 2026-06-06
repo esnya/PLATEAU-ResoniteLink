@@ -43,8 +43,7 @@ internal static class DemCityObjectAggregation
         ParsedCityObject first = orderedCityObjects[0];
         ParsedSurface[] surfaces = orderedCityObjects
             .SelectMany(static cityObject => cityObject.Surfaces)
-            .OrderBy(static surface => surface.PolygonId, StringComparer.Ordinal)
-            .ThenBy(static surface => surface.ExteriorRing.RingId, StringComparer.Ordinal)
+            .OrderBy(static surface => surface, ParsedSurfaceStructuralComparer.Instance)
             .ToArray();
 
         return first with

@@ -19,38 +19,59 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) partitionedCityObject
-                 in DemTerrainOverlayAssignment.SplitParsedCityObject(
-                     cityObject,
+        foreach ((ConstructionCityObjectDraft CityObject, TerrainTextureOverlay? Overlay) partitionedCityObject
+                 in PartitionConstructionCityObject(
+                     ConstructionCityObjectDraft.FromParsedCityObject(cityObject),
                      demTerrainTextureOverlays,
                      requestedMeshCodeBounds,
                      allowMissingGeneratedDemOverlayCoverage,
                      progressReporter,
                      cancellationToken))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (partitionedCityObject.Overlay is not null
-                || string.Equals(partitionedCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-            {
-                yield return partitionedCityObject;
-                continue;
-            }
-
-            foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) nonDemPartition
-                     in PartitionBuildingByTerrainOverlayMaterialSource(
-                         partitionedCityObject.CityObject,
-                         demTerrainTextureOverlays,
-                         requestedMeshCodeBounds,
-                         progressReporter,
-                         cancellationToken))
-            {
-                yield return nonDemPartition;
-            }
+            yield return (partitionedCityObject.CityObject.Source, partitionedCityObject.Overlay);
         }
     }
 
-    private static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> PartitionBuildingByTerrainOverlayMaterialSource(
-        ParsedCityObject cityObject,
+    internal static IEnumerable<(ConstructionCityObjectDraft CityObject, TerrainTextureOverlay? Overlay)> PartitionConstructionCityObject(
+        ConstructionCityObjectDraft cityObject,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
+        bool allowMissingGeneratedDemOverlayCoverage = false,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) partitionedCityObject
+                     in DemTerrainOverlayAssignment.SplitParsedCityObject(
+                         cityObject.Source,
+                         demTerrainTextureOverlays,
+                         requestedMeshCodeBounds,
+                         allowMissingGeneratedDemOverlayCoverage,
+                         progressReporter,
+                         cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return (ConstructionCityObjectDraft.FromParsedCityObject(partitionedCityObject.CityObject), partitionedCityObject.Overlay);
+            }
+
+            yield break;
+        }
+
+        foreach ((ConstructionCityObjectDraft CityObject, TerrainTextureOverlay? Overlay) nonDemPartition
+                 in PartitionBuildingByTerrainOverlayMaterialSource(
+                     cityObject,
+                     demTerrainTextureOverlays,
+                     requestedMeshCodeBounds,
+                     progressReporter,
+                     cancellationToken))
+        {
+            yield return nonDemPartition;
+        }
+    }
+
+    private static IEnumerable<(ConstructionCityObjectDraft CityObject, TerrainTextureOverlay? Overlay)> PartitionBuildingByTerrainOverlayMaterialSource(
+        ConstructionCityObjectDraft cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         Action<string>? progressReporter,
@@ -62,7 +83,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             yield break;
         }
 
-        GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
+        GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject.Source);
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
             ? new LocalCartesian(
                 cityObjectOrigin.Latitude,
@@ -70,10 +91,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                 cityObjectOrigin.Altitude,
                 cityObject.ReferenceSystem.Geocentric)
             : null;
-        GeodeticPoint[] cityObjectVertices =
-        [
-            .. cityObject.Surfaces.SelectMany(static surface => surface.Vertices)
-        ];
+        GeodeticPoint[] cityObjectVertices = [.. cityObject.Surfaces.SelectMany(static surface => surface.Vertices)];
         if (cityObjectVertices.Length == 0)
         {
             yield return (cityObject, null);
@@ -82,24 +100,25 @@ internal static class TerrainOverlayMaterialSourcePartitioner
 
         double cityObjectMinAltitude = CityObjectAltitudeMetricsResolver.GetMinimumAltitude(cityObjectVertices);
         TerrainMaterialSourceMeshCode materialSourceMeshCode = TerrainMaterialSourceMeshCode.ParseRequired(
-            string.IsNullOrWhiteSpace(cityObject.SourceMeshCode)
+            string.IsNullOrWhiteSpace(cityObject.Source.SourceMeshCode)
                 ? cityObject.ActualMeshCode
-                : cityObject.SourceMeshCode);
+                : cityObject.Source.SourceMeshCode);
 
-        List<ParsedSurface> untexturedSurfaces = [];
-        List<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> terrainOverlayMaterialSurfaces = [];
-        foreach (ParsedSurface surface in cityObject.Surfaces)
+        List<ConstructionFace> untexturedFaces = [];
+        List<(ConstructionFace Face, TerrainTextureOverlay Overlay)> terrainOverlayMaterialFaces = [];
+        foreach (ConstructionFace face in cityObject.Faces)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ConstructionFace face = new(surface, ConstructionCityObjectDraft.ResolveRole(surface));
+            ParsedSurface surface = face.Surface;
             if (!CanUseTerrainOverlayMaterialSource(face, cityObjectMinAltitude, cityObjectOrigin, cityObjectCartesian)
                 || !TryCreateSurfaceGeographicBounds(surface, out GeographicRectangle surfaceBounds))
             {
-                untexturedSurfaces.Add(surface);
+                untexturedFaces.Add(face);
                 continue;
             }
 
-            ParsedSurface terrainMaterialSurface = PrepareTerrainOverlayMaterialSurface(face);
+            ConstructionFace terrainMaterialFace = PrepareTerrainOverlayMaterialFace(face);
+            ParsedSurface terrainMaterialSurface = terrainMaterialFace.Surface;
 
             TerrainTextureOverlay[] materialSourceOverlays = demTerrainTextureOverlays
                 .Where(overlay => IsOverlayInMaterialSourceMeshCode(materialSourceMeshCode, overlay))
@@ -123,13 +142,13 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                     .ToArray();
             if (candidateOverlays.Length == 0)
             {
-                untexturedSurfaces.Add(surface);
+                untexturedFaces.Add(face);
                 continue;
             }
 
             if (candidateOverlays.Length == 1)
             {
-                terrainOverlayMaterialSurfaces.Add((terrainMaterialSurface, candidateOverlays[0]));
+                terrainOverlayMaterialFaces.Add((terrainMaterialFace, candidateOverlays[0]));
                 continue;
             }
 
@@ -137,7 +156,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                 TerrainOverlayMeshCodeResolver.ContainsBounds(overlay.GeographicBounds, surfaceBounds));
             if (containingOverlay is not null)
             {
-                terrainOverlayMaterialSurfaces.Add((terrainMaterialSurface, containingOverlay));
+                terrainOverlayMaterialFaces.Add((terrainMaterialFace, containingOverlay));
                 continue;
             }
 
@@ -149,20 +168,21 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                     cancellationToken);
             if (clippedSurfaces.Count == 0)
             {
-                untexturedSurfaces.Add(surface);
+                untexturedFaces.Add(face);
                 continue;
             }
 
-            terrainOverlayMaterialSurfaces.AddRange(clippedSurfaces);
+            terrainOverlayMaterialFaces.AddRange(
+                clippedSurfaces.Select(entry => (WithSurface(terrainMaterialFace, entry.Surface), entry.Overlay)));
         }
 
-        IGrouping<TerrainTextureOverlay, (ParsedSurface Surface, TerrainTextureOverlay Overlay)>[] terrainMaterialGroups =
-            terrainOverlayMaterialSurfaces
+        IGrouping<TerrainTextureOverlay, (ConstructionFace Face, TerrainTextureOverlay Overlay)>[] terrainMaterialGroups =
+            terrainOverlayMaterialFaces
                 .GroupBy(static entry => entry.Overlay)
                 .OrderBy(static group => group.Key.GeographicBounds.MinLatitude)
                 .ThenBy(static group => group.Key.GeographicBounds.MinLongitude)
                 .ToArray();
-        int partitionCount = terrainMaterialGroups.Length + (untexturedSurfaces.Count == 0 ? 0 : 1);
+        int partitionCount = terrainMaterialGroups.Length + (untexturedFaces.Count == 0 ? 0 : 1);
         if (partitionCount == 0)
         {
             yield break;
@@ -174,54 +194,63 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             {
                 ThirdRegionalMeshCode terrainMeshCode = terrainMaterialGroups[0].Key.MeshCode;
                 yield return (
-                    cityObject with
-                    {
-                        ActualMeshCode = terrainMeshCode.Value,
-                        Surfaces = terrainMaterialGroups[0].Select(static entry => MarkTerrainOverlayMaterialSource(entry.Surface)).ToArray(),
-                        GeodeticOriginOverride = cityObjectOrigin,
-                    },
+                    WithSource(
+                        cityObject,
+                        cityObject.Source with
+                        {
+                            ActualMeshCode = terrainMeshCode.Value,
+                            GeodeticOriginOverride = cityObjectOrigin,
+                        },
+                        terrainMaterialGroups[0]
+                            .Select(static entry => WithSurface(entry.Face, MarkTerrainOverlayMaterialSource(entry.Face.Surface)))
+                            .ToArray()),
                     terrainMaterialGroups[0].Key);
                 yield break;
             }
 
             yield return (
-                cityObject with
-                {
-                    Surfaces = untexturedSurfaces.ToArray(),
-                    GeodeticOriginOverride = cityObjectOrigin,
-                },
+                WithSource(
+                    cityObject,
+                    cityObject.Source with { GeodeticOriginOverride = cityObjectOrigin },
+                    untexturedFaces.ToArray()),
                 null);
             yield break;
         }
 
         int partitionIndex = 0;
-        foreach (IGrouping<TerrainTextureOverlay, (ParsedSurface Surface, TerrainTextureOverlay Overlay)> group in terrainMaterialGroups)
+        foreach (IGrouping<TerrainTextureOverlay, (ConstructionFace Face, TerrainTextureOverlay Overlay)> group in terrainMaterialGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ThirdRegionalMeshCode terrainMeshCode = group.Key.MeshCode;
             yield return (
-                cityObject with
-                {
-                    ActualMeshCode = terrainMeshCode.Value,
-                    SlotKey = $"{cityObject.SlotKey}_terrain_{terrainMeshCode}",
-                    DisplayName = $"{cityObject.DisplayName} ({partitionIndex + 1})",
-                    Surfaces = group.Select(static entry => MarkTerrainOverlayMaterialSource(entry.Surface)).ToArray(),
-                    GeodeticOriginOverride = cityObjectOrigin,
-                },
+                WithSource(
+                    cityObject,
+                    cityObject.Source with
+                    {
+                        ActualMeshCode = terrainMeshCode.Value,
+                        SlotKey = $"{cityObject.SlotKey}_terrain_{terrainMeshCode}",
+                        DisplayName = $"{cityObject.DisplayName} ({partitionIndex + 1})",
+                        GeodeticOriginOverride = cityObjectOrigin,
+                    },
+                    group
+                        .Select(static entry => WithSurface(entry.Face, MarkTerrainOverlayMaterialSource(entry.Face.Surface)))
+                        .ToArray()),
                 group.Key);
             partitionIndex++;
         }
 
-        if (untexturedSurfaces.Count != 0)
+        if (untexturedFaces.Count != 0)
         {
             yield return (
-                cityObject with
-                {
-                    SlotKey = $"{cityObject.SlotKey}_terrain_none",
-                    DisplayName = $"{cityObject.DisplayName} ({partitionIndex + 1})",
-                    Surfaces = untexturedSurfaces.ToArray(),
-                    GeodeticOriginOverride = cityObjectOrigin,
-                },
+                WithSource(
+                    cityObject,
+                    cityObject.Source with
+                    {
+                        SlotKey = $"{cityObject.SlotKey}_terrain_none",
+                        DisplayName = $"{cityObject.DisplayName} ({partitionIndex + 1})",
+                        GeodeticOriginOverride = cityObjectOrigin,
+                    },
+                    untexturedFaces.ToArray()),
                 null);
         }
     }
@@ -231,17 +260,30 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         return surface with { UsesGeneratedDemTexture = true };
     }
 
-    private static ParsedSurface PrepareTerrainOverlayMaterialSurface(ConstructionFace face)
+    private static ConstructionFace PrepareTerrainOverlayMaterialFace(ConstructionFace face)
     {
         ParsedSurface surface = face.Surface;
         if (face.Role is ConstructionFaceRole.RoofSlab)
         {
-            return surface;
+            return face;
         }
 
         return surface.Semantic == ParsedSurfaceSemantic.Roof
-            ? surface
-            : surface with { Semantic = ParsedSurfaceSemantic.Roof };
+            ? face
+            : WithSurface(face, surface with { Semantic = ParsedSurfaceSemantic.Roof });
+    }
+
+    private static ConstructionCityObjectDraft WithSource(
+        ConstructionCityObjectDraft cityObject,
+        ParsedCityObject source,
+        ConstructionFace[] faces)
+    {
+        return new ConstructionCityObjectDraft(source, faces, cityObject.FacadeUvReferenceFaces);
+    }
+
+    private static ConstructionFace WithSurface(ConstructionFace face, ParsedSurface surface)
+    {
+        return face with { Surface = surface };
     }
 
     private static bool IsOverlayInMaterialSourceMeshCode(

@@ -11,7 +11,7 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class CityGmlSurfaceProjectionPolicyTests
 {
     [Fact]
-    public void GetCulledSurfaceIdsBeforeProjectionCullsBuildingBottomBandOnlyWhenHigherGeometryExists()
+    public void GetCulledSurfacesBeforeProjectionCullsBuildingBottomBandOnlyWhenHigherGeometryExists()
     {
         GeodeticPoint origin = new(35.0, 139.0, 0.0);
         LocalCartesian cartesian = CreateCartesian(origin);
@@ -28,24 +28,22 @@ public sealed class CityGmlSurfaceProjectionPolicyTests
             ParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: true));
 
-        HashSet<string> buildingCull = CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
-            "bldg",
-            [wall, bottom, roof],
+        HashSet<ParsedSurface> buildingCull = CityGmlSurfaceProjectionPolicy.GetCulledSurfacesBeforeProjection(
+            CreateDraft("bldg", [wall, bottom, roof]),
             origin,
             cartesian);
-        HashSet<string> roadCull = CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
-            "tran",
-            [bottom],
+        HashSet<ParsedSurface> roadCull = CityGmlSurfaceProjectionPolicy.GetCulledSurfacesBeforeProjection(
+            CreateDraft("tran", [bottom]),
             origin,
             cartesian);
 
-        Assert.Contains("bottom", buildingCull);
-        Assert.DoesNotContain("roof", buildingCull);
+        Assert.Contains(bottom, buildingCull);
+        Assert.DoesNotContain(roof, buildingCull);
         Assert.Empty(roadCull);
     }
 
     [Fact]
-    public void TryCreateFacadeUvProjectionContextIgnoresGeneratedLod1RoofSurfacesWhenWallRangeExists()
+    public void TryCreateFacadeUvProjectionContextUsesPreRoofGenerationWallRangeWhenAvailable()
     {
         GeodeticPoint origin = new(35.0, 139.0, 0.0);
         LocalCartesian cartesian = CreateCartesian(origin);
@@ -54,13 +52,12 @@ public sealed class CityGmlSurfaceProjectionPolicyTests
             ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, widthMeters: 8.0, heightMeters: 6.0));
         ParsedSurface generatedRoof = CreateSurface(
-            "bldg_generated_gable-top",
+            "bldg_roof_gable-top",
             ParsedSurfaceSemantic.Roof,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 9.0, sizeMeters: 8.0, reverseWinding: true));
 
         FacadeUvProjectionContext? context = CityGmlSurfaceProjectionPolicy.TryCreateFacadeUvProjectionContext(
-            "bldg",
-            [wall, generatedRoof],
+            CreateDraft("bldg", [wall, generatedRoof], facadeUvReferenceSurfaces: [wall]),
             origin,
             cartesian);
 
@@ -70,7 +67,7 @@ public sealed class CityGmlSurfaceProjectionPolicyTests
     }
 
     [Fact]
-    public void TryCreateFacadeUvProjectionContextIgnoresGeneratedNoWallRoofSurfacesWhenWallRangeExists()
+    public void TryCreateFacadeUvProjectionContextDoesNotCullRoofSlabAtObjectMinimum()
     {
         GeodeticPoint origin = new(35.0, 139.0, 0.0);
         LocalCartesian cartesian = CreateCartesian(origin);
@@ -79,22 +76,23 @@ public sealed class CityGmlSurfaceProjectionPolicyTests
             ParsedSurfaceSemantic.Wall,
             CreateVerticalQuadVertices(origin, widthMeters: 8.0, heightMeters: 6.0));
         ParsedSurface generatedNoWallBottom = CreateSurface(
-            "bldg_generated_no-wall-bottom",
+            "bldg_roof-slab-bottom",
             ParsedSurfaceSemantic.Roof,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 8.7, sizeMeters: 8.0, reverseWinding: true));
 
-        HashSet<string> culledSurfaceIds = CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
-            "bldg",
-            [wall, generatedNoWallBottom],
+        HashSet<ParsedSurface> culledSurfaces = CityGmlSurfaceProjectionPolicy.GetCulledSurfacesBeforeProjection(
+            CreateDraft("bldg", [new ConstructionFace(wall, ConstructionFaceRole.Wall), new ConstructionFace(generatedNoWallBottom, ConstructionFaceRole.RoofSlab)]),
             origin,
             cartesian);
         FacadeUvProjectionContext? context = CityGmlSurfaceProjectionPolicy.TryCreateFacadeUvProjectionContext(
-            "bldg",
-            [wall, generatedNoWallBottom],
+            CreateDraft(
+                "bldg",
+                [new ConstructionFace(wall, ConstructionFaceRole.Wall), new ConstructionFace(generatedNoWallBottom, ConstructionFaceRole.RoofSlab)],
+                facadeUvReferenceSurfaces: [wall]),
             origin,
             cartesian);
 
-        Assert.Empty(culledSurfaceIds);
+        Assert.Empty(culledSurfaces);
         Assert.NotNull(context);
         Assert.InRange(context.Value.MinimumY, -1e-5, 1e-5);
         Assert.InRange(context.Value.MaximumY, 6.0 - 1e-5, 6.0 + 1e-5);
@@ -112,8 +110,7 @@ public sealed class CityGmlSurfaceProjectionPolicyTests
             CreateVerticalQuadVertices(origin, widthMeters: 8.0, heightMeters: 6.0));
 
         FacadeUvProjectionContext? context = CityGmlSurfaceProjectionPolicy.TryCreateFacadeUvProjectionContext(
-            "bldg",
-            [empty, wall],
+            CreateDraft("bldg", [empty, wall]),
             origin,
             cartesian);
 
@@ -123,16 +120,16 @@ public sealed class CityGmlSurfaceProjectionPolicyTests
     }
 
     [Fact]
-    public void GetCulledSurfaceIdsBeforeProjectionKeepsGeneratedNoWallRoofBottomAtObjectMinimum()
+    public void GetCulledSurfacesBeforeProjectionKeepsRoofSlabBottomAtObjectMinimum()
     {
         GeodeticPoint origin = new(35.0, 139.0, 0.0);
         LocalCartesian cartesian = CreateCartesian(origin);
         ParsedSurface generatedNoWallBottom = CreateSurface(
-            "roof_generated_no-wall-bottom",
+            "roof_roof-slab-bottom",
             ParsedSurfaceSemantic.Roof,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 9.7, sizeMeters: 8.0));
         ParsedSurface generatedNoWallSide = CreateSurface(
-            "roof_generated_no-wall-side-0",
+            "roof_roof-slab-side-0",
             ParsedSurfaceSemantic.Roof,
             CreateVerticalQuadVertices(origin with { Altitude = 9.7 }, widthMeters: 8.0, heightMeters: 0.3));
         ParsedSurface roof = CreateSurface(
@@ -140,13 +137,18 @@ public sealed class CityGmlSurfaceProjectionPolicyTests
             ParsedSurfaceSemantic.Roof,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 10.0, sizeMeters: 8.0, reverseWinding: true));
 
-        HashSet<string> culledSurfaceIds = CityGmlSurfaceProjectionPolicy.GetCulledSurfaceIdsBeforeProjection(
-            "bldg",
-            [roof, generatedNoWallBottom, generatedNoWallSide],
+        HashSet<ParsedSurface> culledSurfaces = CityGmlSurfaceProjectionPolicy.GetCulledSurfacesBeforeProjection(
+            CreateDraft(
+                "bldg",
+                [
+                    new ConstructionFace(roof, ConstructionFaceRole.Roof),
+                    new ConstructionFace(generatedNoWallBottom, ConstructionFaceRole.RoofSlab),
+                    new ConstructionFace(generatedNoWallSide, ConstructionFaceRole.RoofSlab),
+                ]),
             origin,
             cartesian);
 
-        Assert.Empty(culledSurfaceIds);
+        Assert.Empty(culledSurfaces);
     }
 
     private static LocalCartesian CreateCartesian(GeodeticPoint origin)
@@ -159,13 +161,48 @@ public sealed class CityGmlSurfaceProjectionPolicyTests
         ParsedSurfaceSemantic semantic,
         IReadOnlyList<GeodeticPoint> vertices)
     {
+        _ = polygonId;
         return new ParsedSurface(
-            polygonId,
             semantic,
-            new ParsedRing($"{polygonId}-ring", vertices.ToArray(), UVs: null),
+            new ParsedRing(vertices.ToArray(), UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(0.5, 0.5, 0.5, 1.0),
             TexturePayload: null);
+    }
+
+    private static ConstructionCityObjectDraft CreateDraft(
+        string packageName,
+        ParsedSurface[] surfaces,
+        ParsedSurface[]? facadeUvReferenceSurfaces = null)
+    {
+        return CreateDraft(
+            packageName,
+            surfaces.Select(static surface => new ConstructionFace(surface, ConstructionCityObjectDraft.ResolveRole(surface))).ToArray(),
+            facadeUvReferenceSurfaces);
+    }
+
+    private static ConstructionCityObjectDraft CreateDraft(
+        string packageName,
+        ConstructionFace[] faces,
+        ParsedSurface[]? facadeUvReferenceSurfaces = null)
+    {
+        ParsedCityObject cityObject = new(
+            SlotKey: $"{packageName}-object",
+            DisplayName: packageName,
+            PackageName: packageName,
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Surfaces: faces.Select(static face => face.Surface).ToArray(),
+            ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
+            SourceFileRelativePath: $"udx/{packageName}/53394525/sample.gml",
+            SharedAcrossMeshCodes: false,
+            BuildingAttributes: BuildingAttributeContext.Empty);
+        ConstructionFace[]? referenceFaces = facadeUvReferenceSurfaces is null
+            ? null
+            : facadeUvReferenceSurfaces
+                .Select(static surface => new ConstructionFace(surface, ConstructionCityObjectDraft.ResolveRole(surface)))
+                .ToArray();
+        return new ConstructionCityObjectDraft(cityObject, faces, referenceFaces);
     }
 
     private static IReadOnlyList<GeodeticPoint> CreateHorizontalQuadVertices(

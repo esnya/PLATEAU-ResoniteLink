@@ -90,12 +90,12 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(
             result.DataSourceUsages,
             static usage => usage.Category == ImportDataSourceCategory.CityGmlSourceFile
-                && string.Equals(usage.Identity, "udx/bldg/53394525/building.gml", StringComparison.Ordinal)
+                && string.Equals(usage.Description, "udx/bldg/53394525/building.gml", StringComparison.Ordinal)
                 && usage.UsedCount == 1);
         Assert.Contains(
             result.DataSourceUsages,
             static usage => usage.Category == ImportDataSourceCategory.DemTextureSource
-                && string.Equals(usage.Identity, "terrain://ortho-primary", StringComparison.Ordinal)
+                && string.Equals(usage.Description, "terrain://ortho-primary", StringComparison.Ordinal)
                 && usage.UsedCount == 2);
     }
 

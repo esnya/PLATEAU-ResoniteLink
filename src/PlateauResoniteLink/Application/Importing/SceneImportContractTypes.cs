@@ -100,22 +100,13 @@ public abstract record TexturePayload
 {
     private protected TexturePayload(
         string? colorProfile,
-        string identity,
         ITextureImportSource source)
     {
-        if (string.IsNullOrWhiteSpace(identity))
-        {
-            throw new ArgumentException("Texture payload identity must be provided.", nameof(identity));
-        }
-
         ColorProfile = colorProfile;
-        Identity = identity;
         Source = source ?? throw new ArgumentNullException(nameof(source));
     }
 
     public string? ColorProfile { get; }
-
-    public string Identity { get; }
 
     public ITextureImportSource Source { get; }
 }
@@ -127,13 +118,13 @@ public sealed record RawRgba32TexturePayload : TexturePayload
         int height,
         string? colorProfile,
         byte[] binaryPayload,
-        string? identity = null)
+        string? description = null)
         : this(
             width,
             height,
             colorProfile,
             binaryPayload,
-            CreateSource(width, height, colorProfile, binaryPayload, identity))
+            CreateSource(width, height, colorProfile, binaryPayload, description))
     {
     }
 
@@ -142,8 +133,8 @@ public sealed record RawRgba32TexturePayload : TexturePayload
         int height,
         string? colorProfile,
         byte[] binaryPayload,
-        (string Identity, ITextureImportSource Source) source)
-        : base(colorProfile, source.Identity, source.Source)
+        ITextureImportSource source)
+        : base(colorProfile, source)
     {
         Rgba32RawTexturePayload.ValidateByteLength(width, height, binaryPayload);
         Width = width;
@@ -157,23 +148,20 @@ public sealed record RawRgba32TexturePayload : TexturePayload
 
     public ImmutableArray<byte> BinaryPayload { get; }
 
-    private static (string Identity, ITextureImportSource Source) CreateSource(
+    private static ITextureImportSource CreateSource(
         int width,
         int height,
         string? colorProfile,
         byte[] binaryPayload,
-        string? identity)
+        string? description)
     {
         ArgumentNullException.ThrowIfNull(binaryPayload);
-        string effectiveIdentity = identity ?? Guid.NewGuid().ToString("N");
-        return (
-            effectiveIdentity,
-            TextureImportSourceFactory.CreateInMemoryRaw(
-                width,
-                height,
-                colorProfile,
-                binaryPayload,
-                effectiveIdentity));
+        return TextureImportSourceFactory.CreateInMemoryRaw(
+            width,
+            height,
+            colorProfile,
+            binaryPayload,
+            description ?? "memory:raw-rgba32");
     }
 }
 
@@ -184,18 +172,11 @@ public sealed record EncodedImageTexturePayload : TexturePayload
         int? height,
         string? colorProfile,
         ITextureImportSource source,
-        string? identity = null)
-        : this(width, height, colorProfile, CreateSource(source, identity))
+        string? description = null)
+        : base(colorProfile, source)
     {
-    }
-
-    private EncodedImageTexturePayload(
-        int? width,
-        int? height,
-        string? colorProfile,
-        (string Identity, ITextureImportSource Source) source)
-        : base(colorProfile, source.Identity, source.Source)
-    {
+        ArgumentNullException.ThrowIfNull(source);
+        _ = description;
         Width = width;
         Height = height;
     }
@@ -203,14 +184,6 @@ public sealed record EncodedImageTexturePayload : TexturePayload
     public int? Width { get; }
 
     public int? Height { get; }
-
-    private static (string Identity, ITextureImportSource Source) CreateSource(
-        ITextureImportSource source,
-        string? identity)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        return (identity ?? source.Identity, source);
-    }
 }
 
 public enum TextureSourceKind

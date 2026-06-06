@@ -11,7 +11,7 @@ namespace PlateauResoniteLink.Domain.Importing;
 
 public abstract record TerrainTextureSource
 {
-    public abstract string IdentityKey { get; }
+    public abstract string Description { get; }
 }
 
 public sealed record TerrainTextureTileSource(string UrlTemplate, int ZoomLevel) : TerrainTextureSource
@@ -24,8 +24,7 @@ public sealed record TerrainTextureTileSource(string UrlTemplate, int ZoomLevel)
         ? ZoomLevel
         : throw new ArgumentOutOfRangeException(nameof(ZoomLevel));
 
-    public override string IdentityKey =>
-        string.Create(CultureInfo.InvariantCulture, $"tile-z{ZoomLevel}-{UrlTemplate}");
+    public override string Description => $"tile:{ZoomLevel}:{UrlTemplate}";
 }
 
 public sealed record GeoReferencedRasterMetadata(
@@ -46,16 +45,12 @@ public sealed record GeoReferencedRasterMetadata(
         ? PixelHeightMeters
         : throw new ArgumentOutOfRangeException(nameof(PixelHeightMeters));
 
-    public string IdentityKey =>
-        string.Create(
-            CultureInfo.InvariantCulture,
-            $"georaster-meta-crs-{CoordinateSystemIdentifier}-pixel-{TerrainTextureDescriptorFormatting.FormatRounded(PixelWidthMeters)}x{TerrainTextureDescriptorFormatting.FormatRounded(PixelHeightMeters)}-bounds-{TerrainTextureDescriptorFormatting.FormatBounds(GeographicBounds)}");
+    public string Description =>
+        $"crs-{CoordinateSystemIdentifier}-pixel-{TerrainTextureDescriptorFormatting.FormatRounded(PixelWidthMeters)}x{TerrainTextureDescriptorFormatting.FormatRounded(PixelHeightMeters)}-bounds-{TerrainTextureDescriptorFormatting.FormatBounds(GeographicBounds)}";
 }
 
 public interface ITerrainTextureRasterContentSource
 {
-    string IdentityKey { get; }
-
     string Description { get; }
 
     ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken);
@@ -66,8 +61,6 @@ public sealed record LocalTerrainTextureRasterContentSource(string SourcePath) :
     public string SourcePath { get; init; } = string.IsNullOrWhiteSpace(SourcePath)
         ? throw new ArgumentException("Terrain texture raster source path must be provided.", nameof(SourcePath))
         : SourcePath;
-
-    public string IdentityKey => $"file:{Path.GetFullPath(SourcePath)}";
 
     public string Description => Path.GetFileName(SourcePath.Replace('\\', '/'));
 
@@ -99,8 +92,7 @@ public sealed record TerrainTextureGeoReferencedRasterSource(
     public GeoReferencedRasterMetadata Metadata { get; init; } =
         Metadata ?? throw new ArgumentNullException(nameof(Metadata));
 
-    public override string IdentityKey =>
-        string.Create(CultureInfo.InvariantCulture, $"georaster-{ContentSource.IdentityKey}-meta-{Metadata.IdentityKey}");
+    public override string Description => $"georaster:{ContentSource.Description}:{Metadata.Description}";
 
     public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken) =>
         ContentSource.OpenReadAsync(cancellationToken);
@@ -221,8 +213,8 @@ public sealed record TerrainTextureOverlay
 
     public int? FallbackZoomLevel => GetFallbackTileSource()?.ZoomLevel;
 
-    public string SourceDescriptorKey =>
-        string.Join("|", Sources.Select(static source => source.IdentityKey));
+    public string SourceDescription =>
+        string.Join(", ", Sources.Select(static source => source.Description));
 
     public TerrainTextureTileSource GetRequiredPrimaryTileSource() => GetRequiredTileSource(PrimarySource);
 

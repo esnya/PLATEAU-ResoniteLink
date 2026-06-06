@@ -14,26 +14,25 @@ internal static class GeneratedLod1RoofCityObjectFactory
     private const double NoWallRoofThicknessMeters = 0.3;
     private static readonly string[] NoWallBuildingClassCodes = ["3003", "3004"];
 
-    internal static ParsedCityObject Create(ParsedCityObject cityObject)
+    internal static ConstructionCityObjectDraft CreateDraft(ParsedCityObject cityObject)
     {
         ArgumentNullException.ThrowIfNull(cityObject);
 
         if (!PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName)
-            || !cityObject.ReferenceSystem.IsGeographic
-            || cityObject.Surfaces.Any(GeneratedLod1RoofSurfaceIdentity.IsGenerated))
+            || !cityObject.ReferenceSystem.IsGeographic)
         {
-            return cityObject;
+            return ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         }
 
         bool isNoWallBuilding = IsNoWallBuilding(cityObject);
         if (!isNoWallBuilding && cityObject.LodLevel != 1)
         {
-            return cityObject;
+            return ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         }
 
         if (isNoWallBuilding && !HasProcessableNoWallGeometry(cityObject))
         {
-            return cityObject;
+            return ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         }
 
         GeodeticPoint cityObjectOrigin = CityObjectOriginResolver.Resolve(
@@ -47,18 +46,18 @@ internal static class GeneratedLod1RoofCityObjectFactory
         if (isNoWallBuilding)
         {
             return TryCreateNoWallRoofSlab(cityObject, cityObjectOrigin, cityObjectCartesian, out ParsedCityObject? noWallRoofSlab)
-                ? noWallRoofSlab!
-                : cityObject;
+                ? CreateNoWallRoofSlabDraft(noWallRoofSlab!)
+                : ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         }
 
         if (cityObject.LodLevel != 1)
         {
-            return cityObject;
+            return ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         }
 
         if (!TryCreateFootprint(cityObject, cityObjectOrigin, cityObjectCartesian, out Lod1RoofFootprint? footprint))
         {
-            return cityObject;
+            return ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         }
 
         Lod1RoofFootprint resolvedFootprint = footprint!;
@@ -70,21 +69,42 @@ internal static class GeneratedLod1RoofCityObjectFactory
             resolvedFootprint.WidthMeters);
         if (roofShape == GeneratedLod1RoofShape.Flat)
         {
-            return cityObject;
+            return ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         }
 
         ParsedSurface[] generatedSurfaces = GeneratedLod1RoofSurfaceFactory.Create(resolvedFootprint, roofShape);
         if (generatedSurfaces.Length == 0)
         {
-            return cityObject;
+            return ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
         }
 
-        ParsedSurface[] surfaces =
+        ConstructionCityObjectDraft sourceDraft = ConstructionCityObjectDraft.FromParsedCityObject(cityObject);
+        HashSet<ParsedSurface> replacedSurfaces = new(ReferenceEqualityComparer.Instance)
+        {
+            resolvedFootprint.TopSurface,
+        };
+        ConstructionFace[] generatedFaces = generatedSurfaces
+            .Select(static surface => new ConstructionFace(surface, ConstructionCityObjectDraft.ResolveRole(surface)))
+            .ToArray();
+        ConstructionFace[] faces =
         [
-            .. cityObject.Surfaces.Where(surface => !string.Equals(surface.PolygonId, resolvedFootprint.TopSurface.PolygonId, StringComparison.Ordinal)),
-            .. generatedSurfaces,
+            .. sourceDraft.Faces.Where(face => !replacedSurfaces.Contains(face.Surface)),
+            .. generatedFaces,
         ];
-        return cityObject with { Surfaces = surfaces };
+        return new ConstructionCityObjectDraft(
+            cityObject,
+            faces,
+            sourceDraft.FacadeUvReferenceFaces
+                .Where(face => !replacedSurfaces.Contains(face.Surface))
+                .ToArray());
+    }
+
+    private static ConstructionCityObjectDraft CreateNoWallRoofSlabDraft(ParsedCityObject cityObject)
+    {
+        ConstructionFace[] faces = cityObject.Surfaces
+            .Select(static surface => new ConstructionFace(surface, ConstructionFaceRole.RoofSlab))
+            .ToArray();
+        return new ConstructionCityObjectDraft(cityObject, faces);
     }
 
     private static bool IsNoWallBuilding(ParsedCityObject cityObject)
@@ -163,7 +183,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
 
         foreach (ParsedSurface roofSurface in roofSurfaces)
         {
-            if (!surfaceInfos.Any(info => string.Equals(info.Surface.PolygonId, roofSurface.PolygonId, StringComparison.Ordinal)))
+            if (!surfaceInfos.Any(info => ReferenceEquals(info.Surface, roofSurface)))
             {
                 return false;
             }
@@ -209,11 +229,11 @@ internal static class GeneratedLod1RoofCityObjectFactory
             return false;
         }
 
-        HashSet<string> topSurfaceIds = topSurfaceInfos
-            .Select(static info => info.Surface.PolygonId)
-            .ToHashSet(StringComparer.Ordinal);
+        HashSet<ParsedSurface> topSurfaceSet = topSurfaceInfos
+            .Select(static info => info.Surface)
+            .ToHashSet<ParsedSurface>(ReferenceEqualityComparer.Instance);
         SurfaceProjectionInfo[] lowerSurfaceInfos = surfaceInfos
-            .Where(info => !topSurfaceIds.Contains(info.Surface.PolygonId))
+            .Where(info => !topSurfaceSet.Contains(info.Surface))
             .ToArray();
         if (lowerSurfaceInfos.Length != 0)
         {
@@ -236,21 +256,22 @@ internal static class GeneratedLod1RoofCityObjectFactory
     }
 
     private static bool TryCreateNoWallRoofSurfaces(
-        IReadOnlyList<ParsedSurface> roofSurfaces,
+        ParsedSurface[] roofSurfaces,
         NoWallRoofTopSurfaceMode topSurfaceMode,
         out ParsedSurface[]? generatedSurfaces)
     {
         generatedSurfaces = null;
         Dictionary<NoWallRoofEdgeKey, int> edgeUseCounts = [];
-        Dictionary<string, NoWallRoofRing> ringsByPolygonId = new(StringComparer.Ordinal);
-        foreach (ParsedSurface roofSurface in roofSurfaces)
+        List<NoWallRoofSurfaceInput> inputs = new(roofSurfaces.Length);
+        for (int surfaceIndex = 0; surfaceIndex < roofSurfaces.Length; surfaceIndex++)
         {
+            ParsedSurface roofSurface = roofSurfaces[surfaceIndex];
             if (!TryCreateNoWallRoofRing(roofSurface, out NoWallRoofRing ring))
             {
                 return false;
             }
 
-            ringsByPolygonId.Add(roofSurface.PolygonId, ring);
+            inputs.Add(new NoWallRoofSurfaceInput(roofSurface, surfaceIndex, ring));
             for (int index = 0; index < ring.TopRing.Length; index++)
             {
                 int nextIndex = (index + 1) % ring.TopRing.Length;
@@ -261,21 +282,21 @@ internal static class GeneratedLod1RoofCityObjectFactory
 
         List<ParsedSurface> surfaces = topSurfaceMode switch
         {
-            NoWallRoofTopSurfaceMode.Generated => [.. roofSurfaces.Select(surface => CreateNoWallTopSurface(surface, ringsByPolygonId[surface.PolygonId]))],
+            NoWallRoofTopSurfaceMode.Generated => [.. inputs.Select(static input => CreateNoWallTopSurface(input))],
             NoWallRoofTopSurfaceMode.PreserveSource => [.. roofSurfaces],
             _ => [],
         };
-        foreach (ParsedSurface roofSurface in roofSurfaces)
+        foreach (NoWallRoofSurfaceInput input in inputs)
         {
-            NoWallRoofRing ring = ringsByPolygonId[roofSurface.PolygonId];
-            surfaces.Add(CreateNoWallBottomSurface(roofSurface, ring));
+            NoWallRoofRing ring = input.Ring;
+            surfaces.Add(CreateNoWallBottomSurface(input));
             for (int index = 0; index < ring.TopRing.Length; index++)
             {
                 int nextIndex = (index + 1) % ring.TopRing.Length;
                 NoWallRoofEdgeKey edgeKey = NoWallRoofEdgeKey.Create(ring.TopRing[index], ring.TopRing[nextIndex]);
                 if (edgeUseCounts[edgeKey] == 1)
                 {
-                    surfaces.Add(CreateNoWallSideSurface(roofSurface, ring, index, nextIndex));
+                    surfaces.Add(CreateNoWallSideSurface(input, index, nextIndex));
                 }
             }
         }
@@ -306,31 +327,31 @@ internal static class GeneratedLod1RoofCityObjectFactory
         return true;
     }
 
-    private static ParsedSurface CreateNoWallTopSurface(
-        ParsedSurface sourceSurface,
-        NoWallRoofRing ring)
+    private static ParsedSurface CreateNoWallTopSurface(NoWallRoofSurfaceInput input)
     {
+        ParsedSurface sourceSurface = input.Surface;
+        NoWallRoofRing ring = input.Ring;
         GeodeticPoint[] vertices = ring.TopRing;
         Float2[]? uvs = ring.TopUvs;
-        return CreateNoWallRoofSurface(sourceSurface, sourceSurface.PolygonId, vertices, uvs, sourceSurface.UsesGeneratedDemTexture);
+        return CreateNoWallRoofSurface(sourceSurface, vertices, uvs, sourceSurface.UsesGeneratedDemTexture);
     }
 
-    private static ParsedSurface CreateNoWallBottomSurface(
-        ParsedSurface topSurface,
-        NoWallRoofRing ring)
+    private static ParsedSurface CreateNoWallBottomSurface(NoWallRoofSurfaceInput input)
     {
+        ParsedSurface topSurface = input.Surface;
+        NoWallRoofRing ring = input.Ring;
         GeodeticPoint[] vertices = ring.BottomRing.Reverse().ToArray();
         Float2[]? uvs = ring.TopUvs?.Reverse().ToArray();
-        string polygonId = $"{topSurface.PolygonId}_generated_no-wall-bottom";
-        return CreateNoWallRoofSurface(topSurface, polygonId, vertices, uvs, usesGeneratedDemTexture: false);
+        return CreateNoWallRoofSurface(topSurface, vertices, uvs, usesGeneratedDemTexture: false);
     }
 
     private static ParsedSurface CreateNoWallSideSurface(
-        ParsedSurface topSurface,
-        NoWallRoofRing ring,
+        NoWallRoofSurfaceInput input,
         int index,
         int nextIndex)
     {
+        ParsedSurface topSurface = input.Surface;
+        NoWallRoofRing ring = input.Ring;
         GeodeticPoint[] vertices =
         [
             ring.TopRing[index],
@@ -347,13 +368,11 @@ internal static class GeneratedLod1RoofCityObjectFactory
                 ring.TopUvs[nextIndex],
                 ring.TopUvs[nextIndex],
         ];
-        string polygonId = $"{topSurface.PolygonId}_generated_no-wall-side-{index}";
-        return CreateNoWallRoofSurface(topSurface, polygonId, vertices, uvs, usesGeneratedDemTexture: false);
+        return CreateNoWallRoofSurface(topSurface, vertices, uvs, usesGeneratedDemTexture: false);
     }
 
     private static ParsedSurface CreateNoWallRoofSurface(
         ParsedSurface sourceSurface,
-        string polygonId,
         GeodeticPoint[] vertices,
         Float2[]? uvs,
         bool usesGeneratedDemTexture)
@@ -361,9 +380,8 @@ internal static class GeneratedLod1RoofCityObjectFactory
         GeodeticPoint[] closedVertices = [.. vertices, vertices[0]];
         Float2[]? closedUvs = uvs is null ? null : [.. uvs, uvs[0]];
         return new ParsedSurface(
-            polygonId,
             ParsedSurfaceSemantic.Roof,
-            new ParsedRing($"{polygonId}-ring", closedVertices, closedUvs),
+            new ParsedRing(closedVertices, closedUvs),
             InteriorRings: [],
             sourceSurface.BaseColor,
             sourceSurface.TexturePayload,
@@ -710,6 +728,11 @@ internal static class GeneratedLod1RoofCityObjectFactory
         GeodeticPoint[] TopRing,
         GeodeticPoint[] BottomRing,
         Float2[]? TopUvs);
+
+    private readonly record struct NoWallRoofSurfaceInput(
+        ParsedSurface Surface,
+        int Ordinal,
+        NoWallRoofRing Ring);
 
     private enum NoWallRoofTopSurfaceMode
     {

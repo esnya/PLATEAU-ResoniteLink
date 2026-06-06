@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
+using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -127,12 +128,17 @@ internal sealed class ResoniteLiveSendFinalizer(
     private static ImportDataSourceUsage[] CreateDataSourceUsages(LiveSendRunState state)
     {
         return state.DemSourceUseCounts
-            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+            .OrderBy(static pair => DescribeTerrainTextureSource(pair.Key), StringComparer.Ordinal)
             .Select(static pair => new ImportDataSourceUsage(
                 ImportDataSourceCategory.DemTextureSource,
-                pair.Key,
+                DescribeTerrainTextureSource(pair.Key),
                 pair.Value))
             .ToArray();
+    }
+
+    private static string DescribeTerrainTextureSource(TerrainTextureSource source)
+    {
+        return source.Description;
     }
 
     private static void ReportProgress(LiveSendFinalizationContext context, string message)

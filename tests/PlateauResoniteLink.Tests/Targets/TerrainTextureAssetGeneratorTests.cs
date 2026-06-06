@@ -50,7 +50,7 @@ public sealed class TerrainTextureAssetGeneratorTests
                     1,
                     ResoniteTextureColorProfiles.Srgb,
                     [255, 255, 255, 255]),
-                TextureUvRect.Identity,
+                TextureUvRect.Unit,
                 []));
 
         Assert.Contains("at least one source", exception.Message, StringComparison.Ordinal);
@@ -75,7 +75,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         ArgumentException exception = Assert.Throws<ArgumentException>(() =>
             new GeneratedTerrainTexture(
                 textureSource,
-                TextureUvRect.Identity,
+                TextureUvRect.Unit,
                 [new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 17), null!]));
 
         Assert.Contains("cannot contain null", exception.Message, StringComparison.Ordinal);
@@ -121,7 +121,7 @@ public sealed class TerrainTextureAssetGeneratorTests
                 1,
                 ResoniteTextureColorProfiles.Srgb,
                 [255, 255, 255, 255]),
-            TextureUvRect.Identity,
+            TextureUvRect.Unit,
             trackedSources);
 
         trackedSources.Clear();

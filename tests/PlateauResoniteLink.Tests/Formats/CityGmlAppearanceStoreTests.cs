@@ -84,7 +84,60 @@ public sealed class CityGmlAppearanceStoreTests
         Assert.Equal(0.15, appearance.MaterialAttributes.Transparency!.Value, 6);
         Assert.NotNull(appearance.MaterialAttributes.EmissiveColor);
         Assert.NotNull(appearance.MaterialAttributes.SpecularColor);
-        Assert.True(appearance.RingUvsByRingId!.ContainsKey("ring-1"));
+        Assert.NotNull(store.ResolveRingUvs("poly-1", "ring-1", vertexCount: 4));
+    }
+
+    [Fact]
+    public async Task Resolve_InternsDatasetTexturePayloadsByResolvedFile()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        string packageDirectory = Path.Combine(datasetRoot.Path, "udx", "bldg", "53394525");
+        string appearanceDirectory = Path.Combine(packageDirectory, "appearance");
+        Directory.CreateDirectory(appearanceDirectory);
+
+        using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 255, 255, 255)))
+        {
+            await image.SaveAsPngAsync(Path.Combine(appearanceDirectory, "shared.png"));
+            await image.SaveAsPngAsync(Path.Combine(appearanceDirectory, "other.png"));
+        }
+
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            datasetRoot.Path,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
+        ICityGmlAppearanceStore store = new CityGmlAppearanceStoreFactory().Create(
+            "udx/bldg/53394525/example.gml",
+            datasetSource);
+        XDocument document = XDocument.Parse(
+            """
+            <core:CityModel xmlns:app="http://www.opengis.net/citygml/appearance/2.0" xmlns:core="http://www.opengis.net/citygml/2.0">
+              <app:appearanceMember>
+                <app:Appearance>
+                  <app:surfaceDataMember>
+                    <app:ParameterizedTexture>
+                      <app:imageURI>appearance/shared.png</app:imageURI>
+                      <app:target uri="#poly-1" />
+                      <app:target uri="#poly-2" />
+                    </app:ParameterizedTexture>
+                  </app:surfaceDataMember>
+                  <app:surfaceDataMember>
+                    <app:ParameterizedTexture>
+                      <app:imageURI>appearance/other.png</app:imageURI>
+                      <app:target uri="#poly-3" />
+                    </app:ParameterizedTexture>
+                  </app:surfaceDataMember>
+                </app:Appearance>
+              </app:appearanceMember>
+            </core:CityModel>
+            """);
+
+        store.LoadFromDocument(document);
+
+        TexturePayload first = store.Resolve("poly-1").TexturePayload!;
+        TexturePayload second = store.Resolve("poly-2").TexturePayload!;
+        TexturePayload other = store.Resolve("poly-3").TexturePayload!;
+        Assert.Same(first, second);
+        Assert.NotSame(first, other);
     }
 
     [Fact]

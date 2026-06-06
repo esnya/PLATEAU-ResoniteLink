@@ -15,16 +15,44 @@ internal enum ConstructionFaceRole
     OuterFloor,
 }
 
+internal enum SurfaceMaterialTreatment
+{
+    Default = 0,
+    RoadMarking,
+}
+
 // Project-stage geometry role for material and tessellation routing. This is not the input CityGML surface type.
 internal sealed record ConstructionFace(
     ParsedSurface Surface,
-    ConstructionFaceRole Role);
+    ConstructionFaceRole Role,
+    SurfaceMaterialTreatment MaterialTreatment = SurfaceMaterialTreatment.Default);
 
-internal sealed record ConstructionCityObjectDraft(
-    ParsedCityObject Source,
-    ConstructionFace[] Faces,
-    ParsedSurface[] Surfaces)
+internal sealed record ConstructionCityObjectDraft
 {
+    public ConstructionCityObjectDraft(
+        ParsedCityObject source,
+        ConstructionFace[] faces,
+        ConstructionFace[]? facadeUvReferenceFaces = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(faces);
+
+        Faces = faces;
+        Surfaces = faces.Select(static face => face.Surface).ToArray();
+        Source = SameSurfaceReferences(source.Surfaces, Surfaces)
+            ? source
+            : source with { Surfaces = Surfaces };
+        FacadeUvReferenceFaces = facadeUvReferenceFaces ?? faces;
+    }
+
+    public ParsedCityObject Source { get; }
+
+    public ConstructionFace[] Faces { get; }
+
+    public ParsedSurface[] Surfaces { get; }
+
+    public ConstructionFace[] FacadeUvReferenceFaces { get; }
+
     public string SlotKey => Source.SlotKey;
 
     public string DisplayName => Source.DisplayName;
@@ -58,19 +86,29 @@ internal sealed record ConstructionCityObjectDraft(
         ConstructionFace[] faces = cityObject.Surfaces
             .Select(static surface => new ConstructionFace(surface, ResolveRole(surface)))
             .ToArray();
-        return new ConstructionCityObjectDraft(
-            cityObject,
-            faces,
-            cityObject.Surfaces);
+        return new ConstructionCityObjectDraft(cityObject, faces);
+    }
+
+    private static bool SameSurfaceReferences(ParsedSurface[] left, ParsedSurface[] right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < left.Length; index++)
+        {
+            if (!ReferenceEquals(left[index], right[index]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     internal static ConstructionFaceRole ResolveRole(ParsedSurface surface)
     {
-        if (GeneratedLod1RoofSurfaceIdentity.IsGeneratedNoWallSlabPart(surface))
-        {
-            return ConstructionFaceRole.RoofSlab;
-        }
-
         return surface.Semantic switch
         {
             ParsedSurfaceSemantic.Wall => ConstructionFaceRole.Wall,

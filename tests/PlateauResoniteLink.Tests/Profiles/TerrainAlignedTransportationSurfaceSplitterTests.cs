@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -33,7 +32,6 @@ public sealed class TerrainAlignedTransportationSurfaceSplitterTests
         Assert.Equal(4, strips.Count);
         Assert.All(strips, strip =>
         {
-            Assert.StartsWith("road_terrain_", strip.PolygonId, StringComparison.Ordinal);
             Assert.Empty(strip.InteriorRings);
             Assert.Equal(surface.BaseColor, strip.BaseColor);
             Assert.Equal(surface.TexturePayload, strip.TexturePayload);
@@ -72,10 +70,8 @@ public sealed class TerrainAlignedTransportationSurfaceSplitterTests
             new(35.0004, 139.0, 0.0),
         ];
 
-        return new ParsedSurface(
-            polygonId,
-            ParsedSurfaceSemantic.Ground,
-            new ParsedRing($"{polygonId}-ring", vertices, uvs),
+        return new ParsedSurface(ParsedSurfaceSemantic.Ground,
+            new ParsedRing(vertices, uvs),
             InteriorRings: [],
             new ColorRgba(0.2, 0.2, 0.2, 1.0),
             TexturePayload: null);

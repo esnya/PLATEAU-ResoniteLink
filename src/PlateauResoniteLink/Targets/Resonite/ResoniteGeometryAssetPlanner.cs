@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -92,13 +91,7 @@ internal sealed class ResoniteGeometryAssetPlanner(
         ResoniteConstructionCityObject cityObject,
         UploadedTriangleMeshAssetBatch uploadedGeometryBatch)
     {
-        GeometryIdentity identity = new(
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"geometry-{cityObject.PackageName}-{cityObject.SlotKey}-{uploadedGeometryBatch.MeshAssetSlotName}"));
-
         return new PlannedTriangleMeshGeometryAsset(
-            identity,
             uploadedGeometryBatch.MeshAssetSlotName,
             uploadedGeometryBatch.MeshUri);
     }
@@ -107,13 +100,7 @@ internal sealed class ResoniteGeometryAssetPlanner(
         ResoniteConstructionCityObject cityObject,
         UploadedTerrainGridAssetBatch uploadedGeometryBatch)
     {
-        GeometryIdentity identity = new(
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"geometry-{cityObject.PackageName}-{cityObject.SlotKey}-{uploadedGeometryBatch.MeshAssetSlotName}"));
-
         return new PlannedTerrainGridGeometryAsset(
-            identity,
             uploadedGeometryBatch.MeshAssetSlotName,
             uploadedGeometryBatch.TerrainGridAssetSlotName,
             uploadedGeometryBatch.Geometry,
@@ -127,13 +114,7 @@ internal sealed class ResoniteGeometryAssetPlanner(
         UploadedTriangleMeshAssetBatch staticMeshBatch,
         UploadedTerrainGridAssetBatch gridMeshBatch)
     {
-        GeometryIdentity identity = new(
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"geometry-{cityObject.PackageName}-{cityObject.SlotKey}-{staticMeshBatch.MeshAssetSlotName}"));
-
         return new PlannedDynamicTerrainGeometryAsset(
-            identity,
             staticMeshBatch.MeshAssetSlotName,
             staticMeshBatch.MeshUri,
             gridMeshBatch.TerrainGridAssetSlotName,

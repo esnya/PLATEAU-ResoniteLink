@@ -20,7 +20,7 @@ public sealed class TextureImportSourceFactoryTests
             height: 1,
             colorProfile: "sRGB",
             bytes: [255, 255, 255, 255],
-            identity: "raw-with-dimensions");
+            description: "raw-with-dimensions");
 
         RawTexturePayload payload = await TextureImportSourceMaterializer.MaterializeRawAsync(
             source,
@@ -41,7 +41,7 @@ public sealed class TextureImportSourceFactoryTests
                 height: 2,
                 colorProfile: "sRGB",
                 bytes: [255, 255, 255, 255],
-                identity: "raw-with-invalid-byte-length"));
+                description: "raw-with-invalid-byte-length"));
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class TextureImportSourceFactoryTests
                 height: int.MaxValue,
                 colorProfile: "sRGB",
                 bytes: [255, 255, 255, 255],
-                identity: "raw-with-overflow-byte-length"));
+                description: "raw-with-overflow-byte-length"));
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class TextureImportSourceFactoryTests
         ITextureImportSource source = TextureImportSourceFactory.CreateInMemoryEncodedImage(
             colorProfile: "sRGB",
             bytes: stream.ToArray(),
-            identity: "encoded-without-dimensions");
+            description: "encoded-without-dimensions");
 
         RawTexturePayload payload = await TextureImportSourceMaterializer.MaterializeRawAsync(
             source,
@@ -89,7 +89,6 @@ public sealed class TextureImportSourceFactoryTests
                 height: 1,
                 colorProfile: null,
                 bytes: new byte[16])),
-            identity: "hdr",
             description: "hdr",
             colorProfile: null,
             estimatedByteLength: 16);

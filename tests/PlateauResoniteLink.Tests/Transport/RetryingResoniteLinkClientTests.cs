@@ -707,8 +707,6 @@ public sealed class RetryingResoniteLinkClientTests
 
     private sealed class TestGeometryImportSource : IRawGeometryPayloadSource
     {
-        public string Identity => "test-mesh";
-
         public string Description => "test-mesh";
 
         public int VertexCount => 3;
@@ -731,8 +729,6 @@ public sealed class RetryingResoniteLinkClientTests
     private sealed class InstrumentedGeometryImportSource : IRawGeometryPayloadSource
     {
         public int MaterializeCallCount { get; private set; }
-
-        public string Identity => "instrumented-mesh";
 
         public string Description => "instrumented-mesh";
 

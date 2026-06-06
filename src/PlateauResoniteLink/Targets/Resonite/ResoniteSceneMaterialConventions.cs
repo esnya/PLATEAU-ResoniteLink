@@ -137,19 +137,6 @@ internal static class ResoniteSceneMaterialConventions
                 || material.DepthOffset is not null);
     }
 
-    public static TextureIdentity CreateTextureIdentity(PlannedTextureRole role)
-    {
-        return new TextureIdentity(role switch
-        {
-            PlannedTextureRole.Albedo => "albedo",
-            PlannedTextureRole.Normal => "normal",
-            PlannedTextureRole.Height => "height",
-            PlannedTextureRole.Metallic => "metallic",
-            PlannedTextureRole.Emission => "emission",
-            _ => throw new InvalidOperationException($"Planned texture role '{role}' is unsupported."),
-        });
-    }
-
     public static TextureMemberRole ToTextureMemberRole(PlannedTextureRole role)
     {
         return role switch

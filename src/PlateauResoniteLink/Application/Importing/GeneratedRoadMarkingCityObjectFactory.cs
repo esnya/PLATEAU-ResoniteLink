@@ -13,8 +13,8 @@ internal static class GeneratedRoadMarkingCityObjectFactory
 
     private static readonly ColorRgba DefaultMarkingColor = new(1.0, 1.0, 1.0, 1.0);
 
-    internal static ParsedCityObject? Create(
-        ParsedCityObject cityObject,
+    internal static ConstructionCityObjectDraft? Create(
+        ConstructionCityObjectDraft cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
@@ -26,9 +26,11 @@ internal static class GeneratedRoadMarkingCityObjectFactory
             return null;
         }
 
-        List<ParsedSurface> markingSurfaces = [];
-        foreach (ParsedSurface surface in cityObject.Surfaces)
+        List<ConstructionFace> markingFaces = [];
+        for (int faceIndex = 0; faceIndex < cityObject.Faces.Length; faceIndex++)
         {
+            ConstructionFace face = cityObject.Faces[faceIndex];
+            ParsedSurface surface = face.Surface;
             if (surface.TexturePayload is not null)
             {
                 continue;
@@ -43,17 +45,22 @@ internal static class GeneratedRoadMarkingCityObjectFactory
                 continue;
             }
 
-            markingSurfaces.AddRange(generatedSurfaces);
+            markingFaces.AddRange(
+                generatedSurfaces.Select(surface => new ConstructionFace(
+                    surface,
+                    face.Role,
+                    SurfaceMaterialTreatment.RoadMarking)));
         }
 
-        return markingSurfaces.Count == 0
+        return markingFaces.Count == 0
             ? null
-            : cityObject with
-            {
-                SlotKey = $"{cityObject.SlotKey}_road_marking",
-                DisplayName = $"{cityObject.DisplayName} Marking",
-                Surfaces = markingSurfaces.ToArray(),
-            };
+            : new ConstructionCityObjectDraft(
+                cityObject.Source with
+                {
+                    SlotKey = $"{cityObject.SlotKey}_road_marking",
+                    DisplayName = $"{cityObject.DisplayName} Marking",
+                },
+                markingFaces.ToArray());
     }
 
     private static List<ParsedSurface> CreateSurfaces(
@@ -135,10 +142,8 @@ internal static class GeneratedRoadMarkingCityObjectFactory
                 side0Positions,
                 insetDistance);
             segments.Add(new ParsedSurface(
-                $"{surface.PolygonId}_generated_marking_{segmentIndex:D2}",
                 surface.Semantic,
                 new ParsedRing(
-                    $"{surface.ExteriorRing.RingId}_generated_marking_{segmentIndex:D2}",
                     [side0[0], side0[1], side1[1], side1[0]],
                     UVs: null),
                 [],

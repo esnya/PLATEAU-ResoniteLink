@@ -157,13 +157,12 @@ internal static class SceneImportContractMapper
                 raw.Height,
                 raw.ColorProfile,
                 raw.BinaryPayload.AsSpan().ToArray(),
-                raw.Identity),
+                raw.Source.Description),
             EncodedImageTexturePayload encoded => new EncodedImageResoniteTexturePayload(
                 encoded.Width,
                 encoded.Height,
                 encoded.ColorProfile,
-                encoded.Source,
-                encoded.Identity),
+                encoded.Source),
             _ => throw new ArgumentOutOfRangeException(nameof(payload), payload.GetType(), "Unsupported texture payload type."),
         };
     }

@@ -8,7 +8,7 @@ internal readonly record struct TextureUvRect(
     double Width,
     double Height)
 {
-    public static TextureUvRect Identity { get; } = new(0.0, 0.0, 1.0, 1.0);
+    public static TextureUvRect Unit { get; } = new(0.0, 0.0, 1.0, 1.0);
 
     public double MaxU => MinU + Width;
 

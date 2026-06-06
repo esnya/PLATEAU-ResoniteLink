@@ -382,8 +382,6 @@ public sealed class ResoniteLinkClientTests
     {
         public int MaterializeCallCount { get; private set; }
 
-        public string Identity => "instrumented";
-
         public string Description => "instrumented";
 
         public string? ColorProfile => ResoniteTextureColorProfiles.Srgb;
@@ -405,8 +403,6 @@ public sealed class ResoniteLinkClientTests
     private sealed class InstrumentedGeometryImportSource : IRawGeometryPayloadSource
     {
         public int MaterializeCallCount { get; private set; }
-
-        public string Identity => "instrumented-mesh";
 
         public string Description => "instrumented-mesh";
 
