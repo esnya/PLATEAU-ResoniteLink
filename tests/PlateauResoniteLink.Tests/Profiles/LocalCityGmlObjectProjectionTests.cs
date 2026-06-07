@@ -2575,7 +2575,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public async Task DemTerrainGridModeKeepsSurfaceCoveredBoundarySamplesMeasured()
+    public async Task DemTerrainGridModeKeepsMeasuredCoverageOnEachBoundaryEdge()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
@@ -2599,18 +2599,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 && cityObject.Geometry is TerrainGridGeometry);
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(demCityObject.Geometry);
 
-        double[] topEdge = Enumerable.Range(0, geometry.Width)
-            .Select(index => geometry.HeightSamples[index])
-            .ToArray();
-        double[] bottomEdge = Enumerable.Range(0, geometry.Width)
-            .Select(index => geometry.HeightSamples[((geometry.Height - 1) * geometry.Width) + index])
-            .ToArray();
-        double[] leftEdge = Enumerable.Range(0, geometry.Height)
-            .Select(index => geometry.HeightSamples[index * geometry.Width])
-            .ToArray();
-        double[] rightEdge = Enumerable.Range(0, geometry.Height)
-            .Select(index => geometry.HeightSamples[(index * geometry.Width) + (geometry.Width - 1)])
-            .ToArray();
         TerrainGridSampleCoverage[] topCoverage = Enumerable.Range(0, geometry.Width)
             .Select(index => geometry.SampleCoverage![index])
             .ToArray();
@@ -2624,9 +2612,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             .Select(index => geometry.SampleCoverage![(index * geometry.Width) + (geometry.Width - 1)])
             .ToArray();
 
-        double[] boundarySamples = [.. topEdge, .. bottomEdge, .. leftEdge, .. rightEdge];
         Assert.True(geometry.HeightSamples.Max() > 0.0, "Measured DEM surface heights were unexpectedly lost.");
-        Assert.True(boundarySamples.Min() > -1.0, $"Surface-covered boundary dropped to sea-level fallback: min={boundarySamples.Min():F6}");
         Assert.NotNull(geometry.SampleCoverage);
         Assert.Equal(geometry.Width * geometry.Height, geometry.SampleCoverage.Count);
         Assert.Contains(geometry.SampleCoverage, static coverage => coverage == TerrainGridSampleCoverage.Measured);

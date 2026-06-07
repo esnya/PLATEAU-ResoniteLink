@@ -35,16 +35,18 @@ public sealed class CityGmlDemTerrainGridSamplerTests
 
         Assert.Equal(3, samples.Width);
         Assert.Equal(3, samples.Height);
-        Assert.Equal(15.0, samples.LocalHeights[0], precision: 6);
-        Assert.Equal(18.333333, samples.LocalHeights[1], precision: 6);
-        Assert.Equal(21.666667, samples.LocalHeights[2], precision: 6);
-        Assert.Equal(21.666667, samples.LocalHeights[3], precision: 6);
-        Assert.Equal(28.333333, samples.LocalHeights[6], precision: 6);
+        Assert.Equal(10.0, samples.LocalHeights[0], precision: 6);
+        Assert.Equal(15.0, samples.LocalHeights[1], precision: 6);
+        Assert.Equal(20.0, samples.LocalHeights[2], precision: 6);
+        Assert.Equal(20.0, samples.LocalHeights[3], precision: 6);
+        Assert.Equal(25.0, samples.LocalHeights[4], precision: 6);
+        Assert.Equal(30.0, samples.LocalHeights[6], precision: 6);
+        Assert.Equal(40.0, samples.LocalHeights[8], precision: 6);
         Assert.All(samples.SampleCoverage, static coverage => Assert.Equal(TerrainGridSampleCoverage.Measured, coverage));
     }
 
     [Fact]
-    public void SampleUsesTexelCentersForSurfaceCoveredEdges()
+    public void SampleUsesGridVerticesForSurfaceCoveredEdges()
     {
         TerrainGridTriangle[] triangles =
         [
@@ -68,11 +70,11 @@ public sealed class CityGmlDemTerrainGridSamplerTests
             fallbackHeight: -100.0,
             triangles);
 
-        Assert.Equal(15.0, samples.LocalHeights[0], precision: 6);
-        Assert.Equal(21.666667, samples.LocalHeights[2], precision: 6);
+        Assert.Equal(10.0, samples.LocalHeights[0], precision: 6);
+        Assert.Equal(20.0, samples.LocalHeights[2], precision: 6);
         Assert.Equal(25.0, samples.LocalHeights[4], precision: 6);
-        Assert.Equal(28.333333, samples.LocalHeights[6], precision: 6);
-        Assert.Equal(35.0, samples.LocalHeights[8], precision: 6);
+        Assert.Equal(30.0, samples.LocalHeights[6], precision: 6);
+        Assert.Equal(40.0, samples.LocalHeights[8], precision: 6);
         Assert.DoesNotContain(samples.LocalHeights, sample => Math.Abs(sample - -100.0) <= 1e-6);
         Assert.All(samples.SampleCoverage, static coverage => Assert.Equal(TerrainGridSampleCoverage.Measured, coverage));
     }
@@ -98,7 +100,7 @@ public sealed class CityGmlDemTerrainGridSamplerTests
             fallbackHeight: -100.0,
             triangles);
 
-        Assert.Equal(15.0, samples.LocalHeights[0], precision: 6);
+        Assert.Equal(10.0, samples.LocalHeights[0], precision: 6);
         Assert.Equal(25.0, samples.LocalHeights[4], precision: 6);
         Assert.Equal(-100.0, samples.LocalHeights[5], precision: 6);
         Assert.Equal(-100.0, samples.LocalHeights[7], precision: 6);
