@@ -9,18 +9,16 @@ using Microsoft.Extensions.Logging;
 using PlateauResoniteLink.Diagnostics;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteQueuedTexturePreparer(
-    ITerrainTextureAssetGenerator terrainTextureAssetGenerator,
-    Execution.IResoniteDatasetLicenseWriter datasetLicenseWriter)
+    ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
 {
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator =
         terrainTextureAssetGenerator ?? throw new ArgumentNullException(nameof(terrainTextureAssetGenerator));
-    private readonly Execution.IResoniteDatasetLicenseWriter datasetLicenseWriter =
-        datasetLicenseWriter ?? throw new ArgumentNullException(nameof(datasetLicenseWriter));
 
     public async Task<PreparedTextureReference[]> PrepareAsync(
         LiveSendRunState state,
@@ -117,7 +115,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
             .ToArray();
     }
 
-    private async Task EnsureGsiFallbackLicenseAsync(
+    private static async Task EnsureGsiFallbackLicenseAsync(
         LiveSendRunState state,
         IResoniteLinkClient routedClient,
         CancellationToken cancellationToken)
@@ -135,7 +133,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
                 return;
             }
 
-            await datasetLicenseWriter.EnsureGsiFallbackLicenseAsync(
+            await ResoniteDatasetLicenseWriter.EnsureGsiFallbackLicenseAsync(
                 routedClient,
                 state.Context.DatasetRootSlot,
                 cancellationToken);
