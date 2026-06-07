@@ -22,8 +22,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null,
-            UsesGeneratedDemTexture: true);
+            TexturePayload: null);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
@@ -60,8 +59,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null,
-            UsesGeneratedDemTexture: true);
+            TexturePayload: null);
         TerrainTextureOverlay[] overlays =
         [
             new(
@@ -102,8 +100,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null,
-            UsesGeneratedDemTexture: true);
+            TexturePayload: null);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
@@ -138,8 +135,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null,
-            UsesGeneratedDemTexture: true);
+            TexturePayload: null);
         TerrainTextureOverlay[] overlays =
         [
             new(
@@ -188,8 +184,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 ]),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null,
-            UsesGeneratedDemTexture: true);
+            TexturePayload: null);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
@@ -230,8 +225,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null,
-            UsesGeneratedDemTexture: true);
+            TexturePayload: null);
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),

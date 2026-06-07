@@ -46,15 +46,15 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
                 requestedMeshCodeBounds)
             .ToArray();
 
-        ParsedSurface[] generatedTerrainSurfaces = results
-            .SelectMany(static result => result.CityObject.Surfaces)
-            .Where(static surface => surface.UsesGeneratedDemTexture)
+        ConstructionFace[] terrainMaterialFaces = results
+            .SelectMany(static result => result.CityObject.Faces)
+            .Where(static face => face.MaterialTreatment == SurfaceMaterialTreatment.TerrainOverlayMaterialSource)
             .ToArray();
-        Assert.Equal(3, generatedTerrainSurfaces.Length);
+        Assert.Equal(3, terrainMaterialFaces.Length);
         Assert.Contains(
-            generatedTerrainSurfaces,
-            surface => surface.Semantic == top.Semantic
-                && surface.ExteriorRing.Vertices.SequenceEqual(top.ExteriorRing.Vertices));
+            terrainMaterialFaces,
+            face => face.Surface.Semantic == top.Semantic
+                && face.Surface.ExteriorRing.Vertices.SequenceEqual(top.ExteriorRing.Vertices));
 
         ConstructionFace[] roofSlabFaces = results
             .SelectMany(static result => result.CityObject.Faces)
@@ -63,7 +63,7 @@ public sealed class TerrainOverlayMaterialSourcePartitionerTests
         Assert.Equal(3, roofSlabFaces.Length);
         Assert.All(roofSlabFaces, static face =>
         {
-            Assert.True(face.Surface.UsesGeneratedDemTexture);
+            Assert.Equal(SurfaceMaterialTreatment.TerrainOverlayMaterialSource, face.MaterialTreatment);
             Assert.Equal(ConstructionFaceRole.RoofSlab, face.Role);
         });
         ConstructionFace noWallSide = Assert.Single(roofSlabFaces, static face => face.Surface.Semantic == ParsedSurfaceSemantic.Wall);

@@ -9,38 +9,7 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class DemTerrainOverlayAssignmentTests
 {
     [Fact]
-    public void SplitParsedCityObjectCollapsesCentimeterClassBoundarySliverToDominantClippedOverlay()
-    {
-        const double boundaryLongitude = 139.0100;
-        ParsedSurface surface = CreateGeneratedSurface(
-            "dem-sliver",
-            [
-                new GeodeticPoint(35.0000, 139.0000, 0.0),
-                new GeodeticPoint(35.0100, 139.0000, 1.0),
-                new GeodeticPoint(35.0100, boundaryLongitude + 0.0000005, 2.0),
-            ]);
-        ParsedCityObject cityObject = CreateCityObject(surface);
-        TerrainTextureOverlay[] overlays =
-        [
-            CreateOverlay(139.0000, boundaryLongitude),
-            CreateOverlay(boundaryLongitude, 139.0200),
-        ];
-
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
-            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
-
-        (ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
-        Assert.NotNull(overlay);
-        Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
-        Assert.Equal(boundaryLongitude, overlay.GeographicBounds.MaxLongitude, 6);
-        Assert.True(Assert.Single(splitCityObject.Surfaces).UsesGeneratedDemTexture);
-        GeographicRectangle bounds = GetSurfaceBounds(Assert.Single(splitCityObject.Surfaces));
-        Assert.Equal(139.0000, bounds.MinLongitude, 6);
-        Assert.Equal(boundaryLongitude, bounds.MaxLongitude, 6);
-    }
-
-    [Fact]
-    public void SplitParsedCityObjectKeepsMeaningfulBoundarySplit()
+    public void SplitParsedCityObjectKeepsOneDemObjectAcrossOverlayBoundary()
     {
         const double boundaryLongitude = 139.0100;
         ParsedSurface surface = CreateGeneratedSurface(
@@ -60,36 +29,45 @@ public sealed class DemTerrainOverlayAssignmentTests
         (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
-        Assert.Equal(2, results.Length);
-        Assert.All(results, static result => Assert.Single(result.CityObject.Surfaces));
+        (ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
+        Assert.NotNull(overlay);
+        Assert.Equal(cityObject.SlotKey, splitCityObject.SlotKey);
+        Assert.Equal(cityObject.DisplayName, splitCityObject.DisplayName);
+        GeographicRectangle bounds = GetSurfaceBounds(Assert.Single(splitCityObject.Surfaces));
+        Assert.Equal(139.0000, bounds.MinLongitude, 6);
+        Assert.Equal(139.0120, bounds.MaxLongitude, 6);
     }
 
     [Fact]
-    public void SplitParsedCityObjectPrunesBoundarySliverOverlayGroupAcrossSurfaces()
+    public void SplitParsedCityObjectKeepsDemWithinActualThirdMesh()
     {
-        const double boundaryLongitude = 139.0100;
-        ParsedSurface dominantSurface = CreateGeneratedSurface(
-            "dem-dominant",
+        ThirdRegionalMeshCode meshCode = ThirdRegionalMeshCode.Parse("53394525");
+        JisRegionalMeshBounds bounds = meshCode.Bounds;
+        double overrunLongitude = (bounds.EastLongitude - bounds.WestLongitude) * 0.10;
+        ParsedSurface surface = CreateGeneratedSurface(
+            "dem-crosses-third-mesh-boundary",
             [
-                new GeodeticPoint(35.0000, 139.0000, 0.0),
-                new GeodeticPoint(35.0100, 139.0000, 1.0),
-                new GeodeticPoint(35.0100, boundaryLongitude, 2.0),
+                new GeodeticPoint(bounds.SouthLatitude, bounds.WestLongitude, 0.0),
+                new GeodeticPoint(bounds.NorthLatitude, bounds.WestLongitude, 1.0),
+                new GeodeticPoint(bounds.NorthLatitude, bounds.EastLongitude + overrunLongitude, 2.0),
             ]);
-        ParsedSurface sliverSurface = CreateGeneratedSurface(
-            "dem-sliver-group",
-            [
-                new GeodeticPoint(35.0000, boundaryLongitude, 0.0),
-                new GeodeticPoint(35.0100, boundaryLongitude, 1.0),
-                new GeodeticPoint(35.0100, boundaryLongitude + 0.0000005, 2.0),
-            ]);
-        ParsedCityObject cityObject = CreateCityObject(dominantSurface) with
+        ParsedCityObject cityObject = CreateCityObject(surface) with
         {
-            Surfaces = [dominantSurface, sliverSurface],
+            ActualMeshCode = meshCode.Value,
+            SharedAcrossMeshCodes = true,
         };
         TerrainTextureOverlay[] overlays =
         [
-            CreateOverlay(139.0000, boundaryLongitude),
-            CreateOverlay(boundaryLongitude, 139.0200),
+            CreateOverlay(meshCode, new GeographicRectangle(
+                bounds.SouthLatitude,
+                bounds.NorthLatitude,
+                bounds.WestLongitude,
+                bounds.EastLongitude)),
+            CreateOverlay(ThirdRegionalMeshCode.Parse("53394526"), new GeographicRectangle(
+                bounds.SouthLatitude,
+                bounds.NorthLatitude,
+                bounds.EastLongitude,
+                bounds.EastLongitude + overrunLongitude)),
         ];
 
         (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
@@ -97,13 +75,17 @@ public sealed class DemTerrainOverlayAssignmentTests
 
         (ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
         Assert.NotNull(overlay);
-        Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
-        Assert.Equal(boundaryLongitude, overlay.GeographicBounds.MaxLongitude, 6);
-        Assert.True(GetSurfaceBounds(Assert.Single(splitCityObject.Surfaces)).MinLongitude < boundaryLongitude);
+        Assert.Equal(meshCode, overlay.MeshCode);
+        Assert.Equal(cityObject.SlotKey, splitCityObject.SlotKey);
+        Assert.Equal(cityObject.DisplayName, splitCityObject.DisplayName);
+        Assert.Equal(meshCode.Value, splitCityObject.ActualMeshCode);
+        Assert.All(
+            splitCityObject.Surfaces,
+            clippedSurface => Assert.True(GetSurfaceBounds(clippedSurface).MaxLongitude <= bounds.EastLongitude + 1e-9));
     }
 
     [Fact]
-    public void SplitParsedCityObjectKeepsSmallCompactOverlayGroupAcrossSurfaces()
+    public void SplitParsedCityObjectKeepsOneDemObjectForMultipleGeneratedSurfacesAcrossOverlays()
     {
         const double boundaryLongitude = 139.0100;
         ParsedSurface dominantSurface = CreateGeneratedSurface(
@@ -114,7 +96,7 @@ public sealed class DemTerrainOverlayAssignmentTests
                 new GeodeticPoint(35.0100, boundaryLongitude, 2.0),
             ]);
         ParsedSurface compactSurface = CreateGeneratedSurface(
-            "dem-small-compact",
+            "dem-mixed-compact",
             [
                 new GeodeticPoint(35.00000, boundaryLongitude + 0.00020, 0.0),
                 new GeodeticPoint(35.00001, boundaryLongitude + 0.00020, 1.0),
@@ -133,56 +115,40 @@ public sealed class DemTerrainOverlayAssignmentTests
         (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
-        Assert.Equal(2, results.Length);
-        Assert.Contains(
-            results,
-            result => GetSurfaceBounds(Assert.Single(result.CityObject.Surfaces)).MinLongitude > boundaryLongitude + 0.00010);
+        (ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
+        Assert.NotNull(overlay);
+        Assert.Equal(cityObject.SlotKey, splitCityObject.SlotKey);
+        Assert.Equal(cityObject.DisplayName, splitCityObject.DisplayName);
+        Assert.Equal(2, splitCityObject.Surfaces.Length);
+        Assert.Contains(splitCityObject.Surfaces, surface => GetSurfaceBounds(surface).MaxLongitude <= boundaryLongitude + 1e-9);
+        Assert.Contains(splitCityObject.Surfaces, surface => GetSurfaceBounds(surface).MinLongitude > boundaryLongitude + 0.00010);
     }
 
     [Fact]
-    public void SplitParsedCityObjectKeepsCompactSurfaceWhenMixedWithSliverInSmallOverlayGroup()
+    public void SplitParsedCityObjectKeepsDemOverlayWhenTextureSourcesAreEmpty()
     {
-        const double boundaryLongitude = 139.0100;
-        ParsedSurface dominantSurface = CreateGeneratedSurface(
-            "dem-dominant",
+        ParsedSurface surface = CreateGeneratedSurface(
+            "dem-source-less-overlay",
             [
                 new GeodeticPoint(35.0000, 139.0000, 0.0),
                 new GeodeticPoint(35.0100, 139.0000, 1.0),
-                new GeodeticPoint(35.0100, boundaryLongitude, 2.0),
+                new GeodeticPoint(35.0100, 139.0100, 2.0),
             ]);
-        ParsedSurface sliverSurface = CreateGeneratedSurface(
-            "dem-mixed-sliver",
-            [
-                new GeodeticPoint(35.00000, boundaryLongitude + 0.0000010, 0.0),
-                new GeodeticPoint(35.01000, boundaryLongitude + 0.0000010, 1.0),
-                new GeodeticPoint(35.01000, boundaryLongitude + 0.0000015, 2.0),
-            ]);
-        ParsedSurface compactSurface = CreateGeneratedSurface(
-            "dem-mixed-compact",
-            [
-                new GeodeticPoint(35.00000, boundaryLongitude + 0.00020, 0.0),
-                new GeodeticPoint(35.00001, boundaryLongitude + 0.00020, 1.0),
-                new GeodeticPoint(35.00001, boundaryLongitude + 0.00021, 2.0),
-            ]);
-        ParsedCityObject cityObject = CreateCityObject(dominantSurface) with
-        {
-            Surfaces = [dominantSurface, sliverSurface, compactSurface],
-        };
-        TerrainTextureOverlay[] overlays =
-        [
-            CreateOverlay(139.0000, boundaryLongitude),
-            CreateOverlay(boundaryLongitude, 139.0200),
-        ];
+        ParsedCityObject cityObject = CreateCityObject(surface);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
+            GeographicBounds: new GeographicRectangle(35.0000, 35.0200, 139.0000, 139.0200),
+            MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize,
+            Sources: []);
 
-        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
-            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
+        (ParsedCityObject splitCityObject, TerrainTextureOverlay? assignedOverlay) =
+            Assert.Single(DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, [overlay]));
 
-        Assert.Equal(2, results.Length);
-        ParsedCityObject mixedOverlayObject = Assert.Single(
-            results.Select(static result => result.CityObject),
-            cityObject => cityObject.Surfaces.Any(surface => GetSurfaceBounds(surface).MinLongitude > boundaryLongitude + 0.00010));
-        Assert.Contains(mixedOverlayObject.Surfaces, surface => GetSurfaceBounds(surface).MaxLongitude < boundaryLongitude + 0.00001);
-        Assert.Contains(mixedOverlayObject.Surfaces, surface => GetSurfaceBounds(surface).MinLongitude > boundaryLongitude + 0.00010);
+        Assert.Same(overlay, assignedOverlay);
+        Assert.Equal(cityObject.SlotKey, splitCityObject.SlotKey);
+        Assert.Equal(cityObject.DisplayName, splitCityObject.DisplayName);
+        Assert.Single(splitCityObject.Surfaces);
     }
 
     [Fact]
@@ -326,14 +292,47 @@ public sealed class DemTerrainOverlayAssignmentTests
     }
 
     [Fact]
+    public void SplitParsedCityObjectSkipsSharedDemWhenRequestedMeshExcludesActualThirdMesh()
+    {
+        JisRegionalMeshBounds meshBounds = ThirdRegionalMeshCode.Parse("53394525").Bounds;
+        ParsedSurface surface = CreateGeneratedSurface(
+            "dem-shared-outside-request",
+            [
+                new GeodeticPoint(meshBounds.SouthLatitude, meshBounds.WestLongitude, 0.0),
+                new GeodeticPoint(meshBounds.NorthLatitude, meshBounds.WestLongitude, 1.0),
+                new GeodeticPoint(meshBounds.NorthLatitude, meshBounds.EastLongitude, 2.0),
+            ]);
+        ParsedCityObject cityObject = CreateCityObject(surface) with
+        {
+            SharedAcrossMeshCodes = true,
+        };
+        JisRegionalMeshBounds requestedMeshBounds = ThirdRegionalMeshCode.Parse("53394526").Bounds;
+        MeshCodeBounds[] requestedMeshCodeBounds =
+        [
+            new(
+                requestedMeshBounds.SouthLatitude,
+                requestedMeshBounds.NorthLatitude,
+                requestedMeshBounds.WestLongitude,
+                requestedMeshBounds.EastLongitude),
+        ];
+
+        (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, [], requestedMeshCodeBounds).ToArray();
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
     public void SplitParsedCityObjectClipsSharedDemToRequestedMeshEvenWhenNoOverlaysExist()
     {
+        JisRegionalMeshBounds meshBounds = ThirdRegionalMeshCode.Parse("53394525").Bounds;
+        double midpointLongitude = (meshBounds.WestLongitude + meshBounds.EastLongitude) / 2.0;
         ParsedSurface surface = CreateGeneratedSurface(
             "dem-parent",
             [
-                new GeodeticPoint(35.0000, 139.0000, 0.0),
-                new GeodeticPoint(35.0100, 139.0000, 1.0),
-                new GeodeticPoint(35.0100, 139.0200, 2.0),
+                new GeodeticPoint(meshBounds.SouthLatitude, meshBounds.WestLongitude, 0.0),
+                new GeodeticPoint(meshBounds.NorthLatitude, meshBounds.WestLongitude, 1.0),
+                new GeodeticPoint(meshBounds.NorthLatitude, meshBounds.EastLongitude, 2.0),
             ]);
         ParsedCityObject cityObject = CreateCityObject(surface) with
         {
@@ -341,7 +340,7 @@ public sealed class DemTerrainOverlayAssignmentTests
         };
         MeshCodeBounds[] requestedMeshCodeBounds =
         [
-            new(35.0000, 35.0200, 139.0000, 139.0100),
+            new(meshBounds.SouthLatitude, meshBounds.NorthLatitude, meshBounds.WestLongitude, midpointLongitude),
         ];
 
         (ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
@@ -350,7 +349,7 @@ public sealed class DemTerrainOverlayAssignmentTests
         (ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
         Assert.Null(overlay);
         GeographicRectangle bounds = GetSurfaceBounds(Assert.Single(splitCityObject.Surfaces));
-        Assert.True(bounds.MaxLongitude <= 139.0100 + 1e-9);
+        Assert.True(bounds.MaxLongitude <= midpointLongitude + 1e-9);
     }
 
     [Fact]
@@ -435,8 +434,7 @@ public sealed class DemTerrainOverlayAssignmentTests
             ExteriorRing: new ParsedRing(vertices, UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null,
-            UsesGeneratedDemTexture: true);
+            TexturePayload: null);
     }
 
     private static TerrainTextureOverlay CreateOverlay(double westLongitude, double eastLongitude)
@@ -445,6 +443,18 @@ public sealed class DemTerrainOverlayAssignmentTests
             PackageName: "dem",
             MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
             GeographicBounds: new GeographicRectangle(35.0000, 35.0200, westLongitude, eastLongitude),
+            MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize,
+            Sources: [new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 18)]);
+    }
+
+    private static TerrainTextureOverlay CreateOverlay(
+        ThirdRegionalMeshCode meshCode,
+        GeographicRectangle geographicBounds)
+    {
+        return new TerrainTextureOverlay(
+            PackageName: "dem",
+            MeshCode: meshCode,
+            GeographicBounds: geographicBounds,
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize,
             Sources: [new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 18)]);
     }

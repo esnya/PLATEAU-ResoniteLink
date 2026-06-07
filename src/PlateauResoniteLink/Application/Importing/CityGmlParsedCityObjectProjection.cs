@@ -37,7 +37,8 @@ internal static class CityGmlParsedCityObjectProjection
         ParsedCityObject[] projectedInputCityObjects =
             DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
                 sourceFile.SourceFile,
-                sourceFile.CityObjects);
+                sourceFile.CityObjects,
+                ResolveSelectedMeshCodes(request));
 
         foreach (ParsedCityObject parsedCityObject in projectedInputCityObjects)
         {
@@ -62,6 +63,14 @@ internal static class CityGmlParsedCityObjectProjection
                 yield return cityObject;
             }
         }
+    }
+
+    private static IReadOnlyList<string> ResolveSelectedMeshCodes(
+        PlateauImportRequest request)
+    {
+        return MeshCodeRequestSyntax.IsLiteralMeshCodeRequest(request.MeshCode)
+            ? [request.MeshCode]
+            : [];
     }
 
     internal static IEnumerable<ImportedCityObject> Project(

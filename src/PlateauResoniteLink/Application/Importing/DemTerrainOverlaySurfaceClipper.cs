@@ -128,7 +128,6 @@ internal static class DemTerrainOverlaySurfaceClipper
                     ExteriorRing = new ParsedRing(
                         vertices,
                         uvs),
-                    UsesGeneratedDemTexture = surface.UsesGeneratedDemTexture,
                 });
             }
         }

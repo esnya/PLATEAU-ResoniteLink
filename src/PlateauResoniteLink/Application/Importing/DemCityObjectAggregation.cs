@@ -9,7 +9,8 @@ internal static class DemCityObjectAggregation
 {
     public static ParsedCityObject[] AggregateBySourceFileAndThirdMesh(
         SourceFileDescriptor sourceFile,
-        IEnumerable<ParsedCityObject> cityObjects)
+        IEnumerable<ParsedCityObject> cityObjects,
+        IReadOnlyList<string>? selectedMeshCodes = null)
     {
         ArgumentNullException.ThrowIfNull(sourceFile);
         ArgumentNullException.ThrowIfNull(cityObjects);
@@ -21,13 +22,15 @@ internal static class DemCityObjectAggregation
         }
 
         return objects
-            .GroupBy(cityObject => new DemCityObjectKey(
-                cityObject.SourceFileRelativePath,
-                ResolveThirdMeshCode(cityObject, sourceFile)),
+            .SelectMany(cityObject => ResolveThirdMeshCodes(cityObject, sourceFile, selectedMeshCodes)
+                .Select(thirdMeshCode => new DemCityObjectEntry(cityObject, thirdMeshCode)))
+            .GroupBy(entry => new DemCityObjectKey(
+                entry.CityObject.SourceFileRelativePath,
+                entry.ThirdMeshCode),
                 DemCityObjectKeyComparer.Instance)
             .OrderBy(static group => group.Key.SourceFileRelativePath, StringComparer.Ordinal)
             .ThenBy(static group => group.Key.ThirdMeshCode, StringComparer.Ordinal)
-            .Select(static group => AggregateGroup(group.Key, group))
+            .Select(static group => AggregateGroup(group.Key, group.Select(static entry => entry.CityObject)))
             .Where(static cityObject => cityObject.Surfaces.Length > 0)
             .ToArray();
     }
@@ -66,21 +69,48 @@ internal static class DemCityObjectAggregation
         };
     }
 
-    private static string ResolveThirdMeshCode(
+    private static string[] ResolveThirdMeshCodes(
         ParsedCityObject cityObject,
-        SourceFileDescriptor sourceFile)
+        SourceFileDescriptor sourceFile,
+        IReadOnlyList<string>? selectedMeshCodes)
     {
         if (TryNormalizeThirdMeshCode(cityObject.ActualMeshCode, out string? actualMeshCode))
         {
-            return actualMeshCode!;
+            return [actualMeshCode!];
         }
 
         if (TryNormalizeThirdMeshCode(sourceFile.MatchedMeshCode, out string? matchedMeshCode))
         {
-            return matchedMeshCode!;
+            return [matchedMeshCode!];
         }
 
-        return cityObject.ActualMeshCode;
+        string[] selectedThirdMeshCodes = ResolveSelectedThirdMeshCodes(sourceFile, selectedMeshCodes);
+        if (selectedThirdMeshCodes.Length > 0)
+        {
+            return selectedThirdMeshCodes;
+        }
+
+        return [cityObject.ActualMeshCode];
+    }
+
+    private static string[] ResolveSelectedThirdMeshCodes(
+        SourceFileDescriptor sourceFile,
+        IReadOnlyList<string>? selectedMeshCodes)
+    {
+        if (!sourceFile.RequiresMeshCodeBoundsFilter
+            || selectedMeshCodes is null
+            || sourceFile.MatchedMeshCode.Length != 6)
+        {
+            return [];
+        }
+
+        return selectedMeshCodes
+            .Where(meshCode => meshCode.Length >= 8
+                && meshCode.StartsWith(sourceFile.MatchedMeshCode, StringComparison.Ordinal))
+            .Select(static meshCode => meshCode[..8])
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static bool TryNormalizeThirdMeshCode(string value, out string? meshCode)
@@ -117,6 +147,10 @@ internal static class DemCityObjectAggregation
 
     private sealed record DemCityObjectKey(
         string SourceFileRelativePath,
+        string ThirdMeshCode);
+
+    private sealed record DemCityObjectEntry(
+        ParsedCityObject CityObject,
         string ThirdMeshCode);
 
     private sealed class DemCityObjectKeyComparer : IEqualityComparer<DemCityObjectKey>

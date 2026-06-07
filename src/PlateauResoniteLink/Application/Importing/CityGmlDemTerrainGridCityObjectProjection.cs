@@ -195,7 +195,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
                 cityObjectCartesian,
                 demTerrainTextureOverlay,
                 materialResolver)
-            .FirstOrDefault(static resolvedSurface => resolvedSurface.Surface.UsesGeneratedDemTexture);
+            .FirstOrDefault(static resolvedSurface => resolvedSurface.Material.TerrainOverlay is not null);
         if (representativeSurface is null)
         {
             return null;

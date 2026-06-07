@@ -60,12 +60,6 @@ internal sealed class ParsedSurfaceStructuralComparer : IComparer<ParsedSurface>
             return result;
         }
 
-        result = left.UsesGeneratedDemTexture.CompareTo(right.UsesGeneratedDemTexture);
-        if (result != 0)
-        {
-            return result;
-        }
-
         return (left.TexturePayload is not null).CompareTo(right.TexturePayload is not null);
     }
 

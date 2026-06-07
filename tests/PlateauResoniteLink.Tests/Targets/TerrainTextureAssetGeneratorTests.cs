@@ -41,19 +41,19 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
-    public void GeneratedTerrainTextureRequiresTrackedSources()
+    public void GeneratedTerrainTextureAllowsNoTrackedSources()
     {
-        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
-            new GeneratedTerrainTexture(
-                TextureImportSourceTestFactory.CreateRawTextureSource(
-                    1,
-                    1,
-                    ResoniteTextureColorProfiles.Srgb,
-                    [255, 255, 255, 255]),
-                TextureUvRect.Unit,
-                []));
+        GeneratedTerrainTexture texture = new(
+            TextureImportSourceTestFactory.CreateRawTextureSource(
+                1,
+                1,
+                ResoniteTextureColorProfiles.Srgb,
+                [255, 255, 255, 255]),
+            TextureUvRect.Unit,
+            []);
 
-        Assert.Contains("at least one source", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(texture.UsedSources);
+        Assert.Throws<InvalidOperationException>(() => texture.UsedSource);
     }
 
     [Fact]
@@ -110,6 +110,23 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
+    public void TerrainTextureOverlayAllowsNoSources()
+    {
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53395325"),
+            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            MaxTextureSize: 512,
+            Sources: []);
+
+        Assert.Empty(overlay.Sources);
+        Assert.Empty(overlay.EnumerateTileSources());
+        Assert.Empty(overlay.EnumerateGeoReferencedRasterSources());
+        Assert.Equal("<none>", overlay.SourceDescription);
+        Assert.Throws<InvalidOperationException>(() => overlay.PrimarySource);
+    }
+
+    [Fact]
     public void GeneratedTerrainTextureDerivesIdentityFromFirstTrackedSourceAndExposesReadOnlyState()
     {
         TerrainTextureTileSource usedSource = new("https://used.example/{z}/{x}/{y}.png", 17);
@@ -129,6 +146,31 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.Equal(usedSource, texture.UsedSource);
         Assert.Equal([usedSource, otherSource], texture.UsedSources);
         Assert.IsNotType<TerrainTextureSource[]>(texture.UsedSources);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncCreatesDefaultGroundTextureWhenSourcesAreEmpty()
+    {
+        TerrainTextureAssetGenerator generator = new(disablePersistentCache: true);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 0.0,
+                MaxLatitude: WebMercatorTileMath.MaxLatitude,
+                MinLongitude: -180.0,
+                MaxLongitude: 180.0),
+            MaxTextureSize: 4096,
+            Sources: []);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Empty(texture.UsedSources);
+        Assert.True(texture.OccupiedUvRect.IsIdentity);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
+        Assert.Equal(1, image.Width);
+        Assert.Equal(1, image.Height);
+        AssertColor(image[0, 0], 181, 176, 166);
     }
 
     [Fact]

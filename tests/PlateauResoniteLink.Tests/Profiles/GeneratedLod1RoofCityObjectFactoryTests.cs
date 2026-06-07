@@ -432,24 +432,6 @@ public sealed class GeneratedLod1RoofCityObjectFactoryTests
     }
 
     [Fact]
-    public void CreateLeavesNoWallTerrainOverlayMaterialPartitionBeforeRegeneratingSlabParts()
-    {
-        ParsedSurface terrainRoof = CreateSurface("lod2-terrain-roof", ParsedSurfaceSemantic.Roof, altitude: 10.0) with
-        {
-            UsesGeneratedDemTexture = true,
-        };
-        ParsedCityObject cityObject = CreateCityObject(
-            [terrainRoof],
-            CoordinateReferenceSystem.Parse("EPSG:6697"),
-            BuildingAttributeContext.Empty with { CityGmlClassCodes = ["3003"] },
-            lodLevel: 2);
-
-        ParsedCityObject generated = CreateGeneratedCityObject(cityObject);
-
-        Assert.Same(cityObject, generated);
-    }
-
-    [Fact]
     public void CreateLeavesLod2NoWallBuildingWithoutRoofSurfacesUnchanged()
     {
         ParsedCityObject cityObject = CreateCityObject(

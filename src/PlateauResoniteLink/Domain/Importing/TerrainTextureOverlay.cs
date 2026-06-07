@@ -201,7 +201,9 @@ public sealed record TerrainTextureOverlay
 
     public TerrainTextureLicenseMode LicenseMode { get; init; }
 
-    public TerrainTextureSource PrimarySource => Sources[0];
+    public TerrainTextureSource PrimarySource => Sources.Count == 0
+        ? throw new InvalidOperationException("Terrain texture overlay has no texture sources.")
+        : Sources[0];
 
     public TerrainTextureSource? FallbackSource => Sources.Count > 1 ? Sources[1] : null;
 
@@ -213,8 +215,9 @@ public sealed record TerrainTextureOverlay
 
     public int? FallbackZoomLevel => GetFallbackTileSource()?.ZoomLevel;
 
-    public string SourceDescription =>
-        string.Join(", ", Sources.Select(static source => source.Description));
+    public string SourceDescription => Sources.Count == 0
+        ? "<none>"
+        : string.Join(", ", Sources.Select(static source => source.Description));
 
     public TerrainTextureTileSource GetRequiredPrimaryTileSource() => GetRequiredTileSource(PrimarySource);
 
@@ -265,11 +268,6 @@ public sealed record TerrainTextureOverlay
         IReadOnlyList<TerrainTextureSource> sources)
     {
         ArgumentNullException.ThrowIfNull(sources);
-
-        if (sources.Count == 0)
-        {
-            throw new ArgumentException("At least one terrain texture source must be provided.", nameof(sources));
-        }
 
         TerrainTextureSource[] snapshot = new TerrainTextureSource[sources.Count];
         for (int index = 0; index < sources.Count; index++)

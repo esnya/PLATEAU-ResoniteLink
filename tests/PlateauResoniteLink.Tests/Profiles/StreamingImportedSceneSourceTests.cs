@@ -795,8 +795,7 @@ public sealed class StreamingImportedSceneSourceTests
                         UVs: null),
                     InteriorRings: [],
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-                    TexturePayload: null,
-                    UsesGeneratedDemTexture: true),
+                    TexturePayload: null),
             ]
             : [];
 
@@ -836,8 +835,7 @@ public sealed class StreamingImportedSceneSourceTests
                         UVs: null),
                     InteriorRings: [],
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-                    TexturePayload: null,
-                    UsesGeneratedDemTexture: true),
+                    TexturePayload: null),
             ],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
@@ -872,8 +870,7 @@ public sealed class StreamingImportedSceneSourceTests
                         ]),
                     InteriorRings: [],
                     BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-                    TexturePayload: null,
-                    UsesGeneratedDemTexture: false),
+                    TexturePayload: null),
             ],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,

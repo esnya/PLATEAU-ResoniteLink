@@ -252,7 +252,8 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             ParsedCityObject[] aggregatedDemCityObjects =
                 DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
                     demProjectionSource.SourceFile,
-                    demProjectionSource.CityObjects);
+                    demProjectionSource.CityObjects,
+                    Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode]);
             foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
                          new CachedSourceFileDescriptor(
                              demProjectionSource.SourceFile,
