@@ -82,7 +82,7 @@ internal sealed record LiveSendRunStartContext
 internal sealed class ResoniteLiveSendRunStarter(
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
     LiveSendRunStateFactory runStateFactory,
-    IResoniteLiveSendWorkerLauncher workerLauncher)
+    ResoniteLiveSendWorkerLauncher workerLauncher)
 {
     public async Task<LiveSendRunState> StartAsync(
         LiveSendRunStartRequest request,
