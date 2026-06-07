@@ -45,11 +45,11 @@ internal sealed record LiveSendRunExecutionContext
 
 internal sealed class ResoniteLiveSendRunExecutor(
     IResoniteLiveSendRunStarter runStarter,
-    IResoniteLiveSendQueue queue)
+    ResoniteLiveSendQueue queue)
 {
     private readonly IResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));
-    private readonly IResoniteLiveSendQueue queue =
+    private readonly ResoniteLiveSendQueue queue =
         queue ?? throw new ArgumentNullException(nameof(queue));
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         LiveSendRunStartRequest request,
