@@ -45,8 +45,6 @@ internal static class ResoniteBatchEmissionPlanner
 
         List<PlannedBatchSlotEmission> slotEmissions = [];
         List<PlannedBatchComponentEmission> componentEmissions = [];
-        List<PlannedBatchSlotEmission> slotResolutionTargets = [];
-        List<PlannedBatchComponentEmission> componentResolutionTargets = [];
 
         PlannedBatchSlotEmission meshAssetSlot = new(
             PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
@@ -54,7 +52,6 @@ internal static class ResoniteBatchEmissionPlanner
             null,
             null);
         slotEmissions.Add(meshAssetSlot);
-        slotResolutionTargets.Add(meshAssetSlot);
 
         PlannedBatchComponentEmission? rendererGeometryComponent = null;
         PlannedTerrainGridMeshBundle? terrainGridMesh = null;
@@ -79,7 +76,6 @@ internal static class ResoniteBatchEmissionPlanner
                 terrainGridMesh = AddPlannedTerrainGridTextureAndCreateGridBundle(
                     slotEmissions,
                     componentEmissions,
-                    slotResolutionTargets,
                     objectSlots,
                     heightMap.TerrainGridAssetSlotName,
                     heightMap.Geometry,
@@ -103,7 +99,6 @@ internal static class ResoniteBatchEmissionPlanner
                 terrainGridMesh = AddPlannedTerrainGridTextureAndCreateGridBundle(
                     slotEmissions,
                     componentEmissions,
-                    slotResolutionTargets,
                     objectSlots,
                     dynamicTerrain.TerrainGridAssetSlotName,
                     dynamicTerrain.GridGeometry,
@@ -145,7 +140,6 @@ internal static class ResoniteBatchEmissionPlanner
             objectSlots.CityObjectLocalPosition,
             objectSlots.CityObjectRotation);
         slotEmissions.Add(presentationSlot);
-        slotResolutionTargets.Add(presentationSlot);
 
         if (terrainGridMesh is not null)
         {
@@ -171,8 +165,6 @@ internal static class ResoniteBatchEmissionPlanner
         {
             throw new InvalidOperationException("Planned scene object emission did not produce a renderer geometry component.");
         }
-
-        componentResolutionTargets.Add(rendererGeometryComponent);
 
         PlannedFieldReference rendererMeshField = new();
         componentEmissions.Add(new PlannedBatchComponentEmission(
@@ -228,9 +220,7 @@ internal static class ResoniteBatchEmissionPlanner
 
         return PlannedBatchEmission.Create(
             slotEmissions,
-            componentEmissions,
-            slotResolutionTargets,
-            componentResolutionTargets);
+            componentEmissions);
     }
 
     private static PlannedWorldElementReference ResolveInitialMeshTarget(
@@ -243,7 +233,6 @@ internal static class ResoniteBatchEmissionPlanner
     private static PlannedTerrainGridMeshBundle AddPlannedTerrainGridTextureAndCreateGridBundle(
         List<PlannedBatchSlotEmission> slotEmissions,
         List<PlannedBatchComponentEmission> componentEmissions,
-        List<PlannedBatchSlotEmission> slotResolutionTargets,
         ResoniteObjectSlotHierarchy objectSlots,
         string terrainGridAssetSlotName,
         ResoniteTerrainGridGeometry geometry,
@@ -257,7 +246,6 @@ internal static class ResoniteBatchEmissionPlanner
             null,
             null);
         slotEmissions.Add(heightMapAssetSlot);
-        slotResolutionTargets.Add(heightMapAssetSlot);
         PlannedBatchComponentEmission heightTextureComponent = new(
             PlannedSlotTargetReference.PlannedSlot(heightMapAssetSlot),
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
