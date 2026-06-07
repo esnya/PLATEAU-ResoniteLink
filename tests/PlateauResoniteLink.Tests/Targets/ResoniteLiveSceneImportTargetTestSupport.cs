@@ -384,8 +384,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         IResoniteMaterialPlanning materialPlanning)
     {
         return new ResonitePreparedCityObjectImporter(
-            new ResoniteSceneMaterialPlanComposer(materialPlanning),
-            new ResoniteImportStepTaskCleanup());
+            new ResoniteSceneMaterialPlanComposer(materialPlanning));
     }
 
     private static async IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsAsync(
