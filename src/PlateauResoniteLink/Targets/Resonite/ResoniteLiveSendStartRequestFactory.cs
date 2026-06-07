@@ -5,18 +5,9 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteLiveSendStartRequestFactory
+internal static class ResoniteLiveSendStartRequestFactory
 {
-    LiveSendRunStartRequest Create(
-        SceneImportExecutionPlan plan,
-        ResoniteImportMemoryProfile memoryProfile,
-        int connectionCount,
-        bool meshBakeEnabled);
-}
-
-internal sealed class ResoniteLiveSendStartRequestFactory : IResoniteLiveSendStartRequestFactory
-{
-    public LiveSendRunStartRequest Create(
+    public static LiveSendRunStartRequest Create(
         SceneImportExecutionPlan plan,
         ResoniteImportMemoryProfile memoryProfile,
         int connectionCount,
