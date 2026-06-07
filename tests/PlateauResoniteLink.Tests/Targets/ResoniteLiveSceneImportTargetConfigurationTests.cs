@@ -185,7 +185,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
 
         await using ISceneSink _ = scope.ServiceProvider
-            .GetRequiredService<IResoniteCanonicalSceneDumpSinkFactory>()
+            .GetRequiredService<ResoniteCanonicalSceneDumpSinkFactory>()
             .Create(
                 new ResoniteLiveSceneImportTargetOptions(
                     new Uri("ws://localhost:12345/"),

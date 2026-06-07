@@ -133,8 +133,8 @@ internal sealed class DefaultSceneSinkFactory(
         {
             if (!string.IsNullOrWhiteSpace(options.CanonicalSceneDumpPath))
             {
-                IResoniteCanonicalSceneDumpSinkFactory dumpSinkFactory =
-                    scope.ServiceProvider.GetRequiredService<IResoniteCanonicalSceneDumpSinkFactory>();
+                ResoniteCanonicalSceneDumpSinkFactory dumpSinkFactory =
+                    scope.ServiceProvider.GetRequiredService<ResoniteCanonicalSceneDumpSinkFactory>();
                 return new ScopedSceneSink(
                     scope,
                     dumpSinkFactory.Create(
