@@ -18,7 +18,7 @@ internal interface IResoniteLiveSceneImportFactory
 }
 
 internal sealed class ResoniteLiveSceneImportFactory(
-    IResoniteLiveSceneImportDependencyFactory dependencyFactory) : IResoniteLiveSceneImportFactory
+    ResoniteLiveSceneImportDependencyFactory dependencyFactory) : IResoniteLiveSceneImportFactory
 {
     public ResoniteLiveSceneImportTarget CreateTarget(
         ResoniteLiveSceneImportTargetOptions options,
