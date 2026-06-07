@@ -17,19 +17,8 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteCommonMaterialSetupPreparer
-{
-    Task PrepareAsync(
-        IResoniteLinkClient client,
-        ResoniteSceneSetupState setupState,
-        CommonMaterialAssetCache materials,
-        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
-        ILogger logger,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class ResoniteCommonMaterialSetupPreparer(
-    IResoniteMaterialPlanning materialPlanning) : IResoniteCommonMaterialSetupPreparer
+    IResoniteMaterialPlanning materialPlanning)
 {
     public async Task PrepareAsync(
         IResoniteLinkClient client,
