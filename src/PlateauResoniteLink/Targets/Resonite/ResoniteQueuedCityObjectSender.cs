@@ -9,10 +9,10 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteQueuedCityObjectSender(
-    IResoniteQueuedCityObjectPreparation cityObjectPreparation,
+    ResoniteQueuedCityObjectPreparation cityObjectPreparation,
     ResonitePreparedCityObjectImporter preparedCityObjectImporter)
 {
-    private readonly IResoniteQueuedCityObjectPreparation cityObjectPreparation =
+    private readonly ResoniteQueuedCityObjectPreparation cityObjectPreparation =
         cityObjectPreparation ?? throw new ArgumentNullException(nameof(cityObjectPreparation));
     private readonly ResonitePreparedCityObjectImporter preparedCityObjectImporter =
         preparedCityObjectImporter ?? throw new ArgumentNullException(nameof(preparedCityObjectImporter));
