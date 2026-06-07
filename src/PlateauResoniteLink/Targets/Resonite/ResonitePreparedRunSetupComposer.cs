@@ -6,15 +6,8 @@ using PlateauResoniteLink.Targets.Resonite.Execution;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResonitePreparedRunSetupComposer
-{
-    LiveSendPreparedRunSetup Compose(
-        LiveSendRunPlan runPlan,
-        ResoniteSceneSetupState setupState);
-}
-
 internal sealed class ResonitePreparedRunSetupComposer(
-    IResoniteSlotCreator slotCreator) : IResonitePreparedRunSetupComposer
+    IResoniteSlotCreator slotCreator)
 {
     public LiveSendPreparedRunSetup Compose(
         LiveSendRunPlan runPlan,
