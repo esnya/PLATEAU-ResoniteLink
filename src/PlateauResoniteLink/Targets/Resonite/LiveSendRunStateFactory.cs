@@ -3,19 +3,8 @@ using System.Threading;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface ILiveSendRunStateFactory
-{
-    LiveSendRunState Create(
-        LiveSendRunPlan runPlan,
-        ResoniteSceneSetupState setupState,
-        LiveSendProgressSink progress,
-        CommonMaterialAssetCache materials,
-        ResoniteSharedSlotIndex placement,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class LiveSendRunStateFactory(
-    IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory) : ILiveSendRunStateFactory
+    IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory)
 {
     public LiveSendRunState Create(
         LiveSendRunPlan runPlan,

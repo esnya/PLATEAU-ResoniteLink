@@ -16,7 +16,7 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
     ILiveSendRunPlanFactory runPlanFactory,
     IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
-    ILiveSendRunStateFactory runStateFactory,
+    LiveSendRunStateFactory runStateFactory,
     IResoniteLiveSendWorkerLauncherFactory workerLauncherFactory) : IResoniteLiveSendRunStarterFactory
 {
     public IResoniteLiveSendRunStarter Create(
