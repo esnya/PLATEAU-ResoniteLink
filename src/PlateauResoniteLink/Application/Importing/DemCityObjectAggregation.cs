@@ -97,8 +97,7 @@ internal static class DemCityObjectAggregation
         SourceFileDescriptor sourceFile,
         IReadOnlyList<string>? selectedMeshCodes)
     {
-        if (!sourceFile.RequiresMeshCodeBoundsFilter
-            || selectedMeshCodes is null
+        if (selectedMeshCodes is null
             || sourceFile.MatchedMeshCode.Length != 6)
         {
             return [];

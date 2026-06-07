@@ -75,9 +75,9 @@ internal static class LocalCityGmlSourceFileDiscovery
     {
         string[] selectedMeshCodes = candidates
             .Where(static candidate => candidate.IsRequestedPackage)
-            .SelectMany(static candidate => candidate.FileMeshCodes.Concat(candidate.DirectoryMeshCodes))
-            .Distinct(StringComparer.Ordinal)
-            .SelectMany(matcher.GetSelectedMeshCodes)
+            .SelectMany(candidate => candidate.FileMeshCodes
+                .Concat(candidate.DirectoryMeshCodes)
+                .SelectMany(meshCode => matcher.GetSelectedMeshCodes(meshCode, candidate.PackageName)))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
             .ToArray();
@@ -174,7 +174,8 @@ internal static class LocalCityGmlSourceFileDiscovery
                 candidate.RelativePath,
                 candidate.PackageName,
                 matchedMeshCode,
-                matcher.RequiresMeshCodeBoundsFilter(matchedMeshCode));
+                matcher.RequiresMeshCodeBoundsFilter(matchedMeshCode)
+                || RequiresParentDemMeshCodeBoundsFilter(candidate.PackageName, matchedMeshCode, requestedMeshCodes));
         }
 
         string? parentMeshCode = candidate.FileMeshCodes
@@ -194,6 +195,17 @@ internal static class LocalCityGmlSourceFileDiscovery
             candidate.PackageName,
             parentMeshCode,
             RequiresMeshCodeBoundsFilter: true);
+    }
+
+    private static bool RequiresParentDemMeshCodeBoundsFilter(
+        string packageName,
+        string matchedMeshCode,
+        IReadOnlySet<string> requestedMeshCodes)
+    {
+        return string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
+            && matchedMeshCode.Length == 6
+            && requestedMeshCodes.Any(meshCode => meshCode.Length >= 8
+                && meshCode.StartsWith(matchedMeshCode, StringComparison.Ordinal));
     }
 
     private static string[] ExtractMeshCodes(string value)
@@ -298,10 +310,33 @@ internal static class LocalCityGmlSourceFileDiscovery
             return new MeshCodeSelectionMatcher(requestedValue, [], regex);
         }
 
-        public IEnumerable<string> GetSelectedMeshCodes(string candidateMeshCode)
+        public IEnumerable<string> GetSelectedMeshCodes(string candidateMeshCode, string packageName)
         {
+            bool isDem = string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase);
             if (IsLiteral)
             {
+                if (isDem
+                    && RequestedValue.Length == 6
+                    && candidateMeshCode.Length == 6
+                    && exactCodes.Contains(candidateMeshCode, StringComparer.Ordinal))
+                {
+                    foreach (string detailedMeshCode in EnumerateDetailedMeshCodes(candidateMeshCode))
+                    {
+                        yield return detailedMeshCode;
+                    }
+
+                    yield break;
+                }
+
+                if (isDem
+                    && RequestedValue.Length == 6
+                    && candidateMeshCode.Length == 8
+                    && candidateMeshCode.StartsWith(RequestedValue, StringComparison.Ordinal))
+                {
+                    yield return candidateMeshCode;
+                    yield break;
+                }
+
                 if (candidateMeshCode.Length == RequestedValue.Length
                     && exactCodes.Contains(candidateMeshCode, StringComparer.Ordinal))
                 {
@@ -317,23 +352,25 @@ internal static class LocalCityGmlSourceFileDiscovery
                 yield break;
             }
 
+            if (candidateMeshCode.Length == 6)
+            {
+                string[] detailedMeshCodes = EnumerateDetailedMeshCodes(candidateMeshCode)
+                    .Where(meshCode => regex!.IsMatch(meshCode))
+                    .ToArray();
+                if (detailedMeshCodes.Length > 0)
+                {
+                    foreach (string detailedMeshCode in detailedMeshCodes)
+                    {
+                        yield return detailedMeshCode;
+                    }
+
+                    yield break;
+                }
+            }
+
             if (regex!.IsMatch(candidateMeshCode))
             {
                 yield return candidateMeshCode;
-                yield break;
-            }
-
-            if (candidateMeshCode.Length != 6)
-            {
-                yield break;
-            }
-
-            foreach (string detailedMeshCode in EnumerateDetailedMeshCodes(candidateMeshCode))
-            {
-                if (regex.IsMatch(detailedMeshCode))
-                {
-                    yield return detailedMeshCode;
-                }
             }
         }
 
