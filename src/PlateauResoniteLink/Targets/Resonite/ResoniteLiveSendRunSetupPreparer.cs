@@ -28,7 +28,7 @@ internal interface IResoniteLiveSendRunSetupPreparer
 internal sealed class ResoniteLiveSendRunSetupPreparer(
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
     IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
-    IResonitePreparedRunSetupComposer preparedRunSetupComposer) : IResoniteLiveSendRunSetupPreparer
+    ResonitePreparedRunSetupComposer preparedRunSetupComposer) : IResoniteLiveSendRunSetupPreparer
 {
     public async Task<LiveSendPreparedRunSetup> PrepareAsync(
         LiveSendRunPlan runPlan,
