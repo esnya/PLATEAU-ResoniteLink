@@ -136,18 +136,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
-    public void AddResoniteLiveSendTargetServicesRegistersPhaseContextFactory()
-    {
-        using ServiceProvider provider = new ServiceCollection()
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-
-        Assert.IsType<ResoniteLiveSendPhaseContextFactory>(
-            scope.ServiceProvider.GetRequiredService<IResoniteLiveSendPhaseContextFactory>());
-    }
-
-    [Fact]
     public void AddResoniteLiveSendTargetServicesRegistersWorkerPipelineFactory()
     {
         using ServiceProvider provider = new ServiceCollection()

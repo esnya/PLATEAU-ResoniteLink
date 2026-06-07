@@ -330,8 +330,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSendRunExecutor(
                 runStarter,
                 effectiveQueue,
-                effectiveResourceReleaser,
-                new ResoniteLiveSendPhaseContextFactory()),
+                effectiveResourceReleaser),
             effectiveResourceReleaser);
     }
 
