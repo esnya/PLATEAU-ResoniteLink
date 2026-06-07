@@ -90,7 +90,7 @@ internal interface IResoniteLiveSendRunStarter
 }
 
 internal sealed class ResoniteLiveSendRunStarter(
-    IResoniteLiveSendRunSetupPreparer runSetupPreparer,
+    ResoniteLiveSendRunSetupPreparer runSetupPreparer,
     LiveSendRunStateFactory runStateFactory,
     IResoniteLiveSendWorkerLauncher workerLauncher) : IResoniteLiveSendRunStarter
 {
