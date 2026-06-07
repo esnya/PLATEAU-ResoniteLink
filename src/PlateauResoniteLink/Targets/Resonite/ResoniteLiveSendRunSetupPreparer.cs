@@ -18,7 +18,7 @@ internal sealed record LiveSendPreparedRunSetup(
 
 internal sealed class ResoniteLiveSendRunSetupPreparer(
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
-    IResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
+    ResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
     ResonitePreparedRunSetupComposer preparedRunSetupComposer)
 {
     public async Task<LiveSendPreparedRunSetup> PrepareAsync(
