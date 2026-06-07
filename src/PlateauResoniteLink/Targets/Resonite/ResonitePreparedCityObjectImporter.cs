@@ -104,14 +104,12 @@ internal sealed class ResonitePreparedCityObjectImporter(
             throw;
         }
 
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchEmission = ResoniteBatchEmissionPlanner.Create(
+            objectSlots,
             plannedGeometryAsset,
             plannedMaterials.MaterialAssets,
-            new PlannedRenderer(
-                plannedMaterials.RendererMaterialBindings),
-            new PlannedCollider(
-                cityObject.CollisionEnabled));
-        PlannedBatchEmission batchEmission = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
+            plannedMaterials.RendererMaterialBindings,
+            cityObject.CollisionEnabled);
 
         ReportImportStep(progressReporter, cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
