@@ -14,21 +14,10 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteQueuedCityObjectPreparation
-{
-    Task<PreparedCityObject> PrepareAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient routedClient,
-        ResoniteConstructionCityObject cityObject,
-        ResoniteLinkSendDiagnostics diagnostics,
-        ILogger logger,
-        CancellationToken callerCancellationToken);
-}
-
 internal sealed class ResoniteQueuedCityObjectPreparation(
-    IResoniteQueuedTexturePreparer texturePreparer) : IResoniteQueuedCityObjectPreparation
+    ResoniteQueuedTexturePreparer texturePreparer)
 {
-    private readonly IResoniteQueuedTexturePreparer texturePreparer =
+    private readonly ResoniteQueuedTexturePreparer texturePreparer =
         texturePreparer ?? throw new ArgumentNullException(nameof(texturePreparer));
 
     public async Task<PreparedCityObject> PrepareAsync(
