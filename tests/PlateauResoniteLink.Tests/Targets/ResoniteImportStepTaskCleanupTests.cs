@@ -15,7 +15,7 @@ public sealed class ResoniteImportStepTaskCleanupTests
         using CancellationTokenRegistration _ = cancellation.Token.Register(
             static () => throw new InvalidOperationException("callback failed"));
 
-        await new ResoniteImportStepTaskCleanup().CancelAndObserveFailuresAsync(
+        await ResoniteImportStepTaskCleanup.CancelAndObserveFailuresAsync(
             cancellation,
             [Task.CompletedTask]);
 
@@ -28,7 +28,7 @@ public sealed class ResoniteImportStepTaskCleanupTests
         using CancellationTokenSource cancellation = new();
         Task failedTask = Task.FromException(new InvalidOperationException("secondary failure"));
 
-        await new ResoniteImportStepTaskCleanup().CancelAndObserveFailuresAsync(
+        await ResoniteImportStepTaskCleanup.CancelAndObserveFailuresAsync(
             cancellation,
             [failedTask]);
 

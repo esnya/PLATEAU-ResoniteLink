@@ -15,21 +15,8 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResonitePreparedCityObjectImporter
-{
-    Task ImportAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient routedClient,
-        LiveSendQueuedCityObject queuedCityObject,
-        PreparedCityObject preparedCityObject,
-        ResoniteLinkSendDiagnostics diagnostics,
-        ILogger logger,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class ResonitePreparedCityObjectImporter(
-    ResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer,
-    IResoniteImportStepTaskCleanup importStepTaskCleanup) : IResonitePreparedCityObjectImporter
+    ResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer)
 {
     public async Task ImportAsync(
         LiveSendRunState state,
@@ -100,7 +87,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
             IEnumerable<Task> tasksToObserve = materialPlanningTask is null
                 ? [uploadedTextureAssetsTask, geometryPlanningTask]
                 : [uploadedTextureAssetsTask, materialPlanningTask, geometryPlanningTask];
-            await importStepTaskCleanup.CancelAndObserveFailuresAsync(
+            await ResoniteImportStepTaskCleanup.CancelAndObserveFailuresAsync(
                 importStepCancellation,
                 tasksToObserve);
             throw;

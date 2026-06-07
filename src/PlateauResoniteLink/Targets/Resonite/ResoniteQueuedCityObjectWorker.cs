@@ -20,9 +20,9 @@ internal interface IResoniteQueuedCityObjectWorker
 }
 
 internal sealed class ResoniteQueuedCityObjectWorker(
-    IResoniteQueuedCityObjectSender queuedCityObjectSender) : IResoniteQueuedCityObjectWorker
+    ResoniteQueuedCityObjectSender queuedCityObjectSender) : IResoniteQueuedCityObjectWorker
 {
-    private readonly IResoniteQueuedCityObjectSender queuedCityObjectSender =
+    private readonly ResoniteQueuedCityObjectSender queuedCityObjectSender =
         queuedCityObjectSender ?? throw new ArgumentNullException(nameof(queuedCityObjectSender));
 
     public Task[] CreateProcessingTasks(
