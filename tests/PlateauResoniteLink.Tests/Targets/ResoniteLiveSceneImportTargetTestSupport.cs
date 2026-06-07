@@ -375,7 +375,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null)
     {
         return new ResoniteLiveSendRunStarter(
-            new LiveSendRunPlanFactory(),
             new ResoniteLiveSendConnectionInitializer(),
             new ResoniteLiveSendRunSetupPreparer(
                 sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(new ResoniteSceneSlotLocator(), new ResoniteSceneAnchorResolver()),
