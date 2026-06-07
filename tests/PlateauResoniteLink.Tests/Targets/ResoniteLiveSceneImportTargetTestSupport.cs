@@ -384,8 +384,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 new ResonitePreparedRunSetupComposer(new ResoniteSlotCreator())),
             new LiveSendRunStateFactory(
                 new ResoniteBufferedCityObjectBakerFactory(
-                    new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader())),
-                new LiveSendRunRuntimeComponentsFactory()),
+                    new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
             new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning, terrainTextureAssetGenerator)));
     }
 
