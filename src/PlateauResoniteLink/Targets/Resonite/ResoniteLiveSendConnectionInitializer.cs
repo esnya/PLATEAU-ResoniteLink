@@ -7,18 +7,9 @@ using PlateauResoniteLink.Application.Logging;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteLiveSendConnectionInitializer
+internal static class ResoniteLiveSendConnectionInitializer
 {
-    Task EnsureConnectedAsync(
-        LiveSendRunStartRequest request,
-        LiveSendRunPlan runPlan,
-        LiveSendRunStartContext context,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class ResoniteLiveSendConnectionInitializer : IResoniteLiveSendConnectionInitializer
-{
-    public async Task EnsureConnectedAsync(
+    public static async Task EnsureConnectedAsync(
         LiveSendRunStartRequest request,
         LiveSendRunPlan runPlan,
         LiveSendRunStartContext context,
