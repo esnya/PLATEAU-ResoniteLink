@@ -202,7 +202,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                             GeodeticOriginOverride = cityObjectOrigin,
                         },
                         terrainMaterialGroups[0]
-                            .Select(static entry => WithSurface(entry.Face, MarkTerrainOverlayMaterialSource(entry.Face.Surface)))
+                            .Select(static entry => MarkTerrainOverlayMaterialSource(entry.Face))
                             .ToArray()),
                     terrainMaterialGroups[0].Key);
                 yield break;
@@ -233,7 +233,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                         GeodeticOriginOverride = cityObjectOrigin,
                     },
                     group
-                        .Select(static entry => WithSurface(entry.Face, MarkTerrainOverlayMaterialSource(entry.Face.Surface)))
+                        .Select(static entry => MarkTerrainOverlayMaterialSource(entry.Face))
                         .ToArray()),
                 group.Key);
             partitionIndex++;
@@ -255,9 +255,9 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         }
     }
 
-    private static ParsedSurface MarkTerrainOverlayMaterialSource(ParsedSurface surface)
+    private static ConstructionFace MarkTerrainOverlayMaterialSource(ConstructionFace face)
     {
-        return surface with { UsesGeneratedDemTexture = true };
+        return face with { MaterialTreatment = SurfaceMaterialTreatment.TerrainOverlayMaterialSource };
     }
 
     private static ConstructionFace PrepareTerrainOverlayMaterialFace(ConstructionFace face)
@@ -301,7 +301,6 @@ internal static class TerrainOverlayMaterialSourcePartitioner
     {
         ParsedSurface surface = face.Surface;
         return surface.TexturePayload is null
-            && !surface.UsesGeneratedDemTexture
             && RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(
                 face,
                 cityObjectMinAltitude,

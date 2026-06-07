@@ -115,8 +115,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
 
     private static bool HasProcessableNoWallGeometry(ParsedCityObject cityObject)
     {
-        if (cityObject.Surfaces.Any(static surface => surface.UsesGeneratedDemTexture)
-            || !cityObject.Surfaces.Any(static surface => surface.Vertices.Any()))
+        if (!cityObject.Surfaces.Any(static surface => surface.Vertices.Any()))
         {
             return false;
         }
@@ -333,7 +332,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
         NoWallRoofRing ring = input.Ring;
         GeodeticPoint[] vertices = ring.TopRing;
         Float2[]? uvs = ring.TopUvs;
-        return CreateNoWallRoofSurface(sourceSurface, vertices, uvs, sourceSurface.UsesGeneratedDemTexture);
+        return CreateNoWallRoofSurface(sourceSurface, vertices, uvs);
     }
 
     private static ParsedSurface CreateNoWallBottomSurface(NoWallRoofSurfaceInput input)
@@ -342,7 +341,7 @@ internal static class GeneratedLod1RoofCityObjectFactory
         NoWallRoofRing ring = input.Ring;
         GeodeticPoint[] vertices = ring.BottomRing.Reverse().ToArray();
         Float2[]? uvs = ring.TopUvs?.Reverse().ToArray();
-        return CreateNoWallRoofSurface(topSurface, vertices, uvs, usesGeneratedDemTexture: false);
+        return CreateNoWallRoofSurface(topSurface, vertices, uvs);
     }
 
     private static ParsedSurface CreateNoWallSideSurface(
@@ -368,14 +367,13 @@ internal static class GeneratedLod1RoofCityObjectFactory
                 ring.TopUvs[nextIndex],
                 ring.TopUvs[nextIndex],
         ];
-        return CreateNoWallRoofSurface(topSurface, vertices, uvs, usesGeneratedDemTexture: false);
+        return CreateNoWallRoofSurface(topSurface, vertices, uvs);
     }
 
     private static ParsedSurface CreateNoWallRoofSurface(
         ParsedSurface sourceSurface,
         GeodeticPoint[] vertices,
-        Float2[]? uvs,
-        bool usesGeneratedDemTexture)
+        Float2[]? uvs)
     {
         GeodeticPoint[] closedVertices = [.. vertices, vertices[0]];
         Float2[]? closedUvs = uvs is null ? null : [.. uvs, uvs[0]];
@@ -385,7 +383,6 @@ internal static class GeneratedLod1RoofCityObjectFactory
             InteriorRings: [],
             sourceSurface.BaseColor,
             sourceSurface.TexturePayload,
-            usesGeneratedDemTexture,
             sourceSurface.OpticalProperties);
     }
 

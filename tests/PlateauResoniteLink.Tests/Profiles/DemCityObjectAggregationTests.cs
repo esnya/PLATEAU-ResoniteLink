@@ -55,6 +55,31 @@ public sealed class DemCityObjectAggregationTests
         Assert.All(results, static result => Assert.Single(result.Surfaces));
     }
 
+    [Fact]
+    public void AggregateBySourceFileAndThirdMeshUsesSelectedThirdMeshForParentDemSourceFile()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("EPSG:4326");
+        SourceFileDescriptor sourceFile = new(
+            "udx/dem/503033/plateau_fukuoka_dem_503033.gml",
+            "dem",
+            "503033",
+            RequiresMeshCodeBoundsFilter: true);
+        ParsedCityObject[] cityObjects =
+        [
+            CreateCityObject("dem-parent", "polygon-parent", "503033", sourceFile.RelativePath, referenceSystem),
+        ];
+
+        ParsedCityObject result = Assert.Single(
+            DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
+                sourceFile,
+                cityObjects,
+                ["50303312"]));
+
+        Assert.Equal("dem_plateau_fukuoka_dem_503033_50303312", result.SlotKey);
+        Assert.Equal("DEM 50303312", result.DisplayName);
+        Assert.Equal("50303312", result.ActualMeshCode);
+    }
+
     private static ParsedCityObject CreateCityObject(
         string slotKey,
         string polygonId,
@@ -74,8 +99,7 @@ public sealed class DemCityObjectAggregationTests
             exteriorRing,
             [],
             new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null,
-            UsesGeneratedDemTexture: true);
+            TexturePayload: null);
         return new ParsedCityObject(
             slotKey,
             slotKey,

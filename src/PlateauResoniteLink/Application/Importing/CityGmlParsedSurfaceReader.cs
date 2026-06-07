@@ -51,10 +51,7 @@ internal static class CityGmlParsedSurfaceReader
     {
         ArgumentNullException.ThrowIfNull(surface);
 
-        return string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
-            && surface.TexturePayload is null
-            ? surface with { UsesGeneratedDemTexture = true }
-            : surface;
+        return surface;
     }
 
     private static ParsedRing[] ParseInteriorRings(
