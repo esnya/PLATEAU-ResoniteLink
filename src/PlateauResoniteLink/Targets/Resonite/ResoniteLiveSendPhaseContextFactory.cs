@@ -2,20 +2,9 @@ using System;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteLiveSendPhaseContextFactory
+internal static class ResoniteLiveSendPhaseContextFactory
 {
-    LiveSendRunStartContext CreateRunStartContext(LiveSendRunExecutionContext context);
-
-    LiveSendEnqueueContext CreateEnqueueContext(LiveSendRunExecutionContext context);
-
-    LiveSendFinalizationContext CreateFinalizationContext(
-        LiveSendRunExecutionContext context,
-        LiveSendEnqueueContext enqueueContext);
-}
-
-internal sealed class ResoniteLiveSendPhaseContextFactory : IResoniteLiveSendPhaseContextFactory
-{
-    public LiveSendRunStartContext CreateRunStartContext(LiveSendRunExecutionContext context)
+    public static LiveSendRunStartContext CreateRunStartContext(LiveSendRunExecutionContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -26,7 +15,7 @@ internal sealed class ResoniteLiveSendPhaseContextFactory : IResoniteLiveSendPha
             context.ProgressReporter);
     }
 
-    public LiveSendEnqueueContext CreateEnqueueContext(LiveSendRunExecutionContext context)
+    public static LiveSendEnqueueContext CreateEnqueueContext(LiveSendRunExecutionContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -36,7 +25,7 @@ internal sealed class ResoniteLiveSendPhaseContextFactory : IResoniteLiveSendPha
             context.ProgressReporter);
     }
 
-    public LiveSendFinalizationContext CreateFinalizationContext(
+    public static LiveSendFinalizationContext CreateFinalizationContext(
         LiveSendRunExecutionContext context,
         LiveSendEnqueueContext enqueueContext)
     {
