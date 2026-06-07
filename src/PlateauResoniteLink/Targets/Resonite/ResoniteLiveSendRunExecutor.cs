@@ -45,16 +45,12 @@ internal sealed record LiveSendRunExecutionContext
 
 internal sealed class ResoniteLiveSendRunExecutor(
     IResoniteLiveSendRunStarter runStarter,
-    IResoniteLiveSendQueue queue,
-    IResoniteLiveSendRunResourceReleaser resourceReleaser)
+    IResoniteLiveSendQueue queue)
 {
     private readonly IResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));
     private readonly IResoniteLiveSendQueue queue =
         queue ?? throw new ArgumentNullException(nameof(queue));
-    private readonly IResoniteLiveSendRunResourceReleaser resourceReleaser =
-        resourceReleaser ?? throw new ArgumentNullException(nameof(resourceReleaser));
-
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         LiveSendRunStartRequest request,
         IAsyncEnumerable<ImportedObjectUnit> objectUnits,
@@ -109,7 +105,7 @@ internal sealed class ResoniteLiveSendRunExecutor(
         }
         finally
         {
-            await resourceReleaser.ReleaseAsync(
+            await ResoniteLiveSendRunResourceReleaser.ReleaseAsync(
                 state,
                 context.ClientSession,
                 disposeClients: false,
