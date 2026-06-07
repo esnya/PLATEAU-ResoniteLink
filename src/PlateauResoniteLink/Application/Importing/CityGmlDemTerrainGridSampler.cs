@@ -60,6 +60,7 @@ internal static class CityGmlDemTerrainGridSampler
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        ExtendThinBoundaryMissingSamples(localHeights, sampleCoverage, width, height);
         return new DemTerrainGridHeightSamples(width, height, localHeights, sampleCoverage);
     }
 
@@ -86,6 +87,161 @@ internal static class CityGmlDemTerrainGridSampler
     private static double ResolveGridCoordinateRatio(int index, int count)
     {
         return count <= 1 ? 0.0 : (double)index / (count - 1);
+    }
+
+    private static void ExtendThinBoundaryMissingSamples(
+        double[] localHeights,
+        TerrainGridSampleCoverage[] sampleCoverage,
+        int width,
+        int height)
+    {
+        bool[] visited = new bool[width * height];
+        for (int row = 0; row < height; row++)
+        {
+            for (int column = 0; column < width; column++)
+            {
+                int sampleIndex = (row * width) + column;
+                if (visited[sampleIndex]
+                    || sampleCoverage[sampleIndex] != TerrainGridSampleCoverage.NoSurface
+                    || !IsBoundarySample(row, column, width, height))
+                {
+                    continue;
+                }
+
+                FillThinBoundaryComponent(
+                    localHeights,
+                    sampleCoverage,
+                    visited,
+                    width,
+                    height,
+                    row,
+                    column);
+            }
+        }
+    }
+
+    private static void FillThinBoundaryComponent(
+        double[] localHeights,
+        TerrainGridSampleCoverage[] sampleCoverage,
+        bool[] visited,
+        int width,
+        int height,
+        int startRow,
+        int startColumn)
+    {
+        List<int> componentIndices = [];
+        Queue<(int Row, int Column)> frontier = [];
+        int firstRow = startRow;
+        int firstColumn = startColumn;
+        bool sameRow = true;
+        bool sameColumn = true;
+
+        MarkVisited(startRow, startColumn);
+        while (frontier.Count > 0)
+        {
+            (int row, int column) = frontier.Dequeue();
+            int sampleIndex = (row * width) + column;
+            componentIndices.Add(sampleIndex);
+            sameRow &= row == firstRow;
+            sameColumn &= column == firstColumn;
+
+            TryVisit(row - 1, column);
+            TryVisit(row + 1, column);
+            TryVisit(row, column - 1);
+            TryVisit(row, column + 1);
+        }
+
+        if (!sameRow && !sameColumn)
+        {
+            return;
+        }
+
+        List<(int SampleIndex, double Height)> fills = [];
+        foreach (int sampleIndex in componentIndices)
+        {
+            int row = sampleIndex / width;
+            int column = sampleIndex % width;
+            if (TryResolveMeasuredNeighborHeight(localHeights, sampleCoverage, width, height, row, column, out double heightValue))
+            {
+                fills.Add((sampleIndex, heightValue));
+            }
+        }
+
+        foreach ((int sampleIndex, double heightValue) in fills)
+        {
+            localHeights[sampleIndex] = heightValue;
+            sampleCoverage[sampleIndex] = TerrainGridSampleCoverage.Measured;
+        }
+
+        void TryVisit(int row, int column)
+        {
+            if ((uint)row >= (uint)height || (uint)column >= (uint)width)
+            {
+                return;
+            }
+
+            int sampleIndex = (row * width) + column;
+            if (visited[sampleIndex] || sampleCoverage[sampleIndex] != TerrainGridSampleCoverage.NoSurface)
+            {
+                return;
+            }
+
+            MarkVisited(row, column);
+        }
+
+        void MarkVisited(int row, int column)
+        {
+            int sampleIndex = (row * width) + column;
+            visited[sampleIndex] = true;
+            frontier.Enqueue((row, column));
+        }
+    }
+
+    private static bool TryResolveMeasuredNeighborHeight(
+        double[] localHeights,
+        TerrainGridSampleCoverage[] sampleCoverage,
+        int width,
+        int height,
+        int row,
+        int column,
+        out double heightValue)
+    {
+        double sum = 0.0;
+        int count = 0;
+        TryAdd(row - 1, column);
+        TryAdd(row + 1, column);
+        TryAdd(row, column - 1);
+        TryAdd(row, column + 1);
+        if (count == 0)
+        {
+            heightValue = 0.0;
+            return false;
+        }
+
+        heightValue = sum / count;
+        return true;
+
+        void TryAdd(int neighborRow, int neighborColumn)
+        {
+            if ((uint)neighborRow >= (uint)height || (uint)neighborColumn >= (uint)width)
+            {
+                return;
+            }
+
+            int neighborIndex = (neighborRow * width) + neighborColumn;
+            if (sampleCoverage[neighborIndex] != TerrainGridSampleCoverage.Measured)
+            {
+                return;
+            }
+
+            sum += localHeights[neighborIndex];
+            count++;
+        }
+    }
+
+    private static bool IsBoundarySample(int row, int column, int width, int height)
+    {
+        return row == 0 || row == height - 1 || column == 0 || column == width - 1;
     }
 
     private static bool TryInterpolateLocalTriangleHeight(

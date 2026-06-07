@@ -111,6 +111,39 @@ public sealed class CityGmlDemTerrainGridSamplerTests
     }
 
     [Fact]
+    public void SampleExtendsThinBoundaryMissingStripFromMeasuredTerrain()
+    {
+        TerrainGridTriangle[] triangles =
+        [
+            new(
+                new Float3(0.01, 10.0, 0.0),
+                new Float3(2.0, 20.0, 0.0),
+                new Float3(0.01, 30.0, 2.0)),
+            new(
+                new Float3(2.0, 20.0, 0.0),
+                new Float3(2.0, 40.0, 2.0),
+                new Float3(0.01, 30.0, 2.0)),
+        ];
+
+        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+            minX: 0.0,
+            maxX: 2.0,
+            minZ: 0.0,
+            maxZ: 2.0,
+            metersPerVertex: 1.0,
+            maxResolution: 3,
+            fallbackHeight: -100.0,
+            triangles);
+
+        Assert.NotEqual(-100.0, samples.LocalHeights[0], precision: 6);
+        Assert.NotEqual(-100.0, samples.LocalHeights[3], precision: 6);
+        Assert.NotEqual(-100.0, samples.LocalHeights[6], precision: 6);
+        Assert.Equal(TerrainGridSampleCoverage.Measured, samples.SampleCoverage[0]);
+        Assert.Equal(TerrainGridSampleCoverage.Measured, samples.SampleCoverage[3]);
+        Assert.Equal(TerrainGridSampleCoverage.Measured, samples.SampleCoverage[6]);
+    }
+
+    [Fact]
     public void SampleSeparatesMeasuredSeaLevelFromNoSurfaceSeaLevel()
     {
         TerrainGridTriangle[] triangles =
