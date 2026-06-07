@@ -10,8 +10,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteClientSessionFactory clientSessionFactory,
     ResoniteLiveSendRunStarterFactory runStarterFactory,
-    IResoniteLiveSendStartRequestFactory startRequestFactory,
-    ResoniteLiveSendQueue queue)
+    IResoniteLiveSendStartRequestFactory startRequestFactory)
 {
     public ResoniteLiveSceneImportDependencies Create(
         ResoniteLiveSceneImportTargetOptions options,
@@ -60,8 +59,6 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             clientSession,
             diagnostics,
             startRequestFactory,
-            new ResoniteLiveSendRunExecutor(
-                runStarter,
-                queue));
+            new ResoniteLiveSendRunExecutor(runStarter));
     }
 }

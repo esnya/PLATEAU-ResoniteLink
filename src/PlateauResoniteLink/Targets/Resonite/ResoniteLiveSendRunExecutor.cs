@@ -44,13 +44,11 @@ internal sealed record LiveSendRunExecutionContext
 }
 
 internal sealed class ResoniteLiveSendRunExecutor(
-    IResoniteLiveSendRunStarter runStarter,
-    ResoniteLiveSendQueue queue)
+    IResoniteLiveSendRunStarter runStarter)
 {
     private readonly IResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));
-    private readonly ResoniteLiveSendQueue queue =
-        queue ?? throw new ArgumentNullException(nameof(queue));
+
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         LiveSendRunStartRequest request,
         IAsyncEnumerable<ImportedObjectUnit> objectUnits,
@@ -78,7 +76,7 @@ internal sealed class ResoniteLiveSendRunExecutor(
                 int sourceCityObjectsSeen = Interlocked.Add(
                     ref state.Progress.SourceCityObjectCount,
                     objectUnit.CityObjects.Count);
-                await queue.QueueUnitAsync(
+                await ResoniteLiveSendQueue.QueueUnitAsync(
                     state,
                     objectUnit,
                     enqueueContext,
@@ -96,7 +94,7 @@ internal sealed class ResoniteLiveSendRunExecutor(
                 }
             }
 
-            SceneImportExecutionResult result = await queue.CompleteAsync(
+            SceneImportExecutionResult result = await ResoniteLiveSendQueue.CompleteAsync(
                 state,
                 ResoniteLiveSendPhaseContextFactory.CreateFinalizationContext(context, enqueueContext),
                 cancellationToken);
