@@ -110,10 +110,6 @@ internal abstract record PlannedSlotTargetReference
     {
     }
 
-    public abstract T Match<T>(
-        Func<ResoniteSlotLocator, T> canonicalSlot,
-        Func<PlannedBatchSlotEmission, T> plannedSlot);
-
     public static PlannedSlotTargetReference CanonicalSlot(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
@@ -126,25 +122,9 @@ internal abstract record PlannedSlotTargetReference
         return new BatchSlotTarget(slot);
     }
 
-    internal sealed record CanonicalSlotTarget(ResoniteSlotLocator Locator) : PlannedSlotTargetReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<PlannedBatchSlotEmission, T> plannedSlot)
-        {
-            return canonicalSlot(Locator);
-        }
-    }
+    internal sealed record CanonicalSlotTarget(ResoniteSlotLocator Locator) : PlannedSlotTargetReference;
 
-    internal sealed record BatchSlotTarget(PlannedBatchSlotEmission Slot) : PlannedSlotTargetReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<PlannedBatchSlotEmission, T> plannedSlot)
-        {
-            return plannedSlot(Slot);
-        }
-    }
+    internal sealed record BatchSlotTarget(PlannedBatchSlotEmission Slot) : PlannedSlotTargetReference;
 }
 
 internal abstract record PlannedWorldElementReference
@@ -152,13 +132,6 @@ internal abstract record PlannedWorldElementReference
     private PlannedWorldElementReference()
     {
     }
-
-    public abstract T Match<T>(
-        Func<ResoniteSlotLocator, T> canonicalSlot,
-        Func<ResoniteComponentLocator, T> canonicalComponent,
-        Func<PlannedBatchSlotEmission, T> plannedSlot,
-        Func<PlannedBatchComponentEmission, T> plannedComponent,
-        Func<PlannedFieldReference, T> plannedField);
 
     public static PlannedWorldElementReference Canonical(ResoniteSlotLocator locator)
     {
@@ -190,70 +163,15 @@ internal abstract record PlannedWorldElementReference
         return new BatchFieldElement(field);
     }
 
-    internal sealed record CanonicalSlotElement(ResoniteSlotLocator Locator) : PlannedWorldElementReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<PlannedBatchSlotEmission, T> plannedSlot,
-            Func<PlannedBatchComponentEmission, T> plannedComponent,
-            Func<PlannedFieldReference, T> plannedField)
-        {
-            return canonicalSlot(Locator);
-        }
-    }
+    internal sealed record CanonicalSlotElement(ResoniteSlotLocator Locator) : PlannedWorldElementReference;
 
-    internal sealed record CanonicalComponentElement(ResoniteComponentLocator Locator) : PlannedWorldElementReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<PlannedBatchSlotEmission, T> plannedSlot,
-            Func<PlannedBatchComponentEmission, T> plannedComponent,
-            Func<PlannedFieldReference, T> plannedField)
-        {
-            return canonicalComponent(Locator);
-        }
-    }
+    internal sealed record CanonicalComponentElement(ResoniteComponentLocator Locator) : PlannedWorldElementReference;
 
-    internal sealed record BatchSlotElement(PlannedBatchSlotEmission Slot) : PlannedWorldElementReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<PlannedBatchSlotEmission, T> plannedSlot,
-            Func<PlannedBatchComponentEmission, T> plannedComponent,
-            Func<PlannedFieldReference, T> plannedField)
-        {
-            return plannedSlot(Slot);
-        }
-    }
+    internal sealed record BatchSlotElement(PlannedBatchSlotEmission Slot) : PlannedWorldElementReference;
 
-    internal sealed record BatchComponentElement(PlannedBatchComponentEmission Component) : PlannedWorldElementReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<PlannedBatchSlotEmission, T> plannedSlot,
-            Func<PlannedBatchComponentEmission, T> plannedComponent,
-            Func<PlannedFieldReference, T> plannedField)
-        {
-            return plannedComponent(Component);
-        }
-    }
+    internal sealed record BatchComponentElement(PlannedBatchComponentEmission Component) : PlannedWorldElementReference;
 
-    internal sealed record BatchFieldElement(PlannedFieldReference Field) : PlannedWorldElementReference
-    {
-        public override T Match<T>(
-            Func<ResoniteSlotLocator, T> canonicalSlot,
-            Func<ResoniteComponentLocator, T> canonicalComponent,
-            Func<PlannedBatchSlotEmission, T> plannedSlot,
-            Func<PlannedBatchComponentEmission, T> plannedComponent,
-            Func<PlannedFieldReference, T> plannedField)
-        {
-            return plannedField(Field);
-        }
-    }
+    internal sealed record BatchFieldElement(PlannedFieldReference Field) : PlannedWorldElementReference;
 }
 
 internal abstract record PlannedMember
@@ -261,56 +179,17 @@ internal abstract record PlannedMember
     private protected PlannedMember()
     {
     }
-
-    public abstract T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list);
 }
 
-internal sealed record PlannedLiteralMember(Member Value) : PlannedMember
-{
-    public override T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list)
-    {
-        return literal(Value);
-    }
-}
+internal sealed record PlannedLiteralMember(Member Value) : PlannedMember;
 
-internal sealed record PlannedElementReferenceMember(PlannedWorldElementReference Target) : PlannedMember
-{
-    public override T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list)
-    {
-        return reference(Target);
-    }
-}
+internal sealed record PlannedElementReferenceMember(PlannedWorldElementReference Target) : PlannedMember;
 
 internal abstract record PlannedAddressableFieldMember(PlannedFieldReference Field) : PlannedMember
 {
     public abstract Member Value { get; }
 
     public abstract Member Bind(string fieldId);
-
-    public override T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list)
-    {
-        return addressableField(this);
-    }
 
     internal sealed record Int2(PlannedFieldReference Field, Field_int2 FieldValue)
         : PlannedAddressableFieldMember(Field)
@@ -361,31 +240,9 @@ internal abstract record PlannedAddressableFieldMember(PlannedFieldReference Fie
 internal sealed record PlannedAddressableReferenceMember(
     PlannedFieldReference Field,
     PlannedWorldElementReference Target)
-    : PlannedMember
-{
-    public override T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list)
-    {
-        return addressableReference(Field, Target);
-    }
-}
+    : PlannedMember;
 
-internal sealed record PlannedSyncListMember(IReadOnlyList<PlannedMember> Elements) : PlannedMember
-{
-    public override T Match<T>(
-        Func<Member, T> literal,
-        Func<PlannedWorldElementReference, T> reference,
-        Func<PlannedAddressableFieldMember, T> addressableField,
-        Func<PlannedFieldReference, PlannedWorldElementReference, T> addressableReference,
-        Func<IReadOnlyList<PlannedMember>, T> list)
-    {
-        return list(Elements);
-    }
-}
+internal sealed record PlannedSyncListMember(IReadOnlyList<PlannedMember> Elements) : PlannedMember;
 
 internal sealed record PlannedDriverTargetBundle(
     PlannedAddressableFieldMember Field,

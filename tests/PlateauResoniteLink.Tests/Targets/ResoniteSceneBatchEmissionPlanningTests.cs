@@ -14,8 +14,6 @@ namespace PlateauResoniteLink.Tests.Targets;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class ResoniteSceneBatchEmissionPlanningTests
 {
-    private static readonly IResoniteBatchEmissionPlanner Planner = new ResoniteBatchEmissionPlanner();
-
     [Fact]
     public void PlannedDriverTargetBundle_CreatePairsFieldTargetAndDefaultValue()
     {
@@ -120,7 +118,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedCollider(
                 true));
 
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission heightTexture = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -196,7 +194,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedCollider(
                 true));
 
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission staticMesh = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -278,7 +276,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedCollider(
                 true));
 
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission gridMesh = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -331,7 +329,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedCollider(
                 false));
 
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission meshRenderer = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -389,7 +387,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedCollider(
                 true));
 
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission materialComponent = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -450,7 +448,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedCollider(
                 false));
 
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission meshRenderer = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -499,7 +497,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedCollider(
                 false));
 
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission overrideTexture = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -536,7 +534,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedCollider(
                 false));
 
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission meshRenderer = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -580,7 +578,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlannedCollider(
                 false));
 
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission[] propertyBlocks = batchPlan.ComponentEmissions
             .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))
@@ -622,32 +620,38 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
 
     private static Member ToMember(PlannedMember member)
     {
-        return member.Match(
-            literal: static literal => literal,
-            reference: reference => new Reference
+        return member switch
+        {
+            PlannedLiteralMember literal => literal.Value,
+            PlannedElementReferenceMember reference => new Reference
             {
-                TargetID = ResolveTargetId(reference),
+                TargetID = ResolveTargetId(reference.Target),
             },
-            addressableField: static field => field.Value,
-            addressableReference: (field, target) => new Reference
+            PlannedAddressableFieldMember field => field.Value,
+            PlannedAddressableReferenceMember addressableReference => new Reference
             {
-                ID = ToPlannedTargetId(field),
-                TargetID = ResolveTargetId(target),
+                ID = ToPlannedTargetId(addressableReference.Field),
+                TargetID = ResolveTargetId(addressableReference.Target),
             },
-            list: elements => new SyncList
+            PlannedSyncListMember list => new SyncList
             {
-                Elements = elements.Select(ToMember).ToList(),
-            });
+                Elements = list.Elements.Select(ToMember).ToList(),
+            },
+            _ => throw new InvalidOperationException($"Unsupported planned member '{member.GetType().Name}'."),
+        };
     }
 
     private static string? ResolveTargetId(PlannedWorldElementReference target)
     {
-        return target.Match(
-            static canonicalSlot => canonicalSlot.Value,
-            static canonicalComponent => canonicalComponent.Value,
-            static plannedSlot => ToPlannedTargetId(plannedSlot),
-            static plannedComponent => ToPlannedTargetId(plannedComponent),
-            static plannedField => ToPlannedTargetId(plannedField));
+        return target switch
+        {
+            PlannedWorldElementReference.CanonicalSlotElement canonicalSlot => canonicalSlot.Locator.Value,
+            PlannedWorldElementReference.CanonicalComponentElement canonicalComponent => canonicalComponent.Locator.Value,
+            PlannedWorldElementReference.BatchSlotElement plannedSlot => ToPlannedTargetId(plannedSlot.Slot),
+            PlannedWorldElementReference.BatchComponentElement plannedComponent => ToPlannedTargetId(plannedComponent.Component),
+            PlannedWorldElementReference.BatchFieldElement plannedField => ToPlannedTargetId(plannedField.Field),
+            _ => throw new InvalidOperationException($"Unsupported planned world element target '{target.GetType().Name}'."),
+        };
     }
 
     private static string ToPlannedTargetId(object reference)

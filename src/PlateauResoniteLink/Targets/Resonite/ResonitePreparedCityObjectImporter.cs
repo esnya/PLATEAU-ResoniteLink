@@ -27,8 +27,6 @@ internal interface IResonitePreparedCityObjectImporter
 internal sealed class ResonitePreparedCityObjectImporter(
     IResoniteGeometryAssetPlanner geometryAssetPlanner,
     IResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer,
-    IResoniteBatchEmissionPlanner batchEmissionPlanner,
-    IResoniteSceneBatchEmitter batchEmitter,
     IResoniteImportStepTaskCleanup importStepTaskCleanup) : IResonitePreparedCityObjectImporter
 {
     public async Task ImportAsync(
@@ -113,11 +111,11 @@ internal sealed class ResonitePreparedCityObjectImporter(
                 plannedMaterials.RendererMaterialBindings),
             new PlannedCollider(
                 cityObject.CollisionEnabled));
-        PlannedBatchEmission batchEmission = batchEmissionPlanner.Create(objectSlots, emissionPlan);
+        PlannedBatchEmission batchEmission = ResoniteBatchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         ReportImportStep(progressReporter, cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
-        await batchEmitter.ExecuteAsync(
+        await PlannedBatchEmissionInterpreter.ExecuteAsync(
             routedClient,
             cityObject,
             batchEmission,
