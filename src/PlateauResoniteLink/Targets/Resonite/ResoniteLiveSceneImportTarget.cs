@@ -13,7 +13,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private readonly Uri endpoint;
     private readonly int connectionCount;
     private readonly IResoniteLiveSendStartRequestFactory startRequestFactory;
-    private readonly IResoniteLiveSendRunExecutor runExecutor;
+    private readonly ResoniteLiveSendRunExecutor runExecutor;
     private readonly IResoniteLiveSendRunResourceReleaser resourceReleaser;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
