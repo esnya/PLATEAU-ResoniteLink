@@ -11,7 +11,7 @@ internal interface IResoniteLiveSendWorkerPipelineFactory
 
 internal sealed class ResoniteLiveSendWorkerPipelineFactory(
     IResoniteDatasetLicenseWriter datasetLicenseWriter,
-    IResonitePreparedCityObjectImporter preparedCityObjectImporter) : IResoniteLiveSendWorkerPipelineFactory
+    ResonitePreparedCityObjectImporter preparedCityObjectImporter) : IResoniteLiveSendWorkerPipelineFactory
 {
     public IResoniteQueuedCityObjectWorker Create(ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
     {
