@@ -15,8 +15,7 @@ internal interface ILiveSendRunStateFactory
 }
 
 internal sealed class LiveSendRunStateFactory(
-    IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory,
-    ILiveSendRunRuntimeComponentsFactory runtimeComponentsFactory) : ILiveSendRunStateFactory
+    IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory) : ILiveSendRunStateFactory
 {
     public LiveSendRunState Create(
         LiveSendRunPlan runPlan,
@@ -34,7 +33,7 @@ internal sealed class LiveSendRunStateFactory(
         CompositeCityObjectBaker? cityObjectBaker = cityObjectBakerFactory.Create(
             runPlan.MeshBakeEnabled,
             runPlan.ResourceBudget);
-        LiveSendRunRuntimeComponents runtimeComponents = runtimeComponentsFactory.Create(
+        LiveSendRunRuntimeComponents runtimeComponents = LiveSendRunRuntimeComponentsFactory.Create(
             runPlan.Queue,
             cancellationToken);
         LiveSendRunContext context = new(
