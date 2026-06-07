@@ -90,7 +90,6 @@ internal interface IResoniteLiveSendRunStarter
 }
 
 internal sealed class ResoniteLiveSendRunStarter(
-    IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     LiveSendRunStateFactory runStateFactory,
     IResoniteLiveSendWorkerLauncher workerLauncher) : IResoniteLiveSendRunStarter
@@ -110,7 +109,7 @@ internal sealed class ResoniteLiveSendRunStarter(
             request.MemoryProfile,
             request.ConnectionCount,
             request.MeshBakeEnabled);
-        await connectionInitializer.EnsureConnectedAsync(
+        await ResoniteLiveSendConnectionInitializer.EnsureConnectedAsync(
             request,
             runPlan,
             context,
