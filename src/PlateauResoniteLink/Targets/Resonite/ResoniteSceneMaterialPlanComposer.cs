@@ -11,20 +11,7 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteSceneMaterialPlanComposer
-{
-    Task<PlannedSceneMaterialPlan> ComposeAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient importClient,
-        ResoniteConstructionCityObject cityObject,
-        IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
-        IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-        Action<string> reportMaterialStep,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlanning materialPlanning) : IResoniteSceneMaterialPlanComposer
+internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlanning materialPlanning)
 {
     public async Task<PlannedSceneMaterialPlan> ComposeAsync(
         LiveSendRunState state,

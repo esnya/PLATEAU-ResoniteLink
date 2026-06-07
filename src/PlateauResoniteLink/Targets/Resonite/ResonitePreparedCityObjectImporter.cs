@@ -28,8 +28,7 @@ internal interface IResonitePreparedCityObjectImporter
 }
 
 internal sealed class ResonitePreparedCityObjectImporter(
-    IResoniteGeometryAssetPlanner geometryAssetPlanner,
-    IResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer,
+    ResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer,
     IResoniteImportStepTaskCleanup importStepTaskCleanup) : IResonitePreparedCityObjectImporter
 {
     public async Task ImportAsync(
@@ -65,7 +64,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
             preparedCityObject,
             importStepCancellation.Token);
         Stopwatch geometryStopwatch = Stopwatch.StartNew();
-        Task<PlannedGeometryAsset> geometryPlanningTask = geometryAssetPlanner.PlanAsync(
+        Task<PlannedGeometryAsset> geometryPlanningTask = ResoniteGeometryAssetPlanner.PlanAsync(
             routedClient,
             cityObject,
             preparedCityObject,
