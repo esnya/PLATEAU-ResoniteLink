@@ -374,7 +374,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         IResoniteMaterialPlanning materialPlanning)
     {
         return new ResonitePreparedCityObjectImporter(
-            new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
             new ResoniteSceneMaterialPlanComposer(materialPlanning),
             new ResoniteImportStepTaskCleanup());
     }
