@@ -8,11 +8,11 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteLiveSendQueue(
     IResoniteQueuedCityObjectEnqueuer enqueuer,
-    IResoniteLiveSendFinalizer finalizer)
+    ResoniteLiveSendFinalizer finalizer)
 {
     private readonly IResoniteQueuedCityObjectEnqueuer enqueuer =
         enqueuer ?? throw new ArgumentNullException(nameof(enqueuer));
-    private readonly IResoniteLiveSendFinalizer finalizer =
+    private readonly ResoniteLiveSendFinalizer finalizer =
         finalizer ?? throw new ArgumentNullException(nameof(finalizer));
 
     public Task QueueUnitAsync(
