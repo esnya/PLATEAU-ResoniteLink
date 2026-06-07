@@ -26,10 +26,6 @@ internal static class ResoniteBatchOperations
         BatchTemporaryMessageId MessageId,
         string ComponentType);
 
-    internal readonly record struct PendingBatchOperation(
-        BatchTemporaryMessageId MessageId,
-        string Description);
-
     public static PendingBatchSlot CreatePendingSlot(
         string prefix,
         string slotName,
@@ -72,7 +68,6 @@ internal static class ResoniteBatchOperations
         private int nextMessageId;
 
         public List<DataModelOperation> Actions { get; } = [];
-        public List<PendingBatchOperation> PendingActions { get; } = [];
 
         public PendingBatchSlot AddSlot(
             string parentId,
@@ -101,7 +96,6 @@ internal static class ResoniteBatchOperations
             long? orderOffset = null)
         {
             Actions.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, localId, messageId, orderOffset));
-            PendingActions.Add(new PendingBatchOperation(messageId, $"slot '{slotName}'"));
             return new PendingBatchSlot(localId, messageId, slotName);
         }
 
@@ -126,7 +120,6 @@ internal static class ResoniteBatchOperations
             IReadOnlyDictionary<string, Member> members)
         {
             Actions.Add(CreateAddComponentOperation(containerSlotId, componentType, members, localId, messageId));
-            PendingActions.Add(new PendingBatchOperation(messageId, $"component '{componentType}'"));
             return new PendingBatchComponent(localId, messageId, componentType);
         }
 
@@ -389,17 +382,6 @@ internal sealed class CanonicalBatchEntityMap
         }
 
         return new CreatedComponent(new ResoniteComponentLocator(newEntityId.EntityId), pendingComponent.ComponentType);
-    }
-
-    public void ValidateAll(IReadOnlyList<ResoniteBatchOperations.PendingBatchOperation> pendingOperations)
-    {
-        ArgumentNullException.ThrowIfNull(pendingOperations);
-        foreach (ResoniteBatchOperations.PendingBatchOperation pendingOperation in pendingOperations)
-        {
-            _ = ResolveResponse(
-                pendingOperation.MessageId,
-                $"validate {pendingOperation.Description}");
-        }
     }
 
     private Response ResolveResponse(ResoniteBatchOperations.BatchTemporaryMessageId messageId)

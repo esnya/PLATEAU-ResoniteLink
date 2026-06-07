@@ -322,39 +322,27 @@ internal sealed record PlannedBatchEmission
 {
     private PlannedBatchEmission(
         IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
-        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
-        IReadOnlyList<PlannedBatchSlotEmission> slotResolutionTargets,
-        IReadOnlyList<PlannedBatchComponentEmission> componentResolutionTargets)
+        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions)
     {
         SlotEmissions = slotEmissions;
         ComponentEmissions = componentEmissions;
-        SlotResolutionTargets = slotResolutionTargets;
-        ComponentResolutionTargets = componentResolutionTargets;
     }
 
     public IReadOnlyList<PlannedBatchSlotEmission> SlotEmissions { get; }
 
     public IReadOnlyList<PlannedBatchComponentEmission> ComponentEmissions { get; }
 
-    public IReadOnlyList<PlannedBatchSlotEmission> SlotResolutionTargets { get; }
-
-    public IReadOnlyList<PlannedBatchComponentEmission> ComponentResolutionTargets { get; }
-
     public static PlannedBatchEmission Create(
         IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
-        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
-        IReadOnlyList<PlannedBatchSlotEmission> slotResolutionTargets,
-        IReadOnlyList<PlannedBatchComponentEmission> componentResolutionTargets)
+        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions)
     {
-        ValidatePlannedReferences(slotEmissions, componentEmissions, slotResolutionTargets, componentResolutionTargets);
-        return new PlannedBatchEmission(slotEmissions, componentEmissions, slotResolutionTargets, componentResolutionTargets);
+        ValidatePlannedReferences(slotEmissions, componentEmissions);
+        return new PlannedBatchEmission(slotEmissions, componentEmissions);
     }
 
     private static void ValidatePlannedReferences(
         IReadOnlyList<PlannedBatchSlotEmission> slotEmissions,
-        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions,
-        IReadOnlyList<PlannedBatchSlotEmission> slotResolutionTargets,
-        IReadOnlyList<PlannedBatchComponentEmission> componentResolutionTargets)
+        IReadOnlyList<PlannedBatchComponentEmission> componentEmissions)
     {
         HashSet<PlannedBatchSlotEmission> emittedSlots = new(ReferenceEqualityComparer.Instance);
         foreach (PlannedBatchSlotEmission slotEmission in slotEmissions)
@@ -366,14 +354,6 @@ internal sealed record PlannedBatchEmission
             }
 
             emittedSlots.Add(slotEmission);
-        }
-
-        foreach (PlannedBatchSlotEmission slotResolutionTarget in slotResolutionTargets)
-        {
-            if (!emittedSlots.Contains(slotResolutionTarget))
-            {
-                throw new InvalidOperationException("Planned slot resolution target must reference an emitted planned slot.");
-            }
         }
 
         HashSet<PlannedBatchComponentEmission> emittedComponents = new(ReferenceEqualityComparer.Instance);
@@ -391,14 +371,6 @@ internal sealed record PlannedBatchEmission
             }
 
             emittedComponents.Add(componentEmission);
-        }
-
-        foreach (PlannedBatchComponentEmission componentResolutionTarget in componentResolutionTargets)
-        {
-            if (!emittedComponents.Contains(componentResolutionTarget))
-            {
-                throw new InvalidOperationException("Planned component resolution target must reference an emitted planned component.");
-            }
         }
     }
 

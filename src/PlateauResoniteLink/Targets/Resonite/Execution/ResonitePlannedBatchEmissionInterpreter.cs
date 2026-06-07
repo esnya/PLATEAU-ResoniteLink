@@ -41,6 +41,8 @@ internal static class PlannedBatchEmissionInterpreter
             new(ReferenceEqualityComparer.Instance);
         Dictionary<PlannedFieldReference, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId =
             new(ReferenceEqualityComparer.Instance);
+        List<ResoniteBatchOperations.PendingBatchSlot> pendingSlots = [];
+        List<ResoniteBatchOperations.PendingBatchComponent> pendingComponents = [];
 
         foreach (PlannedBatchSlotEmission slotEmission in batchEmission.SlotEmissions)
         {
@@ -51,6 +53,7 @@ internal static class PlannedBatchEmissionInterpreter
                 slotEmission.Rotation,
                 slotEmission.OrderOffset);
             pendingSlotsByPlanId[slotEmission] = pendingSlot;
+            pendingSlots.Add(pendingSlot);
         }
 
         foreach (PlannedBatchComponentEmission componentEmission in batchEmission.ComponentEmissions)
@@ -79,6 +82,7 @@ internal static class PlannedBatchEmissionInterpreter
                 componentEmission.ComponentType,
                 translatedMembers);
             pendingComponentsByPlanId[componentEmission] = pendingComponent;
+            pendingComponents.Add(pendingComponent);
         }
 
         int operationCount = batchBuilder.Actions.Count;
@@ -93,15 +97,14 @@ internal static class PlannedBatchEmissionInterpreter
             EstimateBatchPayloadBytes(operationCount));
 
         CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
-        canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingActions);
-        foreach (PlannedBatchSlotEmission slotResolutionTarget in batchEmission.SlotResolutionTargets)
+        foreach (ResoniteBatchOperations.PendingBatchSlot pendingSlot in pendingSlots)
         {
-            _ = canonicalBatchEntityMap.ResolveSlot(pendingSlotsByPlanId[slotResolutionTarget]);
+            _ = canonicalBatchEntityMap.ResolveSlot(pendingSlot);
         }
 
-        foreach (PlannedBatchComponentEmission componentResolutionTarget in batchEmission.ComponentResolutionTargets)
+        foreach (ResoniteBatchOperations.PendingBatchComponent pendingComponent in pendingComponents)
         {
-            _ = canonicalBatchEntityMap.ResolveComponent(pendingComponentsByPlanId[componentResolutionTarget]);
+            _ = canonicalBatchEntityMap.ResolveComponent(pendingComponent);
         }
     }
 
