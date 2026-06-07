@@ -27,6 +27,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
     private readonly X3DMaterialWarningStatistics x3DMaterialWarningStatistics = new();
+    private readonly IReadOnlyList<string> selectedMeshCodes;
     private readonly MeshCodeBounds[] requestedMeshCodeBounds;
     private CoordinateReferenceSystem? referenceSystem;
 
@@ -51,8 +52,9 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         this.geometryProjector = geometryProjector;
         this.objectUnitOptimizer = objectUnitOptimizer;
         this.progressReporter = progressReporter;
+        selectedMeshCodes = Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode];
         requestedMeshCodeBounds = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
-            Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode]);
+            selectedMeshCodes);
         terrainOverlayContextResolver = new ProjectionTerrainOverlayContextResolver(
             request,
             sourceFiles,
@@ -236,6 +238,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                          globalCartesian,
                          projectionTerrainOverlayContext.Overlays,
                          requestedMeshCodeBounds,
+                         selectedMeshCodes,
                          request,
                          predicate: null,
                          progressReporter,
@@ -253,7 +256,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                 DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
                     demProjectionSource.SourceFile,
                     demProjectionSource.CityObjects,
-                    Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode]);
+                    selectedMeshCodes);
             foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
                          new CachedSourceFileDescriptor(
                              demProjectionSource.SourceFile,
@@ -264,6 +267,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                          globalCartesian,
                          projectionTerrainOverlayContext.Overlays,
                          requestedMeshCodeBounds,
+                         selectedMeshCodes,
                          request,
                          predicate: null,
                          progressReporter,

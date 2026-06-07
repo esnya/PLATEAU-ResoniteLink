@@ -18,6 +18,7 @@ internal static class CityGmlParsedCityObjectProjection
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
+        IReadOnlyList<string> selectedMeshCodes,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
         Func<ParsedCityObject, bool>? predicate = null,
@@ -27,6 +28,7 @@ internal static class CityGmlParsedCityObjectProjection
         ArgumentNullException.ThrowIfNull(sourceFile);
         ArgumentNullException.ThrowIfNull(referenceSystem);
         ArgumentNullException.ThrowIfNull(globalOriginPoint);
+        ArgumentNullException.ThrowIfNull(selectedMeshCodes);
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
@@ -38,7 +40,7 @@ internal static class CityGmlParsedCityObjectProjection
             DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
                 sourceFile.SourceFile,
                 sourceFile.CityObjects,
-                ResolveSelectedMeshCodes(request));
+                selectedMeshCodes);
 
         foreach (ParsedCityObject parsedCityObject in projectedInputCityObjects)
         {
@@ -63,14 +65,6 @@ internal static class CityGmlParsedCityObjectProjection
                 yield return cityObject;
             }
         }
-    }
-
-    private static IReadOnlyList<string> ResolveSelectedMeshCodes(
-        PlateauImportRequest request)
-    {
-        return MeshCodeRequestSyntax.IsLiteralMeshCodeRequest(request.MeshCode)
-            ? [request.MeshCode]
-            : [];
     }
 
     internal static IEnumerable<ImportedCityObject> Project(

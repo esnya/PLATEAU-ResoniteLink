@@ -17,6 +17,7 @@ internal interface ICityGmlGeometryProjector
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
+        IReadOnlyList<string> selectedMeshCodes,
         PlateauImportRequest request,
         Func<ParsedCityObject, bool>? predicate = null,
         Action<string>? progressReporter = null,

@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 
 using GeographicLib;
@@ -64,6 +65,7 @@ public sealed class LocalCityGmlGeometryProjectorTests
                     globalCartesian: new LocalCartesian(35.0, 139.0, 0.0, new Geocentric(Ellipsoid.GRS80)),
                     demTerrainTextureOverlays: [],
                     requestedMeshCodeBounds: [],
+                    selectedMeshCodes: ["53394525"],
                     request: new PlateauImportRequest(
                         Dataset: "tokyo23ku",
                         MeshCode: "53394525",
@@ -95,6 +97,7 @@ public sealed class LocalCityGmlGeometryProjectorTests
                     globalCartesian: new LocalCartesian(35.0, 139.0, 0.0, new Geocentric(Ellipsoid.GRS80)),
                     demTerrainTextureOverlays: [],
                     requestedMeshCodeBounds: [],
+                    selectedMeshCodes: ["53394525"],
                     request: new PlateauImportRequest(
                         Dataset: "tokyo23ku",
                         MeshCode: "53394525",
@@ -103,5 +106,77 @@ public sealed class LocalCityGmlGeometryProjectorTests
                 .ToArray());
 
         Assert.Contains("Mixed CityGML coordinate reference systems are not supported", exception.Errors.Single());
+    }
+
+    [Fact]
+    public void ProjectCityObjectsUsesSelectedMeshCodesForRegexDemParentSourceFile()
+    {
+        LocalCityGmlGeometryProjector projector = new(new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("EPSG:4326");
+        string sourceFileRelativePath = "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml";
+        CachedSourceFileDescriptor sourceFile = new(
+            new SourceFileDescriptor(
+                RelativePath: sourceFileRelativePath,
+                PackageName: "dem",
+                MatchedMeshCode: "533945",
+                RequiresMeshCodeBoundsFilter: true),
+            [
+                new ParsedCityObject(
+                    SlotKey: "dem-parent",
+                    DisplayName: "DEM 533945",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: 1,
+                    Surfaces: [CreateDemSurfaceCovering("53394525", "53394526")],
+                    ReferenceSystem: referenceSystem,
+                    SourceFileRelativePath: sourceFileRelativePath,
+                    SharedAcrossMeshCodes: true,
+                    BuildingAttributes: BuildingAttributeContext.Empty),
+            ],
+            referenceSystem);
+        string[] selectedMeshCodes = ["53394525", "53394526"];
+
+        ImportedCityObject[] cityObjects = projector.ProjectCityObjects(
+                sourceFile,
+                referenceSystem,
+                new GeodeticPoint(35.0, 139.0, 0.0),
+                globalCartesian: new LocalCartesian(35.0, 139.0, 0.0, referenceSystem.Geocentric),
+                demTerrainTextureOverlays: [],
+                requestedMeshCodeBounds: MeshCodeBounds.CreateManyFromSelectedMeshCodes(selectedMeshCodes),
+                selectedMeshCodes: selectedMeshCodes,
+                request: new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "5339452[56]",
+                    CityGmlSource: DatasetLocation.Local("C:\\fixture"),
+                    PackageNames: ["dem"]))
+            .ToArray();
+
+        Assert.Equal(["53394525", "53394526"], cityObjects.Select(static cityObject => cityObject.ActualMeshCode).ToArray());
+        Assert.All(cityObjects, static cityObject => Assert.Equal("dem", cityObject.PackageName));
+    }
+
+    private static ParsedSurface CreateDemSurfaceCovering(string firstMeshCode, string secondMeshCode)
+    {
+        MeshCodeBounds firstBounds = MeshCodeBounds.Parse(firstMeshCode);
+        MeshCodeBounds secondBounds = MeshCodeBounds.Parse(secondMeshCode);
+        double southLatitude = Math.Min(firstBounds.SouthLatitude, secondBounds.SouthLatitude);
+        double northLatitude = Math.Max(firstBounds.NorthLatitude, secondBounds.NorthLatitude);
+        double westLongitude = Math.Min(firstBounds.WestLongitude, secondBounds.WestLongitude);
+        double eastLongitude = Math.Max(firstBounds.EastLongitude, secondBounds.EastLongitude);
+
+        return new ParsedSurface(
+            ParsedSurfaceSemantic.Ground,
+            new ParsedRing(
+                [
+                    new GeodeticPoint(southLatitude, westLongitude, 0.0),
+                    new GeodeticPoint(southLatitude, eastLongitude, 0.0),
+                    new GeodeticPoint(northLatitude, eastLongitude, 1.0),
+                    new GeodeticPoint(northLatitude, westLongitude, 1.0),
+                    new GeodeticPoint(southLatitude, westLongitude, 0.0),
+                ],
+                UVs: null),
+            [],
+            new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null);
     }
 }
