@@ -9,21 +9,13 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
-internal interface IResoniteDatasetLicenseWriter
-{
-    Task EnsureGsiFallbackLicenseAsync(
-        IResoniteLinkClient client,
-        CreatedSlot datasetRootSlot,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class ResoniteDatasetLicenseWriter : IResoniteDatasetLicenseWriter
+internal static class ResoniteDatasetLicenseWriter
 {
     private const string LicenseComponentType = "[FrooxEngine]FrooxEngine.License";
     private const string GsiLicenseName = "GSI Maps Terms";
     private const string GsiLicenseUrl = "https://maps.gsi.go.jp/help/termsofuse.html";
 
-    public async Task EnsureGsiFallbackLicenseAsync(
+    public static async Task EnsureGsiFallbackLicenseAsync(
         IResoniteLinkClient client,
         CreatedSlot datasetRootSlot,
         CancellationToken cancellationToken)
