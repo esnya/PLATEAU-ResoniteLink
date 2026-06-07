@@ -6,14 +6,7 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
-internal interface IResoniteBatchEmissionPlanner
-{
-    PlannedBatchEmission Create(
-        ResoniteObjectSlotHierarchy objectSlots,
-        PlannedSceneObjectEmission emissionPlan);
-}
-
-internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlanner
+internal static class ResoniteBatchEmissionPlanner
 {
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
@@ -28,7 +21,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
     private const string BooleanAssetDriverMeshComponentType =
         "[FrooxEngine]FrooxEngine.BooleanAssetDriver<[FrooxEngine]FrooxEngine.Mesh>";
 
-    public PlannedBatchEmission Create(
+    public static PlannedBatchEmission Create(
         ResoniteObjectSlotHierarchy objectSlots,
         PlannedSceneObjectEmission emissionPlan)
     {
