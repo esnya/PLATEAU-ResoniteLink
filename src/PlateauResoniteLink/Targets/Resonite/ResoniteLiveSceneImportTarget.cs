@@ -16,7 +16,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private readonly int connectionCount;
     private readonly IResoniteLiveSendStartRequestFactory startRequestFactory;
     private readonly ResoniteLiveSendRunExecutor runExecutor;
-    private readonly IResoniteLiveSendRunResourceReleaser resourceReleaser;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
@@ -33,7 +32,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
         ArgumentNullException.ThrowIfNull(dependencies.StartRequestFactory);
         ArgumentNullException.ThrowIfNull(dependencies.RunExecutor);
-        ArgumentNullException.ThrowIfNull(dependencies.ResourceReleaser);
 
         endpoint = options.Endpoint;
         connectionCount = options.ConnectionCount;
@@ -43,7 +41,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         logger = options.LoggerFactory.CreateLogger("PlateauResoniteLink.LiveSend");
         startRequestFactory = dependencies.StartRequestFactory;
         runExecutor = dependencies.RunExecutor;
-        resourceReleaser = dependencies.ResourceReleaser;
         ClientSessionInternal = dependencies.ClientSession;
     }
 
@@ -91,7 +88,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     public async ValueTask DisposeAsync()
     {
-        await resourceReleaser.ReleaseAsync(
+        await ResoniteLiveSendRunResourceReleaser.ReleaseAsync(
             state: null,
             clientSession: ClientSessionInternal,
             disposeClients: true,

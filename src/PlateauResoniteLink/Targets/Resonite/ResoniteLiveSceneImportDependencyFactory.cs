@@ -11,8 +11,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteClientSessionFactory clientSessionFactory,
     ResoniteLiveSendRunStarterFactory runStarterFactory,
     IResoniteLiveSendStartRequestFactory startRequestFactory,
-    IResoniteLiveSendQueue queue,
-    IResoniteLiveSendRunResourceReleaser resourceReleaser)
+    IResoniteLiveSendQueue queue)
 {
     public ResoniteLiveSceneImportDependencies Create(
         ResoniteLiveSceneImportTargetOptions options,
@@ -63,8 +62,6 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             startRequestFactory,
             new ResoniteLiveSendRunExecutor(
                 runStarter,
-                queue,
-                resourceReleaser),
-            resourceReleaser);
+                queue));
     }
 }
