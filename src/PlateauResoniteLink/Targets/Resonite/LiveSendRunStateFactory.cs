@@ -4,7 +4,7 @@ using System.Threading;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class LiveSendRunStateFactory(
-    IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory)
+    ResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory)
 {
     public LiveSendRunState Create(
         LiveSendRunPlan runPlan,
