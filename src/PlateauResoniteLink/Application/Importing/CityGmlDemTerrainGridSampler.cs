@@ -39,11 +39,11 @@ internal static class CityGmlDemTerrainGridSampler
         for (int zIndex = 0; zIndex < height; zIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            double v = ((double)zIndex + 0.5) / height;
+            double v = ResolveGridCoordinateRatio(zIndex, height);
             double sampleZ = minZ + (extentZ * v);
             for (int xIndex = 0; xIndex < width; xIndex++)
             {
-                double u = ((double)xIndex + 0.5) / width;
+                double u = ResolveGridCoordinateRatio(xIndex, width);
                 double sampleX = minX + (extentX * u);
                 int sampleIndex = (zIndex * width) + xIndex;
                 if (TrySampleLocalHeight(sampleX, sampleZ, triangles, spatialIndex, out double localHeight))
@@ -81,6 +81,11 @@ internal static class CityGmlDemTerrainGridSampler
 
         height = 0.0;
         return false;
+    }
+
+    private static double ResolveGridCoordinateRatio(int index, int count)
+    {
+        return count <= 1 ? 0.0 : (double)index / (count - 1);
     }
 
     private static bool TryInterpolateLocalTriangleHeight(

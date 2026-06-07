@@ -69,7 +69,6 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
         DemTerrainGridBounds heightMapBounds = CreateDemTerrainGridBounds(
             cityObject,
-            cityObjectOrigin,
             slotPosition,
             globalOriginPoint,
             globalCartesian,
@@ -224,7 +223,6 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
     private static DemTerrainGridBounds CreateDemTerrainGridBounds(
         ConstructionCityObjectDraft cityObject,
-        GeodeticPoint cityObjectOrigin,
         Float3 slotPosition,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -244,33 +242,16 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         GeographicRectangle clippedBounds = IntersectGeographicBounds(
             ResolveCityObjectGeographicBounds(cityObject.Source),
             demTerrainTextureOverlay.GeographicBounds);
-        double referenceLatitude = cityObjectOrigin.Latitude;
-        double referenceLongitude = cityObjectOrigin.Longitude;
-        Float3 westPosition = CreateGlobalTerrainGridLocalPosition(
-            new GeodeticPoint(referenceLatitude, clippedBounds.MinLongitude, cityObjectOrigin.Altitude),
-            slotPosition,
-            globalOriginPoint,
-            globalCartesian);
-        Float3 eastPosition = CreateGlobalTerrainGridLocalPosition(
-            new GeodeticPoint(referenceLatitude, clippedBounds.MaxLongitude, cityObjectOrigin.Altitude),
-            slotPosition,
-            globalOriginPoint,
-            globalCartesian);
-        Float3 southPosition = CreateGlobalTerrainGridLocalPosition(
-            new GeodeticPoint(clippedBounds.MinLatitude, referenceLongitude, cityObjectOrigin.Altitude),
-            slotPosition,
-            globalOriginPoint,
-            globalCartesian);
-        Float3 northPosition = CreateGlobalTerrainGridLocalPosition(
-            new GeodeticPoint(clippedBounds.MaxLatitude, referenceLongitude, cityObjectOrigin.Altitude),
+        Float3[] clippedAxisPositions = CreateClippedAxisPositions(
+            clippedBounds,
             slotPosition,
             globalOriginPoint,
             globalCartesian);
 
-        double clippedMinX = Math.Min(westPosition.X, eastPosition.X);
-        double clippedMaxX = Math.Max(westPosition.X, eastPosition.X);
-        double clippedMinZ = Math.Min(southPosition.Z, northPosition.Z);
-        double clippedMaxZ = Math.Max(southPosition.Z, northPosition.Z);
+        double clippedMinX = Math.Min(clippedAxisPositions[0].X, clippedAxisPositions[1].X);
+        double clippedMaxX = Math.Max(clippedAxisPositions[0].X, clippedAxisPositions[1].X);
+        double clippedMinZ = Math.Min(clippedAxisPositions[2].Z, clippedAxisPositions[3].Z);
+        double clippedMaxZ = Math.Max(clippedAxisPositions[2].Z, clippedAxisPositions[3].Z);
 
         clippedMinX = Math.Max(clippedMinX, rawMinX);
         clippedMaxX = Math.Min(clippedMaxX, rawMaxX);
@@ -283,6 +264,43 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         }
 
         return new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ);
+    }
+
+    private static Float3[] CreateClippedAxisPositions(
+        GeographicRectangle clippedBounds,
+        Float3 slotPosition,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian)
+    {
+        double boundsAltitude = globalOriginPoint.Altitude;
+        double referenceLatitude = globalOriginPoint.Latitude;
+        double referenceLongitude = globalOriginPoint.Longitude;
+        // GridMesh bounds are axis-aligned in scene space. Project the geographic
+        // axes from one scene-wide frame so adjacent chunks quantize the same
+        // latitude or longitude boundary to the same local X/Z edge.
+        return
+        [
+            CreateGlobalTerrainGridLocalPosition(
+                new GeodeticPoint(referenceLatitude, clippedBounds.MinLongitude, boundsAltitude),
+                slotPosition,
+                globalOriginPoint,
+                globalCartesian),
+            CreateGlobalTerrainGridLocalPosition(
+                new GeodeticPoint(referenceLatitude, clippedBounds.MaxLongitude, boundsAltitude),
+                slotPosition,
+                globalOriginPoint,
+                globalCartesian),
+            CreateGlobalTerrainGridLocalPosition(
+                new GeodeticPoint(clippedBounds.MinLatitude, referenceLongitude, boundsAltitude),
+                slotPosition,
+                globalOriginPoint,
+                globalCartesian),
+            CreateGlobalTerrainGridLocalPosition(
+                new GeodeticPoint(clippedBounds.MaxLatitude, referenceLongitude, boundsAltitude),
+                slotPosition,
+                globalOriginPoint,
+                globalCartesian),
+        ];
     }
 
     private static GeographicRectangle ResolveCityObjectGeographicBounds(ParsedCityObject cityObject)
