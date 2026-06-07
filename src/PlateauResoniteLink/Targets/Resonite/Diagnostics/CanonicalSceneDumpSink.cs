@@ -12,15 +12,8 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
 
-internal interface IResoniteCanonicalSceneDumpSinkFactory
-{
-    ISceneSink Create(
-        ResoniteLiveSceneImportTargetOptions options,
-        string outputPath);
-}
-
 internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
-    IResoniteLiveSceneImportFactory targetFactory) : IResoniteCanonicalSceneDumpSinkFactory
+    IResoniteLiveSceneImportFactory targetFactory)
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
