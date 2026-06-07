@@ -141,7 +141,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new ResoniteLiveSendRunStarter(
-                    new ResoniteLiveSendConnectionInitializer(),
                     new ThrowingRunSetupPreparer(),
                     new LiveSendRunStateFactory(
                         new ResoniteBufferedCityObjectBakerFactory(
