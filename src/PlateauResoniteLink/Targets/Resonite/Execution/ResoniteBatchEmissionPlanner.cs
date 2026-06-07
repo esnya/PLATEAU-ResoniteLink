@@ -33,10 +33,15 @@ internal static class ResoniteBatchEmissionPlanner
 
     public static PlannedBatchEmission Create(
         ResoniteObjectSlotHierarchy objectSlots,
-        PlannedSceneObjectEmission emissionPlan)
+        PlannedGeometryAsset geometryAsset,
+        IReadOnlyList<PlannedMaterialAsset> materialAssets,
+        IReadOnlyList<PlannedRendererMaterialBinding> rendererMaterialBindings,
+        bool collisionEnabled)
     {
         ArgumentNullException.ThrowIfNull(objectSlots);
-        ArgumentNullException.ThrowIfNull(emissionPlan);
+        ArgumentNullException.ThrowIfNull(geometryAsset);
+        ArgumentNullException.ThrowIfNull(materialAssets);
+        ArgumentNullException.ThrowIfNull(rendererMaterialBindings);
 
         List<PlannedBatchSlotEmission> slotEmissions = [];
         List<PlannedBatchComponentEmission> componentEmissions = [];
@@ -45,7 +50,7 @@ internal static class ResoniteBatchEmissionPlanner
 
         PlannedBatchSlotEmission meshAssetSlot = new(
             PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
-            emissionPlan.GeometryAsset.MeshAssetSlotName,
+            geometryAsset.MeshAssetSlotName,
             null,
             null,
             objectSlots.CityObjectOrderOffset);
@@ -56,7 +61,7 @@ internal static class ResoniteBatchEmissionPlanner
         PlannedTerrainGridMeshBundle? terrainGridMesh = null;
         PlannedDynamicTerrainMeshBundle? dynamicTerrainMesh = null;
         PlannedWorldElementReference? dynamicStaticMeshTarget = null;
-        switch (emissionPlan.GeometryAsset)
+        switch (geometryAsset)
         {
             case PlannedTriangleMeshGeometryAsset triangleMesh:
                 rendererGeometryComponent = new PlannedBatchComponentEmission(
@@ -109,12 +114,12 @@ internal static class ResoniteBatchEmissionPlanner
                 break;
             default:
                 throw new InvalidOperationException(
-                    $"Unsupported planned geometry asset type '{emissionPlan.GeometryAsset.GetType().Name}'.");
+                    $"Unsupported planned geometry asset type '{geometryAsset.GetType().Name}'.");
         }
 
         Dictionary<PlannedMaterialAsset, PlannedWorldElementReference> emittedMaterialTargets =
             new(ReferenceEqualityComparer.Instance);
-        foreach (PlannedMaterialAsset materialAsset in emissionPlan.MaterialAssets)
+        foreach (PlannedMaterialAsset materialAsset in materialAssets)
         {
             switch (materialAsset)
             {
@@ -180,12 +185,12 @@ internal static class ResoniteBatchEmissionPlanner
                 ["Mesh"] = PlannedMembers.AddressableReference(
                     rendererMeshField,
                     ResolveInitialMeshTarget(dynamicTerrainMesh, rendererGeometryComponent)),
-                ["Materials"] = CreateRendererMaterials(emissionPlan.Renderer.MaterialBindings, emittedMaterialTargets),
+                ["Materials"] = CreateRendererMaterials(rendererMaterialBindings, emittedMaterialTargets),
                 ["MaterialPropertyBlocks"] = CreateRendererMaterialPropertyBlocks(
                     componentEmissions,
                     meshAssetSlot,
                     presentationSlot,
-                    emissionPlan.Renderer.MaterialBindings),
+                    rendererMaterialBindings),
             }));
         if (dynamicTerrainMesh is not null)
         {
@@ -204,11 +209,11 @@ internal static class ResoniteBatchEmissionPlanner
             {
                 ["Type"] = PlannedMembers.Literal(new Field_Enum
                 {
-                    Value = emissionPlan.Collider.CollisionEnabled ? "Static" : "NoCollision",
+                    Value = collisionEnabled ? "Static" : "NoCollision",
                 }),
                 ["CharacterCollider"] = PlannedMembers.Literal(new Field_bool
                 {
-                    Value = emissionPlan.Collider.CollisionEnabled,
+                    Value = collisionEnabled,
                 }),
                 ["Mesh"] = PlannedMembers.AddressableReference(
                     colliderMeshField,

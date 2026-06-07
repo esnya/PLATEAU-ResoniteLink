@@ -70,21 +70,9 @@ internal sealed record PlannedTerrainMainTextureOverrideRendererMaterialBinding(
     ResoniteComponentLocator? SharedMainTexturePropertyBlockComponent = null)
     : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture);
 
-internal sealed record PlannedRenderer(
-    IReadOnlyList<PlannedRendererMaterialBinding> MaterialBindings);
-
 internal sealed record PlannedSceneMaterialPlan(
     IReadOnlyList<PlannedMaterialAsset> MaterialAssets,
     IReadOnlyList<PlannedRendererMaterialBinding> RendererMaterialBindings);
-
-internal sealed record PlannedCollider(
-    bool CollisionEnabled);
-
-internal sealed record PlannedSceneObjectEmission(
-    PlannedGeometryAsset GeometryAsset,
-    IReadOnlyList<PlannedMaterialAsset> MaterialAssets,
-    PlannedRenderer Renderer,
-    PlannedCollider Collider);
 
 internal sealed record PlannedTerrainGridMeshBundle(
     PlannedFieldReference PointsField,
