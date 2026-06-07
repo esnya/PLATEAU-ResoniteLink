@@ -30,15 +30,8 @@ internal sealed record LiveSendWorkerLaunchRequest
     public ResoniteImportBudgetProfile ResourceBudget { get; }
 }
 
-internal interface IResoniteLiveSendWorkerLauncher
-{
-    void Launch(
-        LiveSendWorkerLaunchRequest request,
-        LiveSendRunStartContext context);
-}
-
 internal sealed class ResoniteLiveSendWorkerLauncher(
-    IResoniteQueuedCityObjectWorker queuedCityObjectWorker) : IResoniteLiveSendWorkerLauncher
+    IResoniteQueuedCityObjectWorker queuedCityObjectWorker)
 {
     private readonly IResoniteQueuedCityObjectWorker queuedCityObjectWorker =
         queuedCityObjectWorker ?? throw new ArgumentNullException(nameof(queuedCityObjectWorker));
