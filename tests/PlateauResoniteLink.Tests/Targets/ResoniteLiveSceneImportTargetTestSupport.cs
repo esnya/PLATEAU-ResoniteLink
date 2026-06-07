@@ -313,9 +313,9 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ILiveSendClientSession session,
         ResoniteLinkSendDiagnostics diagnostics,
         IResoniteLiveSendRunStarter runStarter,
-        IResoniteLiveSendQueue? queue = null)
+        ResoniteLiveSendQueue? queue = null)
     {
-        IResoniteLiveSendQueue effectiveQueue = queue ?? CreateQueue();
+        ResoniteLiveSendQueue effectiveQueue = queue ?? CreateQueue();
         return new ResoniteLiveSceneImportDependencies(
             session,
             diagnostics,
