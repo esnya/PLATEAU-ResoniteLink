@@ -12,24 +12,9 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteQueuedCityObjectEnqueuer
+internal static class ResoniteQueuedCityObjectEnqueuer
 {
-    Task QueueUnitAsync(
-        LiveSendRunState state,
-        ImportedObjectUnit objectUnit,
-        LiveSendEnqueueContext context,
-        CancellationToken cancellationToken);
-
-    Task<int> FlushBufferedAsync(
-        LiveSendRunState state,
-        CompositeCityObjectBaker cityObjectBaker,
-        LiveSendEnqueueContext context,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class ResoniteQueuedCityObjectEnqueuer : IResoniteQueuedCityObjectEnqueuer
-{
-    public async Task QueueUnitAsync(
+    public static async Task QueueUnitAsync(
         LiveSendRunState state,
         ImportedObjectUnit objectUnit,
         LiveSendEnqueueContext context,
@@ -57,7 +42,7 @@ internal sealed class ResoniteQueuedCityObjectEnqueuer : IResoniteQueuedCityObje
         await FlushBufferedAsync(state, cityObjectBaker, context, cancellationToken);
     }
 
-    public async Task<int> FlushBufferedAsync(
+    public static async Task<int> FlushBufferedAsync(
         LiveSendRunState state,
         CompositeCityObjectBaker cityObjectBaker,
         LiveSendEnqueueContext context,

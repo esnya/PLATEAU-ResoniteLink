@@ -43,13 +43,11 @@ internal sealed record LiveSendRunExecutionContext
 }
 
 internal sealed class ResoniteLiveSendRunExecutor(
-    IResoniteLiveSendRunStarter runStarter,
-    ResoniteLiveSendQueue queue)
+    IResoniteLiveSendRunStarter runStarter)
 {
     private readonly IResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));
-    private readonly ResoniteLiveSendQueue queue =
-        queue ?? throw new ArgumentNullException(nameof(queue));
+
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         LiveSendRunStartRequest request,
         IAsyncEnumerable<ImportedObjectUnit> objectUnits,
@@ -73,14 +71,14 @@ internal sealed class ResoniteLiveSendRunExecutor(
             LiveSendEnqueueContext enqueueContext = ResoniteLiveSendPhaseContextFactory.CreateEnqueueContext(context);
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
-                await queue.QueueUnitAsync(
+                await ResoniteLiveSendQueue.QueueUnitAsync(
                     state,
                     objectUnit,
                     enqueueContext,
                     cancellationToken);
             }
 
-            SceneImportExecutionResult result = await queue.CompleteAsync(
+            SceneImportExecutionResult result = await ResoniteLiveSendQueue.CompleteAsync(
                 state,
                 ResoniteLiveSendPhaseContextFactory.CreateFinalizationContext(context, enqueueContext),
                 cancellationToken);

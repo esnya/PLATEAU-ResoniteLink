@@ -316,17 +316,13 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     public static ResoniteLiveSceneImportDependencies CreateDependencies(
         ILiveSendClientSession session,
         ResoniteLinkSendDiagnostics diagnostics,
-        IResoniteLiveSendRunStarter runStarter,
-        ResoniteLiveSendQueue? queue = null)
+        IResoniteLiveSendRunStarter runStarter)
     {
-        ResoniteLiveSendQueue effectiveQueue = queue ?? CreateQueue();
         return new ResoniteLiveSceneImportDependencies(
             session,
             diagnostics,
             new ResoniteLiveSendStartRequestFactory(),
-            new ResoniteLiveSendRunExecutor(
-                runStarter,
-                effectiveQueue));
+            new ResoniteLiveSendRunExecutor(runStarter));
     }
 
     public static ResoniteLiveSendRunStarter CreateRunStarter(
@@ -344,12 +340,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 new ResoniteBufferedCityObjectBakerFactory(
                     new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
             new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning, terrainTextureAssetGenerator)));
-    }
-
-    public static ResoniteLiveSendQueue CreateQueue()
-    {
-        ResoniteQueuedCityObjectEnqueuer enqueuer = new();
-        return new ResoniteLiveSendQueue(enqueuer, new ResoniteLiveSendFinalizer(enqueuer));
     }
 
     private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
