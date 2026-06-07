@@ -414,8 +414,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return new ResonitePreparedCityObjectImporter(
             new ResoniteGeometryAssetPlanner(new ResoniteGeometryAssetAssembler()),
             new ResoniteSceneMaterialPlanComposer(materialPlanning),
-            new ResoniteBatchEmissionPlanner(),
-            new PlannedBatchEmissionInterpreter(),
             new ResoniteImportStepTaskCleanup());
     }
 

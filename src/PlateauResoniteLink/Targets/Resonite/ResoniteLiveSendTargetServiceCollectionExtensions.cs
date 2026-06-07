@@ -20,7 +20,6 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<BundledDefaultMaterialAssetStore>();
         services.TryAddScoped<ResoniteTextureImageLoader>();
         services.TryAddScoped<INonDemSourceFileBakeEmitterFactory, NonDemSourceFileBakeEmitterFactory>();
-        services.TryAddScoped<IResoniteBatchEmissionPlanner, ResoniteBatchEmissionPlanner>();
         services.TryAddScoped<IResoniteBufferedCityObjectBakerFactory, ResoniteBufferedCityObjectBakerFactory>();
         services.TryAddScoped<IResoniteGeometryAssetAssembler, ResoniteGeometryAssetAssembler>();
         services.TryAddScoped<IResoniteGeometryAssetPlanner, ResoniteGeometryAssetPlanner>();
@@ -46,7 +45,6 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteLiveSendPhaseContextFactory, ResoniteLiveSendPhaseContextFactory>();
         services.TryAddScoped<IResoniteLiveSendRunExecutorFactory, ResoniteLiveSendRunExecutorFactory>();
         services.TryAddScoped<IResoniteCanonicalSceneDumpSinkFactory, ResoniteCanonicalSceneDumpSinkFactory>();
-        services.TryAddScoped<IResoniteSceneBatchEmitter, PlannedBatchEmissionInterpreter>();
         services.TryAddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
         services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
         services.TryAddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
