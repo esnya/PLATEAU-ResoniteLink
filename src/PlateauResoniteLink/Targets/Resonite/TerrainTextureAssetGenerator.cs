@@ -140,7 +140,7 @@ internal sealed class TerrainTextureAssetGenerator(
         for (int sourceIndex = 0; sourceIndex < terrainTextureOverlay.Sources.Count; sourceIndex++)
         {
             TerrainTextureSource terrainTextureSource = terrainTextureOverlay.Sources[sourceIndex];
-            TerrainTextureSourceImage? sourceImage = terrainTextureSource switch
+            TerrainTextureSourceReadResult sourceResult = terrainTextureSource switch
             {
                 TerrainTextureTileSource tileSource => await tileSourceReader.TryCreateAsync(
                     terrainTextureOverlay,
@@ -150,8 +150,14 @@ internal sealed class TerrainTextureAssetGenerator(
                     terrainTextureOverlay.GeographicBounds,
                     rasterSource,
                     cancellationToken),
-                _ => null,
+                _ => TerrainTextureSourceReadResult.CoverageMiss,
             };
+            if (sourceResult.Kind == TerrainTextureSourceReadResultKind.SourceFailure)
+            {
+                throw new HttpRequestException(sourceResult.FailureMessage);
+            }
+
+            TerrainTextureSourceImage? sourceImage = sourceResult.Image;
             if (sourceImage is null)
             {
                 continue;
@@ -206,7 +212,7 @@ internal sealed class TerrainTextureAssetGenerator(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "The returned source image owns and disposes the cropped raster image.")]
-    private static async Task<TerrainTextureSourceImage?> CreateTextureFromGeoReferencedRasterSourceAsync(
+    private static async Task<TerrainTextureSourceReadResult> CreateTextureFromGeoReferencedRasterSourceAsync(
         GeographicRectangle geographicBounds,
         TerrainTextureGeoReferencedRasterSource rasterSource,
         CancellationToken cancellationToken)
@@ -219,7 +225,7 @@ internal sealed class TerrainTextureAssetGenerator(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            return null;
+            return TerrainTextureSourceReadResult.CoverageMiss;
         }
 
         using (sourceImage)
@@ -230,10 +236,10 @@ internal sealed class TerrainTextureAssetGenerator(
                 geographicBounds);
             if (cropped is null)
             {
-                return null;
+                return TerrainTextureSourceReadResult.CoverageMiss;
             }
 
-            return new TerrainTextureSourceImage(cropped, null);
+            return TerrainTextureSourceReadResult.Rendered(new TerrainTextureSourceImage(cropped, null));
         }
     }
 

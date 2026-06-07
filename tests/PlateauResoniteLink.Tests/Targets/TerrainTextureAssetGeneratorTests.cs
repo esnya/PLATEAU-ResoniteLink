@@ -174,6 +174,53 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
+    public async Task EnsureTextureAsyncCreatesDefaultGroundTextureWhenAllTilesAreMissing()
+    {
+        using MissingAllMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Empty(texture.UsedSources);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
+        Assert.Equal(1, image.Width);
+        Assert.Equal(1, image.Height);
+        AssertColor(image[0, 0], 181, 176, 166);
+        Assert.True(handler.RequestCount > 0);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncFailsWhenTransientTileSourceNeverRecovers()
+    {
+        using AlwaysTransientMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(
+            () => generator.EnsureTextureAsync(overlay, CancellationToken.None));
+
+        Assert.Contains("transient HTTP 503", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(4, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncFailsWhenTileSourceReturnsInvalidImage()
+    {
+        using InvalidImageMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(
+            () => generator.EnsureTextureAsync(overlay, CancellationToken.None));
+
+        Assert.Contains("invalid image content", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task EnsureTextureAsyncStitchesTilesAndCachesOutput()
     {
         using FakeMapTileHandler handler = new();
@@ -847,6 +894,47 @@ public sealed class TerrainTextureAssetGeneratorTests
                 (1, 1) => new Rgba32(255, 255, 0, 255),
                 _ => new Rgba32(255, 0, 255, 255),
             };
+        }
+    }
+
+    private sealed class MissingAllMapTileHandler : HttpMessageHandler
+    {
+        private int requestCount;
+
+        public int RequestCount => requestCount;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref requestCount);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class AlwaysTransientMapTileHandler : HttpMessageHandler
+    {
+        private int requestCount;
+
+        public int RequestCount => requestCount;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref requestCount);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        }
+    }
+
+    private sealed class InvalidImageMapTileHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            MemoryStream stream = new([1, 2, 3, 4]);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream),
+            });
         }
     }
 
