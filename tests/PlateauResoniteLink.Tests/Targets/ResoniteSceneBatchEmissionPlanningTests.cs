@@ -403,6 +403,15 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             .Where(component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
             .ToArray();
         Assert.Equal(5, materialTextures.Length);
+        Assert.Equal(
+            [
+                "resdb:///texture/albedo",
+                "resdb:///texture/normal",
+                "resdb:///texture/height",
+                "resdb:///texture/metallic",
+                "resdb:///texture/emission",
+            ],
+            materialTextures.Select(static texture => Assert.IsType<Field_Uri>(ToMember(texture.Members["URL"])).Value.ToString()).ToArray());
 
         IReadOnlyDictionary<string, PlannedBatchComponentEmission> texturesByUri = materialTextures.ToDictionary(
             static texture => Assert.IsType<PlannedLiteralMember>(texture.Members["URL"]).Value is Field_Uri uri
@@ -417,6 +426,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/metallic"]), Assert.IsType<Reference>(ToMember(materialComponent.Members["MetallicMap"])).TargetID);
         Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/metallic"]), Assert.IsType<Reference>(ToMember(materialComponent.Members["OcclusionMap"])).TargetID);
         Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/emission"]), Assert.IsType<Reference>(ToMember(materialComponent.Members["EmissiveMap"])).TargetID);
+        Assert.Equal(1.0f, Assert.IsType<Field_float>(ToMember(materialComponent.Members["NormalScale"])).Value);
+        Assert.Equal(0.002f, Assert.IsType<Field_float>(ToMember(materialComponent.Members["HeightScale"])).Value);
+        Field_colorX emissiveColor = Assert.IsType<Field_colorX>(ToMember(materialComponent.Members["EmissiveColor"]));
+        Assert.Equal(1.0f, emissiveColor.Value.r);
+        Assert.Equal(1.0f, emissiveColor.Value.g);
+        Assert.Equal(1.0f, emissiveColor.Value.b);
+        Assert.Equal(1.0f, emissiveColor.Value.a);
         Assert.DoesNotContain("PreferredProfile", texturesByUri["resdb:///texture/albedo"].Members.Keys);
         Assert.Equal("Linear", Assert.IsType<Field_Nullable_Enum>(ToMember(texturesByUri["resdb:///texture/normal"].Members["PreferredProfile"])).Value);
         Assert.Equal("Linear", Assert.IsType<Field_Nullable_Enum>(ToMember(texturesByUri["resdb:///texture/height"].Members["PreferredProfile"])).Value);
