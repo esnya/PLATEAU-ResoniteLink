@@ -64,8 +64,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                     child,
                     parent,
                 ],
-                [],
-                [child, parent],
                 []));
 
         Assert.Equal("Planned slot parent target must reference an earlier planned slot.", error.Message);
@@ -99,9 +97,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 [
                     source,
                     target,
-                ],
-                [container],
-                [source, target]));
+                ]));
 
         Assert.Equal("Planned world element target must reference an earlier planned component.", error.Message);
     }
