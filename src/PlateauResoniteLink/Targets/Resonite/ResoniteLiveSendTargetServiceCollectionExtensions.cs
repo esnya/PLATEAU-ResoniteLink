@@ -33,9 +33,6 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteLiveSendWorkerLauncherFactory>();
         services.TryAddScoped<IResoniteLiveSendStartRequestFactory, ResoniteLiveSendStartRequestFactory>();
         services.TryAddScoped<ResonitePreparedCityObjectImporter>();
-        services.TryAddScoped<IResoniteQueuedCityObjectEnqueuer, ResoniteQueuedCityObjectEnqueuer>();
-        services.TryAddScoped<ResoniteLiveSendFinalizer>();
-        services.TryAddScoped<ResoniteLiveSendQueue>();
         services.TryAddScoped<IResoniteCanonicalSceneDumpSinkFactory, ResoniteCanonicalSceneDumpSinkFactory>();
         services.TryAddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
         services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
