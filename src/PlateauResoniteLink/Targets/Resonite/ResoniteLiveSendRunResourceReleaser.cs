@@ -5,18 +5,9 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteLiveSendRunResourceReleaser
+internal static class ResoniteLiveSendRunResourceReleaser
 {
-    ValueTask ReleaseAsync(
-        LiveSendRunState? state,
-        ILiveSendClientSession clientSession,
-        bool disposeClients,
-        bool resetClients);
-}
-
-internal sealed class ResoniteLiveSendRunResourceReleaser : IResoniteLiveSendRunResourceReleaser
-{
-    public async ValueTask ReleaseAsync(
+    public static async ValueTask ReleaseAsync(
         LiveSendRunState? state,
         ILiveSendClientSession clientSession,
         bool disposeClients,

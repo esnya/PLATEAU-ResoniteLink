@@ -323,21 +323,16 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ILiveSendClientSession session,
         ResoniteLinkSendDiagnostics diagnostics,
         IResoniteLiveSendRunStarter runStarter,
-        IResoniteLiveSendQueue? queue = null,
-        IResoniteLiveSendRunResourceReleaser? resourceReleaser = null)
+        IResoniteLiveSendQueue? queue = null)
     {
         IResoniteLiveSendQueue effectiveQueue = queue ?? CreateQueue();
-        IResoniteLiveSendRunResourceReleaser effectiveResourceReleaser =
-            resourceReleaser ?? new ResoniteLiveSendRunResourceReleaser();
         return new ResoniteLiveSceneImportDependencies(
             session,
             diagnostics,
             new ResoniteLiveSendStartRequestFactory(),
             new ResoniteLiveSendRunExecutor(
                 runStarter,
-                effectiveQueue,
-                effectiveResourceReleaser),
-            effectiveResourceReleaser);
+                effectiveQueue));
     }
 
     public static ResoniteLiveSendRunStarter CreateRunStarter(
