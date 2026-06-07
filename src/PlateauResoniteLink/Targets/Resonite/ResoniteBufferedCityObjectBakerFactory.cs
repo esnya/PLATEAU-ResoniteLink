@@ -2,16 +2,8 @@ using System;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteBufferedCityObjectBakerFactory
-{
-    CompositeCityObjectBaker? Create(
-        bool enableMeshBake,
-        ResoniteImportBudgetProfile resourceBudget,
-        ResoniteLocalOrigin requestLocalOrigin);
-}
-
 internal sealed class ResoniteBufferedCityObjectBakerFactory(
-    INonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory) : IResoniteBufferedCityObjectBakerFactory
+    INonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory)
 {
     private readonly INonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory = sourceFileBakeEmitterFactory
         ?? throw new ArgumentNullException(nameof(sourceFileBakeEmitterFactory));
