@@ -6,23 +6,9 @@ using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteLiveSendQueue
-{
-    Task QueueUnitAsync(
-        LiveSendRunState state,
-        ImportedObjectUnit objectUnit,
-        LiveSendEnqueueContext context,
-        CancellationToken cancellationToken);
-
-    Task<SceneImportExecutionResult> CompleteAsync(
-        LiveSendRunState state,
-        LiveSendFinalizationContext context,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class ResoniteLiveSendQueue(
     IResoniteQueuedCityObjectEnqueuer enqueuer,
-    IResoniteLiveSendFinalizer finalizer) : IResoniteLiveSendQueue
+    IResoniteLiveSendFinalizer finalizer)
 {
     private readonly IResoniteQueuedCityObjectEnqueuer enqueuer =
         enqueuer ?? throw new ArgumentNullException(nameof(enqueuer));
