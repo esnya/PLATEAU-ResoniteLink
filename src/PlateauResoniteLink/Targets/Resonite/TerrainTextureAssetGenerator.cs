@@ -225,7 +225,8 @@ internal sealed class TerrainTextureAssetGenerator(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            return TerrainTextureSourceReadResult.CoverageMiss;
+            return TerrainTextureSourceReadResult.SourceFailure(
+                $"DEM terrain raster source '{rasterSource.ContentSource.Description}' could not be read as an image: {exception.Message}");
         }
 
         using (sourceImage)
