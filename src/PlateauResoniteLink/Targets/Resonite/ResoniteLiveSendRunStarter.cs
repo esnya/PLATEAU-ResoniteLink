@@ -93,7 +93,7 @@ internal sealed class ResoniteLiveSendRunStarter(
     ILiveSendRunPlanFactory runPlanFactory,
     IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
-    ILiveSendRunStateFactory runStateFactory,
+    LiveSendRunStateFactory runStateFactory,
     IResoniteLiveSendWorkerLauncher workerLauncher) : IResoniteLiveSendRunStarter
 {
     public async Task<LiveSendRunState> StartAsync(
