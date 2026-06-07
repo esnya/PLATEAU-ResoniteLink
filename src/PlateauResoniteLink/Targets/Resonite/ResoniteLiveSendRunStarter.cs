@@ -90,7 +90,6 @@ internal interface IResoniteLiveSendRunStarter
 }
 
 internal sealed class ResoniteLiveSendRunStarter(
-    ILiveSendRunPlanFactory runPlanFactory,
     IResoniteLiveSendConnectionInitializer connectionInitializer,
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     LiveSendRunStateFactory runStateFactory,
@@ -104,7 +103,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
-        LiveSendRunPlan runPlan = runPlanFactory.Create(
+        LiveSendRunPlan runPlan = LiveSendRunPlanFactory.Create(
             request.SetupInfo,
             request.WorkRoot,
             request.RequestLocalOrigin,
