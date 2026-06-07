@@ -248,7 +248,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         using IServiceScope scope = provider.CreateScope();
 
         CompositeCityObjectBaker? baker = scope.ServiceProvider
-            .GetRequiredService<IResoniteBufferedCityObjectBakerFactory>()
+            .GetRequiredService<ResoniteBufferedCityObjectBakerFactory>()
             .Create(
                 enableMeshBake: true,
                 ResoniteImportBudgetProfiles.ForProfile(ResoniteImportMemoryProfile.Small));
