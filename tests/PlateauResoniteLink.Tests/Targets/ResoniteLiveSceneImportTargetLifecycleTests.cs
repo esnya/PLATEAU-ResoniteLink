@@ -141,7 +141,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new ResoniteLiveSendRunStarter(
-                    new ThrowingRunSetupPreparer(),
+                    new ResoniteLiveSendRunSetupPreparer(
+                        new ThrowingSceneSetupInterpreter(),
+                        new ResoniteCommonMaterialSetupPreparer(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore())),
+                        new ResonitePreparedRunSetupComposer(new ResoniteSlotCreator())),
                     new LiveSendRunStateFactory(
                         new ResoniteBufferedCityObjectBakerFactory(
                             new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
@@ -1242,19 +1245,19 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ]);
     }
 
-    private sealed class ThrowingRunSetupPreparer : IResoniteLiveSendRunSetupPreparer
+    private sealed class ThrowingSceneSetupInterpreter : IResoniteSceneSetupInterpreter
     {
-        public Task<LiveSendPreparedRunSetup> PrepareAsync(
-            LiveSendRunPlan runPlan,
-            LiveSendRunStartRequest request,
-            LiveSendRunStartContext context,
+        public Task<ResoniteSceneSetupState> SetupAsync(
+            IResoniteLinkClient setupClient,
+            ResoniteSceneSetupInfo setupInfo,
+            CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
             CancellationToken cancellationToken)
         {
-            _ = runPlan;
-            _ = request;
-            _ = context;
+            _ = setupClient;
+            _ = setupInfo;
+            _ = commonMaterials;
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromException<LiveSendPreparedRunSetup>(new InvalidOperationException("setup failed"));
+            return Task.FromException<ResoniteSceneSetupState>(new InvalidOperationException("setup failed"));
         }
     }
 
