@@ -11,16 +11,8 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteLiveSendFinalizer
-{
-    Task<SceneImportExecutionResult> CompleteAsync(
-        LiveSendRunState state,
-        LiveSendFinalizationContext context,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class ResoniteLiveSendFinalizer(
-    IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer) : IResoniteLiveSendFinalizer
+    IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer)
 {
     private readonly IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer =
         queuedCityObjectEnqueuer ?? throw new ArgumentNullException(nameof(queuedCityObjectEnqueuer));
