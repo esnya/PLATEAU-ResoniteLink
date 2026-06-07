@@ -42,42 +42,11 @@ internal sealed record LiveSendRunExecutionContext
     public ILogger Logger { get; }
 }
 
-internal interface IResoniteLiveSendRunExecutor
-{
-    Task<SceneImportExecutionResult> ExecuteAsync(
-        LiveSendRunStartRequest request,
-        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
-        LiveSendRunExecutionContext context,
-        CancellationToken cancellationToken);
-}
-
-internal interface IResoniteLiveSendRunExecutorFactory
-{
-    IResoniteLiveSendRunExecutor Create(IResoniteLiveSendRunStarter runStarter);
-}
-
-internal sealed class ResoniteLiveSendRunExecutorFactory(
-    IResoniteLiveSendQueue queue,
-    IResoniteLiveSendRunResourceReleaser resourceReleaser,
-    IResoniteLiveSendPhaseContextFactory phaseContextFactory) : IResoniteLiveSendRunExecutorFactory
-{
-    public IResoniteLiveSendRunExecutor Create(IResoniteLiveSendRunStarter runStarter)
-    {
-        ArgumentNullException.ThrowIfNull(runStarter);
-
-        return new ResoniteLiveSendRunExecutor(
-            runStarter,
-            queue,
-            resourceReleaser,
-            phaseContextFactory);
-    }
-}
-
 internal sealed class ResoniteLiveSendRunExecutor(
     IResoniteLiveSendRunStarter runStarter,
     IResoniteLiveSendQueue queue,
     IResoniteLiveSendRunResourceReleaser resourceReleaser,
-    IResoniteLiveSendPhaseContextFactory phaseContextFactory) : IResoniteLiveSendRunExecutor
+    IResoniteLiveSendPhaseContextFactory phaseContextFactory)
 {
     private readonly IResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));
