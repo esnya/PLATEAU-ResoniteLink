@@ -25,7 +25,7 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
         return Create(workerLauncherFactory.Create(terrainTextureAssetGenerator));
     }
 
-    private ResoniteLiveSendRunStarter Create(IResoniteLiveSendWorkerLauncher workerLauncher)
+    private ResoniteLiveSendRunStarter Create(ResoniteLiveSendWorkerLauncher workerLauncher)
     {
         ArgumentNullException.ThrowIfNull(workerLauncher);
 
