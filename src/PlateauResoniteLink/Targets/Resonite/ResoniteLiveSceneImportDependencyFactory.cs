@@ -22,8 +22,9 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteClientSessionFactory clientSessionFactory,
     IResoniteLiveSendRunStarterFactory runStarterFactory,
     IResoniteLiveSendStartRequestFactory startRequestFactory,
-    IResoniteLiveSendRunExecutorFactory runExecutorFactory,
-    IResoniteLiveSendRunResourceReleaser resourceReleaser)
+    IResoniteLiveSendQueue queue,
+    IResoniteLiveSendRunResourceReleaser resourceReleaser,
+    IResoniteLiveSendPhaseContextFactory phaseContextFactory)
     : IResoniteLiveSceneImportDependencyFactory
 {
     public ResoniteLiveSceneImportDependencies Create(
@@ -72,7 +73,11 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             clientSession,
             diagnostics,
             startRequestFactory,
-            runExecutorFactory.Create(runStarter),
+            new ResoniteLiveSendRunExecutor(
+                runStarter,
+                queue,
+                resourceReleaser,
+                phaseContextFactory),
             resourceReleaser);
     }
 }
