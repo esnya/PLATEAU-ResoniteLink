@@ -17,17 +17,6 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
     private const string SharedAssetsRootName = "PLATEAU Shared Assets";
     private const string SharedCommonMaterialsRootName = "Common Materials";
 
-    private readonly IResoniteSceneSlotLocator sceneSlotLocator;
-    private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
-
-    internal ResoniteSceneSetupInterpreter(
-        IResoniteSceneSlotLocator sceneSlotLocator,
-        IResoniteSceneAnchorResolver sceneAnchorResolver)
-    {
-        this.sceneSlotLocator = sceneSlotLocator ?? throw new ArgumentNullException(nameof(sceneSlotLocator));
-        this.sceneAnchorResolver = sceneAnchorResolver ?? throw new ArgumentNullException(nameof(sceneAnchorResolver));
-    }
-
     public async Task<ResoniteSceneSetupState> SetupAsync(
         IResoniteLinkClient setupClient,
         ResoniteSceneSetupInfo setupInfo,
@@ -48,7 +37,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
             setupClient,
             sharedAssetsSlot,
             cancellationToken);
-        CreatedSlot? existingDatasetRoot = await sceneSlotLocator.TryGetDatasetRootAsync(
+        CreatedSlot? existingDatasetRoot = await ResoniteSceneSlotLocator.TryGetDatasetRootAsync(
             setupClient,
             datasetRootName,
             cancellationToken);
@@ -135,7 +124,7 @@ internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpr
             ?? pendingSharedCommon?.LocalId.Value
             ?? throw new InvalidOperationException("Setup could not determine the Common Materials parent slot.");
 
-        SceneAnchor sceneAnchor = await sceneAnchorResolver.ResolveAsync(
+        SceneAnchor sceneAnchor = await ResoniteSceneAnchorResolver.ResolveAsync(
             setupClient,
             existingDatasetRoot.Value.Locator,
             completionMeshCode,

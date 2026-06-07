@@ -28,8 +28,7 @@ internal interface IResoniteLiveSendRunSetupPreparer
 
 internal sealed class ResoniteLiveSendRunSetupPreparer(
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
-    ResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
-    ResonitePreparedRunSetupComposer preparedRunSetupComposer) : IResoniteLiveSendRunSetupPreparer
+    ResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer) : IResoniteLiveSendRunSetupPreparer
 {
     public async Task<LiveSendPreparedRunSetup> PrepareAsync(
         LiveSendRunPlan runPlan,
@@ -61,7 +60,7 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
             setupState.SceneAnchor.LocationSlot.Value,
             setupState.SceneAnchor.MeshCode,
             setupState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>");
-        LiveSendPreparedRunSetup preparedSetup = preparedRunSetupComposer.Compose(
+        LiveSendPreparedRunSetup preparedSetup = ResonitePreparedRunSetupComposer.Compose(
             runPlan,
             setupState);
         ReportSetupCommonMaterials(setupState, context);

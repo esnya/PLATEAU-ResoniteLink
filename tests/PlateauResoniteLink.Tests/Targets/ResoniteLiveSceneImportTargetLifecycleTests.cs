@@ -152,8 +152,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteLiveSendRunStarter(
                     new ResoniteLiveSendRunSetupPreparer(
                         new ThrowingSceneSetupInterpreter(),
-                        new ResoniteCommonMaterialSetupPreparer(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore())),
-                        new ResonitePreparedRunSetupComposer(new ResoniteSlotCreator())),
+                        new ResoniteCommonMaterialSetupPreparer(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()))),
                     new LiveSendRunStateFactory(
                         new ResoniteBufferedCityObjectBakerFactory(
                             new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
