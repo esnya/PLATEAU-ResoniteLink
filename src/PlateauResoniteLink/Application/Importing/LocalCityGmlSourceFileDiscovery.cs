@@ -352,7 +352,7 @@ internal static class LocalCityGmlSourceFileDiscovery
                 yield break;
             }
 
-            if (candidateMeshCode.Length == 6)
+            if (isDem && candidateMeshCode.Length == 6)
             {
                 string[] detailedMeshCodes = EnumerateDetailedMeshCodes(candidateMeshCode)
                     .Where(meshCode => regex!.IsMatch(meshCode))

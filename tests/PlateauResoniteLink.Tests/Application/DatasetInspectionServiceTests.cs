@@ -596,6 +596,23 @@ public sealed class DatasetInspectionServiceTests
         Assert.Equal(CreateThirdMeshCodes("533914"), parentRegexResult.SelectedMeshCodes);
     }
 
+    [Fact]
+    public async Task SearchAsyncKeepsRegexParentNonDemMatchAsParentMeshCode()
+    {
+        byte[] archiveBytes = CreateZipArchive(
+            ("udx/tran/533914/plateau_yokohama_tran_533914.gml", "<tran:CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        string archivePath = Path.Combine(workRoot.Path, "dataset.zip");
+        await File.WriteAllBytesAsync(archivePath, archiveBytes);
+
+        DatasetSearchResult result = await service.SearchAsync(archivePath, "53391[4].*", ["tran"]);
+
+        Assert.Equal(["533914"], result.SelectedMeshCodes);
+        DatasetSearchEntry entry = Assert.Single(result.SourceFiles);
+        Assert.Equal("533914", entry.MatchedMeshCode);
+        Assert.False(entry.RequiresMeshCodeBoundsFilter);
+    }
+
     private static void WriteDatasetFile(string datasetRoot, string relativePath, string content)
     {
         string absolutePath = Path.Combine(
