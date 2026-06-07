@@ -7,19 +7,6 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteLiveSceneImportDependencyFactory
-{
-    ResoniteLiveSceneImportDependencies Create(
-        ResoniteLiveSceneImportTargetOptions options,
-        HttpClient terrainTextureAssetHttpClient);
-
-    ResoniteLiveSceneImportDependencies Create(
-        ResoniteLiveSceneImportTargetOptions options,
-        ILiveSendClientSession clientSession,
-        ResoniteLinkSendDiagnostics diagnostics,
-        ITerrainTextureAssetGenerator terrainTextureAssetGenerator);
-}
-
 internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteClientSessionFactory clientSessionFactory,
     IResoniteLiveSendRunStarterFactory runStarterFactory,
@@ -27,7 +14,6 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteLiveSendQueue queue,
     IResoniteLiveSendRunResourceReleaser resourceReleaser,
     IResoniteLiveSendPhaseContextFactory phaseContextFactory)
-    : IResoniteLiveSceneImportDependencyFactory
 {
     public ResoniteLiveSceneImportDependencies Create(
         ResoniteLiveSceneImportTargetOptions options,
