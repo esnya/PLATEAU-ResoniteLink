@@ -28,7 +28,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             rendererMaterialBindings,
             collisionEnabled);
     }
-
     [Fact]
     public void PlannedDriverTargetBundle_CreatePairsFieldTargetAndDefaultValue()
     {
