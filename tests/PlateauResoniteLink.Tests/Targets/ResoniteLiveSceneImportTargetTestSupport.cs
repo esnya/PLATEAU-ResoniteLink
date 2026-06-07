@@ -312,7 +312,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     public static ResoniteLiveSceneImportDependencies CreateDependencies(
         ILiveSendClientSession session,
         ResoniteLinkSendDiagnostics diagnostics,
-        IResoniteLiveSendRunStarter runStarter)
+        ResoniteLiveSendRunStarter runStarter)
     {
         return new ResoniteLiveSceneImportDependencies(
             session,

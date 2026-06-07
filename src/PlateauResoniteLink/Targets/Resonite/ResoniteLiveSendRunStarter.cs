@@ -79,18 +79,10 @@ internal sealed record LiveSendRunStartContext
     public Action<string>? ProgressReporter { get; }
 }
 
-internal interface IResoniteLiveSendRunStarter
-{
-    Task<LiveSendRunState> StartAsync(
-        LiveSendRunStartRequest request,
-        LiveSendRunStartContext context,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class ResoniteLiveSendRunStarter(
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
     LiveSendRunStateFactory runStateFactory,
-    IResoniteLiveSendWorkerLauncher workerLauncher) : IResoniteLiveSendRunStarter
+    IResoniteLiveSendWorkerLauncher workerLauncher)
 {
     public async Task<LiveSendRunState> StartAsync(
         LiveSendRunStartRequest request,

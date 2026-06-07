@@ -44,7 +44,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
         ResoniteLiveSceneImportTargetOptions options,
         ILiveSendClientSession clientSession,
         ResoniteLinkSendDiagnostics diagnostics,
-        IResoniteLiveSendRunStarter runStarter)
+        ResoniteLiveSendRunStarter runStarter)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clientSession);
