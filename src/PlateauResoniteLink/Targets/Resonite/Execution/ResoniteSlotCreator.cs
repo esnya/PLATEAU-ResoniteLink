@@ -7,20 +7,9 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
-internal interface IResoniteSlotCreator
+internal static class ResoniteSlotCreator
 {
-    Task<CreatedSlot> CreateAsync(
-        IResoniteLinkClient client,
-        ResoniteSlotLocator parent,
-        string slotName,
-        ResoniteFloat3? position,
-        ResoniteFloatQ? rotation,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class ResoniteSlotCreator : IResoniteSlotCreator
-{
-    public async Task<CreatedSlot> CreateAsync(
+    public static async Task<CreatedSlot> CreateAsync(
         IResoniteLinkClient client,
         ResoniteSlotLocator parent,
         string slotName,
