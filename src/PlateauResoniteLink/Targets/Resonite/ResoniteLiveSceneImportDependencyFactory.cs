@@ -9,7 +9,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteClientSessionFactory clientSessionFactory,
-    IResoniteLiveSendRunStarterFactory runStarterFactory,
+    ResoniteLiveSendRunStarterFactory runStarterFactory,
     IResoniteLiveSendStartRequestFactory startRequestFactory,
     IResoniteLiveSendQueue queue,
     IResoniteLiveSendRunResourceReleaser resourceReleaser)
@@ -26,7 +26,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             : ResoniteLinkSendDiagnostics.Disabled;
 
         ILiveSendClientSession clientSession = clientSessionFactory.Create(options, diagnostics);
-        IResoniteLiveSendRunStarter runStarter = runStarterFactory.Create(terrainTextureAssetHttpClient, options);
+        ResoniteLiveSendRunStarter runStarter = runStarterFactory.Create(terrainTextureAssetHttpClient, options);
 
         return Create(options, clientSession, diagnostics, runStarter);
     }
@@ -42,7 +42,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
         ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
 
-        IResoniteLiveSendRunStarter runStarter = runStarterFactory.Create(terrainTextureAssetGenerator);
+        ResoniteLiveSendRunStarter runStarter = runStarterFactory.Create(terrainTextureAssetGenerator);
         return Create(options, clientSession, diagnostics, runStarter);
     }
 
