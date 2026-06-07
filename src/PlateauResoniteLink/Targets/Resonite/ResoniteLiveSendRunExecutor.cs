@@ -43,9 +43,9 @@ internal sealed record LiveSendRunExecutionContext
 }
 
 internal sealed class ResoniteLiveSendRunExecutor(
-    IResoniteLiveSendRunStarter runStarter)
+    ResoniteLiveSendRunStarter runStarter)
 {
-    private readonly IResoniteLiveSendRunStarter runStarter =
+    private readonly ResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
