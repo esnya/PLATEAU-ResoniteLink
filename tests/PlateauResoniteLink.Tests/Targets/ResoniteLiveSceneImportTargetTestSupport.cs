@@ -317,7 +317,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return new ResoniteLiveSceneImportDependencies(
             session,
             diagnostics,
-            new ResoniteLiveSendStartRequestFactory(),
             new ResoniteLiveSendRunExecutor(runStarter));
     }
 
