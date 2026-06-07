@@ -13,17 +13,10 @@ internal sealed record LiveSendRunRuntimeComponents(
     SemaphoreSlim GsiFallbackLicenseGate,
     ConcurrentDictionary<TerrainTextureSource, int> DemSourceUseCounts);
 
-internal interface ILiveSendRunRuntimeComponentsFactory
-{
-    LiveSendRunRuntimeComponents Create(
-        LiveSendQueuePlan queuePlan,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class LiveSendRunRuntimeComponentsFactory : ILiveSendRunRuntimeComponentsFactory
+internal static class LiveSendRunRuntimeComponentsFactory
 {
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership is transferred to LiveSendRunState and released by ResoniteLiveSendRunResourceReleaser.")]
-    public LiveSendRunRuntimeComponents Create(
+    public static LiveSendRunRuntimeComponents Create(
         LiveSendQueuePlan queuePlan,
         CancellationToken cancellationToken)
     {
