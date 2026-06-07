@@ -10,19 +10,9 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteQueuedTexturePreparer
-{
-    Task<PreparedTextureReference[]> PrepareAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient routedClient,
-        ResoniteConstructionCityObject cityObject,
-        Action<string>? progressReporter,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class ResoniteQueuedTexturePreparer(
     ITerrainTextureAssetGenerator terrainTextureAssetGenerator,
-    Execution.IResoniteDatasetLicenseWriter datasetLicenseWriter) : IResoniteQueuedTexturePreparer
+    Execution.IResoniteDatasetLicenseWriter datasetLicenseWriter)
 {
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator =
         terrainTextureAssetGenerator ?? throw new ArgumentNullException(nameof(terrainTextureAssetGenerator));
