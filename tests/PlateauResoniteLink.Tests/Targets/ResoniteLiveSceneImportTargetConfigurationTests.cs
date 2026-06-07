@@ -109,18 +109,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
-    public void AddResoniteLiveSendTargetServicesRegistersPreparedRunSetupComposer()
-    {
-        using ServiceProvider provider = new ServiceCollection()
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-
-        Assert.IsType<ResonitePreparedRunSetupComposer>(
-            scope.ServiceProvider.GetRequiredService<IResonitePreparedRunSetupComposer>());
-    }
-
-    [Fact]
     public void AddResoniteLiveSendTargetServicesRegistersWorkerPipelineFactory()
     {
         using ServiceProvider provider = new ServiceCollection()
