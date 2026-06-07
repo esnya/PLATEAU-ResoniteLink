@@ -18,8 +18,7 @@ internal sealed record LiveSendPreparedRunSetup(
 
 internal sealed class ResoniteLiveSendRunSetupPreparer(
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
-    ResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
-    ResonitePreparedRunSetupComposer preparedRunSetupComposer)
+    ResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer)
 {
     public async Task<LiveSendPreparedRunSetup> PrepareAsync(
         LiveSendRunPlan runPlan,
@@ -62,7 +61,7 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
                 + $"location_slot='{setupState.SceneAnchor.LocationSlot.Value}', "
                 + $"anchor_mesh='{setupState.SceneAnchor.MeshCode}', "
                 + $"anchor_source_file_root='{setupState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
-        LiveSendPreparedRunSetup preparedSetup = preparedRunSetupComposer.Compose(
+        LiveSendPreparedRunSetup preparedSetup = ResonitePreparedRunSetupComposer.Compose(
             runPlan,
             setupState);
         ReportSetupCommonMaterials(setupState, context);

@@ -6,10 +6,9 @@ using PlateauResoniteLink.Targets.Resonite.Execution;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed class ResonitePreparedRunSetupComposer(
-    IResoniteSlotCreator slotCreator)
+internal static class ResonitePreparedRunSetupComposer
 {
-    public LiveSendPreparedRunSetup Compose(
+    public static LiveSendPreparedRunSetup Compose(
         LiveSendRunPlan runPlan,
         ResoniteSceneSetupState setupState)
     {
@@ -23,7 +22,7 @@ internal sealed class ResonitePreparedRunSetupComposer(
             runPlan.RequestLocalOrigin,
             runPlan.SourceFileSlotNamesByRelativePath,
             setupState.SceneAnchor,
-            slotCreator.CreateAsync);
+            ResoniteSlotCreator.CreateAsync);
         placement.IndexSetupHierarchy(setupState);
 
         return new LiveSendPreparedRunSetup(

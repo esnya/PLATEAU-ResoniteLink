@@ -12,26 +12,17 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
-internal interface IResoniteSceneAnchorResolver
-{
-    Task<SceneAnchor> ResolveAsync(
-        IResoniteLinkClient client,
-        ResoniteSlotLocator datasetRootSlot,
-        string completionMeshCode,
-        CancellationToken cancellationToken);
-}
-
 internal readonly record struct SceneAnchor(
     ResoniteSlotLocator LocationSlot,
     string MeshCode,
     ResoniteFloat3 Position,
     ResoniteSlotLocator? ReferenceSourceFileRoot);
 
-internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
+internal static class ResoniteSceneAnchorResolver
 {
     private const string RootSlotId = "Root";
 
-    public async Task<SceneAnchor> ResolveAsync(
+    public static async Task<SceneAnchor> ResolveAsync(
         IResoniteLinkClient client,
         ResoniteSlotLocator datasetRootSlot,
         string completionMeshCode,

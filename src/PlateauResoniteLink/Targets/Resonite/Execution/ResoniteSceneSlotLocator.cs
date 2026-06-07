@@ -5,19 +5,11 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
-internal interface IResoniteSceneSlotLocator
-{
-    Task<CreatedSlot?> TryGetDatasetRootAsync(
-        IResoniteLinkClient client,
-        string slotName,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class ResoniteSceneSlotLocator : IResoniteSceneSlotLocator
+internal static class ResoniteSceneSlotLocator
 {
     private const string RootSlotId = "Root";
 
-    public async Task<CreatedSlot?> TryGetDatasetRootAsync(
+    public static async Task<CreatedSlot?> TryGetDatasetRootAsync(
         IResoniteLinkClient client,
         string slotName,
         CancellationToken cancellationToken)

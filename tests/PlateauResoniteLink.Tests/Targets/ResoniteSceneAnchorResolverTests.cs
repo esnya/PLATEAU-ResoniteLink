@@ -80,9 +80,7 @@ public sealed class ResoniteSceneAnchorResolverTests
             return null;
         });
 
-        ResoniteSceneAnchorResolver resolver = new();
-
-        SceneAnchor anchor = await resolver.ResolveAsync(
+        SceneAnchor anchor = await ResoniteSceneAnchorResolver.ResolveAsync(
             client,
             new ResoniteSlotLocator(datasetRootSlotId),
             completionMeshCode,
@@ -125,9 +123,7 @@ public sealed class ResoniteSceneAnchorResolverTests
             return null;
         });
 
-        ResoniteSceneAnchorResolver resolver = new();
-
-        SceneAnchor anchor = await resolver.ResolveAsync(
+        SceneAnchor anchor = await ResoniteSceneAnchorResolver.ResolveAsync(
             client,
             new ResoniteSlotLocator(datasetRootSlotId),
             completionMeshCode,
@@ -170,10 +166,8 @@ public sealed class ResoniteSceneAnchorResolverTests
             return null;
         });
 
-        ResoniteSceneAnchorResolver resolver = new();
-
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => resolver.ResolveAsync(
+            () => ResoniteSceneAnchorResolver.ResolveAsync(
                 client,
                 new ResoniteSlotLocator(datasetRootSlotId),
                 completionMeshCode,
@@ -215,9 +209,7 @@ public sealed class ResoniteSceneAnchorResolverTests
             return null;
         });
 
-        ResoniteSceneAnchorResolver resolver = new();
-
-        SceneAnchor anchor = await resolver.ResolveAsync(
+        SceneAnchor anchor = await ResoniteSceneAnchorResolver.ResolveAsync(
             client,
             new ResoniteSlotLocator(datasetRootSlotId),
             completionMeshCode,
