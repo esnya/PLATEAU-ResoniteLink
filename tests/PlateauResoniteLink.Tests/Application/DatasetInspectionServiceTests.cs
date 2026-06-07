@@ -613,6 +613,23 @@ public sealed class DatasetInspectionServiceTests
         Assert.False(entry.RequiresMeshCodeBoundsFilter);
     }
 
+    [Fact]
+    public async Task SearchAsyncKeepsChildRegexParentNonDemMatchBoundsFiltered()
+    {
+        byte[] archiveBytes = CreateZipArchive(
+            ("udx/tran/533914/plateau_yokohama_tran_533914.gml", "<tran:CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        string archivePath = Path.Combine(workRoot.Path, "dataset.zip");
+        await File.WriteAllBytesAsync(archivePath, archiveBytes);
+
+        DatasetSearchResult result = await service.SearchAsync(archivePath, "5339142.", ["tran"]);
+
+        Assert.Equal(CreateThirdMeshCodes("533914").Where(static meshCode => meshCode.StartsWith("5339142", StringComparison.Ordinal)).ToArray(), result.SelectedMeshCodes);
+        DatasetSearchEntry entry = Assert.Single(result.SourceFiles);
+        Assert.Equal("533914", entry.MatchedMeshCode);
+        Assert.True(entry.RequiresMeshCodeBoundsFilter);
+    }
+
     private static void WriteDatasetFile(string datasetRoot, string relativePath, string content)
     {
         string absolutePath = Path.Combine(
