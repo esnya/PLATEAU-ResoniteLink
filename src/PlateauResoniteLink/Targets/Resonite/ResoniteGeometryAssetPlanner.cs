@@ -9,23 +9,11 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteGeometryAssetPlanner
-{
-    Task<PlannedGeometryAsset> PlanAsync(
-        IResoniteLinkClient importClient,
-        ResoniteConstructionCityObject cityObject,
-        PreparedCityObject preparedCityObject,
-        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
-        Action<string>? progressReporter,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class ResoniteGeometryAssetPlanner(
-    IResoniteGeometryAssetAssembler geometryAssetAssembler) : IResoniteGeometryAssetPlanner
+internal static class ResoniteGeometryAssetPlanner
 {
     private const string TerrainGridAssetSlotSuffix = "_terrain-grid";
 
-    public async Task<PlannedGeometryAsset> PlanAsync(
+    public static async Task<PlannedGeometryAsset> PlanAsync(
         IResoniteLinkClient importClient,
         ResoniteConstructionCityObject cityObject,
         PreparedCityObject preparedCityObject,
@@ -42,7 +30,7 @@ internal sealed class ResoniteGeometryAssetPlanner(
         {
             PreparedTriangleMeshGeometry triangleMesh => CreatePlannedGeometryAsset(
                 cityObject,
-                await geometryAssetAssembler.PrepareTriangleMeshAsync(
+                await ResoniteGeometryAssetAssembler.PrepareTriangleMeshAsync(
                     importClient,
                     CreateMeshAssetSlotName(cityObject),
                     cityObject.DisplayName,
@@ -51,7 +39,7 @@ internal sealed class ResoniteGeometryAssetPlanner(
                     cancellationToken)),
             PreparedTerrainGridGeometry heightMap => CreatePlannedGeometryAsset(
                 cityObject,
-                await geometryAssetAssembler.PrepareTerrainGridAsync(
+                await ResoniteGeometryAssetAssembler.PrepareTerrainGridAsync(
                     importClient,
                     CreateMeshAssetSlotName(cityObject),
                     CreateTerrainGridAssetSlotName(cityObject),
@@ -64,14 +52,14 @@ internal sealed class ResoniteGeometryAssetPlanner(
                     cancellationToken)),
             PreparedDynamicTerrainGeometry dynamicTerrain => CreatePlannedDynamicTerrainGeometryAsset(
                 cityObject,
-                await geometryAssetAssembler.PrepareTriangleMeshAsync(
+                await ResoniteGeometryAssetAssembler.PrepareTriangleMeshAsync(
                     importClient,
                     CreateMeshAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     dynamicTerrain.StaticMesh.MeshSource,
                     progressReporter,
                     cancellationToken),
-                await geometryAssetAssembler.PrepareTerrainGridAsync(
+                await ResoniteGeometryAssetAssembler.PrepareTerrainGridAsync(
                     importClient,
                     CreateMeshAssetSlotName(cityObject),
                     CreateTerrainGridAssetSlotName(cityObject),
