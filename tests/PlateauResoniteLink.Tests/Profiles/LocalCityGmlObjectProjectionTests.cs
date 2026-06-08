@@ -84,8 +84,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     private static CreateImportedSceneSource CreateImportedSceneSource(LocalCityGmlDocumentReader documentReader)
     {
         ImportedSceneSourceComposer composer = new DefaultImportedSceneSourceComposer(
-            new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial)
-                .ProjectCityObjects,
+            TestCityGmlGeometryProjector.Create(),
             CreateDemTextureSourcePolicy().ResolveAsync).Compose;
         return async (request, progressReporter, cancellationToken) =>
         {
