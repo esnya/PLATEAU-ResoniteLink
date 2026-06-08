@@ -374,13 +374,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         }
     }
 
-    public static IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsForTestsAsync(
-        IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
-        CancellationToken cancellationToken = default)
-    {
-        return CreateImportedObjectUnitsAsync(cityObjects, cancellationToken);
-    }
-
     public static ImportedCityObject ToImportedCityObject(ResoniteConstructionCityObject cityObject)
     {
         return cityObject.Geometry switch
