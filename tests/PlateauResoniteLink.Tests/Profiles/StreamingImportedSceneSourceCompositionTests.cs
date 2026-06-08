@@ -12,7 +12,7 @@ using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
-public sealed class DefaultImportedSceneSourceComposerTests
+public sealed class StreamingImportedSceneSourceCompositionTests
 {
     [Fact]
     public void ComposeMapsDocumentSetBoundaryIntoImportedSceneMetadata()
@@ -38,13 +38,11 @@ public sealed class DefaultImportedSceneSourceComposerTests
             documentSet,
             new ImportedSceneSourceContext([], new GeodeticPoint(35.0, 139.0, 12.5)));
 
-        DefaultImportedSceneSourceComposer composer = new(
-            new ThrowingGeometryProjector().ProjectCityObjects,
-            new StubDemTextureSourcePolicy().ResolveAsync);
-
-        IImportedSceneSource source = composer.Compose(
+        IImportedSceneSource source = StreamingImportedSceneSource.Compose(
             request,
             readResult,
+            new ThrowingGeometryProjector().ProjectCityObjects,
+            new StubDemTextureSourcePolicy().ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
@@ -89,13 +87,12 @@ public sealed class DefaultImportedSceneSourceComposerTests
                 ["53394525"]),
             new ImportedSceneSourceContext([], new GeodeticPoint(35.0, 139.0, 0.0)));
         RecordingDemTextureSourcePolicy demTextureSourcePolicy = new();
-        DefaultImportedSceneSourceComposer composer = new(
-            new ThrowingGeometryProjector().ProjectCityObjects,
-            demTextureSourcePolicy.ResolveAsync);
 
-        IImportedSceneSource source = composer.Compose(
+        IImportedSceneSource source = StreamingImportedSceneSource.Compose(
             request,
             readResult,
+            new ThrowingGeometryProjector().ProjectCityObjects,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ValidateBeforeSinkSetupAsync();

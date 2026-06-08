@@ -55,18 +55,17 @@ public sealed class CliApplicationTests
 
     private static CreateImportedSceneSource CreateImportedSceneSource(LocalCityGmlDocumentReader documentReader)
     {
-        ImportedSceneSourceComposer composer = new DefaultImportedSceneSourceComposer(
-            TestCityGmlGeometryProjector.Create(),
-            CreateDemTextureSourcePolicy().ResolveAsync).Compose;
         return async (request, progressReporter, cancellationToken) =>
         {
             ImportedSceneSourceSnapshot readResult = await documentReader.ReadAsync(
                 request,
                 progressReporter,
                 cancellationToken);
-            return composer(
+            return StreamingImportedSceneSource.Compose(
                 request,
                 readResult,
+                TestCityGmlGeometryProjector.Create(),
+                CreateDemTextureSourcePolicy().ResolveAsync,
                 PassthroughImportedObjectUnitOptimizer.OptimizeAsync,
                 progressReporter);
         };
