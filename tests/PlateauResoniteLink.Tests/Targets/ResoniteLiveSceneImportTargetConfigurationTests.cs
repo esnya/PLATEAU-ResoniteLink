@@ -252,7 +252,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     [Theory]
     [InlineData(ResoniteImportMemoryProfile.Small)]
     [InlineData(ResoniteImportMemoryProfile.Large)]
-    public async Task BufferedCityObjectBakerFactoryBuffersLod1NonDemObjectsAcrossMemoryProfiles(
+    public async Task MeshBakeBuffersLod1NonDemObjectsAcrossMemoryProfiles(
         ResoniteImportMemoryProfile memoryProfile)
     {
         Assert.Equal(
@@ -274,7 +274,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     [Theory]
     [InlineData(ResoniteImportMemoryProfile.Small)]
     [InlineData(ResoniteImportMemoryProfile.Large)]
-    public async Task BufferedCityObjectBakerFactoryKeepsMeshesAboveUInt16VertexRangeBufferedUntilExplicitFlush(
+    public async Task MeshBakeKeepsMeshesAboveUInt16VertexRangeBufferedUntilExplicitFlush(
         ResoniteImportMemoryProfile memoryProfile)
     {
         Assert.Equal(
@@ -294,7 +294,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     [Theory]
     [InlineData(ResoniteImportMemoryProfile.Small)]
     [InlineData(ResoniteImportMemoryProfile.Large)]
-    public async Task BufferedCityObjectBakerFactorySkipsDemObjectsAcrossMemoryProfiles(
+    public async Task MeshBakeSkipsDemObjectsAcrossMemoryProfiles(
         ResoniteImportMemoryProfile memoryProfile)
     {
         Assert.Equal(
@@ -458,13 +458,12 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         int cityObjectCount,
         Func<int, ResoniteConstructionCityObject> createCityObject)
     {
-        ResoniteBufferedCityObjectBakerFactory factory = new(
-            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()));
-        CompositeCityObjectBaker baker = factory.Create(
-                enableMeshBake: true,
-                ResoniteImportBudgetProfiles.ForProfile(memoryProfile),
-                CreateRequestLocalOrigin("53394525"))
-            ?? throw new InvalidOperationException("Expected mesh bake composite baker.");
+        CompositeCityObjectBaker baker = new(
+            new NonDemCityObjectBaker(
+                new NonDemCityObjectBakePolicyResolver(NonDemCityObjectBakePolicies.DefaultPolicies),
+                new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()).Create(
+                    new NonDemAtlasBakeBudget(ResourceBudget: ResoniteImportBudgetProfiles.ForProfile(memoryProfile)),
+                    CreateRequestLocalOrigin("53394525"))));
 
         int readyBeforeFlush = 0;
         for (int index = 0; index < cityObjectCount; index++)
