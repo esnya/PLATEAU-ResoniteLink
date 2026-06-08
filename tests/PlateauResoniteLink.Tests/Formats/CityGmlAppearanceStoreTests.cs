@@ -34,7 +34,7 @@ public sealed class CityGmlAppearanceStoreTests
             datasetRoot.Path,
             new RemoteArchiveDistributionPolicy(),
             new ArchiveFileLayoutPolicy());
-        ICityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
+        CityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
             "udx/bldg/53394525/example.gml",
             datasetSource);
         XDocument document = XDocument.Parse(
@@ -105,7 +105,7 @@ public sealed class CityGmlAppearanceStoreTests
             datasetRoot.Path,
             new RemoteArchiveDistributionPolicy(),
             new ArchiveFileLayoutPolicy());
-        ICityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
+        CityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
             "udx/bldg/53394525/example.gml",
             datasetSource);
         XDocument document = XDocument.Parse(
@@ -157,7 +157,7 @@ public sealed class CityGmlAppearanceStoreTests
             datasetRoot.Path,
             new RemoteArchiveDistributionPolicy(),
             new ArchiveFileLayoutPolicy());
-        ICityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
+        CityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
             "udx/bldg/53394525/example.gml",
             datasetSource);
         XDocument document = XDocument.Parse(
@@ -207,7 +207,7 @@ public sealed class CityGmlAppearanceStoreTests
             datasetRoot.Path,
             new RemoteArchiveDistributionPolicy(),
             new ArchiveFileLayoutPolicy());
-        ICityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
+        CityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
             "udx/bldg/53394525/example.gml",
             datasetSource);
         XDocument document = XDocument.Parse(
@@ -250,7 +250,7 @@ public sealed class CityGmlAppearanceStoreTests
             datasetRoot.Path,
             new RemoteArchiveDistributionPolicy(),
             new ArchiveFileLayoutPolicy());
-        ICityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
+        CityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
             "udx/bldg/53394525/example.gml",
             datasetSource);
         XDocument document = XDocument.Parse(
@@ -298,7 +298,7 @@ public sealed class CityGmlAppearanceStoreTests
         }
 
         CountingDatasetContentSource datasetSource = new(pngBytes);
-        ICityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
+        CityGmlAppearanceStore store = CityGmlAppearanceStore.Create(
             "udx/bldg/53394525/example.gml",
             datasetSource);
         XDocument document = XDocument.Parse(
