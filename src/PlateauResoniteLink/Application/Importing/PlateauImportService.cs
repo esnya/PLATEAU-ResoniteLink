@@ -72,10 +72,7 @@ internal sealed class PlateauImportService(
                 datasetWorkRoot,
                 this.commonMaterials);
 
-            if (importedSceneSource is IImportedSceneSourcePreflight preflight)
-            {
-                await preflight.ValidateBeforeSinkSetupAsync(cancellationToken);
-            }
+            await importedSceneSource.ValidateBeforeSinkSetupAsync(cancellationToken);
 
             ReportProgress(
                 PlateauLog.Info(
