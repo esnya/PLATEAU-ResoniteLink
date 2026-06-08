@@ -33,7 +33,7 @@ internal static class ResoniteQueuedCityObjectEnqueuer
                 cancellationToken);
         }
 
-        CompositeCityObjectBaker? cityObjectBaker = state.Context.CityObjectBaker;
+        NonDemCityObjectBaker? cityObjectBaker = state.Context.CityObjectBaker;
         if (cityObjectBaker is null)
         {
             return;
@@ -44,7 +44,7 @@ internal static class ResoniteQueuedCityObjectEnqueuer
 
     public static async Task<int> FlushBufferedAsync(
         LiveSendRunState state,
-        CompositeCityObjectBaker cityObjectBaker,
+        NonDemCityObjectBaker cityObjectBaker,
         LiveSendEnqueueContext context,
         CancellationToken cancellationToken)
     {
@@ -82,7 +82,7 @@ internal static class ResoniteQueuedCityObjectEnqueuer
     {
         ArgumentNullException.ThrowIfNull(cityObject);
 
-        CompositeCityObjectBaker? cityObjectBaker = state.Context.CityObjectBaker;
+        NonDemCityObjectBaker? cityObjectBaker = state.Context.CityObjectBaker;
         if (cityObjectBaker is not null)
         {
             IReadOnlyList<ResoniteConstructionCityObject> queuedCityObjects = await cityObjectBaker.BufferAsync(

@@ -181,7 +181,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         ResoniteSharedSlotIndex placement,
         CancellationToken cancellationToken)
     {
-        CompositeCityObjectBaker? cityObjectBaker = CreateCityObjectBaker(
+        NonDemCityObjectBaker? cityObjectBaker = CreateCityObjectBaker(
             runPlan.MeshBakeEnabled,
             runPlan.ResourceBudget,
             runPlan.RequestLocalOrigin);
@@ -205,7 +205,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         };
     }
 
-    private CompositeCityObjectBaker? CreateCityObjectBaker(
+    private NonDemCityObjectBaker? CreateCityObjectBaker(
         bool enableMeshBake,
         ResoniteImportBudgetProfile resourceBudget,
         ResoniteLocalOrigin requestLocalOrigin)
@@ -217,12 +217,11 @@ internal sealed class ResoniteLiveSendRunStarter(
         };
 
         return enableMeshBake
-            ? new CompositeCityObjectBaker(
-                new NonDemCityObjectBaker(
-                    bakePolicies: NonDemCityObjectBakePolicies.DefaultPolicies,
-                    sourceFileBakeEmitter: CreateSourceFileBakeEmitter(
-                        new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget),
-                        requestLocalOrigin)))
+            ? new NonDemCityObjectBaker(
+                bakePolicies: NonDemCityObjectBakePolicies.DefaultPolicies,
+                sourceFileBakeEmitter: CreateSourceFileBakeEmitter(
+                    new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget),
+                    requestLocalOrigin))
             : null;
     }
 

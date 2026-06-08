@@ -417,12 +417,11 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         int cityObjectCount,
         Func<int, ResoniteConstructionCityObject> createCityObject)
     {
-        CompositeCityObjectBaker baker = new(
-            new NonDemCityObjectBaker(
-                NonDemCityObjectBakePolicies.DefaultPolicies,
-                CreateSourceFileBakeEmitter(
-                    new NonDemAtlasBakeBudget(ResourceBudget: ResoniteImportBudgetProfiles.ForProfile(memoryProfile)),
-                    CreateRequestLocalOrigin("53394525"))));
+        NonDemCityObjectBaker baker = new(
+            NonDemCityObjectBakePolicies.DefaultPolicies,
+            CreateSourceFileBakeEmitter(
+                new NonDemAtlasBakeBudget(ResourceBudget: ResoniteImportBudgetProfiles.ForProfile(memoryProfile)),
+                CreateRequestLocalOrigin("53394525")));
 
         int readyBeforeFlush = 0;
         for (int index = 0; index < cityObjectCount; index++)

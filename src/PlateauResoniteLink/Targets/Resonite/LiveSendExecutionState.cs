@@ -133,7 +133,7 @@ internal sealed record LiveSendRunContext(
     CreatedSlot DatasetRootSlot,
     CreatedSlot DatasetAssetsRootSlot,
     CreatedSlot CommonAssetsRootSlot,
-    CompositeCityObjectBaker? CityObjectBaker);
+    NonDemCityObjectBaker? CityObjectBaker);
 
 internal sealed class LiveSendRunState
 {
