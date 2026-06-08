@@ -74,19 +74,18 @@ internal readonly record struct DemTerrainRasterCacheKey
     }
 }
 
-internal interface IDemTerrainGeoReferencedRasterCatalog
-{
-    DemTerrainRasterSourceScope CacheScope { get; }
+internal delegate Task<TerrainTextureGeoReferencedRasterSource?> ResolveDemTerrainGeoReferencedRasterSource(
+    DemTerrainRasterCacheKey cacheKey,
+    ThirdRegionalMeshCode meshCode,
+    GeographicRectangle overlayBounds,
+    CancellationToken cancellationToken);
 
-    Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
-        DemTerrainRasterCacheKey cacheKey,
-        ThirdRegionalMeshCode meshCode,
-        GeographicRectangle overlayBounds,
-        CancellationToken cancellationToken);
-}
+internal readonly record struct DemTerrainGeoReferencedRasterResolver(
+    DemTerrainRasterSourceScope CacheScope,
+    ResolveDemTerrainGeoReferencedRasterSource ResolveRasterSourceAsync);
 
 internal sealed class DefaultDemTextureSourcePolicy(
-    Func<DatasetLocation?, CancellationToken, Task<IDemTerrainGeoReferencedRasterCatalog?>> createRasterCatalog)
+    Func<DatasetLocation?, CancellationToken, Task<DemTerrainGeoReferencedRasterResolver?>> createRasterResolver)
     : IDemTextureSourcePolicy
 {
     public async Task<ResolvedDemTextureSources> ResolveAsync(
@@ -97,10 +96,10 @@ internal sealed class DefaultDemTextureSourcePolicy(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(overlayRegions);
 
-        IDemTerrainGeoReferencedRasterCatalog? rasterCatalog = await createRasterCatalog(
+        DemTerrainGeoReferencedRasterResolver? rasterResolver = await createRasterResolver(
             request.DemTextureSource,
             cancellationToken);
-        if (request.DemTextureSource is not null && rasterCatalog is null)
+        if (request.DemTextureSource is not null && rasterResolver is null)
         {
             throw new PlateauImportValidationException(
                 [LocalCityGmlImportErrorMessages.InvalidDemTextureSource(request.DemTextureSource)]);
@@ -112,7 +111,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
             overlays[index] = await CreateOverlayAsync(
                 overlayRegions[index],
                 request.Dataset,
-                rasterCatalog,
+                rasterResolver,
                 cancellationToken);
         }
 
@@ -139,7 +138,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
     private static async Task<TerrainTextureOverlay> CreateOverlayAsync(
         DemTerrainOverlayRegion region,
         string datasetName,
-        IDemTerrainGeoReferencedRasterCatalog? rasterCatalog,
+        DemTerrainGeoReferencedRasterResolver? rasterResolver,
         CancellationToken cancellationToken)
     {
         List<DemTextureSourceCandidate> candidates =
@@ -164,10 +163,10 @@ internal sealed class DefaultDemTextureSourcePolicy(
                     DemTerrainTextureDefaults.FallbackZoomLevel)),
         ];
 
-        if (rasterCatalog is not null)
+        if (rasterResolver is { } resolver)
         {
-            TerrainTextureGeoReferencedRasterSource? rasterSource = await rasterCatalog.TryResolveRasterSourceAsync(
-                new DemTerrainRasterCacheKey(datasetName, rasterCatalog.CacheScope, region.MeshCode, region.GeographicBounds),
+            TerrainTextureGeoReferencedRasterSource? rasterSource = await resolver.ResolveRasterSourceAsync(
+                new DemTerrainRasterCacheKey(datasetName, resolver.CacheScope, region.MeshCode, region.GeographicBounds),
                 region.MeshCode,
                 region.GeographicBounds,
                 cancellationToken);

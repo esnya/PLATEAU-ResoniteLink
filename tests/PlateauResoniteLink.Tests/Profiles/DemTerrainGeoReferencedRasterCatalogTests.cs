@@ -43,17 +43,17 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     {
         using TemporaryDirectory datasetRoot = new();
         RecordingDatasetContentSource datasetSource = CreateDatasetSource(datasetRoot.Path);
-        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        DemTerrainGeoReferencedRasterResolver resolver = await CreateRasterResolverAsync(datasetSource);
         GeographicRectangle firstBounds = new(35.0, 35.1, 139.0, 139.1);
         GeographicRectangle secondBounds = new(35.1, 35.2, 139.1, 139.2);
 
-        _ = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), firstBounds),
+        _ = await resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), firstBounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             firstBounds,
             CancellationToken.None);
-        _ = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), secondBounds),
+        _ = await resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), secondBounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             secondBounds,
             CancellationToken.None);
@@ -67,17 +67,17 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     {
         using TemporaryDirectory datasetRoot = new();
         RecordingDatasetContentSource datasetSource = CreateDatasetSource(datasetRoot.Path);
-        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        DemTerrainGeoReferencedRasterResolver resolver = await CreateRasterResolverAsync(datasetSource);
         GeographicRectangle firstBounds = new(35.0, 35.1, 139.0, 139.1);
         GeographicRectangle secondBounds = new(35.0000001, 35.1000001, 139.0000001, 139.1000001);
 
-        _ = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), firstBounds),
+        _ = await resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), firstBounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             firstBounds,
             CancellationToken.None);
-        _ = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), secondBounds),
+        _ = await resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), secondBounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             secondBounds,
             CancellationToken.None);
@@ -91,11 +91,11 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     {
         using TemporaryDirectory datasetRoot = new();
         LocalFileReadableDatasetContentSource datasetSource = CreateLocalFileReadableDatasetSource(datasetRoot.Path);
-        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        DemTerrainGeoReferencedRasterResolver resolver = await CreateRasterResolverAsync(datasetSource);
         GeographicRectangle bounds = new(35.0, 35.1, 139.0, 139.1);
 
-        TerrainTextureGeoReferencedRasterSource? result = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
+        TerrainTextureGeoReferencedRasterSource? result = await resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             bounds,
             CancellationToken.None);
@@ -116,18 +116,18 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     {
         using TemporaryDirectory datasetRoot = new();
         SucceedingGateableDatasetContentSource datasetSource = CreateSucceedingGateableDatasetSource(datasetRoot.Path);
-        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        DemTerrainGeoReferencedRasterResolver resolver = await CreateRasterResolverAsync(datasetSource);
         GeographicRectangle firstBounds = new(35.0, 35.01, 139.0, 139.01);
         GeographicRectangle secondBounds = new(35.02, 35.03, 139.02, 139.03);
 
-        Task<TerrainTextureGeoReferencedRasterSource?> firstCall = catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), firstBounds),
+        Task<TerrainTextureGeoReferencedRasterSource?> firstCall = resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), firstBounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             firstBounds,
             CancellationToken.None);
         await datasetSource.OpenReadStarted.Task.WaitAsync(CancellationToken.None);
-        Task<TerrainTextureGeoReferencedRasterSource?> secondCall = catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), secondBounds),
+        Task<TerrainTextureGeoReferencedRasterSource?> secondCall = resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), secondBounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             secondBounds,
             CancellationToken.None);
@@ -148,18 +148,18 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     {
         using TemporaryDirectory datasetRoot = new();
         SucceedingGateableDatasetContentSource datasetSource = CreateSucceedingGateableDatasetSource(datasetRoot.Path);
-        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        DemTerrainGeoReferencedRasterResolver resolver = await CreateRasterResolverAsync(datasetSource);
         GeographicRectangle bounds = new(35.0, 35.1, 139.0, 139.1);
         using CancellationTokenSource firstCallerCancellation = new();
 
-        Task<TerrainTextureGeoReferencedRasterSource?> firstCall = catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
+        Task<TerrainTextureGeoReferencedRasterSource?> firstCall = resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             bounds,
             firstCallerCancellation.Token);
         await datasetSource.OpenReadStarted.Task.WaitAsync(CancellationToken.None);
-        Task<TerrainTextureGeoReferencedRasterSource?> secondCall = catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
+        Task<TerrainTextureGeoReferencedRasterSource?> secondCall = resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             bounds,
             CancellationToken.None);
@@ -172,8 +172,8 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         TerrainTextureGeoReferencedRasterSource resolvedSecondResult = Assert.IsType<TerrainTextureGeoReferencedRasterSource>(secondResult);
         Assert.Equal("EPSG:4326", resolvedSecondResult.Metadata.CoordinateSystemIdentifier);
 
-        TerrainTextureGeoReferencedRasterSource? thirdResult = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
+        TerrainTextureGeoReferencedRasterSource? thirdResult = await resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             bounds,
             CancellationToken.None);
@@ -187,12 +187,12 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     {
         using TemporaryDirectory datasetRoot = new();
         FaultingGateableDatasetContentSource datasetSource = CreateFaultingGateableDatasetSource(datasetRoot.Path);
-        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        DemTerrainGeoReferencedRasterResolver resolver = await CreateRasterResolverAsync(datasetSource);
         GeographicRectangle bounds = new(35.0, 35.1, 139.0, 139.1);
         using CancellationTokenSource firstCallerCancellation = new();
 
-        Task<TerrainTextureGeoReferencedRasterSource?> firstCall = catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
+        Task<TerrainTextureGeoReferencedRasterSource?> firstCall = resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             bounds,
             firstCallerCancellation.Token);
@@ -203,8 +203,8 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         datasetSource.ReleaseOpenRead.TrySetResult();
         await datasetSource.BackgroundCompletion.Task.WaitAsync(CancellationToken.None);
 
-        TerrainTextureGeoReferencedRasterSource? retryResult = await catalog.TryResolveRasterSourceAsync(
-            new DemTerrainRasterCacheKey("tokyo23ku", catalog.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
+        TerrainTextureGeoReferencedRasterSource? retryResult = await resolver.ResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("tokyo23ku", resolver.CacheScope, ThirdRegionalMeshCode.Parse("53394525"), bounds),
             ThirdRegionalMeshCode.Parse("53394525"),
             bounds,
             CancellationToken.None);
@@ -350,13 +350,14 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset + 8, 4), valueOrOffset);
     }
 
-    private static async Task<DemTerrainGeoReferencedRasterCatalog> CreateCatalogAsync(IPlateauDatasetContentSource datasetSource)
+    private static async Task<DemTerrainGeoReferencedRasterResolver> CreateRasterResolverAsync(IPlateauDatasetContentSource datasetSource)
     {
-        IDemTerrainGeoReferencedRasterCatalog? catalog = await DemTerrainGeoReferencedRasterCatalog.CreateAsync(
+        DemTerrainGeoReferencedRasterResolver? resolver = await DemTerrainGeoReferencedRasterCatalog.CreateAsync(
             DatasetLocation.Local(datasetSource.SourcePath),
             CreateStubDatasetContentSourceAsync(datasetSource),
             CancellationToken.None);
-        return Assert.IsType<DemTerrainGeoReferencedRasterCatalog>(catalog);
+        Assert.NotNull(resolver);
+        return resolver.Value;
     }
 
     private static Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> CreateStubDatasetContentSourceAsync(
