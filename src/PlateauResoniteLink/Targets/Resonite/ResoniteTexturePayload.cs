@@ -25,7 +25,7 @@ public abstract class ResoniteTexturePayload
 
 public sealed class RawRgba32ResoniteTexturePayload : ResoniteTexturePayload
 {
-    private const string DefaultSrgbColorProfile = "srgb";
+    private const string DefaultSrgbColorProfile = ResoniteColorSpace.SrgbProfile;
 
     public RawRgba32ResoniteTexturePayload(
         int width,
