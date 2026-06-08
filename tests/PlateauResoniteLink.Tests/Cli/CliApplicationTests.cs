@@ -32,7 +32,7 @@ public sealed class CliApplicationTests
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
             new DefaultImportedSceneSourceFactory(
-                documentReader,
+                documentReader.ReadAsync,
                 new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ProjectCityObjects,
                     CreateDemTextureSourcePolicy()).Compose,
