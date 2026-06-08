@@ -27,8 +27,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
             options.TerrainTileCacheRoot,
             options.DisableTerrainTileCache);
         ResoniteLiveSendRunStarter runStarter = CreateRunStarter(terrainTextureAssetGenerator.EnsureTextureAsync);
-        ResoniteLiveSceneImportDependencies dependencies = CreateDependencies(clientSession, diagnostics, runStarter);
-        return new ResoniteLiveSceneImportTarget(options, dependencies);
+        return CreateTarget(options, clientSession, diagnostics, runStarter);
     }
 
     public ResoniteLiveSceneImportTarget CreateTarget(
@@ -43,8 +42,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
         ArgumentNullException.ThrowIfNull(generateTerrainTexture);
 
         ResoniteLiveSendRunStarter runStarter = CreateRunStarter(generateTerrainTexture);
-        ResoniteLiveSceneImportDependencies dependencies = CreateDependencies(clientSession, diagnostics, runStarter);
-        return new ResoniteLiveSceneImportTarget(options, dependencies);
+        return CreateTarget(options, clientSession, diagnostics, runStarter);
     }
 
     private ResoniteLiveSendRunStarter CreateRunStarter(GenerateTerrainTexture generateTerrainTexture)
@@ -66,16 +64,19 @@ internal sealed class ResoniteLiveSceneImportFactory(
             preparedCityObjectImporter);
     }
 
-    private static ResoniteLiveSceneImportDependencies CreateDependencies(
+    private static ResoniteLiveSceneImportTarget CreateTarget(
+        ResoniteLiveSceneImportTargetOptions options,
         ILiveSendClientSession clientSession,
         ResoniteLinkSendDiagnostics diagnostics,
         ResoniteLiveSendRunStarter runStarter)
     {
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clientSession);
         ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentNullException.ThrowIfNull(runStarter);
 
-        return new ResoniteLiveSceneImportDependencies(
+        return new ResoniteLiveSceneImportTarget(
+            options,
             clientSession,
             diagnostics,
             new ResoniteLiveSendRunExecutor(runStarter));

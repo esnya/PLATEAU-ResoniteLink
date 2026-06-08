@@ -56,9 +56,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
-            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                session,
-                diagnostics,
+            session,
+            diagnostics,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
 
         PlateauImportRequest normalizedRequest = new(
@@ -109,9 +109,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
-            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                session,
-                diagnostics,
+            session,
+            diagnostics,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
@@ -149,9 +149,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: progressMessages.Add),
-            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                session,
-                diagnostics,
+            session,
+            diagnostics,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                     materialPlanning,
                     new ThrowingSceneSetupInterpreter().SetupAsync)));
@@ -198,9 +198,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
-            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                session,
-                diagnostics,
+            session,
+            diagnostics,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -274,9 +274,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
-            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                session,
-                ResoniteLinkSendDiagnostics.Disabled,
+            session,
+            ResoniteLinkSendDiagnostics.Disabled,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                     materialPlanning,
                     new MissingCommonMaterialSetupInterpreter().SetupAsync)));
@@ -315,9 +315,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
-            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                session,
-                ResoniteLinkSendDiagnostics.Disabled,
+            session,
+            ResoniteLinkSendDiagnostics.Disabled,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                     materialPlanning,
                     new MissingCommonMaterialSetupInterpreter().SetupAsync)));
@@ -378,9 +378,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
                     progressMessages.Add(message);
                 }),
-            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                session,
-                ResoniteLinkSendDiagnostics.Disabled,
+            session,
+            ResoniteLinkSendDiagnostics.Disabled,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning, progressReporter: progressMessages.Add)));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
