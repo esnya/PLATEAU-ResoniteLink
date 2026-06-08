@@ -376,6 +376,7 @@ internal sealed class CanonicalBatchEntityMap
     public void ValidateAll(IReadOnlyList<DataModelOperation> operations)
     {
         ArgumentNullException.ThrowIfNull(operations);
+        int requiredUnkeyedResponses = 0;
         foreach (DataModelOperation operation in operations)
         {
             string? messageId = operation switch
@@ -390,9 +391,16 @@ internal sealed class CanonicalBatchEntityMap
                 continue;
             }
 
-            _ = ResolveResponse(
-                new ResoniteBatchOperations.BatchTemporaryMessageId(messageId),
-                $"batch operation '{operation.GetType().Name}'");
+            if (responsesByMessageId.ContainsKey(messageId))
+            {
+                continue;
+            }
+
+            requiredUnkeyedResponses++;
+            if (requiredUnkeyedResponses > responsesWithoutMessageId.Count)
+            {
+                throw new InvalidOperationException($"Batch response did not include message '{messageId}'.");
+            }
         }
     }
 
