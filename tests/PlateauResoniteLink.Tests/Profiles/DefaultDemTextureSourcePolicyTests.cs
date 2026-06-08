@@ -189,8 +189,8 @@ public sealed class DefaultDemTextureSourcePolicyTests
     public async Task ResolveAsyncExcludesGsiFallbackWhenRequested()
     {
         DefaultDemTextureSourcePolicy policy = new(
-            new StubDemTerrainGeoReferencedRasterCatalogFactory(
-                catalog: null));
+            CreateRasterCatalogFactory(
+                resolver: null));
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",

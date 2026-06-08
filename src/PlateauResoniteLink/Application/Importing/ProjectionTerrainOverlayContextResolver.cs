@@ -21,7 +21,7 @@ internal sealed class ProjectionTerrainOverlayContextResolver
     private readonly string[] selectedMeshCodes;
     private readonly TerrainTextureOverlay[] discoveryTerrainTextureOverlays;
     private readonly bool hasDemPackage;
-    private readonly IDemTextureSourcePolicy demTextureSourcePolicy;
+    private readonly ResolveDemTextureSources resolveDemTextureSources;
     private readonly object parsedDemSourceFilesGate = new();
     private readonly object demOverlayRegionsGate = new();
     private readonly object demTextureSourcesGate = new();
@@ -38,14 +38,14 @@ internal sealed class ProjectionTerrainOverlayContextResolver
         IReadOnlyList<string> selectedMeshCodes,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         bool hasDemPackage,
-        IDemTextureSourcePolicy demTextureSourcePolicy)
+        ResolveDemTextureSources resolveDemTextureSources)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(sourceFiles);
         ArgumentNullException.ThrowIfNull(discoveryTerrainTextureOverlays);
         ArgumentNullException.ThrowIfNull(selectedMeshCodes);
         ArgumentNullException.ThrowIfNull(requestedMeshCodeBounds);
-        ArgumentNullException.ThrowIfNull(demTextureSourcePolicy);
+        ArgumentNullException.ThrowIfNull(resolveDemTextureSources);
 
         this.request = request;
         this.sourceFiles = sourceFiles.ToArray();
@@ -53,7 +53,7 @@ internal sealed class ProjectionTerrainOverlayContextResolver
         this.selectedMeshCodes = selectedMeshCodes.ToArray();
         this.requestedMeshCodeBounds = requestedMeshCodeBounds.ToArray();
         this.hasDemPackage = hasDemPackage;
-        this.demTextureSourcePolicy = demTextureSourcePolicy;
+        this.resolveDemTextureSources = resolveDemTextureSources;
     }
 
     public async Task ValidateBeforeSinkSetupAsync(CancellationToken cancellationToken = default)
@@ -158,7 +158,7 @@ internal sealed class ProjectionTerrainOverlayContextResolver
         Task<ResolvedDemTextureSources> textureSourcesTask;
         lock (demTextureSourcesGate)
         {
-            textureSourcesTask = demTextureSourcesTask ??= demTextureSourcePolicy.ResolveAsync(
+            textureSourcesTask = demTextureSourcesTask ??= resolveDemTextureSources(
                 request,
                 overlayRegions,
                 CancellationToken.None);

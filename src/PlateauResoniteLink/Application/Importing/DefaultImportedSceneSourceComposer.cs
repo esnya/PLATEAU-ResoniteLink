@@ -10,10 +10,10 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class DefaultImportedSceneSourceComposer(
     CityGmlGeometryProjector geometryProjector,
-    IDemTextureSourcePolicy demTextureSourcePolicy)
+    ResolveDemTextureSources resolveDemTextureSources)
 {
     private readonly CityGmlGeometryProjector geometryProjector = geometryProjector;
-    private readonly IDemTextureSourcePolicy demTextureSourcePolicy = demTextureSourcePolicy;
+    private readonly ResolveDemTextureSources resolveDemTextureSources = resolveDemTextureSources;
     private const string PlateauLicenseName = "PLATEAU Open Data Terms";
     private const string PlateauLicenseUrl = "https://www.mlit.go.jp/plateau/site-policy/";
 
@@ -49,7 +49,7 @@ internal sealed class DefaultImportedSceneSourceComposer(
             importRequest,
             readResult,
             geometryProjector,
-            demTextureSourcePolicy,
+            resolveDemTextureSources,
             objectUnitOptimizer,
             loggerFactory ?? NullLoggerFactory.Instance);
     }

@@ -9,16 +9,10 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal interface IDemTextureSourcePolicy
-{
-    Task<ResolvedDemTextureSources> ResolveAsync(
-        PlateauImportRequest request,
-        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
-        CancellationToken cancellationToken = default);
-
-    IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
-        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions);
-}
+internal delegate Task<ResolvedDemTextureSources> ResolveDemTextureSources(
+    PlateauImportRequest request,
+    IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+    CancellationToken cancellationToken = default);
 
 internal sealed record ResolvedDemTextureSources(IReadOnlyList<TerrainTextureOverlay> Overlays);
 
@@ -86,7 +80,6 @@ internal readonly record struct DemTerrainGeoReferencedRasterResolver(
 
 internal sealed class DefaultDemTextureSourcePolicy(
     Func<DatasetLocation?, CancellationToken, Task<DemTerrainGeoReferencedRasterResolver?>> createRasterResolver)
-    : IDemTextureSourcePolicy
 {
     public async Task<ResolvedDemTextureSources> ResolveAsync(
         PlateauImportRequest request,
@@ -124,16 +117,6 @@ internal sealed class DefaultDemTextureSourcePolicy(
         }
 
         return new ResolvedDemTextureSources(overlays);
-    }
-
-    public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
-        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
-    {
-        ArgumentNullException.ThrowIfNull(overlayRegions);
-
-        return overlayRegions
-            .Select(CreateFallbackOverlay)
-            .ToArray();
     }
 
     private static async Task<TerrainTextureOverlay> CreateOverlayAsync(
@@ -193,11 +176,6 @@ internal sealed class DefaultDemTextureSourcePolicy(
             MaxTextureSize: DemTerrainTextureDefaults.MaxTextureSize,
             Sources: sources,
             LicenseMode: ResolveLicenseMode(sources));
-    }
-
-    private static TerrainTextureOverlay CreateFallbackOverlay(DemTerrainOverlayRegion region)
-    {
-        return DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.MeshCode, region.GeographicBounds);
     }
 
     private static DemTextureSourceCandidate CreateTileCandidate(

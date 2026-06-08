@@ -90,15 +90,16 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddImportedSceneSourceServicesPreservesCustomDemTextureSourcePolicy()
+    public void AddImportedSceneSourceServicesPreservesCustomDemTextureSourceResolver()
     {
         CustomDemTextureSourcePolicy policy = new();
+        ResolveDemTextureSources resolveDemTextureSources = policy.ResolveAsync;
         ServiceProvider provider = new ServiceCollection()
-            .AddSingleton<IDemTextureSourcePolicy>(policy)
+            .AddSingleton(resolveDemTextureSources)
             .AddImportedSceneSourceServices()
             .BuildServiceProvider();
 
-        Assert.Same(policy, provider.GetRequiredService<IDemTextureSourcePolicy>());
+        Assert.Same(resolveDemTextureSources, provider.GetRequiredService<ResolveDemTextureSources>());
     }
 
     private sealed class CustomCityGmlDocumentReader(ImportedSceneSourceSnapshot? readResult = null)
@@ -129,18 +130,12 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class CustomDemTextureSourcePolicy : IDemTextureSourcePolicy
+    private sealed class CustomDemTextureSourcePolicy
     {
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
             CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
-            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
         {
             throw new NotSupportedException();
         }
