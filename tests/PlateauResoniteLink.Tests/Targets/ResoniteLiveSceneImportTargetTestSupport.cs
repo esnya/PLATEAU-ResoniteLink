@@ -324,10 +324,21 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     {
         return new ResoniteLiveSendRunStarter(
             new ResoniteLiveSendRunSetupPreparer(
-                setupResoniteScene ?? ResoniteSceneSetupInterpreter.SetupAsync,
+                setupResoniteScene ?? CreateDefaultSetupResoniteScene(),
                 new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
             new ResoniteTextureImageLoader(),
             CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture));
+    }
+
+    private static SetupResoniteScene CreateDefaultSetupResoniteScene()
+    {
+        return (setupClient, setupInfo, commonMaterials, cancellationToken) => ResoniteSceneSetupInterpreter.SetupAsync(
+            setupClient,
+            setupInfo,
+            commonMaterials,
+            ResoniteSceneSlotLocator.TryGetDatasetRootAsync,
+            ResoniteSceneAnchorResolver.ResolveAsync,
+            cancellationToken);
     }
 
     private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(

@@ -41,7 +41,20 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
                     baseClientFactory);
             };
         });
-        services.TryAddScoped<SetupResoniteScene>(_ => ResoniteSceneSetupInterpreter.SetupAsync);
+        services.TryAddScoped<ResolveResoniteDatasetRootSlot>(_ => ResoniteSceneSlotLocator.TryGetDatasetRootAsync);
+        services.TryAddScoped<ResolveResoniteSceneAnchor>(_ => ResoniteSceneAnchorResolver.ResolveAsync);
+        services.TryAddScoped<SetupResoniteScene>(provider =>
+        {
+            ResolveResoniteDatasetRootSlot resolveDatasetRootSlot = provider.GetRequiredService<ResolveResoniteDatasetRootSlot>();
+            ResolveResoniteSceneAnchor resolveSceneAnchor = provider.GetRequiredService<ResolveResoniteSceneAnchor>();
+            return (setupClient, setupInfo, commonMaterials, cancellationToken) => ResoniteSceneSetupInterpreter.SetupAsync(
+                setupClient,
+                setupInfo,
+                commonMaterials,
+                resolveDatasetRootSlot,
+                resolveSceneAnchor,
+                cancellationToken);
+        });
         services.TryAddScoped<ResoniteLiveSceneImportFactory>();
 
         return services;
