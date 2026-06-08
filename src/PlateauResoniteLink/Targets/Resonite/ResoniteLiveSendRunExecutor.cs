@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Diagnostics;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -111,11 +112,26 @@ internal sealed class ResoniteLiveSendRunExecutor(
             LiveSendEnqueueContext enqueueContext = phaseContextFactory.CreateEnqueueContext(context);
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
+                int sourceUnitsSeen = Interlocked.Increment(ref state.Progress.SourceObjectUnitCount);
+                int sourceCityObjectsSeen = Interlocked.Add(
+                    ref state.Progress.SourceCityObjectCount,
+                    objectUnit.CityObjects.Count);
                 await queue.QueueUnitAsync(
                     state,
                     objectUnit,
                     enqueueContext,
                     cancellationToken);
+                if (sourceUnitsSeen % 25 == 0)
+                {
+                    context.Logger.WriteInformation(
+                        "Live send ingest progress: phase=streaming, source_units_seen={SourceObjectUnitCount}, source_city_objects_seen={SourceCityObjectCount}, queued={QueuedSourceCount}, sent={SentCount}, failed={FailedCount}, backlog={BacklogCount}.",
+                        sourceUnitsSeen,
+                        sourceCityObjectsSeen,
+                        state.Progress.QueuedCityObjectCount,
+                        state.Progress.ProcessedCityObjectCount,
+                        state.Progress.FailedCityObjectCount,
+                        Math.Max(0, state.Progress.QueuedCityObjectCount - state.Progress.ProcessedCityObjectCount - state.Progress.FailedCityObjectCount));
+                }
             }
 
             SceneImportExecutionResult result = await queue.CompleteAsync(

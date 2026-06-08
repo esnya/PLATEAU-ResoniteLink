@@ -43,7 +43,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
             ResoniteCommonMaterialPlans.CreateCatalogPlans(commonMaterials);
         if (commonMaterialPlans.Count == 0)
         {
-            logger.WriteInformation("No common material assets are required during scene setup.");
+            logger.WriteDebug("No common material assets are required during scene setup.");
             return;
         }
 
@@ -74,7 +74,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
             }
 
             Stopwatch materialStopwatch = Stopwatch.StartNew();
-            logger.WriteInformation(
+            logger.WriteDebug(
                 "Preparing common material asset {PreparedCount}/{TotalCount}: family='{FamilySlotName}', slot='{MaterialSlotName}'.",
                 preparedCount + 1,
                 commonMaterialPlans.Count,
@@ -98,7 +98,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
                     material,
                     new CreatedMaterialAsset(existingComponent.Value, null)));
                 preparedCount++;
-                logger.WriteInformation(
+                logger.WriteDebug(
                     "Reused common material asset {PreparedCount}/{TotalCount}: family='{FamilySlotName}', slot='{MaterialSlotName}', elapsed_s={ElapsedSeconds:F2}.",
                     preparedCount,
                     commonMaterialPlans.Count,
@@ -140,7 +140,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
                 pendingMaterialSlot,
                 pendingMaterialComponent));
             preparedCount++;
-            logger.WriteInformation(
+            logger.WriteDebug(
                 "Planned common material asset {PreparedCount}/{TotalCount}: family='{FamilySlotName}', slot='{MaterialSlotName}', texture_import_elapsed_s={ElapsedSeconds:F2}.",
                 preparedCount,
                 commonMaterialPlans.Count,
@@ -167,7 +167,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
                     new CreatedMaterialAsset(createdMaterialComponent.Locator, null)));
             }
 
-            logger.WriteInformation(
+            logger.WriteDebug(
                 "Created {PreparedMaterialCount} common material assets in one setup component batch.",
                 preparedMaterials.Count);
         }

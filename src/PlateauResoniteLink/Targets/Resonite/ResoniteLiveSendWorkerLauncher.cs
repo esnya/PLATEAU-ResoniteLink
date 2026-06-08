@@ -73,10 +73,10 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
             request.ResourceBudget.Name.ToString().ToLowerInvariant(),
             request.ResourceBudget.RuntimeVramBudgetBytes);
         laneStartStopwatch.Stop();
-        context.Logger.WriteInformation(
+        context.Logger.WriteDebug(
             "Send workers ready against connection pool={ConnectionCount}.",
             connectionCount);
-        context.Logger.WriteInformation(
+        context.Logger.WriteDebug(
             "Send lane startup phase complete in {ElapsedSeconds:F2}s.",
             laneStartStopwatch.Elapsed.TotalSeconds);
     }

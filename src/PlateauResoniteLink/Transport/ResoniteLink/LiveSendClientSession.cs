@@ -57,7 +57,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         {
             if (loadBalancedClient is not null)
             {
-                logger.WriteInformation("Reusing existing load-balanced ResoniteLink session.");
+                logger.WriteDebug("Reusing existing load-balanced ResoniteLink session.");
                 return;
             }
 
@@ -177,7 +177,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
     {
         Stopwatch connectionStopwatch = Stopwatch.StartNew();
         string connectionDescription = $"connection {connectionIndex + 1}/{connectionCount}";
-        logger.WriteInformation(
+        logger.WriteDebug(
             "Connecting {ConnectionDescription} ResoniteLink session to {Endpoint} for dataset '{Dataset}' mesh '{MeshCode}'.",
             connectionDescription,
             endpoint,
@@ -185,7 +185,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
             request.MeshCode);
         await client.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
         connectionStopwatch.Stop();
-        logger.WriteInformation(
+        logger.WriteDebug(
             "Connected {ConnectionDescription} ResoniteLink session to {Endpoint} in {ElapsedSeconds:F2}s.",
             connectionDescription,
             endpoint,

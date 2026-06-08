@@ -68,7 +68,7 @@ internal sealed class ResoniteLinkSendDiagnostics
         }
 
         sendWindowStopwatch = Stopwatch.StartNew();
-        logger.WriteInformation(
+        logger.WriteDebug(
             "Enabled live send metrics via System.Diagnostics.Metrics (connections={ConnectionCount}).",
             connectionCount);
     }
@@ -100,7 +100,7 @@ internal sealed class ResoniteLinkSendDiagnostics
                 .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
                 .Select(static pair => $"{pair.Key}={pair.Value}"));
 
-        logger.WriteInformation(
+        logger.WriteDebug(
             "send_window_s={ElapsedSeconds:F3} sent={SentCount} skipped_mesh_import_failure={SkippedMeshImportFailureCount} throughput_obj_per_s={Throughput:F2} avg_prepare_s={AveragePrepareSeconds:F4} avg_send_s={AverageSendSeconds:F4} avg_rpc_per_sent={AverageRpcPerSentCityObject:F2} total_rpc={TotalRpcCalls}",
             elapsedSeconds,
             sentCount,

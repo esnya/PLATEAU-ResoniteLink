@@ -92,6 +92,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         int producerConcurrency = Math.Min(sourceFiles.Length, MaxConcurrentCityObjectProducers);
         ConcurrentQueue<(SourceFilePipeline SourceFile, int Index)> pendingSourceFiles = new(
             sourceFiles.Select((sourceFile, index) => (sourceFile, index + 1)));
+        SourceScanProgress sourceScanProgress = new();
 
         logger.WriteInformation(
             "City object unit producers launched: {ProducerConcurrency} worker(s) for {SourceFileCount} file-scoped streams.",
@@ -103,6 +104,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                 () => ProduceCityObjectsUntilDrainedAsync(
                     channel.Writer,
                     pendingSourceFiles,
+                    sourceScanProgress,
                     sourceFiles.Length,
                     cancellationToken),
                 cancellationToken))
@@ -133,12 +135,13 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         ChannelWriter<ImportedObjectUnit> writer,
         SourceFilePipeline sourceFile,
         int fileIndex,
+        SourceScanProgress sourceScanProgress,
         int totalFiles,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         int percent = totalFiles == 0 ? 100 : (int)Math.Floor((fileIndex / (double)totalFiles) * 100.0);
-        logger.WriteInformation(
+        logger.WriteDebug(
             "Processing CityGML source file {FileIndex}/{TotalFiles} ({Percent}%). Source='{SourceFile}'.",
             fileIndex,
             totalFiles,
@@ -156,18 +159,46 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             await writer.WriteAsync(objectUnit, cancellationToken);
         }
 
-        logger.WriteInformation(
+        logger.WriteDebug(
             "Finished CityGML source file {FileIndex}/{TotalFiles}. Source='{SourceFile}', yielded_units={YieldedUnitCount}, yielded_city_objects={YieldedCityObjectCount}.",
             fileIndex,
             totalFiles,
             sourceFile.SourceFile.RelativePath,
             yieldedUnitCount,
             yieldedCount);
+
+        int completedSourceFiles = Interlocked.Increment(ref sourceScanProgress.CompletedSourceFileCount);
+        int producedCityObjects = Interlocked.Add(ref sourceScanProgress.ProducedCityObjectCount, yieldedCount);
+        int producedObjectUnits = Interlocked.Add(ref sourceScanProgress.ProducedObjectUnitCount, yieldedUnitCount);
+        if (completedSourceFiles == totalFiles || completedSourceFiles % 25 == 0)
+        {
+            int completedPercent = totalFiles == 0 ? 100 : (int)Math.Floor((completedSourceFiles / (double)totalFiles) * 100.0);
+            if (completedSourceFiles == totalFiles)
+            {
+                logger.WriteInformation(
+                    "Import source scan completed: source_files={CompletedSourceFileCount}/{TotalFiles}, produced_units={ProducedObjectUnitCount}, produced_city_objects={ProducedCityObjectCount}. Live send may still be draining queued objects.",
+                    completedSourceFiles,
+                    totalFiles,
+                    producedObjectUnits,
+                    producedCityObjects);
+            }
+            else
+            {
+                logger.WriteInformation(
+                    "Import source scan progress: source_files={CompletedSourceFileCount}/{TotalFiles} ({CompletedPercent}%), produced_units={ProducedObjectUnitCount}, produced_city_objects={ProducedCityObjectCount}.",
+                    completedSourceFiles,
+                    totalFiles,
+                    completedPercent,
+                    producedObjectUnits,
+                    producedCityObjects);
+            }
+        }
     }
 
     private async Task ProduceCityObjectsUntilDrainedAsync(
         ChannelWriter<ImportedObjectUnit> writer,
         ConcurrentQueue<(SourceFilePipeline SourceFile, int Index)> pendingSourceFiles,
+        SourceScanProgress sourceScanProgress,
         int totalFiles,
         CancellationToken cancellationToken)
     {
@@ -177,6 +208,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                 writer,
                 nextSourceFile.SourceFile,
                 nextSourceFile.Index,
+                sourceScanProgress,
                 totalFiles,
                 cancellationToken);
         }
@@ -287,12 +319,21 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
 
         fileStopwatch.Stop();
         fileWarningStatistics.ReportFile(sourceFile.SourceFile.RelativePath, logger);
-        logger.WriteInformation(
+        logger.WriteDebug(
             "City object producer projected '{SourceFile}' (parsed_city_objects={ParsedCityObjectCount}, yielded={YieldedCityObjectCount}, elapsed_s={ElapsedSeconds:F3}).",
             sourceFile.SourceFile.RelativePath,
             parsedCount,
             yieldedCount,
             fileStopwatch.Elapsed.TotalSeconds);
+    }
+
+    private sealed class SourceScanProgress
+    {
+        public int CompletedSourceFileCount;
+
+        public int ProducedCityObjectCount;
+
+        public int ProducedObjectUnitCount;
     }
 
     private sealed class StreamingDemProjectionSource(SourceFileDescriptor sourceFile)
