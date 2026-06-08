@@ -34,12 +34,22 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
                 ArgumentNullException.ThrowIfNull(options);
                 ArgumentNullException.ThrowIfNull(diagnostics);
 
-                return ResoniteLinkTransportSessionFactory.Create(
+                Microsoft.Extensions.Logging.ILogger logger =
+                    options.LoggerFactory.CreateLogger("PlateauResoniteLink.ResoniteLink");
+                IResoniteLinkClient CreateConfiguredClient()
+                {
+                    IResoniteLinkClient client = new RetryingResoniteLinkClient(
+                        () => baseClientFactory(logger),
+                        logger);
+                    return diagnostics.Enabled ? new MetricsResoniteLinkClient(client, diagnostics) : client;
+                }
+
+                return new LiveSendClientSession(
+                    CreateConfiguredClient,
                     options.Endpoint,
                     options.ConnectionCount,
                     diagnostics,
-                    options.LoggerFactory.CreateLogger("PlateauResoniteLink.ResoniteLink"),
-                    baseClientFactory);
+                    logger);
             };
         });
         services.TryAddScoped<ResolveResoniteDatasetRootSlot>(_ => ResoniteSceneSlotLocator.TryGetDatasetRootAsync);
