@@ -11,13 +11,13 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
-internal sealed class ResoniteSceneSetupInterpreter : IResoniteSceneSetupInterpreter
+internal static class ResoniteSceneSetupInterpreter
 {
     private const string LicenseComponentType = "[FrooxEngine]FrooxEngine.License";
     private const string SharedAssetsRootName = "PLATEAU Shared Assets";
     private const string SharedCommonMaterialsRootName = "Common Materials";
 
-    public async Task<ResoniteSceneSetupState> SetupAsync(
+    public static async Task<ResoniteSceneSetupState> SetupAsync(
         IResoniteLinkClient setupClient,
         ResoniteSceneSetupInfo setupInfo,
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
