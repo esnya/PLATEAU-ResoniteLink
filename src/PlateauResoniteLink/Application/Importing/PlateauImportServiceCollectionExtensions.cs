@@ -43,7 +43,6 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<IDemTextureSourcePolicy, DefaultDemTextureSourcePolicy>();
         services.TryAddSingleton<Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore>>(
             _ => CityGmlAppearanceStore.Create);
-        services.TryAddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
         services.TryAddSingleton<IDefaultMaterialResolver, DefaultMaterialResolver>();
         services.TryAddSingleton<ICityGmlGeometryProjector, LocalCityGmlGeometryProjector>();
         services.TryAddSingleton<IImportedObjectUnitOptimizer, ImportedDynamicMaterialUvUnitOptimizer>();
@@ -54,8 +53,7 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<ICityGmlDocumentReader>(provider =>
             new LocalCityGmlDocumentReader(
                 provider.GetRequiredService<Func<string, CancellationToken, Task<IPlateauDatasetContentSource>>>(),
-                provider.GetRequiredService<Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore>>(),
-                provider.GetRequiredService<ICityGmlLodSelector>()));
+                provider.GetRequiredService<Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore>>()));
         services.TryAddSingleton<IImportedSceneSourceFactory>(provider =>
             new DefaultImportedSceneSourceFactory(
                 provider.GetRequiredService<ICityGmlDocumentReader>(),

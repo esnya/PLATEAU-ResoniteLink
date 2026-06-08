@@ -7,11 +7,11 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class CityGmlLodSelector : ICityGmlLodSelector
+internal static class CityGmlLodSelector
 {
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
 
-    public CityGmlLodSelection SelectPreferredSurfaceElements(
+    public static CityGmlLodSelection SelectPreferredSurfaceElements(
         XElement cityObjectElement,
         string packageName,
         bool isMarking,
