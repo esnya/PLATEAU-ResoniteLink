@@ -17,6 +17,8 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed class StreamingImportedSceneSource : IImportedSceneSource
 {
     internal const int MaxConcurrentCityObjectProducers = 8;
+    private const string PlateauLicenseName = "PLATEAU Open Data Terms";
+    private const string PlateauLicenseUrl = "https://www.mlit.go.jp/plateau/site-policy/";
 
     private readonly PlateauImportRequest request;
     private readonly SourceFilePipeline[] sourceFiles;
@@ -66,6 +68,47 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
     }
 
     public ImportedSceneMetadata Metadata { get; }
+
+    public static IImportedSceneSource Compose(
+        ResolvedLocalPlateauImportRequest request,
+        ImportedSceneSourceSnapshot readResult,
+        CityGmlGeometryProjector geometryProjector,
+        ResolveDemTextureSources resolveDemTextureSources,
+        ImportedObjectUnitOptimizer objectUnitOptimizer,
+        Action<string>? progressReporter = null)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(readResult);
+        ArgumentNullException.ThrowIfNull(geometryProjector);
+        ArgumentNullException.ThrowIfNull(resolveDemTextureSources);
+        ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
+
+        ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
+        ImportedSceneSourceContext discoveryContext = readResult.DiscoveryContext;
+        PlateauImportRequest importRequest = request.ToImportRequest();
+        ImportedSceneMetadata metadata = new(
+            SchemaVersion: "3.0",
+            SceneName: $"PLATEAU {request.Dataset} {request.MeshCode}",
+            Request: importRequest,
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: documentSet.PackageNames.ToArray(),
+                SourceFiles: documentSet.RelativeSourceFiles.ToArray(),
+                SelectedMeshCodes: documentSet.SelectedMeshCodes),
+            Attribution: CreateAttribution(importRequest),
+            GeodeticOrigin: new GeodeticOrigin(
+                Latitude: discoveryContext.GlobalOriginPoint.Latitude,
+                Longitude: discoveryContext.GlobalOriginPoint.Longitude,
+                Altitude: discoveryContext.GlobalOriginPoint.Altitude));
+
+        return new StreamingImportedSceneSource(
+            metadata,
+            importRequest,
+            readResult,
+            geometryProjector,
+            resolveDemTextureSources,
+            objectUnitOptimizer,
+            progressReporter);
+    }
 
     public async Task ValidateBeforeSinkSetupAsync(CancellationToken cancellationToken = default)
     {
@@ -349,6 +392,16 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
     private void ReportProgress(string message)
     {
         progressReporter?.Invoke(message);
+    }
+
+    private static Attribution CreateAttribution(PlateauImportRequest request)
+    {
+        return new Attribution(
+            DatasetLicense: new LicenseMetadata(
+                RequireCredit: true,
+                CreditText: $"Contains PLATEAU dataset content for {request.Dataset}. Follow the original PLATEAU dataset terms and provide source attribution when redistributing derived content.",
+                LicenseName: PlateauLicenseName,
+                LicenseUrl: PlateauLicenseUrl));
     }
 
     private CoordinateReferenceSystem ResolveReferenceSystem(CoordinateReferenceSystem parsedReferenceSystem)
