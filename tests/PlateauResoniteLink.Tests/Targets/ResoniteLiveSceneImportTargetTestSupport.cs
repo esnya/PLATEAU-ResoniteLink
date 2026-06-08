@@ -330,7 +330,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSendRunSetupPreparer(
                 setupResoniteScene ?? ResoniteSceneSetupInterpreter.SetupAsync,
                 new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
-            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()),
+            new ResoniteTextureImageLoader(),
             CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture));
     }
 

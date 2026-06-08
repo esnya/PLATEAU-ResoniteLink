@@ -309,7 +309,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         CompositeCityObjectBaker baker = new(
             new NonDemCityObjectBaker(
                 new NonDemCityObjectBakePolicyResolver(NonDemCityObjectBakePolicies.DefaultPolicies),
-                new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()).Create(
+                CreateSourceFileBakeEmitter(
                     new NonDemAtlasBakeBudget(ResourceBudget: ResoniteImportBudgetProfiles.ForProfile(memoryProfile)))));
 
         int readyBeforeFlush = 0;
@@ -320,6 +320,20 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         }
 
         return readyBeforeFlush;
+    }
+
+    private static NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(NonDemAtlasBakeBudget atlasBudget)
+    {
+        NonDemAtlasLayoutFactory layoutFactory = new(
+            atlasBudget.EffectiveMaxAtlasSize,
+            atlasBudget.TilePaddingPixels);
+        return new NonDemSourceFileBakeEmitter(
+            new NonDemCityObjectBakeCandidateFactory(
+                new NonDemBakeEntryFactory(new ResoniteTextureImageLoader(), atlasBudget.EffectiveMaxAtlasTextureEdge)),
+            new NonDemCityObjectBakeAssembler(
+                layoutFactory,
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels)),
+            new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 
     private static ResoniteConstructionCityObject CreateTriangleBuilding(
