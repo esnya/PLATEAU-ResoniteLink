@@ -2,16 +2,7 @@ using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface INonDemAtlasLayoutFactory
-{
-    bool CanFit(IReadOnlyList<NonDemAtlasBatchEntry> entries);
-
-    bool TryCreate(
-        IReadOnlyList<NonDemAtlasBatchEntry> entries,
-        out NonDemAtlasLayout<NonDemAtlasBatchEntry>? layout);
-}
-
-internal sealed class NonDemAtlasLayoutFactory(int atlasMaxSize, int tilePaddingPixels) : INonDemAtlasLayoutFactory
+internal sealed class NonDemAtlasLayoutFactory(int atlasMaxSize, int tilePaddingPixels)
 {
     public bool CanFit(IReadOnlyList<NonDemAtlasBatchEntry> entries)
     {

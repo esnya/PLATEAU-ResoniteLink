@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed class CompositeCityObjectBaker(params IResoniteBufferedCityObjectBaker[] bakers)
+internal sealed class CompositeCityObjectBaker(params NonDemCityObjectBaker[] bakers)
 {
-    private readonly IResoniteBufferedCityObjectBaker[] bakers = bakers;
+    private readonly NonDemCityObjectBaker[] bakers = bakers;
 
     public async ValueTask<IReadOnlyList<ResoniteConstructionCityObject>> BufferAsync(
         ResoniteConstructionCityObject cityObject,
@@ -16,7 +16,7 @@ internal sealed class CompositeCityObjectBaker(params IResoniteBufferedCityObjec
     {
         ArgumentNullException.ThrowIfNull(cityObject);
 
-        foreach (IResoniteBufferedCityObjectBaker baker in bakers)
+        foreach (NonDemCityObjectBaker baker in bakers)
         {
             BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject, cancellationToken);
             if (result.Buffered)
@@ -54,7 +54,7 @@ internal sealed class CompositeCityObjectBaker(params IResoniteBufferedCityObjec
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
-        foreach (IResoniteBufferedCityObjectBaker baker in bakers)
+        foreach (NonDemCityObjectBaker baker in bakers)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await baker.FlushAllAsync(onBakedCityObject, cancellationToken);
@@ -63,6 +63,6 @@ internal sealed class CompositeCityObjectBaker(params IResoniteBufferedCityObjec
 
     public IEnumerable<(string Name, int InputCount, int OutputCount)> GetBakeSummaries()
     {
-        return bakers.Select(static baker => (baker.Name, baker.BakedInputCityObjectCount, baker.BakedOutputCityObjectCount));
+        return bakers.Select(static baker => (NonDemCityObjectBaker.Name, baker.BakedInputCityObjectCount, baker.BakedOutputCityObjectCount));
     }
 }

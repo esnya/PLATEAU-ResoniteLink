@@ -9,27 +9,14 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface INonDemCityObjectBakeAssembler
-{
-    Task<ResoniteConstructionCityObject> BakeBatchAsync(
-        NonDemSourceFileBatchKey sourceFileKey,
-        IReadOnlyList<NonDemCityObjectBakeCandidate> candidates,
-        int batchIndex,
-        bool preservePrimaryIdentity,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class NonDemCityObjectBakeAssembler(
-    INonDemAtlasLayoutFactory atlasLayoutFactory,
-    INonDemAtlasImageRenderer atlasImageRenderer,
-    INonDemBakedGeometryComposer geometryComposer) : INonDemCityObjectBakeAssembler
+    NonDemAtlasLayoutFactory atlasLayoutFactory,
+    NonDemAtlasImageRenderer atlasImageRenderer)
 {
-    private readonly INonDemAtlasLayoutFactory atlasLayoutFactory = atlasLayoutFactory
+    private readonly NonDemAtlasLayoutFactory atlasLayoutFactory = atlasLayoutFactory
         ?? throw new ArgumentNullException(nameof(atlasLayoutFactory));
-    private readonly INonDemAtlasImageRenderer atlasImageRenderer = atlasImageRenderer
+    private readonly NonDemAtlasImageRenderer atlasImageRenderer = atlasImageRenderer
         ?? throw new ArgumentNullException(nameof(atlasImageRenderer));
-    private readonly INonDemBakedGeometryComposer geometryComposer = geometryComposer
-        ?? throw new ArgumentNullException(nameof(geometryComposer));
 
     public Task<ResoniteConstructionCityObject> BakeBatchAsync(
         NonDemSourceFileBatchKey sourceFileKey,
@@ -66,7 +53,7 @@ internal sealed class NonDemCityObjectBakeAssembler(
             ? null
             : sourceFileKey.SourceFileRelativePath;
 
-        NonDemBakedGeometry geometry = geometryComposer.Compose(
+        NonDemBakedGeometry geometry = NonDemBakedGeometryComposer.Compose(
             sourceFileKey,
             candidates,
             batchIndex,

@@ -11,18 +11,9 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface INonDemBakeEntryFactory
-{
-    Task<NonDemBakeEntry> CreateAsync(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteMeshSubmesh submesh,
-        ResoniteMaterialBinding material,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class NonDemBakeEntryFactory(
     ResoniteTextureImageLoader textureImageLoader,
-    int maxAtlasTextureEdge) : INonDemBakeEntryFactory
+    int maxAtlasTextureEdge)
 {
     private readonly ResoniteTextureImageLoader textureImageLoader = textureImageLoader
         ?? throw new ArgumentNullException(nameof(textureImageLoader));
