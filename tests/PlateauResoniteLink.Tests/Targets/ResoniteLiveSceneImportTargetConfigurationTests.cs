@@ -408,7 +408,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new NonDemBakeEntryFactory(new ResoniteTextureImageLoader(), atlasBudget.EffectiveMaxAtlasTextureEdge)),
             new NonDemCityObjectBakeAssembler(
                 layoutFactory,
-                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels)),
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                new ResoniteLocalOrigin(35.0, 139.0, 0.0)),
             new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 

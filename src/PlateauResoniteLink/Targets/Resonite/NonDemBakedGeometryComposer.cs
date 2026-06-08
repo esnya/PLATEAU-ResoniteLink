@@ -21,12 +21,13 @@ internal static class NonDemBakedGeometryComposer
     public static NonDemBakedGeometry Compose(
         NonDemSourceFileBatchKey sourceFileKey,
         IReadOnlyList<NonDemCityObjectBakeCandidate> candidates,
+        ResoniteLocalOrigin requestLocalOrigin,
         int batchIndex,
         NonDemAtlasLayout<NonDemAtlasBatchEntry>? layout,
         Image<Rgba32>? atlasImage,
         CancellationToken cancellationToken)
     {
-        ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(candidates);
+        ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(sourceFileKey, candidates, requestLocalOrigin);
         List<ResoniteMeshVertex> vertices = [];
         List<ResoniteMeshSubmesh> submeshes = [];
         List<ResoniteMaterialBinding> materials = [];
@@ -165,7 +166,23 @@ internal static class NonDemBakedGeometryComposer
         return new ResoniteFloat2(remapped.X, remapped.Y);
     }
 
-    private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
+    private static ResoniteFloat3 ComputeBakeOrigin(
+        NonDemSourceFileBatchKey sourceFileKey,
+        IReadOnlyList<NonDemCityObjectBakeCandidate> candidates,
+        ResoniteLocalOrigin requestLocalOrigin)
+    {
+        if (ThirdRegionalMeshCode.TryParse(sourceFileKey.ActualMeshCode, out _)
+            && PlateauMeshCode.TryGetGeodeticCenter(sourceFileKey.ActualMeshCode, out GeodeticCoordinate meshCenter))
+        {
+            return ResonitePlacementPolicy.ComputeOriginOffset(
+                requestLocalOrigin,
+                new ResoniteLocalOrigin(meshCenter.Latitude, meshCenter.Longitude, meshCenter.Altitude));
+        }
+
+        return ComputeGeometryMinimumOrigin(candidates);
+    }
+
+    private static ResoniteFloat3 ComputeGeometryMinimumOrigin(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
     {
         double minX = double.PositiveInfinity;
         double minY = double.PositiveInfinity;

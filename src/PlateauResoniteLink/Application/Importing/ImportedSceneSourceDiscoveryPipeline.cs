@@ -40,7 +40,8 @@ internal static class ImportedSceneSourceDiscoveryPipeline
                 descriptor.RelativePath,
                 descriptor.PackageName,
                 descriptor.MatchedMeshCode,
-                descriptor.RequiresMeshCodeBoundsFilter))
+                descriptor.RequiresMeshCodeBoundsFilter,
+                descriptor.SourceFileRootMeshCode))
             .ToArray();
         MeshCodeBounds[] requestedMeshCodeBounds =
             MeshCodeBounds.CreateManyFromSelectedMeshCodes(discoveryResult.SelectedMeshCodes);

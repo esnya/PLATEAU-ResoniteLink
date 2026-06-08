@@ -11,7 +11,8 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemCityObjectBakeAssembler(
     NonDemAtlasLayoutFactory atlasLayoutFactory,
-    NonDemAtlasImageRenderer atlasImageRenderer)
+    NonDemAtlasImageRenderer atlasImageRenderer,
+    ResoniteLocalOrigin requestLocalOrigin)
 {
     private readonly NonDemAtlasLayoutFactory atlasLayoutFactory = atlasLayoutFactory
         ?? throw new ArgumentNullException(nameof(atlasLayoutFactory));
@@ -56,6 +57,7 @@ internal sealed class NonDemCityObjectBakeAssembler(
         NonDemBakedGeometry geometry = NonDemBakedGeometryComposer.Compose(
             sourceFileKey,
             candidates,
+            requestLocalOrigin,
             batchIndex,
             layout,
             atlasImage,

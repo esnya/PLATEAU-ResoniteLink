@@ -28,7 +28,8 @@ internal static class SceneImportContractMapper
                 ToInternal(triangleMesh.Mesh),
                 cityObject.Materials.Select(ToInternal).ToArray(),
                 cityObject.CollisionEnabled,
-                cityObject.SourceFileRelativePath),
+                cityObject.SourceFileRelativePath,
+                cityObject.SourceFileRootMeshCode),
             TerrainGridGeometry heightMap => new ResoniteConstructionCityObject(
                 cityObject.ObjectKey,
                 cityObject.DisplayName,
@@ -47,7 +48,8 @@ internal static class SceneImportContractMapper
                     heightMap.UvOffset is null ? null : ToInternal(heightMap.UvOffset)),
                 cityObject.Materials.Select(ToInternal).ToArray(),
                 cityObject.CollisionEnabled,
-                cityObject.SourceFileRelativePath),
+                cityObject.SourceFileRelativePath,
+                cityObject.SourceFileRootMeshCode),
             DynamicTerrainGeometry dynamicTerrain => new ResoniteConstructionCityObject(
                 cityObject.ObjectKey,
                 cityObject.DisplayName,
@@ -68,7 +70,8 @@ internal static class SceneImportContractMapper
                         dynamicTerrain.GridMesh.UvOffset is null ? null : ToInternal(dynamicTerrain.GridMesh.UvOffset))),
                 cityObject.Materials.Select(ToInternal).ToArray(),
                 cityObject.CollisionEnabled,
-                cityObject.SourceFileRelativePath),
+                cityObject.SourceFileRelativePath,
+                cityObject.SourceFileRootMeshCode),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
     }

@@ -174,7 +174,8 @@ internal static class LocalCityGmlSourceFileDiscovery
                 candidate.RelativePath,
                 candidate.PackageName,
                 matchedMeshCode,
-                matcher.RequiresMeshCodeBoundsFilter(matchedMeshCode));
+                matcher.RequiresMeshCodeBoundsFilter(matchedMeshCode),
+                ResolveSourceFileRootMeshCode(candidate, matchedMeshCode));
         }
 
         string? parentMeshCode = candidate.FileMeshCodes
@@ -193,7 +194,31 @@ internal static class LocalCityGmlSourceFileDiscovery
             candidate.RelativePath,
             candidate.PackageName,
             parentMeshCode,
-            RequiresMeshCodeBoundsFilter: true);
+            RequiresMeshCodeBoundsFilter: true,
+            ResolveSourceFileRootMeshCode(candidate, parentMeshCode));
+    }
+
+    private static string ResolveSourceFileRootMeshCode(
+        LocalCityGmlDatasetSourceFileCandidate candidate,
+        string matchedMeshCode)
+    {
+        string[] sourceMeshCodes = candidate.FileMeshCodes
+            .Concat(candidate.DirectoryMeshCodes)
+            .Where(static meshCode => PlateauMeshCode.TryGetGeodeticCenter(meshCode, out _))
+            .Distinct(StringComparer.Ordinal)
+            .OrderByDescending(static meshCode => meshCode.Length)
+            .ThenBy(static meshCode => meshCode, StringComparer.Ordinal)
+            .ToArray();
+        if (sourceMeshCodes.Length == 0)
+        {
+            return matchedMeshCode;
+        }
+
+        return sourceMeshCodes
+            .FirstOrDefault(meshCode => string.Equals(meshCode, matchedMeshCode, StringComparison.Ordinal))
+            ?? sourceMeshCodes
+                .FirstOrDefault(meshCode => matchedMeshCode.StartsWith(meshCode, StringComparison.Ordinal))
+            ?? sourceMeshCodes[0];
     }
 
     private static string[] ExtractMeshCodes(string value)
@@ -379,7 +404,8 @@ internal sealed record LocalCityGmlSourceFileDescriptor(
     string RelativePath,
     string PackageName,
     string MatchedMeshCode,
-    bool RequiresMeshCodeBoundsFilter);
+    bool RequiresMeshCodeBoundsFilter,
+    string SourceFileRootMeshCode);
 
 internal sealed record LocalCityGmlSourceFileDiscoveryResult(
     IReadOnlyList<LocalCityGmlSourceFileDescriptor> SourceFiles,

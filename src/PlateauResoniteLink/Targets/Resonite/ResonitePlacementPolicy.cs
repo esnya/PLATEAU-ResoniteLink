@@ -94,6 +94,20 @@ internal static class ResonitePlacementPolicy
             + "source-file-owned hierarchy requires SourceFileRelativePath.");
     }
 
+    public static string ResolveRequiredSourceFileRootMeshCode(
+        string? sourceFileRootMeshCode,
+        string sourceFileSlotName,
+        string actualMeshCode)
+    {
+        if (!string.IsNullOrWhiteSpace(sourceFileRootMeshCode)
+            && PlateauMeshCode.TryGetGeodeticCenter(sourceFileRootMeshCode, out _))
+        {
+            return sourceFileRootMeshCode;
+        }
+
+        return ResolveRequiredSourceFileRootMeshCode(sourceFileSlotName, actualMeshCode);
+    }
+
     public static string ResolveRequiredSourceFileRootMeshCode(string sourceFileSlotName, string actualMeshCode)
     {
         if (ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(sourceFileSlotName, out string meshCode))

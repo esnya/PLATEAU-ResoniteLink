@@ -9,7 +9,13 @@ internal sealed record SourceFileDescriptor(
     string RelativePath,
     string PackageName,
     string MatchedMeshCode,
-    bool RequiresMeshCodeBoundsFilter);
+    bool RequiresMeshCodeBoundsFilter,
+    string? SourceFileRootMeshCode = null)
+{
+    public string EffectiveSourceFileRootMeshCode => string.IsNullOrWhiteSpace(SourceFileRootMeshCode)
+        ? MatchedMeshCode
+        : SourceFileRootMeshCode!;
+}
 
 internal sealed record CachedSourceFileDescriptor(
     SourceFileDescriptor SourceFile,

@@ -19,6 +19,17 @@ public sealed class ResonitePlacementPolicyTests
     }
 
     [Fact]
+    public void ResolveRequiredSourceFileRootMeshCode_PrefersExplicitSourceFileRootMeshCode()
+    {
+        string resolved = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(
+            "53394525",
+            "plateau_tokyo23ku_bldg_533945",
+            "533945");
+
+        Assert.Equal("53394525", resolved);
+    }
+
+    [Fact]
     public void ResolveCityObjectLocalPosition_UsesRequestRelativeHorizontalOffsetAndObservedVerticalOffset()
     {
         PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");

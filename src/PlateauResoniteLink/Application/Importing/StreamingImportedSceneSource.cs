@@ -295,15 +295,10 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
 
         if (demProjectionSource is not null)
         {
-            ParsedCityObject[] aggregatedDemCityObjects =
-                DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
-                    demProjectionSource.SourceFile,
-                    demProjectionSource.CityObjects,
-                    selectedMeshCodes);
             foreach (ImportedCityObject cityObject in geometryProjector(
                          new CachedSourceFileDescriptor(
                              demProjectionSource.SourceFile,
-                             aggregatedDemCityObjects,
+                             demProjectionSource.CityObjects.ToArray(),
                              demProjectionSource.ReferenceSystem),
                          demProjectionSource.ReferenceSystem,
                          globalOriginPoint,

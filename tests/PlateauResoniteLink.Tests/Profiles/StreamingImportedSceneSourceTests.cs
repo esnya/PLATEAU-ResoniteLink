@@ -936,17 +936,24 @@ public sealed class StreamingImportedSceneSourceTests
             try
             {
                 Thread.Sleep(20);
-                ParsedCityObject parsedCityObject = Assert.Single(sourceFile.CityObjects);
-                yield return new ImportedCityObject(
-                    ObjectKey: parsedCityObject.SlotKey,
-                    DisplayName: parsedCityObject.DisplayName,
-                    PackageName: parsedCityObject.PackageName,
-                    ActualMeshCode: parsedCityObject.ActualMeshCode,
-                    LodLevel: parsedCityObject.LodLevel,
-                    Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
-                    Geometry: new TriangleMeshGeometry(new ImportedMesh([], [])),
-                    Materials: [],
-                    SourceFileRelativePath: parsedCityObject.SourceFileRelativePath);
+                foreach (ParsedCityObject parsedCityObject in sourceFile.CityObjects)
+                {
+                    if (predicate is not null && !predicate(parsedCityObject))
+                    {
+                        continue;
+                    }
+
+                    yield return new ImportedCityObject(
+                        ObjectKey: parsedCityObject.SlotKey,
+                        DisplayName: parsedCityObject.DisplayName,
+                        PackageName: parsedCityObject.PackageName,
+                        ActualMeshCode: parsedCityObject.ActualMeshCode,
+                        LodLevel: parsedCityObject.LodLevel,
+                        Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
+                        Geometry: new TriangleMeshGeometry(new ImportedMesh([], [])),
+                        Materials: [],
+                        SourceFileRelativePath: parsedCityObject.SourceFileRelativePath);
+                }
             }
             finally
             {

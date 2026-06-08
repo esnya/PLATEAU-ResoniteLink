@@ -160,7 +160,8 @@ internal sealed class ResoniteLiveSendRunStarter(
     {
         NonDemCityObjectBaker? cityObjectBaker = CreateCityObjectBaker(
             runPlan.MeshBakeEnabled,
-            runPlan.ResourceBudget);
+            runPlan.ResourceBudget,
+            runPlan.RequestLocalOrigin);
         LiveSendRunContext context = new(
             runPlan,
             setupState.DatasetRootSlot,
@@ -183,7 +184,8 @@ internal sealed class ResoniteLiveSendRunStarter(
 
     private NonDemCityObjectBaker? CreateCityObjectBaker(
         bool enableMeshBake,
-        ResoniteImportBudgetProfile resourceBudget)
+        ResoniteImportBudgetProfile resourceBudget,
+        ResoniteLocalOrigin requestLocalOrigin)
     {
         _ = resourceBudget.Name switch
         {
@@ -195,11 +197,14 @@ internal sealed class ResoniteLiveSendRunStarter(
             ? new NonDemCityObjectBaker(
                 bakePolicies: NonDemCityObjectBakePolicies.DefaultPolicies,
                 sourceFileBakeEmitter: CreateSourceFileBakeEmitter(
-                    new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget)))
+                    new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget),
+                    requestLocalOrigin))
             : null;
     }
 
-    private NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(NonDemAtlasBakeBudget atlasBudget)
+    private NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(
+        NonDemAtlasBakeBudget atlasBudget,
+        ResoniteLocalOrigin requestLocalOrigin)
     {
         NonDemAtlasLayoutFactory layoutFactory = new(
             atlasBudget.EffectiveMaxAtlasSize,
@@ -209,7 +214,8 @@ internal sealed class ResoniteLiveSendRunStarter(
                 new NonDemBakeEntryFactory(textureImageLoader, atlasBudget.EffectiveMaxAtlasTextureEdge)),
             new NonDemCityObjectBakeAssembler(
                 layoutFactory,
-                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels)),
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                requestLocalOrigin),
             new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 

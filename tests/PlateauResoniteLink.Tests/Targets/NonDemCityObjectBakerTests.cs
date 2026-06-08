@@ -14,6 +14,8 @@ namespace PlateauResoniteLink.Tests.Targets;
 
 public sealed class NonDemCityObjectBakerTests
 {
+    private static readonly ResoniteLocalOrigin LocalOrigin = new(35.6875, 139.69375, 0.0);
+
     [Fact]
     public async Task FlushAllAsyncBakesSingleSourceUnitIntoSingleMaterialAndSubmesh()
     {
@@ -45,6 +47,27 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
 
         Assert.Equal(6, cityObject.Mesh.Vertices.Count);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncPositionsBakedMeshRelativeToRequestLocalOrigin()
+    {
+        ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
+        ResoniteFloat3 expectedOrigin = ResonitePlacementPolicy.ComputeOriginOffset(
+            requestOrigin,
+            RequireMeshCodeCenter("53394525"));
+        NonDemCityObjectBaker baker = CreateBaker(requestLocalOrigin: requestOrigin);
+
+        await AssertBufferedAsync(baker, CreateLod2Building("building-one", CreateCheckerPayload("textures/one.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 4, 4), 0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-two", CreateCheckerPayload("textures/two.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 255, 255, 255), 4, 4), 2, "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+
+        AssertNear(expectedOrigin, cityObject.Transform.Position, 0.001);
+        AssertNear(
+            new ResoniteFloat3(0.0, 0.0, 0.0),
+            Add(cityObject.Transform.Position, cityObject.Mesh.Vertices[0].Position),
+            0.001);
     }
 
     [Fact]
@@ -1062,14 +1085,19 @@ public sealed class NonDemCityObjectBakerTests
         int maxAtlasSize = NonDemAtlasBakeBudget.DefaultMaxAtlasSize,
         int tilePaddingPixels = NonDemAtlasBakeBudget.DefaultTilePaddingPixels,
         IReadOnlyList<NonDemCityObjectBakePolicy>? bakePolicies = null,
-        ResoniteImportBudgetProfile? resourceBudget = null)
+        ResoniteImportBudgetProfile? resourceBudget = null,
+        ResoniteLocalOrigin? requestLocalOrigin = null)
     {
         return new NonDemCityObjectBaker(
             bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies,
-            CreateSourceFileBakeEmitter(new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget)));
+            CreateSourceFileBakeEmitter(
+                new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget),
+                requestLocalOrigin ?? LocalOrigin));
     }
 
-    private static NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(NonDemAtlasBakeBudget atlasBudget)
+    private static NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(
+        NonDemAtlasBakeBudget atlasBudget,
+        ResoniteLocalOrigin requestLocalOrigin)
     {
         NonDemAtlasLayoutFactory layoutFactory = new(
             atlasBudget.EffectiveMaxAtlasSize,
@@ -1079,7 +1107,8 @@ public sealed class NonDemCityObjectBakerTests
                 new NonDemBakeEntryFactory(new ResoniteTextureImageLoader(), atlasBudget.EffectiveMaxAtlasTextureEdge)),
             new NonDemCityObjectBakeAssembler(
                 layoutFactory,
-                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels)),
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                requestLocalOrigin),
             new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 
@@ -1161,6 +1190,24 @@ public sealed class NonDemCityObjectBakerTests
             bytes[offset + 1],
             bytes[offset + 2],
             bytes[offset + 3]);
+    }
+
+    private static void AssertNear(ResoniteFloat3 expected, ResoniteFloat3 actual, double tolerance)
+    {
+        Assert.InRange(Math.Abs(actual.X - expected.X), 0.0, tolerance);
+        Assert.InRange(Math.Abs(actual.Y - expected.Y), 0.0, tolerance);
+        Assert.InRange(Math.Abs(actual.Z - expected.Z), 0.0, tolerance);
+    }
+
+    private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
+    {
+        return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
+    }
+
+    private static ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)
+    {
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate center));
+        return new ResoniteLocalOrigin(center.Latitude, center.Longitude, center.Altitude);
     }
 
     private static ResoniteConstructionCityObject CreateLod2Building(

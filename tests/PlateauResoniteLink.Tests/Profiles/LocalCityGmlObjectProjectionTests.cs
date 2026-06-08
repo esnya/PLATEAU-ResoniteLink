@@ -4029,6 +4029,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         return CityGmlParsedCityObjectProjection.ProjectTerrainMeshModeCityObject(
             GeneratedLod1RoofCityObjectFactory.CreateDraft(cityObject),
+            demTerrainGridSamplingSource: null,
             globalOriginPoint,
             globalCartesian: null,
             demTerrainTextureOverlay: null,

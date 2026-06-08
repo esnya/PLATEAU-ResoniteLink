@@ -108,7 +108,7 @@ internal static class LocalCityGmlObjectProjection
             request,
             materialResolver,
             progressReporter,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
     internal static IEnumerable<MaterialBinding> EnumerateCommonMaterialsForParsedCityObject(
