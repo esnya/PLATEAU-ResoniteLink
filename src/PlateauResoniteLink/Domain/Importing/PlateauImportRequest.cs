@@ -15,7 +15,8 @@ public sealed record PlateauImportRequest(
     bool IncludeMarkingAlways = true,
     TerrainMeshMode TerrainMeshMode = TerrainMeshMode.Static,
     double TerrainGridMetersPerVertex = 2.0,
-    int TerrainGridMaxResolution = 1024)
+    int TerrainGridMaxResolution = 1024,
+    bool ExcludeGsiTerrainTiles = false)
 {
 #pragma warning disable IDE0032 // Backing field keeps with-expressions from assigning a null CityGmlSource.
     private DatasetLocation cityGmlSource =

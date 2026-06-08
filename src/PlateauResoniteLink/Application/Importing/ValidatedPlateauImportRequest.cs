@@ -20,7 +20,8 @@ public sealed record ValidatedPlateauImportRequest(
     bool IncludeMarkingAlways = true,
     TerrainMeshMode TerrainMeshMode = TerrainMeshMode.Static,
     double TerrainGridMetersPerVertex = 2.0,
-    int TerrainGridMaxResolution = 1024)
+    int TerrainGridMaxResolution = 1024,
+    bool ExcludeGsiTerrainTiles = false)
 {
 #pragma warning disable IDE0032 // Backing fields keep with-expressions inside validated invariants.
     private string dataset = RequireNonWhiteSpace(Dataset, nameof(Dataset));
@@ -102,7 +103,8 @@ public sealed record ValidatedPlateauImportRequest(
             IncludeMarkingAlways,
             TerrainMeshMode,
             TerrainGridMetersPerVertex,
-            TerrainGridMaxResolution);
+            TerrainGridMaxResolution,
+            ExcludeGsiTerrainTiles);
     }
 
     private static string RequireNonWhiteSpace(string value, string parameterName)

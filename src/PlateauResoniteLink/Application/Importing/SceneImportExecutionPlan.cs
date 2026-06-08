@@ -51,6 +51,7 @@ public sealed record SceneImportExecutionPlan
             || expectedRequest.TerrainMeshMode != metadataRequest.TerrainMeshMode
             || expectedRequest.TerrainGridMetersPerVertex != metadataRequest.TerrainGridMetersPerVertex
             || expectedRequest.TerrainGridMaxResolution != metadataRequest.TerrainGridMaxResolution
+            || expectedRequest.ExcludeGsiTerrainTiles != metadataRequest.ExcludeGsiTerrainTiles
             || !SequenceEqual(expectedRequest.PackageNames, metadataRequest.PackageNames)
             || !SetEqual(expectedRequest.GlobalExcludeLodLevels, metadataRequest.GlobalExcludeLodLevels)
             || !DictionaryOfSetsEqual(expectedRequest.ExcludeLodLevelsByPackage, metadataRequest.ExcludeLodLevelsByPackage)

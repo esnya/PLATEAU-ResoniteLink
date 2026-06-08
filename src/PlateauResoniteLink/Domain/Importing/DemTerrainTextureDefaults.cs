@@ -24,6 +24,19 @@ public static class DemTerrainTextureDefaults
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
     }
 
+    public static TerrainTextureOverlay CreatePlateauOrthoOnlyOverlay(
+        ThirdRegionalMeshCode meshCode,
+        GeographicRectangle geographicBounds)
+    {
+        return new TerrainTextureOverlay(
+            PackageName: "dem",
+            MeshCode: meshCode,
+            GeographicBounds: geographicBounds,
+            MaxTextureSize: MaxTextureSize,
+            Sources: CreatePlateauOrthoOnlySources(),
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoOnly);
+    }
+
     public static TerrainTextureSource[] CreatePlateauOrthoWithGsiFallbackSources()
     {
         return
@@ -31,6 +44,15 @@ public static class DemTerrainTextureDefaults
             new TerrainTextureTileSource(PlateauOrthoUrlTemplate, PlateauOrthoZoomLevel),
             new TerrainTextureTileSource(PlateauOrthoUrlTemplate, FallbackZoomLevel),
             new TerrainTextureTileSource(GsiFallbackUrlTemplate, FallbackZoomLevel),
+        ];
+    }
+
+    public static TerrainTextureSource[] CreatePlateauOrthoOnlySources()
+    {
+        return
+        [
+            new TerrainTextureTileSource(PlateauOrthoUrlTemplate, PlateauOrthoZoomLevel),
+            new TerrainTextureTileSource(PlateauOrthoUrlTemplate, FallbackZoomLevel),
         ];
     }
 
