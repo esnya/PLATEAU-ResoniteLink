@@ -18,14 +18,14 @@ internal static class ImportedSceneSourceDiscoveryPipeline
     internal static async Task<ImportedSceneSourceSnapshot> ReadDocumentSetCoreAsync(
         ResolvedLocalPlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
-        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         ICityGmlLodSelector lodSelector,
         ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
-        ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
+        ArgumentNullException.ThrowIfNull(createAppearanceStore);
         ArgumentNullException.ThrowIfNull(lodSelector);
 
         IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(
@@ -75,7 +75,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
                 requestedMeshCodeBounds,
                 logger,
                 lodFilteringStrategy,
-                appearanceStoreFactory,
+                createAppearanceStore,
                 lodSelector,
                 cancellationToken);
         List<string> relativeSourceFiles = sourceFilePipelines

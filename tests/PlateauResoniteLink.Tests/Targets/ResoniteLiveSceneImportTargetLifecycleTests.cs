@@ -924,7 +924,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             packageNames: ["dem"]);
         ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
             new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
-            new CityGmlAppearanceStoreFactory(),
+            CityGmlAppearanceStore.Create,
             new CityGmlLodSelector())
             .ReadAsync(
             request,

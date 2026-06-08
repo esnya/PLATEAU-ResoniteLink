@@ -30,7 +30,7 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         ILogger? logger,
         LodFilteringStrategy lodFilteringStrategy,
-        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         ICityGmlLodSelector lodSelector,
         CancellationToken cancellationToken)
     {
@@ -45,7 +45,7 @@ internal static class LocalCityGmlSourceFileParser
                             requestedMeshAreas,
                             logger,
                             lodFilteringStrategy,
-                            appearanceStoreFactory,
+                            createAppearanceStore,
                             lodSelector,
                             cancellationToken),
                         streamFactory: cancellationToken => StreamParsedCityObjectsCoreAsync(
@@ -53,7 +53,7 @@ internal static class LocalCityGmlSourceFileParser
                             datasetSource,
                             requestedMeshAreas,
                             lodFilteringStrategy,
-                            appearanceStoreFactory,
+                            createAppearanceStore,
                             lodSelector,
                             cancellationToken)))
                 .ToArray());
@@ -65,7 +65,7 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         ILogger? logger,
         LodFilteringStrategy lodFilteringStrategy,
-        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         ICityGmlLodSelector lodSelector,
         CancellationToken cancellationToken)
     {
@@ -79,7 +79,7 @@ internal static class LocalCityGmlSourceFileParser
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
-                           appearanceStoreFactory,
+                           createAppearanceStore,
                            lodSelector,
                            parsedReferenceSystem: parsedReferenceSystem => coordinateReferenceSystem ??= parsedReferenceSystem,
                            cancellationToken))
@@ -120,7 +120,7 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         ICityGmlLodSelector lodSelector,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -129,7 +129,7 @@ internal static class LocalCityGmlSourceFileParser
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
-                           appearanceStoreFactory,
+                           createAppearanceStore,
                            lodSelector,
                            parsedReferenceSystem: null,
                            cancellationToken))
@@ -143,7 +143,7 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         ICityGmlLodSelector lodSelector,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -157,7 +157,7 @@ internal static class LocalCityGmlSourceFileParser
                                datasetSource,
                                requestedMeshAreas,
                                lodFilteringStrategy,
-                               appearanceStoreFactory,
+                               createAppearanceStore,
                                lodSelector,
                                parsedReferenceSystem,
                                cancellationToken))
@@ -175,7 +175,7 @@ internal static class LocalCityGmlSourceFileParser
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
-                           appearanceStoreFactory,
+                           createAppearanceStore,
                            lodSelector,
                            parsedReferenceSystem,
                            cancellationToken))
@@ -190,13 +190,13 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         ICityGmlLodSelector lodSelector,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
-        ICityGmlAppearanceStore appearanceStore = appearanceStoreFactory.Create(sourceFile.RelativePath, datasetSource);
+        ICityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
         CoordinateReferenceSystem coordinateReferenceSystem =
             CoordinateReferenceSystem.Parse((string?)null);
 
@@ -284,7 +284,7 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         ICityGmlLodSelector lodSelector,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
@@ -295,7 +295,7 @@ internal static class LocalCityGmlSourceFileParser
         CoordinateReferenceSystem coordinateReferenceSystem =
             CoordinateReferenceSystem.Parse(cityModel);
         parsedReferenceSystem?.Invoke(coordinateReferenceSystem);
-        ICityGmlAppearanceStore appearanceStore = appearanceStoreFactory.Create(sourceFile.RelativePath, datasetSource);
+        ICityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
         appearanceStore.LoadFromDocument(cityModel);
 
         if (cityModel.Root is null)
