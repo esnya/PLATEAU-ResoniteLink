@@ -242,6 +242,35 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
     [Fact]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredRunSetupPreparer()
+    {
+        RecordingRunSetupPreparer runSetupPreparer = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteLiveSendRunSetupPreparer>(_ => runSetupPreparer)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        ISceneSink target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false,
+                    ProgressReporter: null),
+                terrainTextureAssetHttpClient);
+        await using ResoniteLiveSceneImportTarget _ = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+
+        Assert.Same(runSetupPreparer, scope.ServiceProvider.GetRequiredService<IResoniteLiveSendRunSetupPreparer>());
+    }
+
+    [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
     public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredRunExecutorFactory()
     {
         RecordingRunExecutorFactory runExecutorFactory = new();
@@ -563,6 +592,22 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             LastRunStarter = runStarter;
             LastExecutor = new ResoniteLiveSendRunExecutor(runStarter);
             return LastExecutor;
+        }
+    }
+
+    private sealed class RecordingRunSetupPreparer : IResoniteLiveSendRunSetupPreparer
+    {
+        public Task<LiveSendPreparedRunSetup> PrepareAsync(
+            LiveSendRunPlan runPlan,
+            LiveSendRunStartRequest request,
+            LiveSendRunStartContext context,
+            CancellationToken cancellationToken)
+        {
+            _ = runPlan;
+            _ = request;
+            _ = context;
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
         }
     }
 

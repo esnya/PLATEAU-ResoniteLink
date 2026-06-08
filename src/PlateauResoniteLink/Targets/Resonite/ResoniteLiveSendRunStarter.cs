@@ -83,7 +83,7 @@ internal sealed record LiveSendRunStartContext
 }
 
 internal sealed class ResoniteLiveSendRunStarter(
-    ResoniteLiveSendRunSetupPreparer runSetupPreparer,
+    IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     LiveSendRunStateFactory runStateFactory,
     ResoniteLiveSendWorkerLauncher workerLauncher)
 {
