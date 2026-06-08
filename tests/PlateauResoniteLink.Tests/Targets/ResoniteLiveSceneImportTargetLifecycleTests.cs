@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Tests.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -1038,29 +1037,18 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     public async Task ExecuteAsync_SetupHandlesDatasetAttributionWithoutUsingUpdates()
     {
         using TemporaryDirectory workDirectory = new();
+        using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(routedClient, session: session);
-        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
-            cityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
-            packageNames: ["dem"]);
-        ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
-            CreateDatasetContentSourceAsync,
-            CityGmlAppearanceStore.Create)
-            .ReadAsync(
-            request,
-            cancellationToken: default);
-        ImportedSceneMetadata metadata = StreamingImportedSceneSource.Compose(
-                request,
-                readResult,
-                TestCityGmlGeometryProjector.Create(),
-                new DefaultDemTextureSourcePolicy(
-                    (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
-                        source,
-                        CreateDatasetContentSourceAsync,
-                        cancellationToken)).ResolveAsync,
-                PassthroughImportedObjectUnitOptimizer.OptimizeAsync)
-            .Metadata;
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            datasetName: "tokyo23ku",
+            meshCode: "53394525",
+            datasetRoot: datasetDirectory.Path,
+            localOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0),
+            packageNames: ["dem"],
+            sourceFiles: ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml"],
+            requestedMeshCodes: ["53394525"]);
 
         _ = await importTarget.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
@@ -1071,7 +1059,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal))
             .ToArray();
         Assert.True(licenses.Length >= 1);
-        Assert.Contains(licenses, static component => ((Field_string)component.Members["CreditString"]).Value.Contains("tokyo23ku", StringComparison.Ordinal));
+        Assert.Contains(
+            licenses,
+            static component =>
+                ((Field_string)component.Members["CreditString"]).Value.Contains("credit", StringComparison.Ordinal)
+                && ((Field_string)component.Members["CreditString"]).Value.Contains("license", StringComparison.Ordinal));
         Assert.Empty(routedClient.UpdatedComponents);
     }
 
