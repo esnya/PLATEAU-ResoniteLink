@@ -22,7 +22,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
     IResoniteClientSessionFactory clientSessionFactory,
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     ResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory,
-    ResoniteLiveSendWorkerPipelineFactory workerPipelineFactory,
+    ResonitePreparedCityObjectImporter preparedCityObjectImporter,
     IResoniteLiveSendRunExecutorFactory runExecutorFactory) : IResoniteLiveSceneImportFactory
 {
     public ResoniteLiveSceneImportTarget CreateTarget(
@@ -68,7 +68,18 @@ internal sealed class ResoniteLiveSceneImportFactory(
         return new ResoniteLiveSendRunStarter(
             runSetupPreparer,
             cityObjectBakerFactory,
-            new ResoniteLiveSendWorkerLauncher(workerPipelineFactory.Create(terrainTextureAssetGenerator)));
+            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(terrainTextureAssetGenerator)));
+    }
+
+    private ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+    {
+        ResoniteQueuedTexturePreparer texturePreparer = new(terrainTextureAssetGenerator);
+        ResoniteQueuedCityObjectPreparation cityObjectPreparation = new(texturePreparer);
+        ResoniteQueuedCityObjectSender queuedCityObjectSender = new(
+            cityObjectPreparation,
+            preparedCityObjectImporter);
+        return new ResoniteQueuedCityObjectWorker(queuedCityObjectSender);
     }
 
     private ResoniteLiveSceneImportDependencies CreateDependencies(

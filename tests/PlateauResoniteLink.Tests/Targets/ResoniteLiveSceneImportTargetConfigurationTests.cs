@@ -100,18 +100,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
-    public void AddResoniteLiveSendTargetServicesRegistersWorkerPipelineFactory()
-    {
-        using ServiceProvider provider = new ServiceCollection()
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-
-        Assert.IsType<ResoniteLiveSendWorkerPipelineFactory>(
-            scope.ServiceProvider.GetRequiredService<ResoniteLiveSendWorkerPipelineFactory>());
-    }
-
-    [Fact]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
     public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredSessionFactory()
     {

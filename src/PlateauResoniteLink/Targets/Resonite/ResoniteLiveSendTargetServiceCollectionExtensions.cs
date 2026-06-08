@@ -26,7 +26,6 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteCommonMaterialSetupPreparer>();
         services.TryAddScoped<IResoniteLiveSendRunSetupPreparer, ResoniteLiveSendRunSetupPreparer>();
         services.TryAddScoped<IResoniteLiveSendRunExecutorFactory, ResoniteLiveSendRunExecutorFactory>();
-        services.TryAddScoped<ResoniteLiveSendWorkerPipelineFactory>();
         services.TryAddScoped<ResonitePreparedCityObjectImporter>();
         services.TryAddScoped<ResoniteCanonicalSceneDumpSinkFactory>();
         services.TryAddScoped<IResoniteClientSessionFactory, ResoniteLinkClientSessionFactory>();
