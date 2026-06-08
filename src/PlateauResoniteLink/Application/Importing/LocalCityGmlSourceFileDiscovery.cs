@@ -178,6 +178,17 @@ internal static class LocalCityGmlSourceFileDiscovery
                 || RequiresParentDemMeshCodeBoundsFilter(candidate.PackageName, matchedMeshCode, requestedMeshCodes));
         }
 
+        string? requestedDemDetailedMeshCode = TryMatchRequestedDemDetailedMeshCode(candidate, requestedMeshCodes);
+        if (requestedDemDetailedMeshCode is not null)
+        {
+            return new LocalCityGmlSourceFileDescriptor(
+                candidate.AbsolutePath,
+                candidate.RelativePath,
+                candidate.PackageName,
+                requestedDemDetailedMeshCode,
+                RequiresMeshCodeBoundsFilter: false);
+        }
+
         string? parentMeshCode = candidate.FileMeshCodes
             .Concat(candidate.DirectoryMeshCodes)
             .Where(static meshCode => meshCode.Length == 6)
@@ -206,6 +217,23 @@ internal static class LocalCityGmlSourceFileDiscovery
             && matchedMeshCode.Length == 6
             && requestedMeshCodes.Any(meshCode => meshCode.Length >= 8
                 && meshCode.StartsWith(matchedMeshCode, StringComparison.Ordinal));
+    }
+
+    private static string? TryMatchRequestedDemDetailedMeshCode(
+        LocalCityGmlDatasetSourceFileCandidate candidate,
+        IReadOnlySet<string> requestedMeshCodes)
+    {
+        if (!string.Equals(candidate.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return candidate.FileMeshCodes
+            .Concat(candidate.DirectoryMeshCodes)
+            .Where(static meshCode => meshCode.Length == 8)
+            .Where(requestedMeshCodes.Contains)
+            .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
+            .FirstOrDefault();
     }
 
     private static string[] ExtractMeshCodes(string value)
