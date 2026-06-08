@@ -92,6 +92,8 @@ internal static class PlannedBatchEmissionInterpreter
                 + $"(operations={operationCount}, est_payload_bytes={EstimateBatchPayloadBytes(operationCount)})."));
 
         CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
+        canonicalBatchEntityMap.ValidateAllResponses();
+        canonicalBatchEntityMap.ValidateAll(batchBuilder.Actions);
         foreach (ResoniteBatchOperations.PendingBatchSlot pendingSlot in pendingSlots)
         {
             _ = canonicalBatchEntityMap.ResolveSlot(pendingSlot);
