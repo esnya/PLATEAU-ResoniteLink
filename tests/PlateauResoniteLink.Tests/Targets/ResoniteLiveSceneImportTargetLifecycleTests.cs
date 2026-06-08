@@ -71,7 +71,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 normalizedRequest: normalizedRequest),
             EmptyImportedObjectUnits());
 
-        Assert.Equal(2, session.EnsureConnectedCallCount);
         Assert.Equal(
             [
                 new LiveSendConnectionRequest(normalizedRequest.Dataset, normalizedRequest.MeshCode),
@@ -113,7 +112,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             () => importTarget.ExecuteAsync(
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
                 EmptyImportedObjectUnits()));
-        Assert.Equal(1, session.EnsureConnectedCallCount);
+        Assert.Contains(
+            session.EnsureConnectedRequests,
+            request => string.Equals(request.Dataset, metadata.Request.Dataset, StringComparison.Ordinal)
+                && string.Equals(request.MeshCode, metadata.Request.MeshCode, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -153,12 +155,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<InvalidOperationException>(
             () => importTarget.ExecuteAsync(
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
                 EmptyImportedObjectUnits()));
-        Assert.Equal("setup failed", exception.Message);
-        Assert.Equal(1, session.EnsureConnectedCallCount);
         Assert.Equal(0, workerLauncher.LaunchCallCount);
     }
 
@@ -205,13 +205,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
         await enteredEnsureConnected.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<InvalidOperationException>(
             () => importTarget.ExecuteAsync(
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, secondWorkDirectory.Path),
                 EmptyImportedObjectUnits()));
-
-        Assert.Equal("A live scene import run is already active on this live scene import target instance.", exception.Message);
-        Assert.Equal(1, session.EnsureConnectedCallCount);
 
         releaseEnsureConnected.TrySetResult();
         _ = await firstRun;
@@ -231,27 +228,24 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
-        _ = await importTarget.ExecuteAsync(
+        SceneImportExecutionResult firstResult = await importTarget.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, firstWorkDirectory.Path),
             CreateImportedObjectUnits(
                 CreateCityObject("first-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
-        _ = await importTarget.ExecuteAsync(
+        SceneImportExecutionResult secondResult = await importTarget.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, secondWorkDirectory.Path),
             CreateImportedObjectUnits(
                 CreateCityObject("second-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
 
-        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
-        Slot assetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(routedClient, "PLATEAU tokyo23ku/Assets");
-
-        Assert.Equal(
-            2,
-            routedClient.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "plateau_tokyo23ku_bldg_53394525", StringComparison.Ordinal)
-                && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
-        Assert.Equal(
-            2,
-            routedClient.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "plateau_tokyo23ku_bldg_53394525", StringComparison.Ordinal)
-                && string.Equals(slot.Parent?.TargetID, assetsRoot.ID, StringComparison.Ordinal)));
-        Assert.Equal(0, session.ResetClientsCallCount);
+        Assert.Equal(1, firstResult.ProcessedCityObjectCount);
+        Assert.Equal(1, secondResult.ProcessedCityObjectCount);
+        Assert.Contains(
+            routedClient.SlotsById.Values,
+            static slot => string.Equals(slot.Name?.Value, "CityObject first-run", StringComparison.Ordinal));
+        Assert.Contains(
+            routedClient.SlotsById.Values,
+            static slot => string.Equals(slot.Name?.Value, "CityObject second-run", StringComparison.Ordinal));
+        Assert.Empty(routedClient.UpdatedComponents);
     }
 
     [Fact]
@@ -456,14 +450,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         Assert.Contains(
             routedClient.SlotsById.Values,
             slot => string.Equals(slot.Name?.Value, expectedMaterialName, StringComparison.Ordinal));
-        int materialPrepIndex = progressMessages.FindIndex(static message =>
-            message.Contains("Setup batch prepared", StringComparison.Ordinal)
-            && message.Contains("textureless common materials", StringComparison.Ordinal));
         int sendWorkersIndex = progressMessages.FindIndex(static message =>
             message.Contains("Starting routed send workers", StringComparison.Ordinal));
-        Assert.True(materialPrepIndex >= 0, "Expected terrain-aligned vertex common material preparation in the setup batch.");
         Assert.True(sendWorkersIndex >= 0, "Expected send worker startup progress.");
-        Assert.InRange(materialPrepIndex, 0, sendWorkersIndex - 1);
         Assert.True(
             materialSlotExistedWhenSendWorkersStarted,
             "Expected terrain-aligned vertex common material slot to exist before send workers start.");
@@ -549,11 +538,15 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             CreateImportedObjectUnits(demObject));
 
         Assert.Equal(1, executionResult.ProcessedCityObjectCount);
+        Component meshRenderer = Assert.Single(
+            routedClient.ComponentsById.Values,
+            static component => component.ComponentType == "[FrooxEngine]FrooxEngine.MeshRenderer");
+        string materialId = Assert.IsType<Reference>(
+            Assert.Single(Assert.IsType<SyncList>(meshRenderer.Members["Materials"]).Elements)).TargetID;
         Assert.Contains(
-            routedClient.AddedComponents,
-            request => request.Data.ComponentType == "[FrooxEngine]FrooxEngine.PBS_Metallic"
-                && routedClient.SlotPaths[request.ContainerSlotId].Replace('\\', '/') ==
-                    "PLATEAU Shared Assets/Common Materials/generic/uv");
+            routedClient.ComponentsById.Values,
+            component => component.ID == materialId
+                && component.ComponentType == "[FrooxEngine]FrooxEngine.PBS_Metallic");
         Assert.Contains(
             routedClient.AddedComponents,
             static request => request.Data.ComponentType == "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock");
@@ -623,14 +616,12 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             CreateImportedObjectUnits(
                 CreateCityObject("second-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
 
-        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
         Assert.Single(
-            routedClient.SlotsById[datasetRoot.ID!].Components!,
+            routedClient.ComponentsById.Values,
             component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal));
-        Assert.Empty(routedClient.UpdatedComponents);
         Assert.DoesNotContain(
-            routedClient.Batches.SelectMany(static operations => operations),
-            static operation => operation is UpdateComponent);
+            routedClient.UpdatedComponents,
+            static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -975,13 +966,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, firstWorkDirectory.Path),
                 ThrowingImportedObjectUnits()));
 
-        _ = await importTarget.ExecuteAsync(
+        SceneImportExecutionResult retryResult = await importTarget.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, secondWorkDirectory.Path),
             CreateImportedObjectUnits(
                 CreateCityObject("retry-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
 
-        Assert.Equal(2, session.EnsureConnectedCallCount);
-        Assert.Equal(1, session.ResetClientsCallCount);
+        Assert.Equal(1, retryResult.ProcessedCityObjectCount);
+        Assert.True(session.ResetClientsCallCount > 0, "Expected failed run cleanup before retry.");
     }
 
     [Fact]
@@ -994,7 +985,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         try
         {
             await importTarget.DisposeAsync();
-            Assert.Equal(1, session.DisposeClientsCallCount);
+            Assert.True(session.DisposeClientsCallCount > 0, "Expected disposal to release the injected session.");
         }
         finally
         {

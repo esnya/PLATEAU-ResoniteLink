@@ -441,20 +441,6 @@ internal static class PlannedMembers
         return new PlannedAddressableFieldMember.Int2(field, value);
     }
 
-    public static PlannedAddressableFieldMember AddressableField(PlannedFieldReference field, Field_bool value)
-    {
-        ArgumentNullException.ThrowIfNull(field);
-        ArgumentNullException.ThrowIfNull(value);
-        return new PlannedAddressableFieldMember.Bool(field, value);
-    }
-
-    public static PlannedAddressableFieldMember AddressableField(PlannedFieldReference field, Field_float value)
-    {
-        ArgumentNullException.ThrowIfNull(field);
-        ArgumentNullException.ThrowIfNull(value);
-        return new PlannedAddressableFieldMember.Float(field, value);
-    }
-
     public static PlannedMember AddressableReference(PlannedFieldReference field, PlannedWorldElementReference target)
     {
         ArgumentNullException.ThrowIfNull(field);

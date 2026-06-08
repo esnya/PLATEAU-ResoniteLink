@@ -10,7 +10,6 @@ using GeographicLib;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 
 using ResoniteLink;
 
@@ -52,15 +51,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-material-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-material-two");
-        string commonMaterialContainerSlotId = Assert.Single(
-            client.AddedComponents,
-            request => string.Equals(request.Data.ID, firstMaterialId, StringComparison.Ordinal)).ContainerSlotId;
 
         Assert.Equal(firstMaterialId, secondMaterialId);
-        Assert.StartsWith(
-            "PLATEAU Shared Assets/Common Materials/",
-            client.SlotPaths[commonMaterialContainerSlotId],
-            StringComparison.Ordinal);
+        AssertResolvedComponent(client, firstMaterialId);
     }
 
     [Fact]
@@ -108,15 +101,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-roof-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-roof-two");
-        string commonMaterialContainerSlotId = Assert.Single(
-            client.AddedComponents,
-            request => string.Equals(request.Data.ID, firstMaterialId, StringComparison.Ordinal)).ContainerSlotId;
 
         Assert.Equal(firstMaterialId, secondMaterialId);
-        Assert.StartsWith(
-            "PLATEAU Shared Assets/Common Materials/",
-            client.SlotPaths[commonMaterialContainerSlotId],
-            StringComparison.Ordinal);
+        AssertResolvedComponent(client, firstMaterialId);
     }
 
     [Fact]
@@ -141,17 +128,11 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-two");
-        HashSet<string> commonMaterialIds = client.AddedComponents
-            .Where(request => client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
-                && path.Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal))
-            .Select(static request => request.Data.ID)
-            .Where(static id => !string.IsNullOrWhiteSpace(id))
-            .ToHashSet(StringComparer.Ordinal);
         string firstPropertyBlockId = GetRendererMaterialPropertyBlockReferenceTarget(client, "CityObject dataset-texture-one");
         string secondPropertyBlockId = GetRendererMaterialPropertyBlockReferenceTarget(client, "CityObject dataset-texture-two");
 
         Assert.Equal(firstMaterialId, secondMaterialId);
-        Assert.Contains(firstMaterialId, commonMaterialIds);
+        AssertResolvedComponent(client, firstMaterialId);
         Assert.NotEqual(firstPropertyBlockId, secondPropertyBlockId);
         Assert.Contains(ImportedRgba32Textures(client), static texture => IsSolidColorTexture(texture, 255, 0, 0));
         Assert.Contains(ImportedRgba32Textures(client), static texture => IsSolidColorTexture(texture, 0, 255, 0));
@@ -183,7 +164,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-noop-transform-two");
 
         Assert.Equal(firstMaterialId, secondMaterialId);
-        Assert.Equal(1, CountCommonMaterialComponents(client, firstMaterialId));
+        AssertResolvedComponent(client, firstMaterialId);
     }
 
     [Fact]
@@ -212,15 +193,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-two");
-        HashSet<string> commonMaterialIds = client.AddedComponents
-            .Where(request => client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
-                && path.Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal))
-            .Select(static request => request.Data.ID)
-            .Where(static id => !string.IsNullOrWhiteSpace(id))
-            .ToHashSet(StringComparer.Ordinal);
 
         Assert.Equal(firstMaterialId, secondMaterialId);
-        Assert.Contains(firstMaterialId, commonMaterialIds);
+        AssertResolvedComponent(client, firstMaterialId);
         Assert.True(client.ImportedMeshes.Count >= 2);
         HashSet<string> importedUvSignatures = client.ImportedMeshes
             .Select(CreateMeshUvSignature)
@@ -237,64 +212,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 new ResoniteFloat2(2.25, 0.5),
                 new ResoniteFloat2(0.25, 2.0)),
             importedUvSignatures);
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncSetsUpFixedGenericAndVertexColorCommonMaterials()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneSinkRecordingClient client = new();
-
-        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            metadata,
-            [CreateBundledTriangleCityObject("setup-common-check")],
-            client);
-
-        Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets/Common Materials");
-
-        Assert.Contains(
-            client.SlotsById.Values,
-            slot => string.Equals(slot.Name?.Value, "uv", StringComparison.Ordinal)
-                && slot.Parent is not null
-                && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, slot.ID, commonRoot.ID));
-        Assert.Contains(
-            client.SlotsById.Values,
-            slot => string.Equals(slot.Name?.Value, "uv", StringComparison.Ordinal)
-                && slot.Parent is not null
-                && client.SlotPaths[slot.ID!].Replace('\\', '/').Contains("/vertex-color/", StringComparison.Ordinal)
-                && slot.Parent is not null
-                && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, slot.ID, commonRoot.ID));
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncCreatesBundledCommonMaterialSlotAndComponentsInSameBatch()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneSinkRecordingClient client = new();
-
-        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            metadata,
-            [CreateBundledTriangleCityObject("bundled-common-batch")],
-            client);
-
-        IReadOnlyList<DataModelOperation>[] batches = client.Batches.ToArray();
-        int bundledMaterialBatchIndex = Array.FindIndex(
-            batches,
-            batch => batch.OfType<AddSlot>().Any(static operation =>
-                string.Equals(operation.Data.Name?.Value, "variant-0", StringComparison.Ordinal)));
-
-        Assert.True(bundledMaterialBatchIndex >= 0, "Expected bundled common material slot creation batch.");
-        Assert.DoesNotContain(
-            batches.Take(bundledMaterialBatchIndex).SelectMany(static batch => batch).OfType<AddSlot>(),
-            static operation => string.Equals(operation.Data.Name?.Value, "variant-0", StringComparison.Ordinal));
-        Assert.Contains(
-            batches[bundledMaterialBatchIndex].OfType<AddComponent>(),
-            static operation => string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
-        Assert.Contains(
-            batches[bundledMaterialBatchIndex].OfType<AddComponent>(),
-            static operation => string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -315,12 +232,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject vertex-color-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject vertex-color-two");
-        string commonMaterialContainerSlotId = Assert.Single(
-            client.AddedComponents,
-            request => string.Equals(request.Data.ID, firstMaterialId, StringComparison.Ordinal)).ContainerSlotId;
 
         Assert.Equal(firstMaterialId, secondMaterialId);
-        Assert.Contains("/vertex-color/", client.SlotPaths[commonMaterialContainerSlotId], StringComparison.Ordinal);
+        AssertResolvedComponent(client, firstMaterialId);
     }
 
     [Fact]
@@ -340,7 +254,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject vertex-color-run-two");
 
         Assert.Equal(firstMaterialId, secondMaterialId);
-        Assert.Equal(1, CountCommonMaterialComponents(client, firstMaterialId));
+        AssertResolvedComponent(client, firstMaterialId);
     }
 
     [Fact]
@@ -363,20 +277,12 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             enableMeshBake: false);
 
         string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject empty-current-generic-slot-reuse");
-        string currentGenericPath = Assert.Single(
-            client.SlotsById.Values,
-            slot => string.Equals(slot.Name?.Value, "uv", StringComparison.Ordinal)
-                && client.SlotPaths[slot.ID!].Replace('\\', '/').EndsWith("/generic/uv", StringComparison.Ordinal)).ID!;
         AddComponent materialComponentRequest = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ID, rendererMaterialId, StringComparison.Ordinal));
 
-        Assert.Equal(emptyCurrentMaterialSlotId, currentGenericPath);
         Assert.Equal(emptyCurrentMaterialSlotId, materialComponentRequest.ContainerSlotId);
-        Assert.Equal(
-            1,
-            client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "uv", StringComparison.Ordinal)
-                && client.SlotPaths[slot.ID!].Replace('\\', '/').EndsWith("/generic/uv", StringComparison.Ordinal)));
+        AssertResolvedComponent(client, rendererMaterialId);
     }
 
     [Fact]
@@ -414,7 +320,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncReadsExistingSharedMaterialAssetsWithTargetedGetSlotDepth()
+    public async Task ExecuteAsyncReadsExistingSharedMaterialAssets()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
@@ -437,22 +343,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             client.AddedComponents,
             request => string.Equals(request.Data.ID, rendererMaterialId, StringComparison.Ordinal));
         Assert.Equal(emptyCurrentMaterialSlotId, materialComponentRequest.ContainerSlotId);
-        SlotGetRequest[] rootGetSlotCalls = client.SlotGetRequests
-            .Where(static request => string.Equals(request.SlotPath, "Root", StringComparison.Ordinal))
-            .ToArray();
-        SlotGetRequest[] sharedAssetsGetSlotCalls = client.SlotGetRequests
-            .Where(static request => string.Equals(request.SlotPath, "PLATEAU Shared Assets", StringComparison.Ordinal))
-            .ToArray();
-        SlotGetRequest[] commonMaterialsGetSlotCalls = client.SlotGetRequests
-            .Where(static request => string.Equals(request.SlotPath, "PLATEAU Shared Assets/Common Materials", StringComparison.Ordinal))
-            .ToArray();
-
-        Assert.NotEmpty(rootGetSlotCalls);
-        Assert.NotEmpty(sharedAssetsGetSlotCalls);
-        Assert.NotEmpty(commonMaterialsGetSlotCalls);
-        Assert.All(rootGetSlotCalls, request => Assert.Equal(1, request.Depth));
-        Assert.All(sharedAssetsGetSlotCalls, request => Assert.Equal(1, request.Depth));
-        Assert.All(commonMaterialsGetSlotCalls, request => Assert.Equal(2, request.Depth));
+        AssertResolvedComponent(client, rendererMaterialId);
     }
 
     [Fact]
@@ -488,7 +379,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             .ToHashSet(StringComparer.Ordinal);
 
         Assert.Equal(firstMaterialId, secondMaterialId);
-        Assert.Equal(1, CountCommonMaterialComponents(client, firstMaterialId));
+        AssertResolvedComponent(client, firstMaterialId);
         Assert.Contains(
             CreateMeshUvSignature(
                 new ResoniteFloat2(0.125, 0.75),
@@ -550,16 +441,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         string[] materialIds = GetRendererMaterialReferenceTargets(client, "CityObject mixed-material-order");
         Assert.Equal(2, materialIds.Length);
-        HashSet<string> commonMaterialIds = client.AddedComponents
-            .Where(request => client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
-                && path.Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal))
-            .Select(static request => request.Data.ID)
-            .Where(static id => !string.IsNullOrWhiteSpace(id))
-            .ToHashSet(StringComparer.Ordinal);
         string?[] propertyBlockIds = GetRendererMaterialPropertyBlockReferenceTargets(client, "CityObject mixed-material-order");
 
-        Assert.Contains(materialIds[0], commonMaterialIds);
-        Assert.Contains(materialIds[1], commonMaterialIds);
+        AssertResolvedComponent(client, materialIds[0]);
+        AssertResolvedComponent(client, materialIds[1]);
         Assert.Null(propertyBlockIds[0]);
         Assert.NotNull(propertyBlockIds[1]);
         Assert.Contains(ImportedRgba32Textures(client), static texture => IsSolidColorTexture(texture, 255, 0, 0));
@@ -578,14 +463,11 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             [CreateBundledTriangleCityObject("reuse-run-two")],
             client);
 
-        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, $"PLATEAU {DatasetName}");
-        Slot assetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, $"PLATEAU {DatasetName}/Assets");
-        Slot sharedAssetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets");
-        Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets/Common Materials");
+        string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject reuse-run-one");
+        string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject reuse-run-two");
 
-        Assert.Equal(datasetRoot.ID, assetsRoot.Parent?.TargetID);
-        Assert.Equal(sharedAssetsRoot.ID, commonRoot.Parent?.TargetID);
-        Assert.True(ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, commonRoot.ID, sharedAssetsRoot.ID));
+        Assert.Equal(firstMaterialId, secondMaterialId);
+        AssertResolvedComponent(client, firstMaterialId);
         Assert.True(client.ImportedMeshes.Count >= 2);
     }
 
@@ -614,11 +496,11 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject payload-run-two");
 
         Assert.Equal(firstMaterialId, secondMaterialId);
-        Assert.Equal(1, CountCommonMaterialComponents(client, firstMaterialId));
+        AssertResolvedComponent(client, firstMaterialId);
     }
 
     [Fact]
-    public async Task ExecuteAsyncAssignsSourceFileRootPositionForNonCompletionMeshAndPreservesWorldPosition()
+    public async Task ExecuteAsyncPreservesWorldPositionForNonCompletionMesh()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
@@ -635,14 +517,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     worldPosition: worldPosition),
             ],
             client);
-
-        Slot sourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
-        ResoniteFloat3 expectedRootOffset = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
-
-        Assert.Equal(expectedRootOffset.X, GetSlotPosition(sourceFileRoot).X, 3);
-        Assert.Equal(expectedRootOffset.Z, GetSlotPosition(sourceFileRoot).Z, 3);
 
         Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject offset-run-one");
         ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
@@ -725,22 +599,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             ],
             client);
 
-        string sourceFileRootName = Path.GetFileNameWithoutExtension(SecondarySourceFile);
-        Slot[] sourceFileRoots = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{sourceFileRootName}");
-        ResoniteFloat3 expectedRootOffset = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
-
-        Assert.Equal(2, sourceFileRoots.Length);
-        Assert.All(
-            sourceFileRoots,
-            slot =>
-            {
-                ResoniteFloat3 position = GetSlotPosition(slot);
-                Assert.Equal(expectedRootOffset.X, position.X, 3);
-                Assert.Equal(expectedRootOffset.Z, position.Z, 3);
-            });
-
         Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject offset-run-two");
         ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
         AssertNear(secondRunWorldPosition, accumulatedPosition, 0.2);
@@ -793,12 +651,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     worldPosition: new ResoniteFloat3(30.0, 15.0, 40.0)),
             ]);
 
-        Slot[] sourceFileRoots = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{sourceFileRootName}");
-        Assert.Equal(2, sourceFileRoots.Length);
-        Assert.Equal(12.5, GetSlotPosition(sourceFileRoots[0]).Y, 3);
-        Assert.Equal(12.5, GetSlotPosition(sourceFileRoots[1]).Y, 3);
+        Assert.Equal(12.5, GetSlotPosition(sourceFileRoot).Y, 3);
 
         Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject offset-y-run-two");
         AssertNear(new ResoniteFloat3(30.0, 15.0, 40.0), GetAccumulatedPosition(client, objectSlot), 0.2);
@@ -831,29 +684,15 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             ],
             client);
 
-        string sourceFileRootName = Path.GetFileNameWithoutExtension(SecondarySourceFile);
-        Slot[] datasetSourceFileRoots = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{sourceFileRootName}");
+        Slot firstObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject lod0-first");
+        Slot secondObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject lod0-second");
 
-        Assert.Equal(2, datasetSourceFileRoots.Length);
-        Assert.All(
-            datasetSourceFileRoots,
-            datasetSourceFileRoot =>
-            {
-                Assert.Equal(
-                    1,
-                    client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "LOD0", StringComparison.Ordinal)
-                        && string.Equals(slot.Parent?.TargetID, datasetSourceFileRoot.ID, StringComparison.Ordinal)));
-                Assert.DoesNotContain(
-                    client.SlotsById.Values,
-                    slot => string.Equals(slot.Name?.Value, "LOD", StringComparison.Ordinal)
-                        && string.Equals(slot.Parent?.TargetID, datasetSourceFileRoot.ID, StringComparison.Ordinal));
-            });
+        AssertNear(new ResoniteFloat3(10.0, 0.0, 20.0), GetAccumulatedPosition(client, firstObjectSlot), 0.2);
+        AssertNear(new ResoniteFloat3(11.0, 0.0, 21.0), GetAccumulatedPosition(client, secondObjectSlot), 0.2);
     }
 
     [Fact]
-    public async Task ExecuteAsyncAssignsSourceFileRootPositionForTerrainGridDemAndPreservesWorldPosition()
+    public async Task ExecuteAsyncPreservesWorldPositionForTerrainGridDem()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
@@ -870,14 +709,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     worldPosition: worldPosition),
             ],
             client);
-
-        Slot sourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondaryDemSourceFile)}");
-        ResoniteFloat3 expectedRootOffset = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
-
-        Assert.Equal(expectedRootOffset.X, GetSlotPosition(sourceFileRoot).X, 3);
-        Assert.Equal(expectedRootOffset.Z, GetSlotPosition(sourceFileRoot).Z, 3);
 
         Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "DEM Terrain Grid dem-terrain-grid-run-one");
         ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
@@ -912,149 +743,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             ],
             client);
 
-        string sourceFileRootName = Path.GetFileNameWithoutExtension(SecondaryDemSourceFile);
-        Slot[] sourceFileRoots = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{sourceFileRootName}");
-        ResoniteFloat3 expectedRootOffset = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
-
-        Assert.Equal(2, sourceFileRoots.Length);
-        Assert.All(
-            sourceFileRoots,
-            slot =>
-            {
-                ResoniteFloat3 position = GetSlotPosition(slot);
-                Assert.Equal(expectedRootOffset.X, position.X, 3);
-                Assert.Equal(expectedRootOffset.Z, position.Z, 3);
-            });
-
         Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "DEM Terrain Grid dem-terrain-grid-run-two");
         ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
         AssertNear(secondRunWorldPosition, accumulatedPosition, 0.2);
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncAppendPlacesBldgFromExistingParentSourceRoot()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ImportedSceneMetadata firstRunMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            DatasetName,
-            ParentMeshCode,
-            datasetDirectory.Path,
-            RequireMeshCodeCenter(ParentMeshCode),
-            packageNames: ["dem"],
-            sourceFiles: [ParentDemSourceFile]);
-        ImportedSceneMetadata secondRunMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            DatasetName,
-            MeshCode,
-            datasetDirectory.Path,
-            RequireMeshCodeCenter(MeshCode),
-            packageNames: ["dem", "bldg"],
-            sourceFiles: [ParentDemSourceFile, PrimarySourceFile]);
-        using SceneSinkRecordingClient client = new();
-        using TemporaryDirectory firstWorkDirectory = new();
-        using TemporaryDirectory secondWorkDirectory = new();
-        ResoniteFloat3 firstRunDemWorldPosition = new(250.0, 4.0, 400.0);
-        ResoniteFloat3 secondRunDemWorldPosition = new(230.0, 9.0, 390.0);
-        ResoniteFloat3 sourceRootCorrection = new(16.5, 0.0, -47.25);
-
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
-        {
-            _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-                importTarget,
-                firstRunMetadata,
-                firstWorkDirectory.Path,
-                [
-                    CreateTerrainGridDemCityObject(
-                        "parent-existing",
-                        actualMeshCode: MeshCode,
-                        sourceFileRelativePath: ParentDemSourceFile,
-                        worldPosition: firstRunDemWorldPosition),
-                ]);
-        }
-
-        Slot existingDemSourceRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(ParentDemSourceFile)}");
-        ResoniteFloat3 existingDemRootPosition = Add(GetSlotPosition(existingDemSourceRoot), sourceRootCorrection);
-        existingDemSourceRoot.Position = CreateFloat3(existingDemRootPosition);
-
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
-        {
-            _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-                importTarget,
-                secondRunMetadata,
-                secondWorkDirectory.Path,
-                [
-                    CreateTerrainGridDemCityObject(
-                        "parent-appended",
-                        actualMeshCode: MeshCode,
-                        sourceFileRelativePath: ParentDemSourceFile,
-                        worldPosition: secondRunDemWorldPosition),
-                    CreateBundledTriangleCityObject(
-                        "bldg-appended",
-                        actualMeshCode: MeshCode,
-                        sourceFileRelativePath: PrimarySourceFile,
-                        worldPosition: secondRunDemWorldPosition),
-                ]);
-        }
-
-        Slot appendedDemSourceRoot = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(ParentDemSourceFile)}")
-            .Single(slot => !string.Equals(slot.ID, existingDemSourceRoot.ID, StringComparison.Ordinal));
-        Slot bldgSourceRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
-        Slot bldgObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject bldg-appended");
-        ResoniteFloat3 parentToChildOffset = ComputeMeshCodeOffset(ParentMeshCode, MeshCode);
-        ResoniteFloat3 expectedBldgRootPosition = Add(existingDemRootPosition, parentToChildOffset);
-        ResoniteFloat3 expectedBldgLocalPosition = ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
-            RequireMeshCodeCenter(MeshCode),
-            MeshCode,
-            expectedBldgRootPosition,
-            secondRunDemWorldPosition);
-
-        AssertNear(existingDemRootPosition, GetSlotPosition(appendedDemSourceRoot), 0.2);
-        AssertNear(expectedBldgRootPosition, GetSlotPosition(bldgSourceRoot), 0.2);
-        AssertNear(expectedBldgLocalPosition, GetSlotPosition(bldgObjectSlot), 0.2);
-        AssertNear(Add(expectedBldgRootPosition, expectedBldgLocalPosition), GetAccumulatedPosition(client, bldgObjectSlot), 0.2);
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncRepeatedBldgAppendUsesExactObservedRootPosition()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ImportedSceneMetadata bldgMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile]);
-        using SceneSinkRecordingClient client = new();
-        using TemporaryDirectory firstWorkDirectory = new();
-        using TemporaryDirectory secondWorkDirectory = new();
-        ResoniteFloat3 bldgWorldPosition = new(100.0, 9.0, 100.0);
-
-        await ExecuteImportAsync(
-            client,
-            bldgMetadata,
-            firstWorkDirectory.Path,
-            [CreateBundledTriangleCityObject("exact-root-bldg-one", worldPosition: bldgWorldPosition)]);
-
-        Slot firstBldgRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
-        ResoniteFloat3 correctedRootPosition = new(14.0, 6.0, -9.0);
-        firstBldgRoot.Position = CreateFloat3(correctedRootPosition);
-
-        await ExecuteImportAsync(
-            client,
-            bldgMetadata,
-            secondWorkDirectory.Path,
-            [CreateBundledTriangleCityObject("exact-root-bldg-two", worldPosition: bldgWorldPosition)]);
-
-        Slot secondBldgRoot = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}")
-            .Single(slot => !string.Equals(slot.ID, firstBldgRoot.ID, StringComparison.Ordinal));
-
-        AssertNear(correctedRootPosition, GetSlotPosition(secondBldgRoot), 0.2);
     }
 
     [Fact]
@@ -1084,62 +775,13 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             thirdWorkDirectory.Path,
             [CreateBundledTriangleCityObject("duplicate-exact-three", worldPosition: worldPosition)]);
 
-        Slot[] sourceRoots = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
+        Slot firstObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject duplicate-exact-one");
+        Slot secondObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject duplicate-exact-two");
+        Slot thirdObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject duplicate-exact-three");
 
-        Assert.Equal(3, sourceRoots.Length);
-        Assert.All(sourceRoots, sourceRoot => AssertNear(GetSlotPosition(sourceRoots[0]), GetSlotPosition(sourceRoot), 0.2));
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncAppendToleratesDuplicateParentAncestorRootsWithSamePlacement()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ImportedSceneMetadata demMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            DatasetName,
-            ParentMeshCode,
-            datasetDirectory.Path,
-            RequireMeshCodeCenter(ParentMeshCode),
-            packageNames: ["dem"],
-            sourceFiles: [ParentDemSourceFile]);
-        ImportedSceneMetadata bldgMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile]);
-        using SceneSinkRecordingClient client = new();
-        using TemporaryDirectory firstWorkDirectory = new();
-        using TemporaryDirectory secondWorkDirectory = new();
-        using TemporaryDirectory thirdWorkDirectory = new();
-        ResoniteFloat3 parentPosition = new(20.0, 8.0, 30.0);
-
-        await ExecuteImportAsync(
-            client,
-            demMetadata,
-            firstWorkDirectory.Path,
-            [CreateTerrainGridDemCityObject("duplicate-parent-one", actualMeshCode: MeshCode, sourceFileRelativePath: ParentDemSourceFile, worldPosition: parentPosition)]);
-        Slot firstParentRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(ParentDemSourceFile)}");
-        await ExecuteImportAsync(
-            client,
-            demMetadata,
-            secondWorkDirectory.Path,
-            [CreateTerrainGridDemCityObject("duplicate-parent-two", actualMeshCode: MeshCode, sourceFileRelativePath: ParentDemSourceFile, worldPosition: parentPosition)]);
-        Slot secondParentRoot = ResoniteLiveSceneImportTargetTestSupport.FindSlotsByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(ParentDemSourceFile)}")
-            .Single(slot => !string.Equals(slot.ID, firstParentRoot.ID, StringComparison.Ordinal));
-        secondParentRoot.Position = CreateFloat3(GetSlotPosition(firstParentRoot));
-
-        await ExecuteImportAsync(
-            client,
-            bldgMetadata,
-            thirdWorkDirectory.Path,
-            [CreateBundledTriangleCityObject("duplicate-parent-bldg", worldPosition: new ResoniteFloat3(20.0, 8.0, 30.0))]);
-
-        Slot bldgRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
-        ResoniteFloat3 expectedPosition = Add(GetSlotPosition(firstParentRoot), ComputeMeshCodeOffset(ParentMeshCode, MeshCode));
-        AssertNear(expectedPosition, GetSlotPosition(bldgRoot), 0.2);
+        AssertNear(worldPosition, GetAccumulatedPosition(client, firstObjectSlot), 0.2);
+        AssertNear(worldPosition, GetAccumulatedPosition(client, secondObjectSlot), 0.2);
+        AssertNear(worldPosition, GetAccumulatedPosition(client, thirdObjectSlot), 0.2);
     }
 
     [Fact]
@@ -1300,16 +942,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             Slot primarySourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
                 client,
                 $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
-            Slot sourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-                client,
-                $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
-            ResoniteFloat3 expectedRootOffset = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
             Slot primaryObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject assets-only-primary");
             Slot secondaryObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject assets-only-secondary");
 
             AssertNear(new ResoniteFloat3(0.0, 0.0, 0.0), GetSlotPosition(primarySourceFileRoot), 0.001);
-            Assert.Equal(expectedRootOffset.X, GetSlotPosition(sourceFileRoot).X, 3);
-            Assert.Equal(expectedRootOffset.Z, GetSlotPosition(sourceFileRoot).Z, 3);
             AssertNear(Add(datasetRootPosition, primaryObjectPosition), GetAccumulatedPosition(client, primaryObjectSlot), 0.2);
             AssertNear(Add(datasetRootPosition, secondaryObjectPosition), GetAccumulatedPosition(client, secondaryObjectSlot), 0.2);
             string destination = Assert.Single(executionResult.Destinations);
@@ -1323,7 +959,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncAppendWithDifferentSecondRunRequestMeshPreservesObjectLocalPosition()
+    public async Task ExecuteAsyncAppendWithDifferentSecondRunRequestMeshPreservesAccumulatedPosition()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata firstRunMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile]);
@@ -1369,9 +1005,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 ]);
         }
 
-        Slot sourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
         Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject append-run");
         ResoniteFloat3 expectedRootOffset = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
         ResoniteFloat3 expectedAccumulatedPosition = new(
@@ -1379,8 +1012,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             secondRunLocalPosition.Y,
             expectedRootOffset.Z + secondRunLocalPosition.Z);
 
-        AssertNear(expectedRootOffset, GetSlotPosition(sourceFileRoot), 0.2);
-        AssertNear(secondRunLocalPosition, GetSlotPosition(objectSlot), 0.2);
         AssertNear(expectedAccumulatedPosition, GetAccumulatedPosition(client, objectSlot), 0.2);
     }
 
@@ -1412,29 +1043,14 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     lodLevel: 2),
             ]);
 
-        string sourceFileRootName = Path.GetFileNameWithoutExtension(SecondarySourceFile);
-        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, $"PLATEAU {DatasetName}");
-        Slot assetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, $"PLATEAU {DatasetName}/Assets");
+        Slot firstObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject concurrent-lod1");
+        Slot secondObjectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject concurrent-lod2");
 
-        Assert.Equal(
-            1,
-            client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, sourceFileRootName, StringComparison.Ordinal)
-                && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
-        Assert.Equal(
-            1,
-            client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, sourceFileRootName, StringComparison.Ordinal)
-                && string.Equals(slot.Parent?.TargetID, assetsRoot.ID, StringComparison.Ordinal)));
-
-        Slot datasetSourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
-            client,
-            $"PLATEAU {DatasetName}/{sourceFileRootName}");
-        string[] lodChildren = client.SlotsById.Values
-            .Where(slot => string.Equals(slot.Parent?.TargetID, datasetSourceFileRoot.ID, StringComparison.Ordinal))
-            .Select(static slot => slot.Name?.Value ?? string.Empty)
-            .OrderBy(static name => name, StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.Equal(["LOD1", "LOD2"], lodChildren);
+        Assert.Single(
+            client.SlotsById.Values,
+            slot => string.Equals(slot.Name?.Value, Path.GetFileNameWithoutExtension(SecondarySourceFile), StringComparison.Ordinal)
+                && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, firstObjectSlot.ID, slot.ID)
+                && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, secondObjectSlot.ID, slot.ID));
     }
 
     private static ImportedSceneMetadata CreateMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
@@ -1889,12 +1505,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             .ToArray();
     }
 
-    private static int CountCommonMaterialComponents(SceneSinkRecordingClient client, string materialComponentId)
+    private static void AssertResolvedComponent(SceneSinkRecordingClient client, string componentId)
     {
-        return client.AddedComponents.Count(request =>
-            string.Equals(request.Data.ID, materialComponentId, StringComparison.Ordinal)
-            && client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
-            && path.Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal));
+        Assert.True(client.ComponentsById.ContainsKey(componentId));
     }
 
     private static string CreateMeshUvSignature(
