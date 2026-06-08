@@ -30,9 +30,9 @@ internal sealed record LiveSendWorkerLaunchRequest
 }
 
 internal sealed class ResoniteLiveSendWorkerLauncher(
-    IResoniteQueuedCityObjectWorker queuedCityObjectWorker)
+    ResoniteQueuedCityObjectWorker queuedCityObjectWorker)
 {
-    private readonly IResoniteQueuedCityObjectWorker queuedCityObjectWorker =
+    private readonly ResoniteQueuedCityObjectWorker queuedCityObjectWorker =
         queuedCityObjectWorker ?? throw new ArgumentNullException(nameof(queuedCityObjectWorker));
 
     public void Launch(

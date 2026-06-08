@@ -9,15 +9,8 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteQueuedCityObjectWorker
-{
-    Task[] CreateProcessingTasks(
-        LiveSendRunState state,
-        LiveSendWorkerContext context);
-}
-
 internal sealed class ResoniteQueuedCityObjectWorker(
-    ResoniteQueuedCityObjectSender queuedCityObjectSender) : IResoniteQueuedCityObjectWorker
+    ResoniteQueuedCityObjectSender queuedCityObjectSender)
 {
     private readonly ResoniteQueuedCityObjectSender queuedCityObjectSender =
         queuedCityObjectSender ?? throw new ArgumentNullException(nameof(queuedCityObjectSender));

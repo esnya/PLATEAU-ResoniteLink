@@ -2,15 +2,10 @@ using System;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteLiveSendWorkerPipelineFactory
-{
-    IResoniteQueuedCityObjectWorker Create(ITerrainTextureAssetGenerator terrainTextureAssetGenerator);
-}
-
 internal sealed class ResoniteLiveSendWorkerPipelineFactory(
-    ResonitePreparedCityObjectImporter preparedCityObjectImporter) : IResoniteLiveSendWorkerPipelineFactory
+    ResonitePreparedCityObjectImporter preparedCityObjectImporter)
 {
-    public IResoniteQueuedCityObjectWorker Create(ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+    public ResoniteQueuedCityObjectWorker Create(ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
     {
         ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
 
