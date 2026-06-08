@@ -324,6 +324,20 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredCityObjectBakerFactory()
+    {
+        CreateNonDemCityObjectBaker createCityObjectBaker = (_, _) =>
+            throw new NotSupportedException("This test only verifies DI override preservation during service registration.");
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped(_ => createCityObjectBaker)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.Same(createCityObjectBaker, scope.ServiceProvider.GetRequiredService<CreateNonDemCityObjectBaker>());
+    }
+
+    [Fact]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
     public async Task AddResoniteLiveSendTargetServicesRegistersDefaultBaseClientFactory()
     {

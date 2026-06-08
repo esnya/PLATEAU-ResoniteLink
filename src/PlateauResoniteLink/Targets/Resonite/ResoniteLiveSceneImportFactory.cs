@@ -10,7 +10,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
     Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession> createClientSession,
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense,
-    ResoniteTextureImageLoader textureImageLoader,
+    CreateNonDemCityObjectBaker createCityObjectBaker,
     ResonitePreparedCityObjectImporter preparedCityObjectImporter,
     CreateTerrainTextureGenerator createTerrainTextureGenerator,
     IResoniteLiveSendRunExecutorFactory runExecutorFactory)
@@ -55,7 +55,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
 
         return new ResoniteLiveSendRunStarter(
             runSetupPreparer,
-            textureImageLoader,
+            createCityObjectBaker,
             CreateQueuedCityObjectWorker(generateTerrainTexture));
     }
 

@@ -323,8 +323,28 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 setupResoniteScene ?? CreateDefaultSetupResoniteScene(),
                 new ResoniteCommonMaterialSetupPreparer(materialPlanning),
                 ResoniteSlotCreator.CreateAsync),
-            new ResoniteTextureImageLoader(),
+            CreateDefaultCityObjectBaker,
             CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture, ensureGsiFallbackLicense));
+    }
+
+    private static NonDemCityObjectBaker CreateDefaultCityObjectBaker(
+        ResoniteImportBudgetProfile resourceBudget,
+        ResoniteLocalOrigin requestLocalOrigin)
+    {
+        NonDemAtlasBakeBudget atlasBudget = new(ResourceBudget: resourceBudget);
+        NonDemAtlasLayoutFactory layoutFactory = new(
+            atlasBudget.EffectiveMaxAtlasSize,
+            atlasBudget.TilePaddingPixels);
+        return new NonDemCityObjectBaker(
+            NonDemCityObjectBakePolicies.DefaultPolicies,
+            new NonDemSourceFileBakeEmitter(
+                new NonDemCityObjectBakeCandidateFactory(
+                new NonDemBakeEntryFactory(new ResoniteTextureImageLoader(), atlasBudget.EffectiveMaxAtlasTextureEdge)),
+            new NonDemCityObjectBakeAssembler(
+                layoutFactory,
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                new NonDemBakedGeometryComposer(requestLocalOrigin)),
+            layoutFactory));
     }
 
     private static SetupResoniteScene CreateDefaultSetupResoniteScene()

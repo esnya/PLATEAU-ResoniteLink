@@ -5,6 +5,10 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
+internal delegate NonDemCityObjectBaker CreateNonDemCityObjectBaker(
+    ResoniteImportBudgetProfile resourceBudget,
+    ResoniteLocalOrigin requestLocalOrigin);
+
 internal sealed class NonDemCityObjectBaker(
     IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies,
     NonDemSourceFileBakeEmitter sourceFileBakeEmitter)

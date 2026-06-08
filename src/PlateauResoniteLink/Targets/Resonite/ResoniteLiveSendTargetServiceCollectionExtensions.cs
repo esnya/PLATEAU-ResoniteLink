@@ -20,6 +20,38 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteTextureImageLoader>();
         services.TryAddScoped<ResoniteMaterialPlanning>();
         services.TryAddScoped<ResoniteCommonMaterialSetupPreparer>();
+        services.TryAddScoped<CreateNonDemCityObjectBaker>(provider =>
+        {
+            ResoniteTextureImageLoader textureImageLoader = provider.GetRequiredService<ResoniteTextureImageLoader>();
+            return (resourceBudget, requestLocalOrigin) =>
+            {
+                _ = resourceBudget.Name switch
+                {
+                    ResoniteImportMemoryProfile.Small or ResoniteImportMemoryProfile.Large => true,
+                    _ => throw new ArgumentOutOfRangeException(
+                        nameof(resourceBudget),
+                        resourceBudget.Name,
+                        "Unsupported memory profile."),
+                };
+
+                NonDemAtlasBakeBudget atlasBudget = new(ResourceBudget: resourceBudget);
+                NonDemAtlasLayoutFactory layoutFactory = new(
+                    atlasBudget.EffectiveMaxAtlasSize,
+                    atlasBudget.TilePaddingPixels);
+                NonDemSourceFileBakeEmitter sourceFileBakeEmitter = new(
+                    new NonDemCityObjectBakeCandidateFactory(
+                        new NonDemBakeEntryFactory(textureImageLoader, atlasBudget.EffectiveMaxAtlasTextureEdge)),
+                    new NonDemCityObjectBakeAssembler(
+                        layoutFactory,
+                        new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                        new NonDemBakedGeometryComposer(requestLocalOrigin)),
+                    layoutFactory);
+
+                return new NonDemCityObjectBaker(
+                    NonDemCityObjectBakePolicies.DefaultPolicies,
+                    sourceFileBakeEmitter);
+            };
+        });
         services.TryAddScoped<IResoniteLiveSendRunSetupPreparer, ResoniteLiveSendRunSetupPreparer>();
         services.TryAddScoped<IResoniteLiveSendRunExecutorFactory, ResoniteLiveSendRunExecutorFactory>();
         services.TryAddScoped<EnsureResoniteGsiFallbackLicense>(_ => ResoniteDatasetLicenseWriter.EnsureGsiFallbackLicenseAsync);
