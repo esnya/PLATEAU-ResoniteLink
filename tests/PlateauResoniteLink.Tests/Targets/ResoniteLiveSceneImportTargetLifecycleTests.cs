@@ -164,7 +164,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 diagnostics,
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                     materialPlanning,
-                    new ThrowingSceneSetupInterpreter())));
+                    new ThrowingSceneSetupInterpreter().SetupAsync)));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -287,7 +287,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning, new MissingCommonMaterialSetupInterpreter())));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
+                    materialPlanning,
+                    new MissingCommonMaterialSetupInterpreter().SetupAsync)));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -326,7 +328,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning, new MissingCommonMaterialSetupInterpreter())));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
+                    materialPlanning,
+                    new MissingCommonMaterialSetupInterpreter().SetupAsync)));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -1263,7 +1267,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ]);
     }
 
-    private sealed class ThrowingSceneSetupInterpreter : IResoniteSceneSetupInterpreter
+    private sealed class ThrowingSceneSetupInterpreter
     {
         public Task<ResoniteSceneSetupState> SetupAsync(
             IResoniteLinkClient setupClient,
@@ -1279,7 +1283,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         }
     }
 
-    private sealed class MissingCommonMaterialSetupInterpreter : IResoniteSceneSetupInterpreter
+    private sealed class MissingCommonMaterialSetupInterpreter
     {
         public async Task<ResoniteSceneSetupState> SetupAsync(
             IResoniteLinkClient setupClient,

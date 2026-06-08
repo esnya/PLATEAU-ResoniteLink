@@ -27,7 +27,7 @@ internal interface IResoniteLiveSendRunSetupPreparer
 }
 
 internal sealed class ResoniteLiveSendRunSetupPreparer(
-    IResoniteSceneSetupInterpreter sceneSetupInterpreter,
+    SetupResoniteScene setupResoniteScene,
     ResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer) : IResoniteLiveSendRunSetupPreparer
 {
     public async Task<LiveSendPreparedRunSetup> PrepareAsync(
@@ -44,7 +44,7 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
         context.Logger.WriteInformation("Setting up mutable helpers (baker).");
         context.Logger.WriteInformation("Starting setup slot setup: dataset root, assets root, common assets root, location slot, and source-file root reference.");
         Stopwatch setupStopwatch = Stopwatch.StartNew();
-        ResoniteSceneSetupState setupState = await sceneSetupInterpreter.SetupAsync(
+        ResoniteSceneSetupState setupState = await setupResoniteScene(
             GetRoutedClient(context),
             runPlan.SetupInfo,
             request.CommonMaterials,

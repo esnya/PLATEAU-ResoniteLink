@@ -326,13 +326,13 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 
     public static ResoniteLiveSendRunStarter CreateRunStarter(
         ResoniteMaterialPlanning materialPlanning,
-        IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null,
+        SetupResoniteScene? setupResoniteScene = null,
         GenerateTerrainTexture? generateTerrainTexture = null)
     {
         return new ResoniteLiveSendRunStarter(
             new ResoniteLiveSendRunSetupPreparer(
-                sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(),
-            new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
+                setupResoniteScene ?? ResoniteSceneSetupInterpreter.SetupAsync,
+                new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
             new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()),
             new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture)));
     }

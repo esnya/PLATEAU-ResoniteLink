@@ -43,7 +43,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
                     baseClientFactory);
             };
         });
-        services.TryAddScoped<IResoniteSceneSetupInterpreter, ResoniteSceneSetupInterpreter>();
+        services.TryAddScoped<SetupResoniteScene>(_ => ResoniteSceneSetupInterpreter.SetupAsync);
         services.TryAddScoped<ResoniteLiveSceneImportFactory>();
 
         return services;
