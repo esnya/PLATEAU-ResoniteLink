@@ -47,8 +47,10 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
         if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectPreparationStartedLogged, 1, 0) == 0)
         {
             logger.WriteInformation(
-                "City object preparation started after {ElapsedSeconds:F3}s: {DisplayName} ({PackageName}/{SlotKey}) mesh='{ActualMeshCode}'.",
-                state.Runtime.ElapsedTotalSeconds,
+                "City object preparation started after {ElapsedSeconds:F3}s.",
+                state.Runtime.ElapsedTotalSeconds);
+            logger.WriteDebug(
+                "First city object preparation target: {DisplayName} ({PackageName}/{SlotKey}) mesh='{ActualMeshCode}'.",
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.SlotKey,
@@ -140,9 +142,11 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
         if (Interlocked.CompareExchange(ref state.Progress.FirstPreparedCityObjectLogged, 1, 0) == 0)
         {
             logger.WriteInformation(
-                "First city object prepared in {PrepareElapsedSeconds:F3}s after scene start {ElapsedSeconds:F3}s: {DisplayName} (textures={TextureCount}, geometry={GeometryDescription}).",
+                "First city object prepared in {PrepareElapsedSeconds:F3}s after scene start {ElapsedSeconds:F3}s.",
                 stopwatch.Elapsed.TotalSeconds,
-                state.Runtime.ElapsedTotalSeconds,
+                state.Runtime.ElapsedTotalSeconds);
+            logger.WriteDebug(
+                "First prepared city object detail: {DisplayName} (textures={TextureCount}, geometry={GeometryDescription}).",
                 cityObject.DisplayName,
                 preparedTextures.Length,
                 PreparedConstructionGeometryFormatter.Describe(preparedGeometry));

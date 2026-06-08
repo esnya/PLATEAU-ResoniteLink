@@ -70,7 +70,9 @@ internal sealed class PlateauImportService(
 
             ImportedSceneMetadata metadata = importedSceneSource.Metadata;
             logger.WriteInformation(
-                "Setup will use {CommonMaterialCount} codebase-reachable common materials.",
+                "Import source prepared for live send (dataset='{Dataset}', mesh='{MeshCode}', common_materials={CommonMaterialCount}).",
+                resolvedRequest.Dataset,
+                resolvedRequest.MeshCode,
                 commonMaterials.Count);
 
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
@@ -84,11 +86,11 @@ internal sealed class PlateauImportService(
                 await preflight.ValidateBeforeSinkSetupAsync(cancellationToken);
             }
 
-            logger.WriteInformation("Starting live scene initialization with codebase-reachable common materials.");
+            logger.WriteInformation("Starting live scene initialization.");
 
             int sourceCityObjectCount = 0;
             Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-            logger.WriteInformation("Handing object unit stream to sink.");
+            logger.WriteDebug("Handing object unit stream to sink.");
             CountingImportedObjectUnitStream countedObjectUnits = new(
                 importedSceneSource.ReadObjectUnitsAsync(cancellationToken),
                 cityObjectCount => sourceCityObjectCount += cityObjectCount);
@@ -98,7 +100,7 @@ internal sealed class PlateauImportService(
                 cancellationToken);
 
             cityObjectStopwatch.Stop();
-            logger.WriteInformation(
+            logger.WriteDebug(
                 "Streamed {CityObjectCount} city objects in {ElapsedSeconds:F3}s.",
                 sourceCityObjectCount,
                 cityObjectStopwatch.Elapsed.TotalSeconds);

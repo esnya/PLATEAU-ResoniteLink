@@ -41,9 +41,10 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
-        context.Logger.WriteInformation("Reusing dataset content source provided by caller.");
-        context.Logger.WriteInformation("Setting up mutable helpers (baker).");
-        context.Logger.WriteInformation("Starting setup slot setup: dataset root, assets root, common assets root, location slot, and source-file root reference.");
+        context.Logger.WriteInformation("Starting live scene setup before city-object streaming.");
+        context.Logger.WriteDebug("Reusing dataset content source provided by caller.");
+        context.Logger.WriteDebug("Setting up mutable helpers (baker).");
+        context.Logger.WriteDebug("Starting setup slot setup: dataset root, assets root, common assets root, location slot, and source-file root reference.");
         Stopwatch setupStopwatch = Stopwatch.StartNew();
         ResoniteSceneSetupState setupState = await sceneSetupInterpreter.SetupAsync(
             GetRoutedClient(context),
@@ -72,8 +73,8 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
             request.CommonMaterials,
             context.Logger,
             cancellationToken);
-        context.Logger.WriteInformation("setup fixed dataset license metadata/component before city-object streaming starts.");
-        context.Logger.WriteInformation(
+        context.Logger.WriteDebug("setup fixed dataset license metadata/component before city-object streaming starts.");
+        context.Logger.WriteDebug(
             "Dataset metadata/license phase complete during setup. Dataset root existed={DatasetRootExisted}.",
             setupState.DatasetRootExisted);
         return preparedSetup;
@@ -85,13 +86,13 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
     {
         if (setupState.CommonMaterialAssets.Count > 0)
         {
-            context.Logger.WriteInformation(
+            context.Logger.WriteDebug(
                 "Setup batch prepared {TexturelessCommonMaterialCount} textureless common materials.",
                 setupState.CommonMaterialAssets.Count);
             return;
         }
 
-        context.Logger.WriteInformation("Setup created common material slots; no textureless common material components were needed in setup batch.");
+        context.Logger.WriteDebug("Setup created common material slots; no textureless common material components were needed in setup batch.");
     }
 
     private static IResoniteLinkClient GetRoutedClient(LiveSendRunStartContext context)

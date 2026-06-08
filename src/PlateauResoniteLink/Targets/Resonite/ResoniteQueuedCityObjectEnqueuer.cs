@@ -140,8 +140,10 @@ internal sealed class ResoniteQueuedCityObjectEnqueuer : IResoniteQueuedCityObje
         if (Interlocked.CompareExchange(ref state.Progress.FirstQueuedCityObjectLogged, 1, 0) == 0)
         {
             context.Logger.WriteInformation(
-                "First city object queued after {ElapsedSeconds:F3}s: {DisplayName} ({PackageName}/{SlotKey}) estimated_workset_bytes={EstimatedWorksetBytes}.",
-                state.Runtime.ElapsedTotalSeconds,
+                "First city object queued after {ElapsedSeconds:F3}s.",
+                state.Runtime.ElapsedTotalSeconds);
+            context.Logger.WriteDebug(
+                "First queued city object detail: {DisplayName} ({PackageName}/{SlotKey}) estimated_workset_bytes={EstimatedWorksetBytes}.",
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.SlotKey,

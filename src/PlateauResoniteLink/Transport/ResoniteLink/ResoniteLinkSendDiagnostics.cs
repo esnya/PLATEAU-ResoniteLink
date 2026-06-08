@@ -68,7 +68,7 @@ internal sealed class ResoniteLinkSendDiagnostics
         }
 
         sendWindowStopwatch = Stopwatch.StartNew();
-        logger.WriteInformation(
+        logger.WriteDebug(
             "Enabled live send metrics via System.Diagnostics.Metrics (connections={ConnectionCount}).",
             connectionCount);
     }

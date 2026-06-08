@@ -60,7 +60,9 @@ internal sealed class ResoniteQueuedCityObjectWorker(
             if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectStreamingStartedLogged, 1, 0) == 0)
             {
                 context.Logger.WriteInformation(
-                    "City-object send pipeline is active and waiting for queue on lane {LaneIndex}/{ConnectionCount}.",
+                    "City-object send pipeline is active and waiting for queued objects.");
+                context.Logger.WriteDebug(
+                    "City-object send pipeline first active lane {LaneIndex}/{ConnectionCount}.",
                     laneIndex + 1,
                     context.ConnectionCount);
             }
@@ -71,10 +73,12 @@ internal sealed class ResoniteQueuedCityObjectWorker(
                 if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectDequeuedLogged, 1, 0) == 0)
                 {
                     context.Logger.WriteInformation(
-                        "First city object dequeued on lane {LaneIndex}/{ConnectionCount} after scene-start {ElapsedSeconds:F3}s: {DisplayName} ({PackageName}/{SlotKey}).",
+                        "First city object dequeued after scene-start {ElapsedSeconds:F3}s.",
+                        state.Runtime.ElapsedTotalSeconds);
+                    context.Logger.WriteDebug(
+                        "First city object dequeued on lane {LaneIndex}/{ConnectionCount}: {DisplayName} ({PackageName}/{SlotKey}).",
                         laneIndex + 1,
                         context.ConnectionCount,
-                        state.Runtime.ElapsedTotalSeconds,
                         queuedCityObject.CityObject.DisplayName,
                         queuedCityObject.CityObject.PackageName,
                         queuedCityObject.CityObject.SlotKey);
@@ -90,7 +94,7 @@ internal sealed class ResoniteQueuedCityObjectWorker(
                 currentCityObject = null;
             }
 
-            context.Logger.WriteInformation(
+            context.Logger.WriteDebug(
                 "Send lane {LaneIndex}/{ConnectionCount} drained.",
                 laneIndex + 1,
                 context.ConnectionCount);
@@ -136,14 +140,14 @@ internal sealed class ResoniteQueuedCityObjectWorker(
         ResoniteSceneSetupInfo setupInfo = state.Context.Plan.SetupInfo;
         if (laneIndex == 0)
         {
-            context.Logger.WriteInformation(
+            context.Logger.WriteDebug(
                 "Send worker {LaneIndex}/{ConnectionCount} is ready to consume from the routed connection pool.",
                 laneIndex + 1,
                 context.ConnectionCount);
         }
         else
         {
-            context.Logger.WriteInformation(
+            context.Logger.WriteDebug(
                 "Preparing send worker {LaneIndex}/{ConnectionCount} against routed connections to {Endpoint} for dataset '{Dataset}' mesh '{MeshCode}'.",
                 laneIndex + 1,
                 context.ConnectionCount,
