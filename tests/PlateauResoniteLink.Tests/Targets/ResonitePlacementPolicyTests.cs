@@ -109,6 +109,32 @@ public sealed class ResonitePlacementPolicyTests
     }
 
     [Fact]
+    public void ResolveParentOriginFromMeshRootPosition_RestoresOriginFromMeshCodeAndHorizontalPosition()
+    {
+        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin parentOrigin = new(35.6875, 139.69375, 0.0);
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 firstRootPosition =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394525");
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 secondRootPosition =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394526");
+
+        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin firstRecovered =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveParentOriginFromMeshRootPosition("53394525", firstRootPosition);
+        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin secondRecovered =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveParentOriginFromMeshRootPosition("53394526", secondRootPosition);
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 projectedFromFirst =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(firstRecovered, "53394527");
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 projectedFromSecond =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(secondRecovered, "53394527");
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 expected =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394527");
+
+        Assert.Equal(expected.X, projectedFromFirst.X, 3);
+        Assert.Equal(expected.Z, projectedFromFirst.Z, 3);
+        Assert.Equal(expected.X, projectedFromSecond.X, 3);
+        Assert.Equal(expected.Z, projectedFromSecond.Z, 3);
+    }
+
+    [Fact]
     public void FormatLodSlotName_UsesLod0ForNullLod()
     {
         string slotName = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.FormatLodSlotName(null);

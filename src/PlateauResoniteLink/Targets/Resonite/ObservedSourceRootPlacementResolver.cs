@@ -53,9 +53,7 @@ internal static class ObservedSourceRootPlacementResolver
                     : default)
                 .Where(static candidate => candidate.Slot is not null)
                 .Select(candidate => new ObservedSourceRootPlacement(
-                    ResonitePlacementPolicy.Add(
-                        GetRequiredSourceRootPosition(candidate.Slot),
-                        ResonitePlacementPolicy.ComputeMeshCodeOffset(candidate.MeshCode, rootMeshCode)),
+                    ResolvePositionFromObservedRootOrigin(candidate.MeshCode, rootMeshCode, GetRequiredSourceRootPosition(candidate.Slot)),
                     ReferenceMeshCode: candidate.MeshCode,
                     SlotId: candidate.Slot.ID ?? string.Empty))
                 .ToArray();
@@ -99,6 +97,21 @@ internal static class ObservedSourceRootPlacementResolver
         return Math.Abs(left.X - right.X) <= tolerance
             && Math.Abs(left.Y - right.Y) <= tolerance
             && Math.Abs(left.Z - right.Z) <= tolerance;
+    }
+
+    private static ResoniteFloat3 ResolvePositionFromObservedRootOrigin(
+        string observedMeshCode,
+        string rootMeshCode,
+        ResoniteFloat3 observedRootPosition)
+    {
+        ResoniteLocalOrigin observedParentOrigin = ResonitePlacementPolicy.ResolveParentOriginFromMeshRootPosition(
+            observedMeshCode,
+            observedRootPosition);
+        ResoniteFloat3 rootPosition = ResonitePlacementPolicy.ResolveMeshRootPosition(
+            observedParentOrigin,
+            rootMeshCode,
+            observedRootHeight: observedRootPosition.Y);
+        return rootPosition;
     }
 
     private static ResoniteFloat3 GetRequiredSourceRootPosition(Slot slot)
