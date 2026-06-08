@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Diagnostics;
 
 using PlateauResoniteLink.Targets.Resonite.Execution;
@@ -60,7 +61,7 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
             setupState.SceneAnchor.LocationSlot.Value,
             setupState.SceneAnchor.MeshCode,
             setupState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>");
-        LiveSendPreparedRunSetup preparedSetup = ResonitePreparedRunSetupComposer.Compose(
+        LiveSendPreparedRunSetup preparedSetup = CreatePreparedRunSetup(
             runPlan,
             setupState);
         ReportSetupCommonMaterials(setupState, context);
@@ -76,6 +77,46 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
             "Dataset metadata/license phase complete during setup. Dataset root existed={DatasetRootExisted}.",
             setupState.DatasetRootExisted);
         return preparedSetup;
+    }
+
+    private static LiveSendPreparedRunSetup CreatePreparedRunSetup(
+        LiveSendRunPlan runPlan,
+        ResoniteSceneSetupState setupState)
+    {
+        LiveSendProgressSink progress = new();
+        CommonMaterialAssetCache materials = CreateMaterialCache(setupState);
+        ResoniteSharedSlotIndex placement = new(
+            setupState.DatasetRootSlot,
+            setupState.DatasetAssetsRootSlot,
+            runPlan.RequestLocalOrigin,
+            runPlan.SourceFileSlotNamesByRelativePath,
+            setupState.SceneAnchor,
+            ResoniteSlotCreator.CreateAsync);
+        placement.IndexSetupHierarchy(setupState);
+
+        return new LiveSendPreparedRunSetup(
+            runPlan,
+            setupState,
+            progress,
+            materials,
+            placement);
+    }
+
+    private static CommonMaterialAssetCache CreateMaterialCache(
+        ResoniteSceneSetupState setupState)
+    {
+        CommonMaterialAssetCache materials = new();
+        foreach (CommonMaterialCatalogMember<ResoniteCommonMaterialAsset> materialAsset in setupState.CommonMaterialAssets.EnumerateMembers())
+        {
+            materials.CommonMaterialAssets.Set(materialAsset.Item);
+        }
+
+        foreach (string family in setupState.CommonMaterialFamilies)
+        {
+            materials.CommonMaterialFamilyWarmupTasks[family] = Task.CompletedTask;
+        }
+
+        return materials;
     }
 
     private static void ReportSetupCommonMaterials(
