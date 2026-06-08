@@ -44,7 +44,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
             };
         });
         services.TryAddScoped<IResoniteSceneSetupInterpreter, ResoniteSceneSetupInterpreter>();
-        services.TryAddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
+        services.TryAddScoped<ResoniteLiveSceneImportFactory>();
 
         return services;
     }

@@ -139,12 +139,12 @@ internal static class CliServiceCollectionExtensions
         {
             if (!string.IsNullOrWhiteSpace(options.CanonicalSceneDumpPath))
             {
-                IResoniteLiveSceneImportFactory dumpTargetFactory =
-                    scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
+                ResoniteLiveSceneImportFactory dumpTargetFactory =
+                    scope.ServiceProvider.GetRequiredService<ResoniteLiveSceneImportFactory>();
                 return new ScopedSceneSink(
                     scope,
                     CanonicalSceneDumpSink.Create(
-                        dumpTargetFactory,
+                        dumpTargetFactory.CreateTarget,
                         CreateCanonicalDumpTargetOptions(options, loggerFactory),
                         options.CanonicalSceneDumpPath));
             }
@@ -163,8 +163,8 @@ internal static class CliServiceCollectionExtensions
                 options.TerrainTileCacheRoot,
                 options.DisableTerrainTileCache,
                 loggerFactory);
-            IResoniteLiveSceneImportFactory targetFactory =
-                scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
+            ResoniteLiveSceneImportFactory targetFactory =
+                scope.ServiceProvider.GetRequiredService<ResoniteLiveSceneImportFactory>();
             ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
                 targetOptions,
                 httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName));
