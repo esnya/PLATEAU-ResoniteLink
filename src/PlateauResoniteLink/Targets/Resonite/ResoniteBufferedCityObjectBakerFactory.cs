@@ -3,9 +3,9 @@ using System;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteBufferedCityObjectBakerFactory(
-    INonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory)
+    NonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory)
 {
-    private readonly INonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory = sourceFileBakeEmitterFactory
+    private readonly NonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory = sourceFileBakeEmitterFactory
         ?? throw new ArgumentNullException(nameof(sourceFileBakeEmitterFactory));
 
     public CompositeCityObjectBaker? Create(

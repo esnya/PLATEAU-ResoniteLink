@@ -1,16 +1,9 @@
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface INonDemSourceFileBakeEmitterFactory
-{
-    INonDemSourceFileBakeEmitter Create(
-        NonDemAtlasBakeBudget atlasBudget,
-        ResoniteLocalOrigin requestLocalOrigin);
-}
-
 internal sealed class NonDemSourceFileBakeEmitterFactory(
-    ResoniteTextureImageLoader textureImageLoader) : INonDemSourceFileBakeEmitterFactory
+    ResoniteTextureImageLoader textureImageLoader)
 {
-    public INonDemSourceFileBakeEmitter Create(
+    public NonDemSourceFileBakeEmitter Create(
         NonDemAtlasBakeBudget atlasBudget,
         ResoniteLocalOrigin requestLocalOrigin)
     {

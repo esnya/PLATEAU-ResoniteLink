@@ -1105,7 +1105,7 @@ public sealed class NonDemCityObjectBakerTests
         IReadOnlyList<NonDemCityObjectBakePolicy>? bakePolicies = null,
         ResoniteImportBudgetProfile? resourceBudget = null)
     {
-        INonDemSourceFileBakeEmitter sourceFileBakeEmitter = new NonDemSourceFileBakeEmitterFactory(
+        NonDemSourceFileBakeEmitter sourceFileBakeEmitter = new NonDemSourceFileBakeEmitterFactory(
             new ResoniteTextureImageLoader()).Create(
             new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget),
             CreateRequestLocalOrigin("53394525"));
