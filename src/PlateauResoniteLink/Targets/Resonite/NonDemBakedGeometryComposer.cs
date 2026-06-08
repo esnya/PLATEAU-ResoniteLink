@@ -16,20 +16,9 @@ internal sealed record NonDemBakedGeometry(
     ResoniteImportedMesh Mesh,
     IReadOnlyList<ResoniteMaterialBinding> Materials);
 
-internal interface INonDemBakedGeometryComposer
+internal static class NonDemBakedGeometryComposer
 {
-    NonDemBakedGeometry Compose(
-        NonDemSourceFileBatchKey sourceFileKey,
-        IReadOnlyList<NonDemCityObjectBakeCandidate> candidates,
-        int batchIndex,
-        NonDemAtlasLayout<NonDemAtlasBatchEntry>? layout,
-        Image<Rgba32>? atlasImage,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
-{
-    public NonDemBakedGeometry Compose(
+    public static NonDemBakedGeometry Compose(
         NonDemSourceFileBatchKey sourceFileKey,
         IReadOnlyList<NonDemCityObjectBakeCandidate> candidates,
         int batchIndex,
