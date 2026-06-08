@@ -160,6 +160,38 @@ internal static class ResonitePlacementPolicy
             rootOffsetFromRequest.Z);
     }
 
+    public static ResoniteLocalOrigin ResolveParentOriginFromMeshRootPosition(
+        string meshCode,
+        ResoniteFloat3 rootPosition)
+    {
+        if (!PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate meshCenter))
+        {
+            return new ResoniteLocalOrigin(0.0, 0.0, 0.0);
+        }
+
+        ResoniteLocalOrigin origin = MoveOrigin(
+            new ResoniteLocalOrigin(meshCenter.Latitude, meshCenter.Longitude, meshCenter.Altitude),
+            -rootPosition.X,
+            -rootPosition.Z);
+
+        for (int iteration = 0; iteration < 6; iteration++)
+        {
+            ResoniteFloat3 projectedPosition = ComputeOriginOffset(
+                origin,
+                new ResoniteLocalOrigin(meshCenter.Latitude, meshCenter.Longitude, meshCenter.Altitude));
+            double errorX = projectedPosition.X - rootPosition.X;
+            double errorZ = projectedPosition.Z - rootPosition.Z;
+            if (Math.Abs(errorX) <= 0.001 && Math.Abs(errorZ) <= 0.001)
+            {
+                break;
+            }
+
+            origin = MoveOrigin(origin, errorX, errorZ);
+        }
+
+        return origin;
+    }
+
     public static ResonitePlacementCorrectionResult EvaluateRootPlacementCorrection(
         ResoniteLocalOrigin requestOrigin,
         string rootMeshCode,
@@ -259,6 +291,23 @@ internal static class ResonitePlacementPolicy
             currentCenter.Longitude,
             currentCenter.Altitude);
         return new ResoniteFloat3(X: eun.x, Y: 0.0, Z: eun.y);
+    }
+
+    private static ResoniteLocalOrigin MoveOrigin(
+        ResoniteLocalOrigin origin,
+        double eastMeters,
+        double northMeters)
+    {
+        LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            Geocentric.WGS84);
+        (double movedLatitude, double movedLongitude, double movedAltitude) = cartesian.Reverse(
+            eastMeters,
+            northMeters,
+            0.0);
+        return new ResoniteLocalOrigin(movedLatitude, movedLongitude, movedAltitude);
     }
 
     private static string ComputeStableHashSuffix(string value)

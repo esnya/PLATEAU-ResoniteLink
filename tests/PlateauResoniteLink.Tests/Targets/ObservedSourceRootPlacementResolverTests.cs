@@ -51,13 +51,35 @@ public sealed class ObservedSourceRootPlacementResolverTests
             [
                 CreateSlot("sibling-root", "plateau_tokyo23ku_bldg_53394525", new ResoniteFloat3(20.0, 1.0, 30.0)),
             ]);
-        ResoniteFloat3 expected = ResonitePlacementPolicy.Add(
-            new ResoniteFloat3(20.0, 1.0, 30.0),
-            ResonitePlacementPolicy.ComputeMeshCodeOffset("53394525", "53394527"));
+        ResoniteFloat3 expected = ResonitePlacementPolicy.ResolveMeshRootPosition(
+            ResonitePlacementPolicy.ResolveParentOriginFromMeshRootPosition("53394525", new ResoniteFloat3(20.0, 1.0, 30.0)),
+            "53394527",
+            observedRootHeight: 1.0);
 
         Assert.Equal(expected, placement?.Position);
         Assert.Equal("53394525", placement?.ReferenceMeshCode);
         Assert.Equal("sibling-root", placement?.SlotId);
+    }
+
+    [Fact]
+    public void TryResolveProjectsSiblingSourceRootsThroughRecoveredParentOrigin()
+    {
+        ResoniteLocalOrigin parentOrigin = new(35.6875, 139.69375, 0.0);
+        ResoniteFloat3 firstRootPosition = ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394525");
+        ResoniteFloat3 secondRootPosition = ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394526");
+
+        ObservedSourceRootPlacement? placement = ObservedSourceRootPlacementResolver.TryResolve(
+            "plateau_tokyo23ku_bldg_53394527",
+            "53394527",
+            [
+                CreateSlot("first-sibling-root", "plateau_tokyo23ku_bldg_53394525", firstRootPosition),
+                CreateSlot("second-sibling-root", "plateau_tokyo23ku_bldg_53394526", secondRootPosition),
+            ]);
+        ResoniteFloat3 expected = ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394527");
+
+        Assert.NotNull(placement);
+        Assert.Equal(expected.X, placement.Value.Position.X, 3);
+        Assert.Equal(expected.Z, placement.Value.Position.Z, 3);
     }
 
     [Fact]
