@@ -15,7 +15,7 @@ using ResoniteLink;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteCommonMaterialSetupPreparer(
-    IResoniteMaterialPlanning materialPlanning)
+    ResoniteMaterialPlanning materialPlanning)
 {
     public async Task PrepareAsync(
         IResoniteLinkClient client,

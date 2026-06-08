@@ -12,25 +12,7 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
-internal interface IResoniteMaterialPlanning
-{
-    Task<PlannedDedicatedMaterialAsset> PlanCommonMaterialAssetAsync(
-        IResoniteLinkClient importClient,
-        ResoniteMaterialBinding material,
-        AsyncInFlightResultCache<BundledTextureImportKey, Uri> bundledTextureImportTasks,
-        CancellationToken cancellationToken);
-
-    Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
-        IResoniteLinkClient importClient,
-        ResoniteMaterialBinding material,
-        int materialIndex,
-        IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
-        IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        bool preserveDedicatedMaterialSlot,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
+internal sealed class ResoniteMaterialPlanning
 {
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
