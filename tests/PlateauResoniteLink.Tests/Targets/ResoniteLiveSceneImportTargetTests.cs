@@ -22,6 +22,7 @@ using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
 namespace PlateauResoniteLink.Tests.Targets;
 
 [Trait("Category", "Slow")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Test logger factories are handed to the import target for the duration of the test.")]
 public sealed class ResoniteLiveSceneImportTargetTests
 {
     private const string DatasetName = "scene-test";
@@ -676,7 +677,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
 
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             client,
-            progressReporter: progressMessages.Add);
+            loggerFactory: new RecordingLoggerFactory(new RecordingLogger(progressMessages.Add)));
         _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             importTarget,
             metadata,

@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Transport.ResoniteLink;
 using PlateauResoniteLink.Application.Importing;
 
@@ -18,7 +21,7 @@ internal interface IResoniteGeometryAssetAssembler
         string meshAssetSlotName,
         string displayName,
         IGeometryImportSource meshSource,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken);
 
     Task<UploadedTerrainGridAssetBatch> PrepareTerrainGridAsync(
@@ -30,7 +33,7 @@ internal interface IResoniteGeometryAssetAssembler
         ITextureImportSource heightTextureSource,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken);
 }
 
@@ -41,16 +44,19 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         string meshAssetSlotName,
         string displayName,
         IGeometryImportSource meshSource,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
-        progressReporter?.Invoke(
-            PlateauLog.Debug(
-                "live",
-                $"Mesh '{displayName}' importing triangle mesh "
-                + $"(vertices={meshSource.VertexCount}, submeshes={meshSource.SubmeshCount})."));
+        logger.WriteDebug(
+            "Mesh '{DisplayName}' importing triangle mesh (vertices={VertexCount}, submeshes={SubmeshCount}).",
+            displayName,
+            meshSource.VertexCount,
+            meshSource.SubmeshCount);
         Uri assetUri = await importClient.ImportMeshAsync(meshSource, cancellationToken);
-        progressReporter?.Invoke(PlateauLog.Debug("live", $"Mesh '{displayName}' mesh import completed -> '{assetUri}'."));
+        logger.WriteDebug(
+            "Mesh '{DisplayName}' mesh import completed -> '{AssetUri}'.",
+            displayName,
+            assetUri);
         return new UploadedTriangleMeshAssetBatch(meshAssetSlotName, assetUri);
     }
 
@@ -63,15 +69,18 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         ITextureImportSource heightTextureSource,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
-        progressReporter?.Invoke(
-            PlateauLog.Debug(
-                "live",
-                $"Terrain grid '{geometry.Width}x{geometry.Height}' importing displacement texture via raw payload."));
+        logger.WriteDebug(
+            "Terrain grid '{Width}x{Height}' importing displacement texture via raw payload.",
+            geometry.Width,
+            geometry.Height);
         Uri textureUri = await importClient.ImportTextureAsync(heightTextureSource, cancellationToken);
-        progressReporter?.Invoke(PlateauLog.Debug("live", $"Terrain grid '{displayName}' displacement texture import completed -> '{textureUri}'."));
+        logger.WriteDebug(
+            "Terrain grid '{DisplayName}' displacement texture import completed -> '{TextureUri}'.",
+            displayName,
+            textureUri);
         return new UploadedTerrainGridAssetBatch(
             meshAssetSlotName,
             heightMapAssetSlotName,

@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using ResoniteLink;
 
@@ -18,14 +20,14 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
     private readonly object routeLock = new();
     private readonly IResoniteLinkClient[] clients;
     private readonly int[] activeOperationCounts;
-    private readonly Action<string>? reportProgress;
+    private readonly ILogger logger;
     private int routeCursor;
     private int disposed;
 
-    public LoadBalancingResoniteLinkClient(IReadOnlyList<IResoniteLinkClient> clients, Action<string>? reportProgress = null)
+    public LoadBalancingResoniteLinkClient(IReadOnlyList<IResoniteLinkClient> clients, ILogger? logger = null)
     {
         this.clients = clients is null ? throw new ArgumentNullException(nameof(clients)) : [.. clients];
-        this.reportProgress = reportProgress;
+        this.logger = logger ?? NullLogger.Instance;
         if (this.clients.Length == 0)
         {
             throw new ArgumentException("At least one client must be configured for load balancing.", nameof(clients));
@@ -205,11 +207,12 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
 
             activeOperationCounts[selectedRouteIndex]++;
             routeCursor = (selectedRouteIndex + 1) % clients.Length;
-            Report(
-                PlateauLog.Debug(
-                    "live",
-                    $"Routing '{operationName}' RPC to live connection {selectedRouteIndex + 1}/{clients.Length} "
-                    + $"with {activeOperationCounts[selectedRouteIndex]} active operation(s) on that connection."));
+            logger.WriteDebug(
+                "Routing '{OperationName}' RPC to live connection {RouteIndex}/{ConnectionCount} with {ActiveOperationCount} active operation(s) on that connection.",
+                operationName,
+                selectedRouteIndex + 1,
+                clients.Length,
+                activeOperationCounts[selectedRouteIndex]);
             return new RouteLease(selectedRouteIndex);
         }
     }
@@ -219,11 +222,12 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
         lock (routeLock)
         {
             activeOperationCounts[routeIndex]++;
-            Report(
-                PlateauLog.Debug(
-                    "live",
-                    $"Routing session-scoped '{operationName}' RPC to live connection {routeIndex + 1}/{clients.Length} "
-                    + $"with {activeOperationCounts[routeIndex]} active operation(s) on that connection."));
+            logger.WriteDebug(
+                "Routing session-scoped '{OperationName}' RPC to live connection {RouteIndex}/{ConnectionCount} with {ActiveOperationCount} active operation(s) on that connection.",
+                operationName,
+                routeIndex + 1,
+                clients.Length,
+                activeOperationCounts[routeIndex]);
             return new RouteLease(routeIndex);
         }
     }
@@ -243,26 +247,11 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
         for (int routeIndex = 0; routeIndex < clients.Length; routeIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Report(
-                PlateauLog.Debug(
-                    "live",
-                    $"Connecting live connection {routeIndex + 1}/{clients.Length}."));
+            logger.WriteDebug(
+                "Connecting live connection {RouteIndex}/{ConnectionCount}.",
+                routeIndex + 1,
+                clients.Length);
             await clients[routeIndex].ConnectAsync(endpoint, cancellationToken);
-        }
-    }
-
-    [SuppressMessage(
-        "Design",
-        "CA1031:Do not catch general exception types",
-        Justification = "Progress reporting is diagnostic output and must not affect load-balancer route ownership or RPC results.")]
-    private void Report(string message)
-    {
-        try
-        {
-            reportProgress?.Invoke(message);
-        }
-        catch
-        {
         }
     }
 

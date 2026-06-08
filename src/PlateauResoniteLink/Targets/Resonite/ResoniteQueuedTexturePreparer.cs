@@ -4,7 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -16,7 +19,7 @@ internal interface IResoniteQueuedTexturePreparer
         LiveSendRunState state,
         IResoniteLinkClient routedClient,
         ResoniteConstructionCityObject cityObject,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken);
 }
 
@@ -33,7 +36,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
         LiveSendRunState state,
         IResoniteLinkClient routedClient,
         ResoniteConstructionCityObject cityObject,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -62,7 +65,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
             .Select(entry => PrepareTerrainOverlayTextureReferenceAsync(
                 state,
                 routedClient,
-                progressReporter,
+                logger,
                 entry.TerrainMeshCode,
                 entry.TerrainOverlay,
                 cancellationToken))
@@ -81,7 +84,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
     private async Task<PreparedTextureReference?> PrepareTerrainOverlayTextureReferenceAsync(
         LiveSendRunState state,
         IResoniteLinkClient routedClient,
-        Action<string>? progressReporter,
+        ILogger logger,
         ThirdRegionalMeshCode terrainMeshCode,
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
@@ -98,12 +101,10 @@ internal sealed class ResoniteQueuedTexturePreparer(
                 static (_, current) => checked(current + 1));
             if (useCount == 1)
             {
-                ReportProgress(
-                    progressReporter,
-                    PlateauLog.Info(
-                        "live",
-                        $"Resolved DEM terrain texture source for package '{terrainTextureOverlay.PackageName}' "
-                        + $"to {DescribeTerrainTextureSource(usedSource)}."));
+                logger.WriteInformation(
+                    "Resolved DEM terrain texture source for package '{PackageName}' to {TerrainTextureSource}.",
+                    terrainTextureOverlay.PackageName,
+                    DescribeTerrainTextureSource(usedSource));
             }
 
             if (IsGsiFallbackSource(usedSource))
@@ -191,8 +192,4 @@ internal sealed class ResoniteQueuedTexturePreparer(
                 TextureSource: ResoniteTextureImportFactory.CreateSourceFromPayload(material.TexturePayload)));
     }
 
-    private static void ReportProgress(Action<string>? progressReporter, string message)
-    {
-        progressReporter?.Invoke(message);
-    }
 }

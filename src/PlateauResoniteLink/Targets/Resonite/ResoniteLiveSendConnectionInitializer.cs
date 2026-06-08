@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using PlateauResoniteLink.Diagnostics;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -28,35 +28,24 @@ internal sealed class ResoniteLiveSendConnectionInitializer : IResoniteLiveSendC
         ArgumentNullException.ThrowIfNull(runPlan);
         ArgumentNullException.ThrowIfNull(context);
 
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Initializing scene state for dataset '{request.SetupInfo.Dataset}' "
-                + $"mesh '{request.SetupInfo.MeshCode}' at '{runPlan.ResolvedWorkRoot}'."));
+        context.Logger.WriteInformation(
+            "Initializing scene state for dataset '{Dataset}' mesh '{MeshCode}' at '{ResolvedWorkRoot}'.",
+            request.SetupInfo.Dataset,
+            request.SetupInfo.MeshCode,
+            runPlan.ResolvedWorkRoot);
         Stopwatch connectionStopwatch = Stopwatch.StartNew();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Connecting ResoniteLink connection pool to {context.Endpoint} "
-                + $"with {request.ConnectionCount} available routed connection(s)."));
+        context.Logger.WriteInformation(
+            "Connecting ResoniteLink connection pool to {Endpoint} with {ConnectionCount} available routed connection(s).",
+            context.Endpoint,
+            request.ConnectionCount);
         await context.ClientSession.EnsureConnectedAsync(
             request.ConnectionRequest,
             cancellationToken);
         connectionStopwatch.Stop();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"ResoniteLink connection pool ready in {connectionStopwatch.Elapsed.TotalSeconds:F2}s "
-                + $"(dataset='{request.SetupInfo.Dataset}', mesh='{request.SetupInfo.MeshCode}')."));
-    }
-
-    private static void ReportProgress(
-        LiveSendRunStartContext context,
-        string message)
-    {
-        context.ProgressReporter?.Invoke(message);
+        context.Logger.WriteInformation(
+            "ResoniteLink connection pool ready in {ElapsedSeconds:F2}s (dataset='{Dataset}', mesh='{MeshCode}').",
+            connectionStopwatch.Elapsed.TotalSeconds,
+            request.SetupInfo.Dataset,
+            request.SetupInfo.MeshCode);
     }
 }

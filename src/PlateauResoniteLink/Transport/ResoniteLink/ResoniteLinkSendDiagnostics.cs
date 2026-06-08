@@ -5,7 +5,10 @@ using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -31,7 +34,7 @@ internal sealed class ResoniteLinkSendDiagnostics
         "plateauresonitelink.live.rpc_per_city_object",
         unit: "operations");
 
-    private readonly Action<string>? reporter;
+    private readonly ILogger logger;
     private readonly AsyncLocal<CityObjectSendScope?> currentScope = new();
     private readonly ConcurrentDictionary<string, long> rpcCallsByOperation = new(StringComparer.Ordinal);
     private long sentCityObjectCount;
@@ -42,19 +45,19 @@ internal sealed class ResoniteLinkSendDiagnostics
     private double totalSendDurationSeconds;
     private Stopwatch? sendWindowStopwatch;
 
-    private ResoniteLinkSendDiagnostics(bool enabled, Action<string>? reporter = null)
+    private ResoniteLinkSendDiagnostics(bool enabled, ILogger? logger = null)
     {
         Enabled = enabled;
-        this.reporter = reporter;
+        this.logger = logger ?? NullLogger.Instance;
     }
 
     public static ResoniteLinkSendDiagnostics Disabled { get; } = new(enabled: false);
 
     public bool Enabled { get; }
 
-    public static ResoniteLinkSendDiagnostics CreateEnabled(Action<string>? reporter = null)
+    public static ResoniteLinkSendDiagnostics CreateEnabled(ILogger? logger = null)
     {
-        return new ResoniteLinkSendDiagnostics(enabled: true, reporter);
+        return new ResoniteLinkSendDiagnostics(enabled: true, logger);
     }
 
     public void StartSendWindow(int connectionCount)
@@ -65,8 +68,9 @@ internal sealed class ResoniteLinkSendDiagnostics
         }
 
         sendWindowStopwatch = Stopwatch.StartNew();
-        reporter?.Invoke(
-            PlateauLog.Info("live-metrics", $"Enabled live send metrics via System.Diagnostics.Metrics (connections={connectionCount})."));
+        logger.WriteInformation(
+            "Enabled live send metrics via System.Diagnostics.Metrics (connections={ConnectionCount}).",
+            connectionCount);
     }
 
     public void CompleteSendWindow()
@@ -96,17 +100,20 @@ internal sealed class ResoniteLinkSendDiagnostics
                 .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
                 .Select(static pair => $"{pair.Key}={pair.Value}"));
 
-        reporter?.Invoke(
-            PlateauLog.Info(
-                "live-metrics",
-                $"send_window_s={elapsedSeconds:F3} sent={sentCount} "
-                + $"skipped_mesh_import_failure={skippedMeshImportFailureCount} "
-                + $"throughput_obj_per_s={throughput:F2} avg_prepare_s={averagePrepareSeconds:F4} "
-                + $"avg_send_s={averageSendSeconds:F4} avg_rpc_per_sent={averageRpcPerSentCityObject:F2} total_rpc={rpcCalls}"));
+        logger.WriteInformation(
+            "send_window_s={ElapsedSeconds:F3} sent={SentCount} skipped_mesh_import_failure={SkippedMeshImportFailureCount} throughput_obj_per_s={Throughput:F2} avg_prepare_s={AveragePrepareSeconds:F4} avg_send_s={AverageSendSeconds:F4} avg_rpc_per_sent={AverageRpcPerSentCityObject:F2} total_rpc={TotalRpcCalls}",
+            elapsedSeconds,
+            sentCount,
+            skippedMeshImportFailureCount,
+            throughput,
+            averagePrepareSeconds,
+            averageSendSeconds,
+            averageRpcPerSentCityObject,
+            rpcCalls);
 
         if (!string.IsNullOrWhiteSpace(rpcSummary))
         {
-            reporter?.Invoke(PlateauLog.Debug("live-metrics", $"rpc_breakdown {rpcSummary}"));
+            logger.WriteDebug("rpc_breakdown {RpcSummary}", rpcSummary);
         }
     }
 

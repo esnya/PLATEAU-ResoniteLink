@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 
 using GeographicLib;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
@@ -400,7 +402,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             IReadOnlyList<string> selectedMeshCodes,
             PlateauImportRequest request,
             Func<ParsedCityObject, bool>? predicate = null,
-            Action<string>? progressReporter = null,
+            ILogger? logger = null,
             CancellationToken cancellationToken = default)
         {
             _ = referenceSystem;
@@ -410,7 +412,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             _ = requestedMeshCodeBounds;
             _ = selectedMeshCodes;
             _ = request;
-            _ = progressReporter;
+            _ = logger;
             _ = cancellationToken;
             foreach (ParsedCityObject cityObject in sourceFile.CityObjects)
             {

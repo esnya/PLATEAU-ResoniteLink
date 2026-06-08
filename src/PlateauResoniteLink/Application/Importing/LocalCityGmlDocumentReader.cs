@@ -1,6 +1,7 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
+
+using Microsoft.Extensions.Logging;
 
 namespace PlateauResoniteLink.Application.Importing;
 
@@ -22,7 +23,7 @@ internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
 
     public async Task<ImportedSceneSourceSnapshot> ReadAsync(
         ResolvedLocalPlateauImportRequest request,
-        Action<string>? progressReporter = null,
+        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         return await ImportedSceneSourceDiscoveryPipeline.ReadDocumentSetCoreAsync(
@@ -30,7 +31,7 @@ internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
             datasetContentSourceFactory,
             appearanceStoreFactory,
             lodSelector,
-            progressReporter,
+            logger,
             cancellationToken);
     }
 }

@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -6,6 +7,8 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+
+using Microsoft.Extensions.Logging.Abstractions;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -60,7 +63,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                LoggerFactory: NullLoggerFactory.Instance),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
@@ -89,7 +92,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
-                    ProgressReporter: null),
+                    LoggerFactory: NullLoggerFactory.Instance),
                 terrainTextureAssetHttpClient);
         await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
@@ -203,7 +206,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
-                    ProgressReporter: null),
+                    LoggerFactory: NullLoggerFactory.Instance),
                 terrainTextureAssetHttpClient);
         await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
@@ -233,7 +236,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: "cache-root",
                     DisableTerrainTileCache: true,
-                    ProgressReporter: null),
+                    LoggerFactory: NullLoggerFactory.Instance),
                 terrainTextureAssetHttpClient);
         await using ResoniteLiveSceneImportTarget _ = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
@@ -267,7 +270,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
-                    ProgressReporter: null),
+                    LoggerFactory: NullLoggerFactory.Instance),
                 outputPath);
 
         Assert.Equal(1, importFactory.PreconfiguredCreateCallCount);
@@ -300,7 +303,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
-                    ProgressReporter: null),
+                    LoggerFactory: NullLoggerFactory.Instance),
                 terrainTextureAssetHttpClient);
         await using ResoniteLiveSceneImportTarget _ = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
@@ -352,7 +355,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
-                    ProgressReporter: null),
+                    LoggerFactory: NullLoggerFactory.Instance),
                 terrainTextureAssetHttpClient);
         await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
@@ -438,7 +441,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 enableMeshBake,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                LoggerFactory: NullLoggerFactory.Instance),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 new DelegatingClientSession(),
                 diagnostics,

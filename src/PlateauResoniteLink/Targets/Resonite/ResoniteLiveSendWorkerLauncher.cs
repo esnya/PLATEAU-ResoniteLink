@@ -1,7 +1,8 @@
 using System;
 using System.Diagnostics;
 
-using PlateauResoniteLink.Application.Logging;
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -50,11 +51,9 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
         ArgumentNullException.ThrowIfNull(context);
         int connectionCount = request.QueuePlan.ConnectionCount;
 
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Starting routed send workers (connection_pool={connectionCount})."));
+        context.Logger.WriteInformation(
+            "Starting routed send workers (connection_pool={ConnectionCount}).",
+            connectionCount);
         request.State.Progress.Reset();
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
         context.Diagnostics.StartSendWindow(connectionCount);
@@ -65,27 +64,21 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
                 connectionCount,
                 () => GetRoutedClient(context),
                 context.Diagnostics,
-                context.ProgressReporter)));
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Send lane tasks launched (connection budget={connectionCount}, "
-                + $"queue_capacity_total={request.QueuePlan.QueueCapacity}, "
-                + $"memory_budget_bytes={request.QueuePlan.MemoryBudgetBytes}, "
-                + $"memory_profile={request.ResourceBudget.Name.ToString().ToLowerInvariant()}, "
-                + $"runtime_vram_budget_bytes={request.ResourceBudget.RuntimeVramBudgetBytes})."));
+                context.Logger)));
+        context.Logger.WriteInformation(
+            "Send lane tasks launched (connection_budget={ConnectionCount}, queue_capacity_total={QueueCapacity}, memory_budget_bytes={MemoryBudgetBytes}, memory_profile={MemoryProfile}, runtime_vram_budget_bytes={RuntimeVramBudgetBytes}).",
+            connectionCount,
+            request.QueuePlan.QueueCapacity,
+            request.QueuePlan.MemoryBudgetBytes,
+            request.ResourceBudget.Name.ToString().ToLowerInvariant(),
+            request.ResourceBudget.RuntimeVramBudgetBytes);
         laneStartStopwatch.Stop();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Send workers ready against connection pool={connectionCount}."));
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Send lane startup phase complete in {laneStartStopwatch.Elapsed.TotalSeconds:F2}s."));
+        context.Logger.WriteInformation(
+            "Send workers ready against connection pool={ConnectionCount}.",
+            connectionCount);
+        context.Logger.WriteInformation(
+            "Send lane startup phase complete in {ElapsedSeconds:F2}s.",
+            laneStartStopwatch.Elapsed.TotalSeconds);
     }
 
     private static IResoniteLinkClient GetRoutedClient(LiveSendRunStartContext context)
@@ -93,10 +86,4 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
         return context.ClientSession.GetRequiredClient();
     }
 
-    private static void ReportProgress(
-        LiveSendRunStartContext context,
-        string message)
-    {
-        context.ProgressReporter?.Invoke(message);
-    }
 }

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Cli;
@@ -39,7 +40,7 @@ public sealed class CliHostFactoryTests
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                LoggerFactory: NullLoggerFactory.Instance),
             terrainTextureAssetHttpClient);
 
         Assert.Same(importTarget.Diagnostics, importTarget.ClientSession.Diagnostics);
@@ -67,7 +68,7 @@ public sealed class CliHostFactoryTests
                 CanonicalSceneDumpPath: Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json"),
                 EnableSendMetrics: true,
                 VerboseLogging: false),
-            progressReporter: null);
+            NullLoggerFactory.Instance);
 
         Assert.NotNull(sink);
     }

@@ -1,5 +1,7 @@
 using System;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -12,7 +14,7 @@ internal interface IResoniteClientSessionFactory
 }
 
 internal sealed class ResoniteLinkClientSessionFactory(
-    Func<Action<string>?, IResoniteLinkClient> baseClientFactory) : IResoniteClientSessionFactory
+    Func<ILogger, IResoniteLinkClient> baseClientFactory) : IResoniteClientSessionFactory
 {
     public ILiveSendClientSession Create(
         ResoniteLiveSceneImportTargetOptions options,
@@ -25,7 +27,7 @@ internal sealed class ResoniteLinkClientSessionFactory(
             options.Endpoint,
             options.ConnectionCount,
             diagnostics,
-            options.ProgressReporter,
+            options.LoggerFactory.CreateLogger("PlateauResoniteLink.ResoniteLink"),
             baseClientFactory);
     }
 }

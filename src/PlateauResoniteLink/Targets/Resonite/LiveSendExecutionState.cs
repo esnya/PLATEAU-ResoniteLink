@@ -16,6 +16,8 @@ internal sealed class LiveSendProgressSink
 
     public int FailedCityObjectCount;
 
+    public int QueuedCityObjectCount;
+
     public int FirstQueuedCityObjectLogged;
 
     public int FirstPreparedCityObjectLogged;
@@ -33,6 +35,7 @@ internal sealed class LiveSendProgressSink
         AttemptedCityObjectCount = 0;
         ProcessedCityObjectCount = 0;
         FailedCityObjectCount = 0;
+        QueuedCityObjectCount = 0;
         FirstQueuedCityObjectLogged = 0;
         FirstPreparedCityObjectLogged = 0;
         FirstImportedCityObjectLogged = 0;

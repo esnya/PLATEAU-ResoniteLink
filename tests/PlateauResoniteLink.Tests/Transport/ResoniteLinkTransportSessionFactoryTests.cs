@@ -4,6 +4,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -21,13 +23,13 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
     public async Task Create_UsesMetricsWrapperWhenDiagnosticsEnabled()
     {
         RecordingClientFactory clientFactory = new();
-        List<string> messages = [];
-        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.CreateEnabled(messages.Add);
+        RecordingLogger logger = new();
+        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.CreateEnabled(logger);
         ILiveSendClientSession session = ResoniteLinkTransportSessionFactory.Create(
             new Uri("ws://localhost:12345/"),
             connectionCount: 1,
             diagnostics,
-            progressReporter: null,
+            logger,
             clientFactory.Create);
 
         try
@@ -57,8 +59,8 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
             Assert.Single(clientFactory.CreatedClients);
             Assert.Equal(1, clientFactory.CreatedClients[0].ConnectCallCount);
             Assert.Equal(1, clientFactory.CreatedClients[0].AddSlotCallCount);
-            Assert.Contains(messages, static message => message.Contains("rpc_breakdown", StringComparison.Ordinal));
-            Assert.Contains(messages, static message => message.Contains("add_slot=1", StringComparison.Ordinal));
+            Assert.Contains(logger.Messages, static message => message.Contains("rpc_breakdown", StringComparison.Ordinal));
+            Assert.Contains(logger.Messages, static message => message.Contains("add_slot=1", StringComparison.Ordinal));
         }
         finally
         {
@@ -80,11 +82,52 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
     {
         public List<RecordingResoniteLinkClient> CreatedClients { get; } = [];
 
-        public RecordingResoniteLinkClient Create(Action<string>? progressReporter)
+        public RecordingResoniteLinkClient Create(ILogger logger)
         {
+            _ = logger;
             RecordingResoniteLinkClient client = new();
             CreatedClients.Add(client);
             return client;
+        }
+    }
+
+    private sealed class RecordingLogger : ILogger
+    {
+        private sealed class Scope : IDisposable
+        {
+            public static readonly Scope Instance = new();
+
+            public void Dispose()
+            {
+            }
+        }
+
+        public List<string> Messages { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull
+        {
+            _ = state;
+            return Scope.Instance;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            _ = logLevel;
+            return true;
+        }
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            _ = logLevel;
+            _ = eventId;
+            _ = exception;
+            Messages.Add(formatter(state, exception));
         }
     }
 
@@ -151,4 +194,3 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
         }
     }
 }
-

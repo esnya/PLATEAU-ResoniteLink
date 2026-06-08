@@ -62,7 +62,7 @@ internal static class CliServiceCollectionExtensions
 
 internal interface IImportServiceFactory
 {
-    PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter);
+    PlateauImportService Create(ImportCommandOptions options, ILoggerFactory loggerFactory);
 }
 
 internal interface IPlateauDatasetSourceResolverFactory
@@ -72,7 +72,7 @@ internal interface IPlateauDatasetSourceResolverFactory
 
 internal interface ISceneSinkFactory
 {
-    ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter);
+    ISceneSink Create(ImportCommandOptions options, ILoggerFactory loggerFactory);
 }
 
 internal sealed class DefaultImportServiceFactory(
@@ -86,17 +86,18 @@ internal sealed class DefaultImportServiceFactory(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "PlateauImportService owns the target lifetime and disposes it after each execution.")]
-    public PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter)
+    public PlateauImportService Create(ImportCommandOptions options, ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
         return new PlateauImportService(
-            sceneSinkFactory.Create(options, progressReporter),
+            sceneSinkFactory.Create(options, loggerFactory),
             datasetSourceResolverFactory.Create(),
             importedSceneSourceFactory,
             commonMaterials,
             archiveFileLayoutPolicy,
-            progressReporter);
+            loggerFactory);
     }
 }
 
@@ -124,9 +125,10 @@ internal sealed class DefaultSceneSinkFactory(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "The returned ScopedSceneSink owns the target and associated service scope for the import run.")]
-    public ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter)
+    public ISceneSink Create(ImportCommandOptions options, ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
         AsyncServiceScope scope = serviceScopeFactory.CreateAsyncScope();
         try
@@ -138,7 +140,7 @@ internal sealed class DefaultSceneSinkFactory(
                 return new ScopedSceneSink(
                     scope,
                     dumpSinkFactory.Create(
-                        CreateCanonicalDumpTargetOptions(options, progressReporter),
+                        CreateCanonicalDumpTargetOptions(options, loggerFactory),
                         options.CanonicalSceneDumpPath));
             }
 
@@ -155,7 +157,7 @@ internal sealed class DefaultSceneSinkFactory(
                 options.EnableMeshBake,
                 options.TerrainTileCacheRoot,
                 options.DisableTerrainTileCache,
-                progressReporter);
+                loggerFactory);
             IResoniteLiveSceneImportFactory targetFactory =
                 scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
             ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
@@ -172,7 +174,7 @@ internal sealed class DefaultSceneSinkFactory(
 
     private static ResoniteLiveSceneImportTargetOptions CreateCanonicalDumpTargetOptions(
         ImportCommandOptions options,
-        Action<string>? progressReporter)
+        ILoggerFactory loggerFactory)
     {
         return new ResoniteLiveSceneImportTargetOptions(
             new Uri("ws://localhost:1/"),
@@ -187,7 +189,7 @@ internal sealed class DefaultSceneSinkFactory(
             options.EnableMeshBake,
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: true,
-            progressReporter);
+            loggerFactory);
     }
 }
 

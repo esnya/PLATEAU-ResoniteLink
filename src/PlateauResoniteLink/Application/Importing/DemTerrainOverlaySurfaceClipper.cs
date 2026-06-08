@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -31,7 +34,7 @@ internal static class DemTerrainOverlaySurfaceClipper
     public static IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> ClipGeneratedSurfaceToOverlays(
         ParsedSurface surface,
         IReadOnlyList<TerrainTextureOverlay> overlays,
-        Action<string>? progressReporter = null,
+        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(surface);
@@ -44,7 +47,7 @@ internal static class DemTerrainOverlaySurfaceClipper
             foreach (ParsedSurface clippedSurface in ClipSurfaceCore(
                          surface,
                          [overlay.GeographicBounds],
-                         progressReporter,
+                         logger,
                          cancellationToken))
             {
                 results.Add((
@@ -59,16 +62,16 @@ internal static class DemTerrainOverlaySurfaceClipper
     public static IReadOnlyList<ParsedSurface> ClipGeneratedSurfaceToBounds(
         ParsedSurface surface,
         IReadOnlyList<GeographicRectangle> bounds,
-        Action<string>? progressReporter = null,
+        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
-        return ClipSurfaceToBounds(surface, bounds, progressReporter, cancellationToken);
+        return ClipSurfaceToBounds(surface, bounds, logger, cancellationToken);
     }
 
     public static IReadOnlyList<ParsedSurface> ClipSurfaceToBounds(
         ParsedSurface surface,
         IReadOnlyList<GeographicRectangle> bounds,
-        Action<string>? progressReporter = null,
+        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(surface);
@@ -77,14 +80,14 @@ internal static class DemTerrainOverlaySurfaceClipper
         return ClipSurfaceCore(
             surface,
             bounds,
-            progressReporter,
+            logger,
             cancellationToken);
     }
 
     private static List<ParsedSurface> ClipSurfaceCore(
         ParsedSurface surface,
         IReadOnlyList<GeographicRectangle> bounds,
-        Action<string>? progressReporter,
+        ILogger? logger,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -106,11 +109,11 @@ internal static class DemTerrainOverlaySurfaceClipper
 
             if (ShouldReportClipProgress(boundIndex, bounds.Count))
             {
-                progressReporter?.Invoke(
-                    PlateauLog.Debug(
-                        "import",
-                        $"Clipping DEM surface to geographic bound {boundIndex + 1}/{bounds.Count} "
-                        + $"(vertices={surface.ExteriorRing.Vertices.Length})."));
+                logger?.WriteDebug(
+                    "Clipping DEM surface to geographic bound {BoundIndex}/{BoundCount} (vertices={VertexCount}).",
+                    boundIndex + 1,
+                    bounds.Count,
+                    surface.ExteriorRing.Vertices.Length);
             }
 
             foreach (IReadOnlyList<ResolvedSurfaceVertex> polygon in ClipToOverlay(surface, bound, cancellationToken))

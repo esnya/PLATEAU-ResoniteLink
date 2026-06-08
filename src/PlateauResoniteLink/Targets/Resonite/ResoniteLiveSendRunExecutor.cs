@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -15,7 +17,7 @@ internal sealed record LiveSendRunExecutionContext
         int ConnectionCount,
         ILiveSendClientSession ClientSession,
         ResoniteLinkSendDiagnostics Diagnostics,
-        Action<string>? ProgressReporter)
+        ILogger Logger)
     {
         ArgumentNullException.ThrowIfNull(Endpoint);
         ArgumentOutOfRangeException.ThrowIfLessThan(ConnectionCount, 1);
@@ -26,7 +28,7 @@ internal sealed record LiveSendRunExecutionContext
         this.ConnectionCount = ConnectionCount;
         this.ClientSession = ClientSession;
         this.Diagnostics = Diagnostics;
-        this.ProgressReporter = ProgressReporter;
+        this.Logger = Logger;
     }
 
     public Uri Endpoint { get; }
@@ -37,7 +39,7 @@ internal sealed record LiveSendRunExecutionContext
 
     public ResoniteLinkSendDiagnostics Diagnostics { get; }
 
-    public Action<string>? ProgressReporter { get; }
+    public ILogger Logger { get; }
 }
 
 internal interface IResoniteLiveSendRunExecutor

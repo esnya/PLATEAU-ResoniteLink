@@ -5,7 +5,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -17,7 +20,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
-        Action<string>? progressReporter = null,
+        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -47,8 +50,10 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         MeshCodeBounds? effectiveRequestedMeshCodeBounds =
             MeshCodeBounds.TryMerge(requestedMeshCodeBounds);
         scanStopwatch.Stop();
-        progressReporter?.Invoke(
-            PlateauLog.Info("import", $"Scanned {sourceFiles.Length} matching CityGML files in {scanStopwatch.Elapsed.TotalSeconds:F3}s."));
+        logger?.WriteInformation(
+            "Scanned {SourceFileCount} matching CityGML files in {ElapsedSeconds:F3}s.",
+            sourceFiles.Length,
+            scanStopwatch.Elapsed.TotalSeconds);
 
         if (sourceFiles.Length == 0)
         {
@@ -67,7 +72,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
                 sourceFiles,
                 datasetSource,
                 requestedMeshCodeBounds,
-                progressReporter,
+                logger,
                 lodFilteringStrategy,
                 appearanceStoreFactory,
                 lodSelector,
@@ -89,8 +94,9 @@ internal static class ImportedSceneSourceDiscoveryPipeline
             resolvedGeodeticCenter.Altitude);
 
         totalStopwatch.Stop();
-        progressReporter?.Invoke(
-            PlateauLog.Info("import", $"Imported scene source ready in {totalStopwatch.Elapsed.TotalSeconds:F3}s."));
+        logger?.WriteInformation(
+            "Imported scene source ready in {ElapsedSeconds:F3}s.",
+            totalStopwatch.Elapsed.TotalSeconds);
 
         ImportedSceneSourceDataset documentSet = new(
             datasetSource,

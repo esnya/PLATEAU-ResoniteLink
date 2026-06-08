@@ -4,7 +4,10 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -56,11 +59,10 @@ internal sealed class ResoniteQueuedCityObjectWorker(
         {
             if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectStreamingStartedLogged, 1, 0) == 0)
             {
-                ReportProgress(
-                    context,
-                    PlateauLog.Info(
-                        "live",
-                        $"City-object send pipeline is active and waiting for queue on lane {laneIndex + 1}/{context.ConnectionCount}."));
+                context.Logger.WriteInformation(
+                    "City-object send pipeline is active and waiting for queue on lane {LaneIndex}/{ConnectionCount}.",
+                    laneIndex + 1,
+                    context.ConnectionCount);
             }
 
             await foreach (LiveSendQueuedCityObject queuedCityObject in reader.ReadAllAsync(cancellationToken))
@@ -68,14 +70,14 @@ internal sealed class ResoniteQueuedCityObjectWorker(
                 currentCityObject = queuedCityObject;
                 if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectDequeuedLogged, 1, 0) == 0)
                 {
-                    ReportProgress(
-                        context,
-                        PlateauLog.Info(
-                            "live",
-                            $"First city object dequeued on lane {laneIndex + 1}/{context.ConnectionCount} "
-                            + $"after scene-start {state.Runtime.ElapsedTotalSeconds:F3}s: "
-                            + $"{queuedCityObject.CityObject.DisplayName} "
-                            + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey})."));
+                    context.Logger.WriteInformation(
+                        "First city object dequeued on lane {LaneIndex}/{ConnectionCount} after scene-start {ElapsedSeconds:F3}s: {DisplayName} ({PackageName}/{SlotKey}).",
+                        laneIndex + 1,
+                        context.ConnectionCount,
+                        state.Runtime.ElapsedTotalSeconds,
+                        queuedCityObject.CityObject.DisplayName,
+                        queuedCityObject.CityObject.PackageName,
+                        queuedCityObject.CityObject.SlotKey);
                 }
 
                 await queuedCityObjectSender.SendAsync(
@@ -83,22 +85,22 @@ internal sealed class ResoniteQueuedCityObjectWorker(
                     context.GetRoutedClient(),
                     queuedCityObject,
                     context.Diagnostics,
-                    context.ProgressReporter,
+                    context.Logger,
                     cancellationToken);
                 currentCityObject = null;
             }
 
-            ReportProgress(
-                context,
-                PlateauLog.Info(
-                    "live",
-                    $"Send lane {laneIndex + 1}/{context.ConnectionCount} drained."));
+            context.Logger.WriteInformation(
+                "Send lane {LaneIndex}/{ConnectionCount} drained.",
+                laneIndex + 1,
+                context.ConnectionCount);
         }
         catch (OperationCanceledException)
         {
-            ReportProgress(
-                context,
-                PlateauLog.Warning("live", $"Send lane {laneIndex + 1}/{context.ConnectionCount} canceled."));
+            context.Logger.WriteWarning(
+                "Send lane {LaneIndex}/{ConnectionCount} canceled.",
+                laneIndex + 1,
+                context.ConnectionCount);
             throw;
         }
         catch (Exception exception)
@@ -113,11 +115,13 @@ internal sealed class ResoniteQueuedCityObjectWorker(
                     + $"({currentCityObject.CityObject.PackageName}/{currentCityObject.CityObject.SlotKey}) "
                     + $"mesh='{currentCityObject.CityObject.ActualMeshCode}' "
                     + $"sourceFile='{currentCityObject.CityObject.SourceFileRelativePath ?? "<null>"}'");
-            ReportProgress(
-                context,
-                PlateauLog.Error(
-                    "live",
-                    $"Send lane {laneIndex + 1}/{context.ConnectionCount} failed{cityObjectContext}: {exception.Message}"));
+            context.Logger.WriteError(
+                exception,
+                "Send lane {LaneIndex}/{ConnectionCount} failed{CityObjectContext}: {Reason}",
+                laneIndex + 1,
+                context.ConnectionCount,
+                cityObjectContext,
+                exception.Message);
             throw;
         }
     }
@@ -132,28 +136,23 @@ internal sealed class ResoniteQueuedCityObjectWorker(
         ResoniteSceneSetupInfo setupInfo = state.Context.Plan.SetupInfo;
         if (laneIndex == 0)
         {
-            ReportProgress(
-                context,
-                PlateauLog.Info(
-                    "live",
-                    $"Send worker {laneIndex + 1}/{context.ConnectionCount} is ready to consume from the routed connection pool."));
+            context.Logger.WriteInformation(
+                "Send worker {LaneIndex}/{ConnectionCount} is ready to consume from the routed connection pool.",
+                laneIndex + 1,
+                context.ConnectionCount);
         }
         else
         {
-            ReportProgress(
-                context,
-                PlateauLog.Info(
-                    "live",
-                    $"Preparing send worker {laneIndex + 1}/{context.ConnectionCount} "
-                    + $"against routed connections to {context.Endpoint} for dataset '{setupInfo.Dataset}' mesh '{setupInfo.MeshCode}'."));
+            context.Logger.WriteInformation(
+                "Preparing send worker {LaneIndex}/{ConnectionCount} against routed connections to {Endpoint} for dataset '{Dataset}' mesh '{MeshCode}'.",
+                laneIndex + 1,
+                context.ConnectionCount,
+                context.Endpoint,
+                setupInfo.Dataset,
+                setupInfo.MeshCode);
         }
 
         await ProcessQueuedCityObjectsAsync(state, context, reader, laneIndex, cancellationToken);
-    }
-
-    private static void ReportProgress(LiveSendWorkerContext context, string message)
-    {
-        context.ProgressReporter?.Invoke(message);
     }
 
     private static void TryMarkProcessingFailure(LiveSendRunState state, Exception exception)
@@ -174,7 +173,7 @@ internal sealed record LiveSendWorkerContext
         int ConnectionCount,
         Func<IResoniteLinkClient> GetRoutedClient,
         ResoniteLinkSendDiagnostics Diagnostics,
-        Action<string>? ProgressReporter)
+        ILogger Logger)
     {
         ArgumentNullException.ThrowIfNull(Endpoint);
         ArgumentOutOfRangeException.ThrowIfLessThan(ConnectionCount, 1);
@@ -185,7 +184,7 @@ internal sealed record LiveSendWorkerContext
         this.ConnectionCount = ConnectionCount;
         this.GetRoutedClient = GetRoutedClient;
         this.Diagnostics = Diagnostics;
-        this.ProgressReporter = ProgressReporter;
+        this.Logger = Logger;
     }
 
     public Uri Endpoint { get; }
@@ -196,5 +195,5 @@ internal sealed record LiveSendWorkerContext
 
     public ResoniteLinkSendDiagnostics Diagnostics { get; }
 
-    public Action<string>? ProgressReporter { get; }
+    public ILogger Logger { get; }
 }

@@ -5,7 +5,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
@@ -18,7 +21,7 @@ internal interface IResoniteSceneBatchEmitter
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
-        Action<string>? reportProgress,
+        ILogger logger,
         CancellationToken cancellationToken);
 }
 
@@ -28,17 +31,17 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
-        Action<string>? reportProgress,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
-        return ExecuteCoreAsync(client, cityObject, batchEmission, reportProgress, cancellationToken);
+        return ExecuteCoreAsync(client, cityObject, batchEmission, logger, cancellationToken);
     }
 
     private static async Task ExecuteCoreAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
-        Action<string>? reportProgress,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
@@ -73,11 +76,11 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
                 && pointsMember is Field_int2 points
                 && displacementMember is Field_float displacement)
             {
-                reportProgress?.Invoke(
-                    PlateauLog.Debug(
-                        "live",
-                        "Terrain grid displacement texture ready. Creating GridMesh "
-                        + $"({points.Value.x}x{points.Value.y}, displacement={displacement.Value:F3})."));
+                logger.WriteDebug(
+                    "Terrain grid displacement texture ready. Creating GridMesh ({Width}x{Height}, displacement={Displacement:F3}).",
+                    points.Value.x,
+                    points.Value.y,
+                    displacement.Value);
             }
 
             ResoniteBatchOperations.PendingBatchComponent pendingComponent = batchBuilder.AddComponent(
@@ -91,11 +94,12 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         Stopwatch batchStopwatch = Stopwatch.StartNew();
         BatchResponse batchResponse = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
         batchStopwatch.Stop();
-        reportProgress?.Invoke(
-            PlateauLog.Debug(
-                "live",
-                $"City object '{cityObject.DisplayName}' batch completed in {batchStopwatch.Elapsed.TotalSeconds:F3}s "
-                + $"(operations={operationCount}, est_payload_bytes={EstimateBatchPayloadBytes(operationCount)})."));
+        logger.WriteDebug(
+            "City object '{DisplayName}' batch completed in {ElapsedSeconds:F3}s (operations={OperationCount}, est_payload_bytes={EstimatedPayloadBytes}).",
+            cityObject.DisplayName,
+            batchStopwatch.Elapsed.TotalSeconds,
+            operationCount,
+            EstimateBatchPayloadBytes(operationCount));
 
         CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
         canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingActions);

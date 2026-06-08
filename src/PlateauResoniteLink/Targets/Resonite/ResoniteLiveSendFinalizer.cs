@@ -4,8 +4,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -46,33 +49,32 @@ internal sealed class ResoniteLiveSendFinalizer(
                 cancellationToken);
         }
 
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Completing live send. Closing lane writers (attempted={state.Progress.AttemptedCityObjectCount}, "
-                + $"processed={state.Progress.ProcessedCityObjectCount}, failed={state.Progress.FailedCityObjectCount})."));
+        context.Logger.WriteInformation(
+            "Completing live send. Closing lane writers (attempted={AttemptedCount}, processed={ProcessedCount}, failed={FailedCount}, queued_source={QueuedSourceCount}).",
+            state.Progress.AttemptedCityObjectCount,
+            state.Progress.ProcessedCityObjectCount,
+            state.Progress.FailedCityObjectCount,
+            state.Progress.QueuedCityObjectCount);
         runtime.CompleteWriter();
 
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Awaiting {runtime.ProcessingTaskCount} send lane task(s) to drain after queue close."));
+        context.Logger.WriteInformation(
+            "Awaiting {ProcessingTaskCount} send lane task(s) to drain after queue close.",
+            runtime.ProcessingTaskCount);
         await runtime.AwaitCompletionAsync(cancellationToken);
-        ReportProgress(context, PlateauLog.Info("live", "All send lanes drained and completion barrier passed."));
+        context.Logger.WriteInformation("All send lanes drained and completion barrier passed.");
         context.Diagnostics.CompleteSendWindow();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Completed {state.Progress.ProcessedCityObjectCount} city objects "
-                + $"(failed={state.Progress.FailedCityObjectCount}, attempted={state.Progress.AttemptedCityObjectCount})."));
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Send summary: attempted={state.Progress.AttemptedCityObjectCount} sent={state.Progress.ProcessedCityObjectCount} failed={state.Progress.FailedCityObjectCount}."));
+        context.Logger.WriteInformation(
+            "Completed {ProcessedCount} city objects (failed={FailedCount}, attempted={AttemptedCount}, queued_source={QueuedSourceCount}).",
+            state.Progress.ProcessedCityObjectCount,
+            state.Progress.FailedCityObjectCount,
+            state.Progress.AttemptedCityObjectCount,
+            state.Progress.QueuedCityObjectCount);
+        context.Logger.WriteInformation(
+            "Send summary: attempted={AttemptedCount} sent={SentCount} failed={FailedCount} queued_source={QueuedSourceCount}.",
+            state.Progress.AttemptedCityObjectCount,
+            state.Progress.ProcessedCityObjectCount,
+            state.Progress.FailedCityObjectCount,
+            state.Progress.QueuedCityObjectCount);
 
         return new SceneImportExecutionResult(
             [$"{context.Endpoint}#{state.Placement.SceneAnchor?.LocationSlot.Value ?? runContext.DatasetRootSlot.Locator.Value}"],
@@ -97,7 +99,7 @@ internal sealed class ResoniteLiveSendFinalizer(
                 ", ",
                 pendingBakeSummaries.Select(static summary =>
                     $"{summary.Name}: input={summary.InputCount}, currentOutput={summary.OutputCount}"));
-            ReportProgress(context, PlateauLog.Info("live", $"Starting buffered bake flush: {summaryText}."));
+            context.Logger.WriteInformation("Starting buffered bake flush: {SummaryText}.", summaryText);
         }
 
         Stopwatch bakeFlushStopwatch = Stopwatch.StartNew();
@@ -107,21 +109,18 @@ internal sealed class ResoniteLiveSendFinalizer(
             context.EnqueueContext,
             cancellationToken);
         bakeFlushStopwatch.Stop();
-        ReportProgress(
-            context,
-            PlateauLog.Info(
-                "live",
-                $"Buffered bake flush produced {bakedCityObjectCount} baked city objects "
-                + $"in {bakeFlushStopwatch.Elapsed.TotalSeconds:F3}s."));
+        context.Logger.WriteInformation(
+            "Buffered bake flush produced {BakedCityObjectCount} baked city objects in {ElapsedSeconds:F3}s.",
+            bakedCityObjectCount,
+            bakeFlushStopwatch.Elapsed.TotalSeconds);
 
         foreach ((string name, int inputCount, int outputCount) in cityObjectBaker.GetBakeSummaries().Where(static summary => summary.OutputCount > 0))
         {
-            ReportProgress(
-                context,
-                PlateauLog.Debug(
-                    "live",
-                    $"{name} batched {inputCount} input city objects "
-                    + $"into {outputCount} baked batch objects."));
+            context.Logger.WriteDebug(
+                "{Name} batched {InputCount} input city objects into {OutputCount} baked batch objects.",
+                name,
+                inputCount,
+                outputCount);
         }
     }
 
@@ -141,10 +140,6 @@ internal sealed class ResoniteLiveSendFinalizer(
         return source.Description;
     }
 
-    private static void ReportProgress(LiveSendFinalizationContext context, string message)
-    {
-        context.ProgressReporter?.Invoke(message);
-    }
 }
 
 internal sealed record LiveSendFinalizationContext
@@ -153,7 +148,7 @@ internal sealed record LiveSendFinalizationContext
         Uri Endpoint,
         LiveSendEnqueueContext EnqueueContext,
         ResoniteLinkSendDiagnostics Diagnostics,
-        Action<string>? ProgressReporter)
+        ILogger Logger)
     {
         ArgumentNullException.ThrowIfNull(Endpoint);
         ArgumentNullException.ThrowIfNull(EnqueueContext);
@@ -162,7 +157,7 @@ internal sealed record LiveSendFinalizationContext
         this.Endpoint = Endpoint;
         this.EnqueueContext = EnqueueContext;
         this.Diagnostics = Diagnostics;
-        this.ProgressReporter = ProgressReporter;
+        this.Logger = Logger;
     }
 
     public Uri Endpoint { get; }
@@ -171,5 +166,5 @@ internal sealed record LiveSendFinalizationContext
 
     public ResoniteLinkSendDiagnostics Diagnostics { get; }
 
-    public Action<string>? ProgressReporter { get; }
+    public ILogger Logger { get; }
 }

@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -27,7 +29,7 @@ public sealed class LiveSendClientSessionTests
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
             ResoniteLinkSendDiagnostics.Disabled,
-            progressReporter: null);
+            NullLogger.Instance);
 
         await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
 
@@ -47,7 +49,7 @@ public sealed class LiveSendClientSessionTests
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
             ResoniteLinkSendDiagnostics.Disabled,
-            progressReporter: null);
+            NullLogger.Instance);
 
         await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
         IResoniteLinkClient client = session.GetRequiredClient();
@@ -71,7 +73,7 @@ public sealed class LiveSendClientSessionTests
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
             ResoniteLinkSendDiagnostics.Disabled,
-            progressReporter: null);
+            NullLogger.Instance);
 
         await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
         IResoniteLinkClient client = session.GetRequiredClient();
@@ -95,7 +97,7 @@ public sealed class LiveSendClientSessionTests
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
             ResoniteLinkSendDiagnostics.Disabled,
-            progressReporter: null);
+            NullLogger.Instance);
 
         await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
         IResoniteLinkClient client = session.GetRequiredClient();
@@ -135,13 +137,13 @@ public sealed class LiveSendClientSessionTests
     }
 
     [Fact]
-    public async Task LoadBalancingClientIgnoresProgressReporterExceptions()
+    public async Task LoadBalancingClientPinsStateCallsWhenLoggerIsNullLogger()
     {
         using RecordingResoniteLinkClient firstClient = new(true, 0);
         using RecordingResoniteLinkClient secondClient = new(true, 0);
         using LoadBalancingResoniteLinkClient loadBalancedClient = new(
             [firstClient, secondClient],
-            _ => throw new InvalidOperationException("Progress sink failed."));
+            NullLogger.Instance);
 
         await loadBalancedClient.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
         await loadBalancedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
@@ -162,7 +164,7 @@ public sealed class LiveSendClientSessionTests
             new Uri("ws://localhost:12345/"),
             connectionCount: 2,
             ResoniteLinkSendDiagnostics.Disabled,
-            progressReporter: null);
+            NullLogger.Instance);
 
         InvalidOperationException thrown = await Assert.ThrowsAsync<InvalidOperationException>(
             () => session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None));
@@ -184,7 +186,7 @@ public sealed class LiveSendClientSessionTests
             new Uri("ws://localhost:12345/"),
             connectionCount,
             ResoniteLinkSendDiagnostics.Disabled,
-            progressReporter: null);
+            NullLogger.Instance);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None));
@@ -199,7 +201,7 @@ public sealed class LiveSendClientSessionTests
             new Uri("ws://localhost:12345/"),
             connectionCount: 2,
             ResoniteLinkSendDiagnostics.Disabled,
-            progressReporter: null);
+            NullLogger.Instance);
 
         LiveSendConnectionRequest connectionRequest = CreateConnectionRequest();
 
