@@ -56,9 +56,29 @@ internal static class PlateauImportServiceCollectionExtensions
         });
         services.TryAddSingleton<CityGmlGeometryProjector>(provider =>
         {
-            LocalCityGmlGeometryProjector projector = new(
-                provider.GetRequiredService<ResolveDefaultMaterial>());
-            return projector.ProjectCityObjects;
+            ResolveDefaultMaterial materialResolver = provider.GetRequiredService<ResolveDefaultMaterial>();
+            return (
+                sourceFile,
+                referenceSystem,
+                globalOriginPoint,
+                globalCartesian,
+                demTerrainTextureOverlays,
+                requestedMeshCodeBounds,
+                request,
+                predicate,
+                progressReporter,
+                cancellationToken) => LocalCityGmlObjectProjection.ProjectCityObjects(
+                    sourceFile,
+                    referenceSystem,
+                    globalOriginPoint,
+                    globalCartesian,
+                    demTerrainTextureOverlays,
+                    requestedMeshCodeBounds,
+                    request,
+                    materialResolver,
+                    predicate,
+                    progressReporter,
+                    cancellationToken);
         });
         services.TryAddSingleton<ImportedObjectUnitOptimizer>(
             _ => ImportedDynamicMaterialUvUnitOptimizer.OptimizeAsync);
