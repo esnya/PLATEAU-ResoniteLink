@@ -57,13 +57,18 @@ public sealed class LocalCityGmlDocumentReaderTests
     [Fact]
     public async Task ReadAsyncUsesSelectedMeshCodesForDiscoveryOriginWhenExactRequestMatchesParentSourceFiles()
     {
-        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+        CountingDatasetContentSource datasetSource = new(
+            "C:\\fixtures\\plateau-parent-mesh",
+            [
+                "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
+                "udx/tran/533945/plateau_tokyo23ku_tran_533945.gml",
+            ]);
         LocalCityGmlDocumentReader reader = new(
-            CreateDatasetContentSourceAsync,
+            CreateStubDatasetContentSourceAsync(datasetSource),
             CityGmlAppearanceStore.Create);
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
-            CreateResolvedRequest(fixturePath, ["dem", "tran"]));
+            CreateResolvedRequest(datasetSource.SourcePath, ["dem", "tran"]));
 
         GeodeticCoordinate expectedOrigin = MeshCodeBounds.TryParse("53394525")!.GetGeodeticCenter();
         Assert.Equal(["53394525"], readResult.DocumentSet.SelectedMeshCodes);

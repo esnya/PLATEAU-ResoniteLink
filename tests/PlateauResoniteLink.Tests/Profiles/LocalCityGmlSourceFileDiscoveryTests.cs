@@ -37,11 +37,13 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
     [Fact]
     public void DiscoverFiltersPackagesAndKeepsParentMeshMatches()
     {
-        string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
-        IEnumerable<string> relativePaths = GetRelativeGmlPaths(datasetRoot);
-
         LocalCityGmlSourceFileDiscoveryResult discoveryResult = LocalCityGmlSourceFileDiscovery.Discover(
-            relativePaths,
+            [
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
+                "udx/luse/533945/plateau_tokyo23ku_luse_533945.gml",
+                "udx/tran/533945/plateau_tokyo23ku_tran_533945.gml",
+            ],
             "53394525",
             ["waterbody", "tran", "dem"]);
         LocalCityGmlSourceFileDescriptor[] result = discoveryResult.SourceFiles.ToArray();
@@ -112,11 +114,13 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
     [Fact]
     public void DiscoverRegexSelectionKeepsParentMeshFilesForMatchedDetailedMeshes()
     {
-        string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
-        IEnumerable<string> relativePaths = GetRelativeGmlPaths(datasetRoot);
-
         LocalCityGmlSourceFileDiscoveryResult discoveryResult = LocalCityGmlSourceFileDiscovery.Discover(
-            relativePaths,
+            [
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
+                "udx/luse/533945/plateau_tokyo23ku_luse_533945.gml",
+                "udx/tran/533945/plateau_tokyo23ku_tran_533945.gml",
+            ],
             "5339452.",
             ["dem", "tran"]);
         LocalCityGmlSourceFileDescriptor[] result = discoveryResult.SourceFiles.ToArray();
