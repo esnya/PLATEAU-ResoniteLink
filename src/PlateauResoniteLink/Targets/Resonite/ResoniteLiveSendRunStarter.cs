@@ -219,7 +219,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         return enableMeshBake
             ? new CompositeCityObjectBaker(
                 new NonDemCityObjectBaker(
-                    bakePolicyResolver: new NonDemCityObjectBakePolicyResolver(NonDemCityObjectBakePolicies.DefaultPolicies),
+                    bakePolicies: NonDemCityObjectBakePolicies.DefaultPolicies,
                     sourceFileBakeEmitter: CreateSourceFileBakeEmitter(
                         new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget),
                         requestLocalOrigin)))

@@ -419,7 +419,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     {
         CompositeCityObjectBaker baker = new(
             new NonDemCityObjectBaker(
-                new NonDemCityObjectBakePolicyResolver(NonDemCityObjectBakePolicies.DefaultPolicies),
+                NonDemCityObjectBakePolicies.DefaultPolicies,
                 CreateSourceFileBakeEmitter(
                     new NonDemAtlasBakeBudget(ResourceBudget: ResoniteImportBudgetProfiles.ForProfile(memoryProfile)),
                     CreateRequestLocalOrigin("53394525"))));

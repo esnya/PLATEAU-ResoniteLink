@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemCityObjectBaker(
-    NonDemCityObjectBakePolicyResolver bakePolicyResolver,
+    IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies,
     NonDemSourceFileBakeEmitter sourceFileBakeEmitter)
 {
     private readonly NonDemSourceFileBakeBuffer sourceFileBuffer = new();
-    private readonly NonDemCityObjectBakePolicyResolver bakePolicyResolver = bakePolicyResolver
-        ?? throw new ArgumentNullException(nameof(bakePolicyResolver));
+    private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
+        ?? throw new ArgumentNullException(nameof(bakePolicies));
     private readonly NonDemSourceFileBakeEmitter sourceFileBakeEmitter = sourceFileBakeEmitter
         ?? throw new ArgumentNullException(nameof(sourceFileBakeEmitter));
 
@@ -28,7 +28,7 @@ internal sealed class NonDemCityObjectBaker(
         ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
 
-        NonDemCityObjectBakePolicy? policy = bakePolicyResolver.Resolve(cityObject);
+        NonDemCityObjectBakePolicy? policy = ResolveBakePolicy(cityObject);
         if (policy is null)
         {
             return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
@@ -101,5 +101,19 @@ internal sealed class NonDemCityObjectBaker(
         {
             sourceFileBuffer.Complete(bufferEntry, emittedCount);
         }
+    }
+
+    private NonDemCityObjectBakePolicy? ResolveBakePolicy(ResoniteConstructionCityObject cityObject)
+    {
+        foreach (NonDemCityObjectBakePolicy policy in bakePolicies)
+        {
+            if (policy.CanBuffer(cityObject)
+                && NonDemCityObjectBakeMaterialClassifier.CanBufferCityObjectMaterials(cityObject, policy))
+            {
+                return policy;
+            }
+        }
+
+        return null;
     }
 }

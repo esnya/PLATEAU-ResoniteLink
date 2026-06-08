@@ -1106,7 +1106,7 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteImportBudgetProfile? resourceBudget = null)
     {
         return new NonDemCityObjectBaker(
-            new NonDemCityObjectBakePolicyResolver(bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies),
+            bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies,
             CreateSourceFileBakeEmitter(
                 new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget),
                 CreateRequestLocalOrigin("53394525")));
