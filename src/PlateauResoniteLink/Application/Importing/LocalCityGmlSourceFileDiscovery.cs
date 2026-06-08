@@ -75,8 +75,7 @@ internal static class LocalCityGmlSourceFileDiscovery
     {
         string[] selectedMeshCodes = candidates
             .Where(static candidate => candidate.IsRequestedPackage)
-            .SelectMany(candidate => candidate.FileMeshCodes
-                .Concat(candidate.DirectoryMeshCodes)
+            .SelectMany(candidate => EnumerateCandidateMeshCodesForSelection(candidate)
                 .SelectMany(meshCode => matcher.GetSelectedMeshCodes(meshCode, candidate.PackageName)))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
@@ -97,6 +96,25 @@ internal static class LocalCityGmlSourceFileDiscovery
             .ToArray();
 
         return new LocalCityGmlSourceFileDiscoveryResult(sourceFiles, selectedMeshCodes);
+    }
+
+    private static IEnumerable<string> EnumerateCandidateMeshCodesForSelection(
+        LocalCityGmlDatasetSourceFileCandidate candidate)
+    {
+        if (string.Equals(candidate.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        {
+            string[] detailedMeshCodes = candidate.FileMeshCodes
+                .Concat(candidate.DirectoryMeshCodes)
+                .Where(static meshCode => meshCode.Length == 8)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (detailedMeshCodes.Length > 0)
+            {
+                return detailedMeshCodes;
+            }
+        }
+
+        return candidate.FileMeshCodes.Concat(candidate.DirectoryMeshCodes);
     }
 
     private static LocalCityGmlDatasetSourceFileCandidate? CreateCandidateSourceFile(
@@ -165,17 +183,16 @@ internal static class LocalCityGmlSourceFileDiscovery
             return null;
         }
 
-        string? matchedMeshCode = matcher.Match(candidate.FileMeshCodes, requestedMeshCodes)
-            ?? matcher.Match(candidate.DirectoryMeshCodes, requestedMeshCodes);
-        if (matchedMeshCode is not null)
+        string? matchedFileMeshCode = matcher.Match(candidate.FileMeshCodes, requestedMeshCodes);
+        if (matchedFileMeshCode is not null)
         {
             return new LocalCityGmlSourceFileDescriptor(
                 candidate.AbsolutePath,
                 candidate.RelativePath,
                 candidate.PackageName,
-                matchedMeshCode,
-                matcher.RequiresMeshCodeBoundsFilter(matchedMeshCode)
-                || RequiresParentDemMeshCodeBoundsFilter(candidate.PackageName, matchedMeshCode, requestedMeshCodes));
+                matchedFileMeshCode,
+                matcher.RequiresMeshCodeBoundsFilter(matchedFileMeshCode)
+                || RequiresParentDemMeshCodeBoundsFilter(candidate.PackageName, matchedFileMeshCode, requestedMeshCodes));
         }
 
         string? requestedDemDetailedMeshCode = TryMatchRequestedDemDetailedMeshCode(candidate, requestedMeshCodes);
@@ -187,6 +204,18 @@ internal static class LocalCityGmlSourceFileDiscovery
                 candidate.PackageName,
                 requestedDemDetailedMeshCode,
                 RequiresMeshCodeBoundsFilter: false);
+        }
+
+        string? matchedDirectoryMeshCode = matcher.Match(candidate.DirectoryMeshCodes, requestedMeshCodes);
+        if (matchedDirectoryMeshCode is not null)
+        {
+            return new LocalCityGmlSourceFileDescriptor(
+                candidate.AbsolutePath,
+                candidate.RelativePath,
+                candidate.PackageName,
+                matchedDirectoryMeshCode,
+                matcher.RequiresMeshCodeBoundsFilter(matchedDirectoryMeshCode)
+                || RequiresParentDemMeshCodeBoundsFilter(candidate.PackageName, matchedDirectoryMeshCode, requestedMeshCodes));
         }
 
         string? parentMeshCode = candidate.FileMeshCodes
