@@ -61,10 +61,9 @@ internal sealed class ResoniteLiveSceneImportFactory(
         GenerateTerrainTexture generateTerrainTexture)
     {
         ResoniteQueuedCityObjectPreparation cityObjectPreparation = new(generateTerrainTexture);
-        ResoniteQueuedCityObjectSender queuedCityObjectSender = new(
+        return new ResoniteQueuedCityObjectWorker(
             cityObjectPreparation,
             preparedCityObjectImporter);
-        return new ResoniteQueuedCityObjectWorker(queuedCityObjectSender);
     }
 
     private static ResoniteLiveSceneImportDependencies CreateDependencies(
