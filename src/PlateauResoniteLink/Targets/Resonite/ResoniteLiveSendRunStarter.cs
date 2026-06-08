@@ -85,7 +85,7 @@ internal sealed record LiveSendRunStartContext
 
 internal sealed class ResoniteLiveSendRunStarter(
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
-    ResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory,
+    NonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory,
     ResoniteLiveSendWorkerLauncher workerLauncher)
 {
     private const int MaxQueuedCityObjects = 4;
@@ -156,7 +156,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         ResoniteSharedSlotIndex placement,
         CancellationToken cancellationToken)
     {
-        CompositeCityObjectBaker? cityObjectBaker = cityObjectBakerFactory.Create(
+        CompositeCityObjectBaker? cityObjectBaker = CreateCityObjectBaker(
             runPlan.MeshBakeEnabled,
             runPlan.ResourceBudget);
         LiveSendRunContext context = new(
@@ -177,5 +177,24 @@ internal sealed class ResoniteLiveSendRunStarter(
             GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
             DemSourceUseCounts = new ConcurrentDictionary<TerrainTextureSource, int>(),
         };
+    }
+
+    private CompositeCityObjectBaker? CreateCityObjectBaker(
+        bool enableMeshBake,
+        ResoniteImportBudgetProfile resourceBudget)
+    {
+        _ = resourceBudget.Name switch
+        {
+            ResoniteImportMemoryProfile.Small or ResoniteImportMemoryProfile.Large => true,
+            _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
+        };
+
+        return enableMeshBake
+            ? new CompositeCityObjectBaker(
+                new NonDemCityObjectBaker(
+                    bakePolicyResolver: new NonDemCityObjectBakePolicyResolver(NonDemCityObjectBakePolicies.DefaultPolicies),
+                    sourceFileBakeEmitter: sourceFileBakeEmitterFactory.Create(
+                        new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget))))
+            : null;
     }
 }
