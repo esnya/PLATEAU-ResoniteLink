@@ -24,7 +24,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
                 PixelHeightMeters: 0.8));
         DefaultDemTextureSourcePolicy policy = new(
             CreateRasterCatalogFactory(
-                new StubDemTerrainGeoReferencedRasterCatalog(
+                CreateStubRasterResolver(
                     new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["53394525"] = rasterSource,
@@ -63,7 +63,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
                 PixelHeightMeters: 0.01));
         DefaultDemTextureSourcePolicy policy = new(
             CreateRasterCatalogFactory(
-                new StubDemTerrainGeoReferencedRasterCatalog(
+                CreateStubRasterResolver(
                     new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["53394525"] = rasterSource,
@@ -104,7 +104,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
                 ortho19PixelSize.PixelHeightMeters));
         DefaultDemTextureSourcePolicy policy = new(
             CreateRasterCatalogFactory(
-                new StubDemTerrainGeoReferencedRasterCatalog(
+                CreateStubRasterResolver(
                     new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["53394525"] = rasterSource,
@@ -130,7 +130,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
     {
         DefaultDemTextureSourcePolicy policy = new(
             CreateRasterCatalogFactory(
-                new StubDemTerrainGeoReferencedRasterCatalog(
+                CreateStubRasterResolver(
                     new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase))));
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -152,7 +152,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
     {
         DefaultDemTextureSourcePolicy policy = new(
             CreateRasterCatalogFactory(
-                catalog: null));
+                resolver: null));
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -224,7 +224,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
     {
         DefaultDemTextureSourcePolicy policy = new(
             CreateRasterCatalogFactory(
-                catalog: null));
+                resolver: null));
 
         IReadOnlyList<TerrainTextureOverlay> overlays = policy.CreateMapTileFallbackOverlays(
             [
@@ -257,19 +257,20 @@ public sealed class DefaultDemTextureSourcePolicyTests
         Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
     }
 
-    private static Func<DatasetLocation?, CancellationToken, Task<IDemTerrainGeoReferencedRasterCatalog?>> CreateRasterCatalogFactory(
-        IDemTerrainGeoReferencedRasterCatalog? catalog)
+    private static Func<DatasetLocation?, CancellationToken, Task<DemTerrainGeoReferencedRasterResolver?>> CreateRasterCatalogFactory(
+        DemTerrainGeoReferencedRasterResolver? resolver)
     {
-        return (_, _) => Task.FromResult(catalog);
+        return (_, _) => Task.FromResult(resolver);
     }
 
-    private sealed class StubDemTerrainGeoReferencedRasterCatalog(
+    private static DemTerrainGeoReferencedRasterResolver CreateStubRasterResolver(
         IReadOnlyDictionary<string, TerrainTextureGeoReferencedRasterSource?> rasterSourcesByMeshCode)
-        : IDemTerrainGeoReferencedRasterCatalog
     {
-        public DemTerrainRasterSourceScope CacheScope { get; } = new("C:\\ortho");
+        return new DemTerrainGeoReferencedRasterResolver(
+            new DemTerrainRasterSourceScope("C:\\ortho"),
+            TryResolveRasterSourceAsync);
 
-        public Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
+        Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
             DemTerrainRasterCacheKey cacheKey,
             ThirdRegionalMeshCode meshCode,
             GeographicRectangle overlayBounds,
@@ -277,6 +278,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
         {
             _ = cacheKey;
             _ = overlayBounds;
+            _ = cancellationToken;
             rasterSourcesByMeshCode.TryGetValue(meshCode.Value, out TerrainTextureGeoReferencedRasterSource? rasterSource);
             return Task.FromResult(rasterSource);
         }
