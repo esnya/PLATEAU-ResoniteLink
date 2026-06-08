@@ -52,9 +52,17 @@ internal static class CliServiceCollectionExtensions
                 _.GetRequiredService<IHttpClientFactory>().CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName),
                 _.GetRequiredService<IRemoteArchiveDistributionPolicy>(),
                 _.GetRequiredService<IArchiveFileLayoutPolicy>()));
-        services.AddSingleton<DefaultSceneSinkFactory>();
         services.AddSingleton<Func<ImportCommandOptions, Action<string>?, ISceneSink>>(_ =>
-            _.GetRequiredService<DefaultSceneSinkFactory>().Create);
+        {
+            IHttpClientFactory httpClientFactory = _.GetRequiredService<IHttpClientFactory>();
+            IServiceScopeFactory serviceScopeFactory = _.GetRequiredService<IServiceScopeFactory>();
+
+            return (options, progressReporter) => CliServiceCollectionExtensions.CreateSceneSink(
+                httpClientFactory,
+                serviceScopeFactory,
+                options,
+                progressReporter);
+        });
         services.AddSingleton<Func<ImportCommandOptions, Action<string>?, PlateauImportService>>(_ =>
         {
             Func<IPlateauDatasetSourceResolver> createDatasetSourceResolver =
@@ -109,18 +117,19 @@ internal static class CliServiceCollectionExtensions
             archiveFileLayoutPolicy,
             progressReporter);
     }
-}
 
-internal sealed class DefaultSceneSinkFactory(
-    IHttpClientFactory httpClientFactory,
-    IServiceScopeFactory serviceScopeFactory)
-{
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "The returned ScopedSceneSink owns the target and associated service scope for the import run.")]
-    public ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter)
+    internal static ISceneSink CreateSceneSink(
+        IHttpClientFactory httpClientFactory,
+        IServiceScopeFactory serviceScopeFactory,
+        ImportCommandOptions options,
+        Action<string>? progressReporter)
     {
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(serviceScopeFactory);
         ArgumentNullException.ThrowIfNull(options);
 
         AsyncServiceScope scope = serviceScopeFactory.CreateAsyncScope();
