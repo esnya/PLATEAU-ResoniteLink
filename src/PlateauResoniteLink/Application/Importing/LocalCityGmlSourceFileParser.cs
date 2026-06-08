@@ -28,8 +28,10 @@ internal static class LocalCityGmlSourceFileParser
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        SelectCityGmlLod? selectLod = null)
     {
+        selectLod ??= CityGmlLodSelector.SelectPreferredSurfaceElements;
         return Task.FromResult(
             sourceFiles
                 .Select(sourceFile =>
@@ -42,13 +44,15 @@ internal static class LocalCityGmlSourceFileParser
                             progressReporter,
                             lodFilteringStrategy,
                             createAppearanceStore,
-                            cancellationToken),
+                            cancellationToken,
+                            selectLod),
                         streamFactory: cancellationToken => StreamParsedCityObjectsCoreAsync(
                             sourceFile,
                             datasetSource,
                             requestedMeshAreas,
                             lodFilteringStrategy,
                             createAppearanceStore,
+                            selectLod,
                             cancellationToken)))
                 .ToArray());
     }
@@ -60,8 +64,10 @@ internal static class LocalCityGmlSourceFileParser
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        SelectCityGmlLod? selectLod = null)
     {
+        selectLod ??= CityGmlLodSelector.SelectPreferredSurfaceElements;
         cancellationToken.ThrowIfCancellationRequested();
 
         Stopwatch fileStopwatch = Stopwatch.StartNew();
@@ -74,7 +80,8 @@ internal static class LocalCityGmlSourceFileParser
                            lodFilteringStrategy,
                            createAppearanceStore,
                            parsedReferenceSystem: parsedReferenceSystem => coordinateReferenceSystem ??= parsedReferenceSystem,
-                           cancellationToken))
+                           selectLod: selectLod,
+                           cancellationToken: cancellationToken))
         {
             cityObjects.Add(cityObject);
         }
@@ -113,6 +120,7 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
+        SelectCityGmlLod selectLod,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
@@ -121,8 +129,9 @@ internal static class LocalCityGmlSourceFileParser
                            requestedMeshAreas,
                            lodFilteringStrategy,
                            createAppearanceStore,
+                           selectLod,
                            parsedReferenceSystem: null,
-                           cancellationToken))
+                           cancellationToken: cancellationToken))
         {
             yield return cityObject;
         }
@@ -134,10 +143,12 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
+        SelectCityGmlLod? selectLod = null,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
+        selectLod ??= CityGmlLodSelector.SelectPreferredSurfaceElements;
         if (await CityGmlAppearanceStreamingProbe.MayContainAppearanceMembersAsync(datasetSource, sourceFile.RelativePath, cancellationToken)
             && await CityGmlAppearanceStreamingProbe.HasLateAppearanceMembersAfterCityObjectAsync(datasetSource, sourceFile.RelativePath, cancellationToken))
         {
@@ -147,6 +158,7 @@ internal static class LocalCityGmlSourceFileParser
                                requestedMeshAreas,
                                lodFilteringStrategy,
                                createAppearanceStore,
+                               selectLod,
                                parsedReferenceSystem,
                                cancellationToken))
             {
@@ -164,6 +176,7 @@ internal static class LocalCityGmlSourceFileParser
                            requestedMeshAreas,
                            lodFilteringStrategy,
                            createAppearanceStore,
+                           selectLod,
                            parsedReferenceSystem,
                            cancellationToken))
         {
@@ -178,6 +191,7 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
+        SelectCityGmlLod selectLod,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -256,7 +270,8 @@ internal static class LocalCityGmlSourceFileParser
                     requestedMeshAreas,
                     appearanceStore,
                     coordinateReferenceSystem,
-                    lodFilteringStrategy);
+                    lodFilteringStrategy,
+                    selectLod);
             if (cityObject is not null)
             {
                 yield return cityObject;
@@ -270,6 +285,7 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
+        SelectCityGmlLod selectLod,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -297,7 +313,8 @@ internal static class LocalCityGmlSourceFileParser
                     requestedMeshAreas,
                     appearanceStore,
                     coordinateReferenceSystem,
-                    lodFilteringStrategy);
+                    lodFilteringStrategy,
+                    selectLod);
             if (cityObject is not null)
             {
                 yield return cityObject;
