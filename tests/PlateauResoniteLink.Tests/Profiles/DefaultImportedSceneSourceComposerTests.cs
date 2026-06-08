@@ -39,7 +39,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
             new ImportedSceneSourceContext([], new GeodeticPoint(35.0, 139.0, 12.5)));
 
         DefaultImportedSceneSourceComposer composer = new(
-            new ThrowingGeometryProjector(),
+            new ThrowingGeometryProjector().ProjectCityObjects,
             new StubDemTextureSourcePolicy());
 
         IImportedSceneSource source = composer.Compose(
@@ -90,7 +90,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
             new ImportedSceneSourceContext([], new GeodeticPoint(35.0, 139.0, 0.0)));
         RecordingDemTextureSourcePolicy demTextureSourcePolicy = new();
         DefaultImportedSceneSourceComposer composer = new(
-            new ThrowingGeometryProjector(),
+            new ThrowingGeometryProjector().ProjectCityObjects,
             demTextureSourcePolicy);
 
         IImportedSceneSource source = composer.Compose(
@@ -106,7 +106,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
         Assert.NotEmpty(demTextureSourcePolicy.LastOverlayRegions!);
     }
 
-    private sealed class ThrowingGeometryProjector : ICityGmlGeometryProjector
+    private sealed class ThrowingGeometryProjector
     {
         public IEnumerable<ImportedCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
