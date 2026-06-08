@@ -295,6 +295,6 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
             new PreparedMaterialTextureReference(
                 TexturePayload: material.TexturePayload,
                 TextureSourceKind: material.TextureSourceKind,
-                TextureSource: ResoniteTextureImportFactory.CreateSourceFromPayload(material.TexturePayload)));
+                TextureSource: material.TexturePayload.Source));
     }
 }

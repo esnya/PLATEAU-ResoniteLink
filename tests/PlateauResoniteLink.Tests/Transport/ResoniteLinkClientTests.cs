@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
@@ -129,7 +128,7 @@ public sealed class ResoniteLinkClientTests
         string texturePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
         FileNotFoundException exception = await Assert.ThrowsAsync<FileNotFoundException>(
             async () => await TextureImportSourceMaterializer.MaterializeRawAsync(
-                ResoniteTextureImportFactory.CreateSourceFromFile(texturePath),
+                TextureImportSourceFactory.CreateFileImage(texturePath, ResoniteTextureColorProfiles.Srgb),
                 CancellationToken.None));
 
         Assert.Contains(Path.GetFileName(texturePath), exception.Message, StringComparison.Ordinal);
@@ -147,7 +146,7 @@ public sealed class ResoniteLinkClientTests
         }
 
         RawTexturePayload importedTexture = await TextureImportSourceMaterializer.MaterializeRawAsync(
-            ResoniteTextureImportFactory.CreateSourceFromFile(texturePath),
+            TextureImportSourceFactory.CreateFileImage(texturePath, ResoniteTextureColorProfiles.Srgb),
             CancellationToken.None);
 
         Assert.Equal(1, importedTexture.Width);

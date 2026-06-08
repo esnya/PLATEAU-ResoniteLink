@@ -1171,7 +1171,7 @@ public sealed class NonDemCityObjectBakerTests
     private static ResoniteTexturePayload CreatePayload(string identity, Rgba32 color, int width, int height)
     {
         using Image<Rgba32> image = new(width, height, color);
-        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, description: identity);
+        return RawRgba32ResoniteTexturePayload.Create(image, description: identity);
     }
 
     private static ResoniteTexturePayload CreatePayload(string identity, IReadOnlyList<Rgba32> pixels, int width, int height)
@@ -1186,7 +1186,7 @@ public sealed class NonDemCityObjectBakerTests
             }
         }
 
-        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, description: identity);
+        return RawRgba32ResoniteTexturePayload.Create(image, description: identity);
     }
 
     private static ResoniteTexturePayload CreateStripedPayload(string identity, IReadOnlyList<Rgba32> colors)
@@ -1197,7 +1197,7 @@ public sealed class NonDemCityObjectBakerTests
             image[x, 0] = colors[x];
         }
 
-        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, description: identity);
+        return RawRgba32ResoniteTexturePayload.Create(image, description: identity);
     }
 
     private static ResoniteTexturePayload CreateCheckerPayload(string identity, Rgba32 primary, Rgba32 secondary, int width, int height)
@@ -1211,7 +1211,7 @@ public sealed class NonDemCityObjectBakerTests
             }
         }
 
-        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, description: identity);
+        return RawRgba32ResoniteTexturePayload.Create(image, description: identity);
     }
 
     private static ResoniteTexturePayload CreateVerticalSplitPayload(string identity, Rgba32 left, Rgba32 right, int width, int height)
@@ -1226,7 +1226,7 @@ public sealed class NonDemCityObjectBakerTests
             }
         }
 
-        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, description: identity);
+        return RawRgba32ResoniteTexturePayload.Create(image, description: identity);
     }
 
     private static Rgba32 ReadPixel(RawRgba32ResoniteTexturePayload payload, int x, int y)

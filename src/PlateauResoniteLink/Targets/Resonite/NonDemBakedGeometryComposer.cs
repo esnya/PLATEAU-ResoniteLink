@@ -51,7 +51,7 @@ internal sealed class NonDemBakedGeometryComposer(ResoniteLocalOrigin requestLoc
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TexturePayload: ResoniteTextureImportFactory.CreatePayloadFromImage(
+                    TexturePayload: RawRgba32ResoniteTexturePayload.Create(
                         atlasImage ?? throw new InvalidOperationException("Non-DEM atlas image is required when an atlas layout exists.")),
                     AssetBinding: ResoniteMaterialAssetBinding.PresentationCommon(CommonMaterialCatalog.Create().Generic.Uv)));
         }
