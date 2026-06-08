@@ -98,8 +98,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
             readResult,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
-        IImportedSceneSourcePreflight preflight = Assert.IsAssignableFrom<IImportedSceneSourcePreflight>(source);
-        await preflight.ValidateBeforeSinkSetupAsync();
+        await source.ValidateBeforeSinkSetupAsync();
 
         Assert.Equal(1, demTextureSourcePolicy.ResolveCallCount);
         Assert.Equal(importRequest, demTextureSourcePolicy.LastRequest);
