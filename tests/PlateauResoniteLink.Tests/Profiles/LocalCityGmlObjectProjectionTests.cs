@@ -32,12 +32,13 @@ public sealed class LocalCityGmlObjectProjectionTests
     private static PlateauImportService CreateService(ISceneSink sceneSink, ILoggerFactory? loggerFactory = null)
     {
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
+        CkanPlateauDatasetSourceResolver datasetSourceResolver = new(
+            SharedDatasetSourceResolverHttpClient,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
         return new PlateauImportService(
             sceneSink,
-            new CkanPlateauDatasetSourceResolver(
-                SharedDatasetSourceResolverHttpClient,
-                new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()),
+            datasetSourceResolver.ResolveAsync,
             importedSceneSourceFactory: new DefaultImportedSceneSourceFactory(
                 documentReader.ReadAsync,
                 new DefaultImportedSceneSourceComposer(

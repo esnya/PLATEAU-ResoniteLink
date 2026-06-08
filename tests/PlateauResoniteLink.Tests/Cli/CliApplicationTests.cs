@@ -27,12 +27,13 @@ public sealed class CliApplicationTests
     private static PlateauImportService CreateImportService(ISceneSink sceneImportSink)
     {
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
+        CkanPlateauDatasetSourceResolver datasetSourceResolver = new(
+            SharedDatasetSourceResolverHttpClient,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
         return new PlateauImportService(
             sceneImportSink,
-            new CkanPlateauDatasetSourceResolver(
-                SharedDatasetSourceResolverHttpClient,
-                new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()),
+            datasetSourceResolver.ResolveAsync,
             new DefaultImportedSceneSourceFactory(
                 documentReader.ReadAsync,
                 new DefaultImportedSceneSourceComposer(

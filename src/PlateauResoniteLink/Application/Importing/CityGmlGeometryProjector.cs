@@ -4,6 +4,8 @@ using System.Threading;
 
 using GeographicLib;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -18,5 +20,5 @@ internal delegate IEnumerable<ImportedCityObject> CityGmlGeometryProjector(
     IReadOnlyList<string> selectedMeshCodes,
     PlateauImportRequest request,
     Func<ParsedCityObject, bool>? predicate = null,
-    Action<string>? progressReporter = null,
+    ILogger? logger = null,
     CancellationToken cancellationToken = default);

@@ -17,7 +17,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class PlateauImportService(
     ISceneSink sceneSink,
-    IPlateauDatasetSourceResolver datasetSourceResolver,
+    ResolvePlateauDatasetSource resolveDatasetSource,
     IImportedSceneSourceFactory importedSceneSourceFactory,
     CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
@@ -25,8 +25,8 @@ internal sealed class PlateauImportService(
 {
     private readonly ISceneSink sceneSink =
         sceneSink ?? throw new ArgumentNullException(nameof(sceneSink));
-    private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
-        datasetSourceResolver ?? throw new ArgumentNullException(nameof(datasetSourceResolver));
+    private readonly ResolvePlateauDatasetSource resolveDatasetSource =
+        resolveDatasetSource ?? throw new ArgumentNullException(nameof(resolveDatasetSource));
     private readonly ILoggerFactory loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
     private readonly ILogger logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger("PlateauResoniteLink.Import");
     private readonly IImportedSceneSourceFactory importedSceneSourceFactory =
@@ -49,7 +49,7 @@ internal sealed class PlateauImportService(
 
         try
         {
-            ResolvedLocalPlateauImportRequest resolvedRequest = await datasetSourceResolver.ResolveAsync(
+            ResolvedLocalPlateauImportRequest resolvedRequest = await resolveDatasetSource(
                 validatedRequest,
                 datasetWorkRoot,
                 cancellationToken);
