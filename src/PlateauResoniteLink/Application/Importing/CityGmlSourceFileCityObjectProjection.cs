@@ -12,7 +12,7 @@ internal static class CityGmlSourceFileCityObjectProjection
         XElement cityObjectMember,
         SourceFileDescriptor sourceFile,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        ICityGmlAppearanceStore appearanceStore,
+        CityGmlAppearanceStore appearanceStore,
         CoordinateReferenceSystem coordinateReferenceSystem,
         LodFilteringStrategy lodFilteringStrategy)
     {

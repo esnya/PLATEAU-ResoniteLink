@@ -8,7 +8,7 @@ internal static class CityGmlParsedSurfaceReader
 {
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
 
-    internal static ParsedSurface? TryParse(XElement polygonElement, ICityGmlAppearanceStore appearanceStore)
+    internal static ParsedSurface? TryParse(XElement polygonElement, CityGmlAppearanceStore appearanceStore)
     {
         ArgumentNullException.ThrowIfNull(polygonElement);
         ArgumentNullException.ThrowIfNull(appearanceStore);
@@ -60,7 +60,7 @@ internal static class CityGmlParsedSurfaceReader
     private static ParsedRing[] ParseInteriorRings(
         XElement polygonElement,
         string? polygonId,
-        ICityGmlAppearanceStore appearanceStore)
+        CityGmlAppearanceStore appearanceStore)
     {
         List<ParsedRing> rings = [];
         foreach (XElement interiorElement in polygonElement.Elements(Gml + "interior"))
@@ -82,7 +82,7 @@ internal static class CityGmlParsedSurfaceReader
         XElement? ringElement,
         string? polygonId,
         string? fallbackRingId,
-        ICityGmlAppearanceStore appearanceStore)
+        CityGmlAppearanceStore appearanceStore)
     {
         if (ringElement is null)
         {
