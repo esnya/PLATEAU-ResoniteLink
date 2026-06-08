@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -95,7 +98,7 @@ internal static class DemTerrainOverlayAssignment
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         bool allowMissingGeneratedDemOverlayCoverage = false,
-        Action<string>? progressReporter = null,
+        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -120,17 +123,18 @@ internal static class DemTerrainOverlayAssignment
             .Where(IsDemTerrainOverlaySurface)
             .ToArray();
 
-        progressReporter?.Invoke(
-            PlateauLog.Debug(
-                "import",
-                $"Assigning DEM city object '{parsedCityObject.SlotKey}' "
-                + $"(terrain_texture_surfaces={generatedSurfaces.Length}, non_roof_surfaces={parsedCityObject.Surfaces.Length - generatedSurfaces.Length}, "
-                + $"overlays={scopedTerrainTextureOverlays.Length}, requested_mesh_code_bounds={requestedMeshBounds.Bounds.Length})."));
+        logger?.WriteDebug(
+            "Assigning DEM city object '{SlotKey}' (terrain_texture_surfaces={TerrainTextureSurfaceCount}, non_roof_surfaces={NonRoofSurfaceCount}, overlays={OverlayCount}, requested_mesh_code_bounds={RequestedMeshCodeBoundCount}).",
+            parsedCityObject.SlotKey,
+            generatedSurfaces.Length,
+            parsedCityObject.Surfaces.Length - generatedSurfaces.Length,
+            scopedTerrainTextureOverlays.Length,
+            requestedMeshBounds.Bounds.Length);
 
         ParsedSurface[] nonGeneratedSurfaces = parsedCityObject.Surfaces
             .Where(static surface => !IsDemTerrainOverlaySurface(surface))
             .SelectMany(surface => parsedCityObject.SharedAcrossMeshCodes
-                ? ClipSurfaceToRequestedMeshCodeBounds(surface, requestedMeshBounds.Bounds, progressReporter, cancellationToken)
+                ? ClipSurfaceToRequestedMeshCodeBounds(surface, requestedMeshBounds.Bounds, logger, cancellationToken)
                 : [surface])
             .ToArray();
 
@@ -149,7 +153,7 @@ internal static class DemTerrainOverlayAssignment
             .SelectMany(generatedSurface => ClipGeneratedSurfaceToRequestedMeshCodeBounds(
                 generatedSurface,
                 requestedMeshBounds.Bounds,
-                progressReporter,
+                logger,
                 cancellationToken))
             .ToArray();
 
@@ -262,7 +266,7 @@ internal static class DemTerrainOverlayAssignment
     private static ParsedSurface[] ClipGeneratedSurfaceToRequestedMeshCodeBounds(
         ParsedSurface generatedSurface,
         GeographicRectangle[] requestedMeshBounds,
-        Action<string>? progressReporter,
+        ILogger? logger,
         CancellationToken cancellationToken)
     {
         if (requestedMeshBounds.Length == 0)
@@ -273,14 +277,14 @@ internal static class DemTerrainOverlayAssignment
         return DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToBounds(
             generatedSurface,
             requestedMeshBounds,
-            progressReporter,
+            logger,
             cancellationToken).ToArray();
     }
 
     private static ParsedSurface[] ClipSurfaceToRequestedMeshCodeBounds(
         ParsedSurface surface,
         GeographicRectangle[] requestedMeshBounds,
-        Action<string>? progressReporter,
+        ILogger? logger,
         CancellationToken cancellationToken)
     {
         if (requestedMeshBounds.Length == 0)
@@ -291,7 +295,7 @@ internal static class DemTerrainOverlayAssignment
         return DemTerrainOverlaySurfaceClipper.ClipSurfaceToBounds(
             surface,
             requestedMeshBounds,
-            progressReporter,
+            logger,
             cancellationToken).ToArray();
     }
 

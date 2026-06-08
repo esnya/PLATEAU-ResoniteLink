@@ -4,6 +4,8 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -158,10 +160,10 @@ public sealed class ResoniteLinkClientTests
     public async Task ImportTextureAsyncSerializesOtherOperationsOnSameLink()
     {
         using BlockingResoniteLinkTransport transport = new();
-        List<string> messages = [];
+        RecordingLogger logger = new();
         using IResoniteLinkClient client = new ResoniteLinkClient(
             transport,
-            messages.Add,
+            logger,
             gateWaitLogThreshold: TimeSpan.Zero);
 
         Task<Uri> importTask = client.ImportTextureAsync(
@@ -203,13 +205,13 @@ public sealed class ResoniteLinkClientTests
         Assert.Equal(new ResoniteTransportSlotLocator("srv_slot_1"), slot.Slot);
         Assert.Equal(1, transport.ImportTextureRawCallCount);
         Assert.Equal(1, transport.AddSlotCallCount);
-        Assert.Contains(messages, static message => message.Contains("'add_slot' RPC waited", StringComparison.Ordinal));
-        Assert.Contains(messages, static message => message.Contains("'import_texture' RPC execution completed", StringComparison.Ordinal));
-        Assert.Contains(messages, static message => message.Contains("'add_slot' RPC execution completed", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, static message => message.Contains("'add_slot' RPC waited", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, static message => message.Contains("'import_texture' RPC execution completed", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, static message => message.Contains("'add_slot' RPC execution completed", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task ProgressReporterExceptionsDoNotHoldPerLinkGate()
+    public async Task NullLoggerDoesNotHoldPerLinkGate()
     {
         using BlockingResoniteLinkTransport transport = new()
         {
@@ -217,7 +219,7 @@ public sealed class ResoniteLinkClientTests
         };
         using IResoniteLinkClient client = new ResoniteLinkClient(
             transport,
-            _ => throw new InvalidOperationException("Progress sink failed."));
+            NullLogger.Instance);
 
         Uri texture = await client.ImportTextureAsync(
             CreateRawTextureSource(

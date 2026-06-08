@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Domain.Importing;
 
 using LocalCartesian = GeographicLib.LocalCartesian;
@@ -27,7 +30,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         PlateauImportRequest request,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver,
-        Action<string>? progressReporter,
+        ILogger? logger,
         CancellationToken cancellationToken,
         out bool outsideSamplingBounds,
         out TerrainGridProjectedCityObject? heightMapCityObject)
@@ -107,11 +110,12 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             (int)Math.Ceiling(extentZ / request.TerrainGridMetersPerVertex) + 1,
             2,
             request.TerrainGridMaxResolution);
-        progressReporter?.Invoke(
-            PlateauLog.Debug(
-                "import",
-                $"Sampling DEM terrain grid '{cityObject.SlotKey}' "
-                + $"(width={width}, height={height}, triangles={triangles.Length})."));
+        logger?.WriteDebug(
+            "Sampling DEM terrain grid '{SlotKey}' (width={Width}, height={Height}, triangles={TriangleCount}).",
+            cityObject.SlotKey,
+            width,
+            height,
+            triangles.Length);
 
         DemTerrainGridHeightSamples heightSamples = CityGmlDemTerrainGridSampler.Sample(
             minX,

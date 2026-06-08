@@ -23,7 +23,7 @@ internal sealed class ResoniteLiveSendPhaseContextFactory : IResoniteLiveSendPha
             context.Endpoint,
             context.ClientSession,
             context.Diagnostics,
-            context.ProgressReporter);
+            context.Logger);
     }
 
     public LiveSendEnqueueContext CreateEnqueueContext(LiveSendRunExecutionContext context)
@@ -33,7 +33,7 @@ internal sealed class ResoniteLiveSendPhaseContextFactory : IResoniteLiveSendPha
         return new LiveSendEnqueueContext(
             context.ConnectionCount,
             context.ClientSession.GetRequiredClient,
-            context.ProgressReporter);
+            context.Logger);
     }
 
     public LiveSendFinalizationContext CreateFinalizationContext(
@@ -47,6 +47,6 @@ internal sealed class ResoniteLiveSendPhaseContextFactory : IResoniteLiveSendPha
             context.Endpoint,
             enqueueContext,
             context.Diagnostics,
-            context.ProgressReporter);
+            context.Logger);
     }
 }

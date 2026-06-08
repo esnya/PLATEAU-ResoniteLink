@@ -7,6 +7,8 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Cli;
 using PlateauResoniteLink.Domain.Importing;
@@ -293,8 +295,9 @@ public sealed class CliApplicationTests
     {
         public List<ImportCommandOptions> CapturedOptions { get; } = [];
 
-        public PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter)
+        public PlateauImportService Create(ImportCommandOptions options, ILoggerFactory loggerFactory)
         {
+            _ = loggerFactory;
             CapturedOptions.Add(options);
             return createImportService(options);
         }

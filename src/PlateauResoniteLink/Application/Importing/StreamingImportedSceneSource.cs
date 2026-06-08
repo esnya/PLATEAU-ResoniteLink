@@ -7,7 +7,11 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
+
 using PlateauResoniteLink.Domain.Importing;
 
 using LocalCartesian = GeographicLib.LocalCartesian;
@@ -24,7 +28,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private readonly ICityGmlGeometryProjector geometryProjector;
     private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
     private readonly ProjectionTerrainOverlayContextResolver terrainOverlayContextResolver;
-    private readonly Action<string>? progressReporter;
+    private readonly ILogger logger;
     private readonly object referenceSystemGate = new();
     private readonly X3DMaterialWarningStatistics x3DMaterialWarningStatistics = new();
     private readonly IReadOnlyList<string> selectedMeshCodes;
@@ -38,7 +42,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         ICityGmlGeometryProjector geometryProjector,
         IDemTextureSourcePolicy demTextureSourcePolicy,
         IImportedObjectUnitOptimizer objectUnitOptimizer,
-        Action<string>? progressReporter = null)
+        ILoggerFactory? loggerFactory = null)
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentNullException.ThrowIfNull(readResult);
@@ -51,7 +55,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         globalOriginPoint = DiscoveryContext.GlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.objectUnitOptimizer = objectUnitOptimizer;
-        this.progressReporter = progressReporter;
+        logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger("PlateauResoniteLink.Import");
         selectedMeshCodes = Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode];
         requestedMeshCodeBounds = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
             selectedMeshCodes);
@@ -75,10 +79,9 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        ReportProgress(
-            PlateauLog.Info(
-                "import",
-                $"City object unit streaming pipeline starting (source_files={sourceFiles.Length})."));
+        logger.WriteInformation(
+            "City object unit streaming pipeline starting (source_files={SourceFileCount}).",
+            sourceFiles.Length);
         Channel<ImportedObjectUnit> channel = Channel.CreateBounded<ImportedObjectUnit>(
             new BoundedChannelOptions(32)
             {
@@ -90,10 +93,10 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         ConcurrentQueue<(SourceFilePipeline SourceFile, int Index)> pendingSourceFiles = new(
             sourceFiles.Select((sourceFile, index) => (sourceFile, index + 1)));
 
-        ReportProgress(
-            PlateauLog.Info(
-                "import",
-                $"City object unit producers launched: {producerConcurrency} worker(s) for {sourceFiles.Length} file-scoped streams."));
+        logger.WriteInformation(
+            "City object unit producers launched: {ProducerConcurrency} worker(s) for {SourceFileCount} file-scoped streams.",
+            producerConcurrency,
+            sourceFiles.Length);
 
         Task[] producers = Enumerable.Range(0, producerConcurrency)
             .Select(_ => Task.Run(
@@ -112,7 +115,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         }
 
         await completionTask;
-        x3DMaterialWarningStatistics.ReportFinal(ReportProgress);
+        x3DMaterialWarningStatistics.ReportFinal(logger);
     }
 
     private LocalCartesian? CreateGlobalCartesian(CoordinateReferenceSystem referenceSystem)
@@ -134,11 +137,13 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        progressReporter?.Invoke(
-            PlateauLog.Info(
-                "import",
-                $"City object producer processing source file "
-                + $"{fileIndex}/{totalFiles}: '{sourceFile.SourceFile.RelativePath}'."));
+        int percent = totalFiles == 0 ? 100 : (int)Math.Floor((fileIndex / (double)totalFiles) * 100.0);
+        logger.WriteInformation(
+            "Processing CityGML source file {FileIndex}/{TotalFiles} ({Percent}%). Source='{SourceFile}'.",
+            fileIndex,
+            totalFiles,
+            percent,
+            sourceFile.SourceFile.RelativePath);
 
         int yieldedCount = 0;
         int yieldedUnitCount = 0;
@@ -151,12 +156,13 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             await writer.WriteAsync(objectUnit, cancellationToken);
         }
 
-        progressReporter?.Invoke(
-            PlateauLog.Info(
-                "import",
-                $"City object producer finished source file "
-                + $"{fileIndex}/{totalFiles}: '{sourceFile.SourceFile.RelativePath}' "
-                + $"(yielded_units={yieldedUnitCount}, yielded_city_objects={yieldedCount})."));
+        logger.WriteInformation(
+            "Finished CityGML source file {FileIndex}/{TotalFiles}. Source='{SourceFile}', yielded_units={YieldedUnitCount}, yielded_city_objects={YieldedCityObjectCount}.",
+            fileIndex,
+            totalFiles,
+            sourceFile.SourceFile.RelativePath,
+            yieldedUnitCount,
+            yieldedCount);
     }
 
     private async Task ProduceCityObjectsUntilDrainedAsync(
@@ -241,7 +247,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                          selectedMeshCodes,
                          request,
                          predicate: null,
-                         progressReporter,
+                         logger,
                          cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -270,7 +276,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                          selectedMeshCodes,
                          request,
                          predicate: null,
-                         progressReporter,
+                         logger,
                          cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -280,12 +286,13 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         }
 
         fileStopwatch.Stop();
-        fileWarningStatistics.ReportFile(sourceFile.SourceFile.RelativePath, progressReporter);
-        progressReporter?.Invoke(
-            PlateauLog.Info(
-                "import",
-                $"City object producer projected '{sourceFile.SourceFile.RelativePath}' "
-                + $"(parsed_city_objects={parsedCount}, yielded={yieldedCount}, elapsed={fileStopwatch.Elapsed.TotalSeconds:F3}s)."));
+        fileWarningStatistics.ReportFile(sourceFile.SourceFile.RelativePath, logger);
+        logger.WriteInformation(
+            "City object producer projected '{SourceFile}' (parsed_city_objects={ParsedCityObjectCount}, yielded={YieldedCityObjectCount}, elapsed_s={ElapsedSeconds:F3}).",
+            sourceFile.SourceFile.RelativePath,
+            parsedCount,
+            yieldedCount,
+            fileStopwatch.Elapsed.TotalSeconds);
     }
 
     private sealed class StreamingDemProjectionSource(SourceFileDescriptor sourceFile)
@@ -344,11 +351,6 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                 cityObjects: cityObjects.ToArray(),
                 matchedMeshCode: sourceFile.SourceFile.MatchedMeshCode);
         }
-    }
-
-    private void ReportProgress(string message)
-    {
-        progressReporter?.Invoke(message);
     }
 
     private CoordinateReferenceSystem ResolveReferenceSystem(CoordinateReferenceSystem parsedReferenceSystem)
@@ -461,32 +463,29 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             }
         }
 
-        public void ReportFile(string sourceFileRelativePath, Action<string>? progressReporter)
+        public void ReportFile(string sourceFileRelativePath, ILogger logger)
         {
             if (!HasUnsupportedValues)
             {
                 return;
             }
 
-            progressReporter?.Invoke(
-                PlateauLog.Warning(
-                    "import",
-                    $"CityGML file '{sourceFileRelativePath}' contains unsupported X3DMaterial optical attributes left unprojected "
-                    + CreateSummarySuffix()));
+            logger.WriteWarning(
+                "CityGML file '{SourceFile}' contains unsupported X3DMaterial optical attributes left unprojected {Summary}",
+                sourceFileRelativePath,
+                CreateSummarySuffix());
         }
 
-        public void ReportFinal(Action<string> progressReporter)
+        public void ReportFinal(ILogger logger)
         {
             if (!HasUnsupportedValues)
             {
                 return;
             }
 
-            progressReporter(
-                PlateauLog.Warning(
-                    "import",
-                    "Unsupported X3DMaterial optical attribute summary: values were parsed for diagnostics but not projected to Resonite materials "
-                    + CreateSummarySuffix()));
+            logger.WriteWarning(
+                "Unsupported X3DMaterial optical attribute summary: values were parsed for diagnostics but not projected to Resonite materials {Summary}",
+                CreateSummarySuffix());
         }
 
         private bool HasUnsupportedValues =>

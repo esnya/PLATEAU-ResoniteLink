@@ -6,7 +6,11 @@ using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
+
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -17,13 +21,14 @@ internal sealed class PlateauImportService(
     IImportedSceneSourceFactory importedSceneSourceFactory,
     CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
-    Action<string>? progressReporter = null)
+    ILoggerFactory? loggerFactory = null)
 {
     private readonly ISceneSink sceneSink =
         sceneSink ?? throw new ArgumentNullException(nameof(sceneSink));
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
         datasetSourceResolver ?? throw new ArgumentNullException(nameof(datasetSourceResolver));
-    private readonly Action<string>? progressReporter = progressReporter;
+    private readonly ILoggerFactory loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+    private readonly ILogger logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger("PlateauResoniteLink.Import");
     private readonly IImportedSceneSourceFactory importedSceneSourceFactory =
         importedSceneSourceFactory ?? throw new ArgumentNullException(nameof(importedSceneSourceFactory));
     private readonly CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
@@ -48,23 +53,25 @@ internal sealed class PlateauImportService(
                 validatedRequest,
                 datasetWorkRoot,
                 cancellationToken);
-            ReportProgress(
-                PlateauLog.Debug("import", $"Resolved CityGML source for '{resolvedRequest.Dataset}' mesh-code '{resolvedRequest.MeshCode}'."));
+            logger.WriteDebug(
+                "Resolved CityGML source for '{Dataset}' mesh-code '{MeshCode}'.",
+                resolvedRequest.Dataset,
+                resolvedRequest.MeshCode);
 
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
             IImportedSceneSource importedSceneSource = await importedSceneSourceFactory.CreateAsync(
                 resolvedRequest,
-                progressReporter,
+                loggerFactory,
                 cancellationToken);
             sourceStopwatch.Stop();
-            ReportProgress(
-                PlateauLog.Debug("import", $"Prepared imported scene source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
+            logger.WriteDebug(
+                "Prepared imported scene source in {ElapsedSeconds:F3}s.",
+                sourceStopwatch.Elapsed.TotalSeconds);
 
             ImportedSceneMetadata metadata = importedSceneSource.Metadata;
-            ReportProgress(
-                PlateauLog.Info(
-                    "import",
-                    $"Setup will use {this.commonMaterials.Count} codebase-reachable common materials."));
+            logger.WriteInformation(
+                "Setup will use {CommonMaterialCount} codebase-reachable common materials.",
+                commonMaterials.Count);
 
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 resolvedRequest,
@@ -77,14 +84,11 @@ internal sealed class PlateauImportService(
                 await preflight.ValidateBeforeSinkSetupAsync(cancellationToken);
             }
 
-            ReportProgress(
-                PlateauLog.Info(
-                    "import",
-                    "Starting live scene initialization with codebase-reachable common materials."));
+            logger.WriteInformation("Starting live scene initialization with codebase-reachable common materials.");
 
             int sourceCityObjectCount = 0;
             Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-            ReportProgress(PlateauLog.Info("import", "Handing object unit stream to sink."));
+            logger.WriteInformation("Handing object unit stream to sink.");
             CountingImportedObjectUnitStream countedObjectUnits = new(
                 importedSceneSource.ReadObjectUnitsAsync(cancellationToken),
                 cityObjectCount => sourceCityObjectCount += cityObjectCount);
@@ -94,12 +98,13 @@ internal sealed class PlateauImportService(
                 cancellationToken);
 
             cityObjectStopwatch.Stop();
-            ReportProgress(
-                PlateauLog.Info("import", $"Streamed {sourceCityObjectCount} city objects in {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s."));
-            ReportProgress(
-                PlateauLog.Debug(
-                    "import",
-                    $"City object streaming elapsed {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s after sink execution started."));
+            logger.WriteInformation(
+                "Streamed {CityObjectCount} city objects in {ElapsedSeconds:F3}s.",
+                sourceCityObjectCount,
+                cityObjectStopwatch.Elapsed.TotalSeconds);
+            logger.WriteDebug(
+                "City object streaming elapsed {ElapsedSeconds:F3}s after sink execution started.",
+                cityObjectStopwatch.Elapsed.TotalSeconds);
 
             if (sourceCityObjectCount == 0)
             {
@@ -156,11 +161,6 @@ internal sealed class PlateauImportService(
         }
 
         return usages;
-    }
-
-    private void ReportProgress(string message)
-    {
-        progressReporter?.Invoke(message);
     }
 
 }

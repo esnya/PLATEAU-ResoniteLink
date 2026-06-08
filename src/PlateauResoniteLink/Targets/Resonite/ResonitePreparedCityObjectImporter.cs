@@ -5,7 +5,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -20,7 +23,7 @@ internal interface IResonitePreparedCityObjectImporter
         LiveSendQueuedCityObject queuedCityObject,
         PreparedCityObject preparedCityObject,
         ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken);
 }
 
@@ -37,7 +40,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
         LiveSendQueuedCityObject queuedCityObject,
         PreparedCityObject preparedCityObject,
         ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -49,7 +52,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
         using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = diagnostics.BeginCityObjectSend(cityObject.PackageName);
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-        ReportImportStep(progressReporter, cityObject, "Creating object slot hierarchy.");
+        ReportImportStep(logger, cityObject, "Creating object slot hierarchy.");
         Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
         ResoniteObjectSlotHierarchy objectSlots = await AwaitWithCancellationAsync(
             queuedCityObject.ObjectHierarchyTask,
@@ -69,7 +72,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
             cityObject,
             preparedCityObject,
             preparedTerrainTextureDataByOverlay,
-            progressReporter,
+            logger,
             importStepCancellation.Token);
         Stopwatch materialStopwatch = new();
         Task<PlannedSceneMaterialPlan>? materialPlanningTask = null;
@@ -86,12 +89,12 @@ internal sealed class ResonitePreparedCityObjectImporter(
                 uploadedTextureAssets.TextureUrisByPayload,
                 uploadedTextureAssets.TerrainTextureUrisByOverlay,
                 uploadedTextureAssets.TerrainTexturePropertyBlockComponentsByMeshCode,
-                message => ReportImportStep(progressReporter, cityObject, message),
+                message => ReportImportStep(logger, cityObject, message),
                 importStepCancellation.Token);
             plannedMaterials = await materialPlanningTask;
             materialStopwatch.Stop();
 
-            ReportImportStep(progressReporter, cityObject, $"Preparing geometry assets ({PreparedConstructionGeometryFormatter.Describe(preparedCityObject.Geometry)}).");
+            ReportImportStep(logger, cityObject, $"Preparing geometry assets ({PreparedConstructionGeometryFormatter.Describe(preparedCityObject.Geometry)}).");
             plannedGeometryAsset = await geometryPlanningTask;
             geometryStopwatch.Stop();
         }
@@ -115,35 +118,35 @@ internal sealed class ResonitePreparedCityObjectImporter(
                 cityObject.CollisionEnabled));
         PlannedBatchEmission batchEmission = batchEmissionPlanner.Create(objectSlots, emissionPlan);
 
-        ReportImportStep(progressReporter, cityObject, "Creating object-scoped DataModel batch.");
+        ReportImportStep(logger, cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
         await batchEmitter.ExecuteAsync(
             routedClient,
             cityObject,
             batchEmission,
-            progressReporter,
+            logger,
             cancellationToken);
         batchStopwatch.Stop();
 
-        ReportImportStep(progressReporter, cityObject, "Live import completed.");
+        ReportImportStep(logger, cityObject, "Live import completed.");
         cityObjectStopwatch.Stop();
-        progressReporter?.Invoke(
-            PlateauLog.Debug(
-                "live",
-                $"City object '{cityObject.DisplayName}' phase timings: "
-                + $"slot_hierarchy_s={slotHierarchyStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"geometry_assets_s={geometryStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"materials_s={materialStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"batch_s={batchStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"total_send_s={cityObjectStopwatch.Elapsed.TotalSeconds:F3}."));
+        logger.WriteDebug(
+            "City object '{DisplayName}' phase timings: slot_hierarchy_s={SlotHierarchySeconds:F3} geometry_assets_s={GeometryAssetsSeconds:F3} materials_s={MaterialsSeconds:F3} batch_s={BatchSeconds:F3} total_send_s={TotalSendSeconds:F3}.",
+            cityObject.DisplayName,
+            slotHierarchyStopwatch.Elapsed.TotalSeconds,
+            geometryStopwatch.Elapsed.TotalSeconds,
+            materialStopwatch.Elapsed.TotalSeconds,
+            batchStopwatch.Elapsed.TotalSeconds,
+            cityObjectStopwatch.Elapsed.TotalSeconds);
         sendScope.MarkSent();
         if (Interlocked.CompareExchange(ref state.Progress.FirstImportedCityObjectLogged, 1, 0) == 0)
         {
-            progressReporter?.Invoke(
-                PlateauLog.Debug(
-                    "live",
-                    $"First city object imported after {state.Runtime.ElapsedTotalSeconds:F3}s: "
-                    + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})"));
+            logger.WriteDebug(
+                "First city object imported after {ElapsedSeconds:F3}s: {DisplayName} ({PackageName}/{SlotKey})",
+                state.Runtime.ElapsedTotalSeconds,
+                cityObject.DisplayName,
+                cityObject.PackageName,
+                cityObject.SlotKey);
         }
     }
 
@@ -167,13 +170,15 @@ internal sealed class ResonitePreparedCityObjectImporter(
     }
 
     private static void ReportImportStep(
-        Action<string>? progressReporter,
+        ILogger logger,
         ResoniteConstructionCityObject cityObject,
         string step)
     {
-        progressReporter?.Invoke(
-            PlateauLog.Debug(
-                "live",
-                $"Importing '{cityObject.DisplayName}' ({cityObject.PackageName}/{cityObject.SlotKey}): {step}"));
+        logger.WriteDebug(
+            "Importing '{DisplayName}' ({PackageName}/{SlotKey}): {Step}",
+            cityObject.DisplayName,
+            cityObject.PackageName,
+            cityObject.SlotKey,
+            step);
     }
 }

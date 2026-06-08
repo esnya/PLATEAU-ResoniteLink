@@ -4,7 +4,10 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -136,13 +139,13 @@ internal sealed class ResoniteQueuedCityObjectEnqueuer : IResoniteQueuedCityObje
             cancellationToken);
         if (Interlocked.CompareExchange(ref state.Progress.FirstQueuedCityObjectLogged, 1, 0) == 0)
         {
-            ReportProgress(
-                context,
-                PlateauLog.Info(
-                    "live",
-                    $"First city object queued after {state.Runtime.ElapsedTotalSeconds:F3}s: "
-                    + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey}) "
-                    + $"estimated_workset_bytes={estimatedWorksetBytes}."));
+            context.Logger.WriteInformation(
+                "First city object queued after {ElapsedSeconds:F3}s: {DisplayName} ({PackageName}/{SlotKey}) estimated_workset_bytes={EstimatedWorksetBytes}.",
+                state.Runtime.ElapsedTotalSeconds,
+                cityObject.DisplayName,
+                cityObject.PackageName,
+                cityObject.SlotKey,
+                estimatedWorksetBytes);
         }
 
         using CancellationTokenSource enqueueCancellation = CancellationTokenSource.CreateLinkedTokenSource(
@@ -153,6 +156,16 @@ internal sealed class ResoniteQueuedCityObjectEnqueuer : IResoniteQueuedCityObje
             await runtime.WriteAsync(
                 new LiveSendQueuedCityObject(cityObject, objectHierarchyTask, cityObjectMemoryLease),
                 enqueueCancellation.Token);
+            int queuedCount = Interlocked.Increment(ref state.Progress.QueuedCityObjectCount);
+            if (queuedCount % 25 == 0)
+            {
+                context.Logger.WriteInformation(
+                    "Live send progress: queued_source={QueuedSourceCount}, attempted={AttemptedCount}, sent={SentCount}, failed={FailedCount}.",
+                    queuedCount,
+                    state.Progress.AttemptedCityObjectCount,
+                    state.Progress.ProcessedCityObjectCount,
+                    state.Progress.FailedCityObjectCount);
+            }
         }
         catch (OperationCanceledException) when (runtime.IsCancellationRequested)
         {
@@ -212,10 +225,6 @@ internal sealed class ResoniteQueuedCityObjectEnqueuer : IResoniteQueuedCityObje
         await state.Runtime.AwaitIfAnyTaskCompletedAsync();
     }
 
-    private static void ReportProgress(LiveSendEnqueueContext context, string message)
-    {
-        context.ProgressReporter?.Invoke(message);
-    }
 }
 
 internal sealed record LiveSendEnqueueContext
@@ -223,19 +232,19 @@ internal sealed record LiveSendEnqueueContext
     public LiveSendEnqueueContext(
         int ConnectionCount,
         Func<IResoniteLinkClient> GetRoutedClient,
-        Action<string>? ProgressReporter)
+        ILogger Logger)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(ConnectionCount, 1);
         ArgumentNullException.ThrowIfNull(GetRoutedClient);
 
         this.ConnectionCount = ConnectionCount;
         this.GetRoutedClient = GetRoutedClient;
-        this.ProgressReporter = ProgressReporter;
+        this.Logger = Logger;
     }
 
     public int ConnectionCount { get; }
 
     public Func<IResoniteLinkClient> GetRoutedClient { get; }
 
-    public Action<string>? ProgressReporter { get; }
+    public ILogger Logger { get; }
 }

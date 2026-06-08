@@ -5,7 +5,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -18,7 +21,7 @@ internal interface IResoniteQueuedCityObjectPreparation
         IResoniteLinkClient routedClient,
         ResoniteConstructionCityObject cityObject,
         ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken callerCancellationToken);
 }
 
@@ -33,7 +36,7 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
         IResoniteLinkClient routedClient,
         ResoniteConstructionCityObject cityObject,
         ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken callerCancellationToken)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -43,13 +46,13 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
 
         if (Interlocked.CompareExchange(ref state.Progress.FirstCityObjectPreparationStartedLogged, 1, 0) == 0)
         {
-            ReportProgress(
-                progressReporter,
-                PlateauLog.Info(
-                    "live",
-                    $"City object preparation started after {state.Runtime.ElapsedTotalSeconds:F3}s: "
-                    + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey}) "
-                    + $"mesh='{cityObject.ActualMeshCode}'."));
+            logger.WriteInformation(
+                "City object preparation started after {ElapsedSeconds:F3}s: {DisplayName} ({PackageName}/{SlotKey}) mesh='{ActualMeshCode}'.",
+                state.Runtime.ElapsedTotalSeconds,
+                cityObject.DisplayName,
+                cityObject.PackageName,
+                cityObject.SlotKey,
+                cityObject.ActualMeshCode);
         }
 
         using CancellationTokenSource linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
@@ -60,7 +63,7 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
             routedClient,
             cityObject,
             diagnostics,
-            progressReporter,
+            logger,
             linkedCancellation.Token);
     }
 
@@ -69,7 +72,7 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
         IResoniteLinkClient routedClient,
         ResoniteConstructionCityObject cityObject,
         ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
@@ -105,7 +108,7 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
             state,
             routedClient,
             cityObject,
-            progressReporter,
+            logger,
             cancellationToken);
         PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask.WaitAsync(cancellationToken);
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay = preparedTextures
@@ -136,14 +139,13 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
 
         if (Interlocked.CompareExchange(ref state.Progress.FirstPreparedCityObjectLogged, 1, 0) == 0)
         {
-            ReportProgress(
-                progressReporter,
-                PlateauLog.Info(
-                    "live",
-                    $"First city object prepared in {stopwatch.Elapsed.TotalSeconds:F3}s "
-                    + $"after scene start {state.Runtime.ElapsedTotalSeconds:F3}s: "
-                    + $"{cityObject.DisplayName} "
-                    + $"(textures={preparedTextures.Length}, geometry={PreparedConstructionGeometryFormatter.Describe(preparedGeometry)})."));
+            logger.WriteInformation(
+                "First city object prepared in {PrepareElapsedSeconds:F3}s after scene start {ElapsedSeconds:F3}s: {DisplayName} (textures={TextureCount}, geometry={GeometryDescription}).",
+                stopwatch.Elapsed.TotalSeconds,
+                state.Runtime.ElapsedTotalSeconds,
+                cityObject.DisplayName,
+                preparedTextures.Length,
+                PreparedConstructionGeometryFormatter.Describe(preparedGeometry));
         }
 
         return new PreparedCityObject(
@@ -152,8 +154,4 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
             preparedTextures);
     }
 
-    private static void ReportProgress(Action<string>? progressReporter, string message)
-    {
-        progressReporter?.Invoke(message);
-    }
 }

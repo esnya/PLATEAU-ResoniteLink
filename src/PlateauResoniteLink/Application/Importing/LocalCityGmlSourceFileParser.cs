@@ -8,7 +8,10 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -25,7 +28,7 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        Action<string>? progressReporter,
+        ILogger? logger,
         LodFilteringStrategy lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
@@ -40,7 +43,7 @@ internal static class LocalCityGmlSourceFileParser
                             sourceFile,
                             datasetSource,
                             requestedMeshAreas,
-                            progressReporter,
+                            logger,
                             lodFilteringStrategy,
                             appearanceStoreFactory,
                             lodSelector,
@@ -60,7 +63,7 @@ internal static class LocalCityGmlSourceFileParser
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        Action<string>? progressReporter,
+        ILogger? logger,
         LodFilteringStrategy lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
@@ -97,12 +100,12 @@ internal static class LocalCityGmlSourceFileParser
             ? DemSourceDiscoverySupport.CreateTerrainHeightTriangles(cityObjectArray)
             : [];
 
-        progressReporter?.Invoke(
-            PlateauLog.Debug(
-                "import",
-                $"Parsed file '{sourceFile.RelativePath}' "
-                + $"({sourceFile.PackageName}, {cityObjectArray.Length} city objects) "
-                + $"in {fileStopwatch.Elapsed.TotalSeconds:F3}s."));
+        logger?.WriteDebug(
+            "Parsed file '{SourceFile}' ({PackageName}, {CityObjectCount} city objects) in {ElapsedSeconds:F3}s.",
+            sourceFile.RelativePath,
+            sourceFile.PackageName,
+            cityObjectArray.Length,
+            fileStopwatch.Elapsed.TotalSeconds);
 
         return new global::PlateauResoniteLink.Application.Importing.ParsedSourceFileResult(
             sourceFile,

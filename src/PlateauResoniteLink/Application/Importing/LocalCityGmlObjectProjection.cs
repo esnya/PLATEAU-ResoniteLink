@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Domain.Importing;
 
 using LocalCartesian = GeographicLib.LocalCartesian;
@@ -68,7 +70,7 @@ internal static class LocalCityGmlObjectProjection
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
         Func<global::PlateauResoniteLink.Application.Importing.ParsedCityObject, bool>? predicate = null,
-        Action<string>? progressReporter = null,
+        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         return CityGmlParsedCityObjectProjection.ProjectSourceFile(
@@ -82,7 +84,7 @@ internal static class LocalCityGmlObjectProjection
             request,
             materialResolver,
             predicate,
-            progressReporter,
+            logger,
             cancellationToken);
     }
 
@@ -95,7 +97,7 @@ internal static class LocalCityGmlObjectProjection
         ProjectionTerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
-        Action<string>? progressReporter = null,
+        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         return CityGmlParsedCityObjectProjection.Project(
@@ -107,7 +109,7 @@ internal static class LocalCityGmlObjectProjection
             terrainHeightSampler,
             request,
             materialResolver,
-            progressReporter,
+            logger,
             cancellationToken);
     }
 

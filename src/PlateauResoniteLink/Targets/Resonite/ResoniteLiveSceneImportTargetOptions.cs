@@ -1,5 +1,7 @@
 using System;
 
+using Microsoft.Extensions.Logging;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed record ResoniteLiveSceneImportTargetOptions(
@@ -10,4 +12,4 @@ internal sealed record ResoniteLiveSceneImportTargetOptions(
     bool EnableMeshBake,
     string? TerrainTileCacheRoot,
     bool DisableTerrainTileCache,
-    Action<string>? ProgressReporter);
+    ILoggerFactory LoggerFactory);

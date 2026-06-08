@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -16,7 +18,7 @@ internal interface IResoniteGeometryAssetPlanner
         ResoniteConstructionCityObject cityObject,
         PreparedCityObject preparedCityObject,
         IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken);
 }
 
@@ -30,7 +32,7 @@ internal sealed class ResoniteGeometryAssetPlanner(
         ResoniteConstructionCityObject cityObject,
         PreparedCityObject preparedCityObject,
         IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(importClient);
@@ -47,7 +49,7 @@ internal sealed class ResoniteGeometryAssetPlanner(
                     CreateMeshAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     triangleMesh.MeshSource,
-                    progressReporter,
+                    logger,
                     cancellationToken)),
             PreparedTerrainGridGeometry heightMap => CreatePlannedGeometryAsset(
                 cityObject,
@@ -60,7 +62,7 @@ internal sealed class ResoniteGeometryAssetPlanner(
                     heightMap.HeightTextureSource,
                     ResoniteCityObjectPreparation.ResolveTerrainGridUvScale(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
                     ResoniteCityObjectPreparation.ResolveTerrainGridUvOffset(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
-                    progressReporter,
+                    logger,
                     cancellationToken)),
             PreparedDynamicTerrainGeometry dynamicTerrain => CreatePlannedDynamicTerrainGeometryAsset(
                 cityObject,
@@ -69,7 +71,7 @@ internal sealed class ResoniteGeometryAssetPlanner(
                     CreateMeshAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     dynamicTerrain.StaticMesh.MeshSource,
-                    progressReporter,
+                    logger,
                     cancellationToken),
                 await geometryAssetAssembler.PrepareTerrainGridAsync(
                     importClient,
@@ -80,7 +82,7 @@ internal sealed class ResoniteGeometryAssetPlanner(
                     dynamicTerrain.GridMesh.HeightTextureSource,
                     ResoniteCityObjectPreparation.ResolveTerrainGridUvScale(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
                     ResoniteCityObjectPreparation.ResolveTerrainGridUvOffset(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
-                    progressReporter,
+                    logger,
                     cancellationToken)),
             _ => throw new InvalidOperationException(
                 $"Unsupported prepared geometry type '{preparedCityObject.Geometry.GetType().Name}'."),

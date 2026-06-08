@@ -8,8 +8,9 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Logging;
 
 namespace PlateauResoniteLink.Cli;
 
@@ -65,8 +66,8 @@ public sealed class CliApplication
             {
                 case ImportCommandOptions options:
                     {
-                        Action<string> reporter = CreateReporter(options.VerboseLogging);
-                        PlateauImportService effectiveImportService = importServiceFactory.Create(options, reporter);
+                        using ILoggerFactory loggerFactory = CreateLoggerFactory(options.VerboseLogging);
+                        PlateauImportService effectiveImportService = importServiceFactory.Create(options, loggerFactory);
 
                         ImportExecutionResult result = await effectiveImportService.ExecuteAsync(
                             options.Request,
@@ -287,61 +288,14 @@ public sealed class CliApplication
         };
     }
 
-    private Action<string> CreateReporter(PlateauLogLevel minimumLogLevel)
+    private ILoggerFactory CreateLoggerFactory(bool verboseLogging)
     {
-        return message =>
+        LogLevel minimumLevel = verboseLogging ? LogLevel.Debug : LogLevel.Information;
+        return LoggerFactory.Create(builder =>
         {
-            string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
-            WriteLogLine(standardOutput, timestamp, message, minimumLogLevel);
-        };
-    }
-
-    private Action<string> CreateReporter(bool verboseLogging)
-    {
-        return CreateReporter(verboseLogging ? PlateauLogLevel.Debug : PlateauLogLevel.Info);
-    }
-
-    private static void WriteLogLine(
-        TextWriter writer,
-        string timestamp,
-        string message,
-        PlateauLogLevel minimumLogLevel)
-    {
-        PlateauLogEntry entry = PlateauLogEntry.TryParse(message, out PlateauLogEntry parsedEntry)
-            ? parsedEntry
-            : new PlateauLogEntry("app", PlateauLogLevel.Info, message);
-
-        if (entry.Level < minimumLogLevel)
-        {
-            return;
-        }
-
-        if (ReferenceEquals(writer, Console.Out)
-            && !Console.IsOutputRedirected
-            && PlateauLogEntry.TryParse(message, out _))
-        {
-            ConsoleColor originalForeground = Console.ForegroundColor;
-            Console.Write($"[{timestamp}] ");
-            Console.ForegroundColor = GetLogLevelColor(entry.Level);
-            Console.Write($"[{entry.Scope}][{entry.LevelToken}]");
-            Console.ForegroundColor = originalForeground;
-            Console.Write(' ');
-            Console.WriteLine(entry.Message);
-            return;
-        }
-
-        writer.WriteLine($"[{timestamp}] {entry}");
-    }
-
-    private static ConsoleColor GetLogLevelColor(PlateauLogLevel level)
-    {
-        return level switch
-        {
-            PlateauLogLevel.Debug => ConsoleColor.DarkGray,
-            PlateauLogLevel.Info => Console.ForegroundColor,
-            PlateauLogLevel.Warning => ConsoleColor.Yellow,
-            PlateauLogLevel.Error => ConsoleColor.Red,
-            _ => Console.ForegroundColor,
-        };
+            builder.ClearProviders();
+            builder.SetMinimumLevel(minimumLevel);
+            builder.AddProvider(new CliTextWriterLoggerProvider(standardOutput, minimumLevel));
+        });
     }
 }

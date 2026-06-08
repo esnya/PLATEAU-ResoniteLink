@@ -4,7 +4,9 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
 
 namespace PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -13,7 +15,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
     private readonly Func<IResoniteLinkClient> createConfiguredClient;
     private readonly Uri endpoint;
     private readonly int connectionCount;
-    private readonly Action<string>? reportProgress;
+    private readonly ILogger logger;
     private readonly SemaphoreSlim initializationGate = new(1, 1);
     private int disposed;
     private IResoniteLinkClient? loadBalancedClient;
@@ -23,13 +25,13 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         Uri endpoint,
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter)
+        ILogger logger)
     {
         this.createConfiguredClient = createConfiguredClient;
         this.endpoint = endpoint;
         this.connectionCount = connectionCount;
         Diagnostics = diagnostics;
-        reportProgress = progressReporter;
+        this.logger = logger;
     }
 
     public ResoniteLinkSendDiagnostics Diagnostics { get; }
@@ -55,8 +57,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         {
             if (loadBalancedClient is not null)
             {
-                reportProgress?.Invoke(
-                    PlateauLog.Info("live", "Reusing existing load-balanced ResoniteLink session."));
+                logger.WriteInformation("Reusing existing load-balanced ResoniteLink session.");
                 return;
             }
 
@@ -84,17 +85,18 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
 
                 IResoniteLinkClient newLoadBalancedClient = new LoadBalancingResoniteLinkClient(
                     newClients,
-                    reportProgress);
+                    logger);
 
                 ConnectedClients = newClients;
                 loadBalancedClient = newLoadBalancedClient;
 
                 setupSessionStopwatch.Stop();
-                reportProgress?.Invoke(
-                    PlateauLog.Info(
-                        "live",
-                        $"All {connectionCount} live-send sessions connected for dataset '{request.Dataset}' "
-                        + $"and mesh '{request.MeshCode}' in {setupSessionStopwatch.Elapsed.TotalSeconds:F2}s."));
+                logger.WriteInformation(
+                    "All {ConnectionCount} live-send sessions connected for dataset '{Dataset}' and mesh '{MeshCode}' in {ElapsedSeconds:F2}s.",
+                    connectionCount,
+                    request.Dataset,
+                    request.MeshCode,
+                    setupSessionStopwatch.Elapsed.TotalSeconds);
             }
             catch
             {
@@ -175,16 +177,18 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
     {
         Stopwatch connectionStopwatch = Stopwatch.StartNew();
         string connectionDescription = $"connection {connectionIndex + 1}/{connectionCount}";
-        reportProgress?.Invoke(
-            PlateauLog.Info(
-                "live",
-                $"Connecting {connectionDescription} ResoniteLink session to {endpoint} for dataset '{request.Dataset}' mesh '{request.MeshCode}'."));
+        logger.WriteInformation(
+            "Connecting {ConnectionDescription} ResoniteLink session to {Endpoint} for dataset '{Dataset}' mesh '{MeshCode}'.",
+            connectionDescription,
+            endpoint,
+            request.Dataset,
+            request.MeshCode);
         await client.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
         connectionStopwatch.Stop();
-        reportProgress?.Invoke(
-            PlateauLog.Info(
-                "live",
-                $"Connected {connectionDescription} ResoniteLink session to {endpoint} in "
-                + $"{connectionStopwatch.Elapsed.TotalSeconds:F2}s."));
+        logger.WriteInformation(
+            "Connected {ConnectionDescription} ResoniteLink session to {Endpoint} in {ElapsedSeconds:F2}s.",
+            connectionDescription,
+            endpoint,
+            connectionStopwatch.Elapsed.TotalSeconds);
     }
 }

@@ -1,4 +1,4 @@
-using System;
+using Microsoft.Extensions.Logging;
 
 namespace PlateauResoniteLink.Application.Importing;
 
@@ -8,5 +8,5 @@ internal interface IImportedSceneSourceComposer
         ResolvedLocalPlateauImportRequest request,
         ImportedSceneSourceSnapshot readResult,
         IImportedObjectUnitOptimizer objectUnitOptimizer,
-        Action<string>? progressReporter = null);
+        ILoggerFactory? loggerFactory = null);
 }

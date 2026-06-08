@@ -4,6 +4,9 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
@@ -40,17 +43,17 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             reader,
             composer,
             new PassthroughImportedObjectUnitOptimizer());
-        Action<string> progressReporter = _ => { };
+        ILoggerFactory loggerFactory = NullLoggerFactory.Instance;
 
         ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create();
 
-        IImportedSceneSource result = await factory.CreateAsync(request, progressReporter);
+        IImportedSceneSource result = await factory.CreateAsync(request, loggerFactory);
 
         Assert.Same(expectedSource, result);
         Assert.Equal(request, reader.LastRequest);
-        Assert.Same(progressReporter, reader.LastProgressReporter);
+        Assert.NotNull(reader.LastLogger);
         Assert.Equal(request, composer.LastRequest);
-        Assert.Same(progressReporter, composer.LastProgressReporter);
+        Assert.Same(loggerFactory, composer.LastLoggerFactory);
         Assert.Same(reader.ReadResult, composer.LastReadResult);
     }
 
@@ -143,17 +146,17 @@ public sealed class DefaultImportedSceneSourceFactoryTests
 
         public ResolvedLocalPlateauImportRequest? LastRequest { get; private set; }
 
-        public Action<string>? LastProgressReporter { get; private set; }
+        public ILogger? LastLogger { get; private set; }
 
         public ImportedSceneSourceSnapshot ReadResult { get; }
 
         public Task<ImportedSceneSourceSnapshot> ReadAsync(
             ResolvedLocalPlateauImportRequest request,
-            Action<string>? progressReporter = null,
+            ILogger? logger = null,
             CancellationToken cancellationToken = default)
         {
             LastRequest = request;
-            LastProgressReporter = progressReporter;
+            LastLogger = logger;
             return Task.FromResult(ReadResult);
         }
     }
@@ -166,17 +169,17 @@ public sealed class DefaultImportedSceneSourceFactoryTests
 
         public ImportedSceneSourceSnapshot? LastReadResult { get; private set; }
 
-        public Action<string>? LastProgressReporter { get; private set; }
+        public ILoggerFactory? LastLoggerFactory { get; private set; }
 
         public IImportedSceneSource Compose(
             ResolvedLocalPlateauImportRequest request,
             ImportedSceneSourceSnapshot readResult,
             IImportedObjectUnitOptimizer objectUnitOptimizer,
-            Action<string>? progressReporter = null)
+            ILoggerFactory? loggerFactory = null)
         {
             LastRequest = request;
             LastReadResult = readResult;
-            LastProgressReporter = progressReporter;
+            LastLoggerFactory = loggerFactory;
             _ = objectUnitOptimizer;
             return ImportedSceneSource;
         }

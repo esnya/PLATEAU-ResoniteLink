@@ -1,14 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using ResoniteLink;
 
@@ -47,23 +49,23 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     }
 
     private readonly IResoniteLinkTransport link;
-    private readonly Action<string>? reporter;
+    private readonly ILogger logger;
     private readonly TimeSpan gateWaitLogThreshold;
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private int disposed;
 
-    public ResoniteLinkClient(Action<string>? reporter = null)
-        : this(new LinkInterfaceResoniteLinkTransport(new LinkInterface()), reporter)
+    public ResoniteLinkClient(ILogger? logger = null)
+        : this(new LinkInterfaceResoniteLinkTransport(new LinkInterface()), logger)
     {
     }
 
     internal ResoniteLinkClient(
         IResoniteLinkTransport link,
-        Action<string>? reporter = null,
+        ILogger? logger = null,
         TimeSpan? gateWaitLogThreshold = null)
     {
         this.link = link ?? throw new ArgumentNullException(nameof(link));
-        this.reporter = reporter;
+        this.logger = logger ?? NullLogger.Instance;
         this.gateWaitLogThreshold = gateWaitLogThreshold ?? DefaultGateWaitLogThreshold;
     }
 
@@ -339,38 +341,23 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
 
     private void ReportGateWait(string operationName, TimeSpan elapsed)
     {
-        if (reporter is null || elapsed < gateWaitLogThreshold)
+        if (elapsed < gateWaitLogThreshold)
         {
             return;
         }
 
-        Report(
-            PlateauLog.Debug(
-                "live",
-                $"ResoniteLink '{operationName}' RPC waited {elapsed.TotalSeconds:F3}s for the per-link request gate."));
+        logger.WriteDebug(
+            "ResoniteLink '{OperationName}' RPC waited {ElapsedSeconds:F3}s for the per-link request gate.",
+            operationName,
+            elapsed.TotalSeconds);
     }
 
     private void ReportRpcCompleted(string operationName, TimeSpan elapsed)
     {
-        Report(
-            PlateauLog.Debug(
-                "live",
-                $"ResoniteLink '{operationName}' RPC execution completed in {elapsed.TotalSeconds:F3}s."));
-    }
-
-    [SuppressMessage(
-        "Design",
-        "CA1031:Do not catch general exception types",
-        Justification = "Progress reporting is diagnostic output and must not affect ResoniteLink gate ownership or RPC results.")]
-    private void Report(string message)
-    {
-        try
-        {
-            reporter?.Invoke(message);
-        }
-        catch
-        {
-        }
+        logger.WriteDebug(
+            "ResoniteLink '{OperationName}' RPC execution completed in {ElapsedSeconds:F3}s.",
+            operationName,
+            elapsed.TotalSeconds);
     }
 
     private void ThrowIfUnavailable()

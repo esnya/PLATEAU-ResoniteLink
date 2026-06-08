@@ -3,7 +3,10 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Logging;
+using Microsoft.Extensions.Logging;
+
+using PlateauResoniteLink.Diagnostics;
+
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -15,7 +18,7 @@ internal interface IResoniteQueuedCityObjectSender
         IResoniteLinkClient routedClient,
         LiveSendQueuedCityObject queuedCityObject,
         ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken);
 }
 
@@ -37,7 +40,7 @@ internal sealed class ResoniteQueuedCityObjectSender(
         IResoniteLinkClient routedClient,
         LiveSendQueuedCityObject queuedCityObject,
         ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -53,7 +56,7 @@ internal sealed class ResoniteQueuedCityObjectSender(
                 routedClient,
                 queuedCityObject.CityObject,
                 diagnostics,
-                progressReporter,
+                logger,
                 cancellationToken);
             await preparedCityObjectImporter.ImportAsync(
                 state,
@@ -61,17 +64,25 @@ internal sealed class ResoniteQueuedCityObjectSender(
                 queuedCityObject,
                 preparedCityObject,
                 diagnostics,
-                progressReporter,
+                logger,
                 cancellationToken);
 
             int processedCount = Interlocked.Increment(ref state.Progress.ProcessedCityObjectCount);
-            ReportProgress(
-                progressReporter,
-                PlateauLog.Info(
-                    "live",
-                    $"Sent city object {processedCount}: "
-                    + $"{preparedCityObject.CityObject.DisplayName} "
-                    + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})"));
+            logger.WriteDebug(
+                "Sent city object {ProcessedCount}: {DisplayName} ({PackageName}/{SlotKey})",
+                processedCount,
+                preparedCityObject.CityObject.DisplayName,
+                preparedCityObject.CityObject.PackageName,
+                preparedCityObject.CityObject.SlotKey);
+            if (processedCount % 25 == 0)
+            {
+                logger.WriteInformation(
+                    "Live send progress: attempted={AttemptedCount}, sent={SentCount}, failed={FailedCount}, queued_source={QueuedSourceCount}.",
+                    state.Progress.AttemptedCityObjectCount,
+                    processedCount,
+                    state.Progress.FailedCityObjectCount,
+                    state.Progress.QueuedCityObjectCount);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -85,14 +96,13 @@ internal sealed class ResoniteQueuedCityObjectSender(
             }
 
             int failedCount = Interlocked.Increment(ref state.Progress.FailedCityObjectCount);
-            ReportProgress(
-                progressReporter,
-                PlateauLog.Warning(
-                    "live",
-                    $"Skipping city object after send failure {failedCount}: "
-                    + $"{queuedCityObject.CityObject.DisplayName} "
-                    + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey}). "
-                    + $"Reason: {exception.Message}"));
+            logger.WriteWarning(
+                "Skipping city object after send failure {FailedCount}: {DisplayName} ({PackageName}/{SlotKey}). Reason: {Reason}",
+                failedCount,
+                queuedCityObject.CityObject.DisplayName,
+                queuedCityObject.CityObject.PackageName,
+                queuedCityObject.CityObject.SlotKey,
+                exception.Message);
         }
         finally
         {
@@ -119,8 +129,4 @@ internal sealed class ResoniteQueuedCityObjectSender(
         return null;
     }
 
-    private static void ReportProgress(Action<string>? progressReporter, string message)
-    {
-        progressReporter?.Invoke(message);
-    }
 }

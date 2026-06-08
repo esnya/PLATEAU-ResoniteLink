@@ -7,6 +7,8 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
@@ -917,7 +919,7 @@ public sealed class StreamingImportedSceneSourceTests
             IReadOnlyList<string> selectedMeshCodes,
             PlateauImportRequest request,
             Func<ParsedCityObject, bool>? predicate = null,
-            Action<string>? progressReporter = null,
+            ILogger? logger = null,
             CancellationToken cancellationToken = default)
         {
             _ = referenceSystem;
@@ -928,7 +930,7 @@ public sealed class StreamingImportedSceneSourceTests
             _ = selectedMeshCodes;
             _ = request;
             _ = predicate;
-            _ = progressReporter;
+            _ = logger;
             _ = cancellationToken;
             int concurrency = Interlocked.Increment(ref currentConcurrency);
             UpdateMaxConcurrency(concurrency);
@@ -987,7 +989,7 @@ public sealed class StreamingImportedSceneSourceTests
             IReadOnlyList<string> selectedMeshCodes,
             PlateauImportRequest request,
             Func<ParsedCityObject, bool>? predicate = null,
-            Action<string>? progressReporter = null,
+            ILogger? logger = null,
             CancellationToken cancellationToken = default)
         {
             _ = referenceSystem;
@@ -996,7 +998,7 @@ public sealed class StreamingImportedSceneSourceTests
             _ = requestedMeshCodeBounds;
             _ = selectedMeshCodes;
             _ = request;
-            _ = progressReporter;
+            _ = logger;
             _ = cancellationToken;
 
             ParsedCityObject parsedCityObject = Assert.Single(sourceFile.CityObjects);

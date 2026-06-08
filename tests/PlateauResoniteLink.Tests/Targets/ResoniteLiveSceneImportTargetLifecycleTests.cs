@@ -7,6 +7,8 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
@@ -21,9 +23,16 @@ using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
 namespace PlateauResoniteLink.Tests.Targets;
 
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
+[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Test logger factories are handed to the import target for the duration of the test.")]
 public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 {
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
+
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created logger factory is carried by ResoniteLiveSceneImportTargetOptions for the target lifetime.")]
+    private static Microsoft.Extensions.Logging.ILoggerFactory CreateRecordingLoggerFactory(Action<string> record)
+    {
+        return new RecordingLoggerFactory(new RecordingLogger(record));
+    }
 
     [Fact]
     public async Task ExecuteAsync_DelegatesNormalizedRequestsToInjectedSession()
@@ -44,7 +53,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                LoggerFactory: NullLoggerFactory.Instance),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 session,
                 diagnostics,
@@ -97,7 +106,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                LoggerFactory: NullLoggerFactory.Instance),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 session,
                 diagnostics,
@@ -136,7 +145,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                LoggerFactory: NullLoggerFactory.Instance),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 session,
                 diagnostics,
@@ -189,7 +198,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                LoggerFactory: NullLoggerFactory.Instance),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 session,
                 diagnostics,
@@ -265,7 +274,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                LoggerFactory: NullLoggerFactory.Instance),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
@@ -304,7 +313,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                LoggerFactory: NullLoggerFactory.Instance),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
@@ -347,6 +356,16 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 AssetBinding: ResoniteMaterialAssetBindingTestFactory.SharedGenericUv()));
         bool terrainAlignedGenericSlotExistedWhenSendWorkersStarted = false;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        Microsoft.Extensions.Logging.ILoggerFactory loggerFactory = CreateRecordingLoggerFactory(message =>
+        {
+            if (message.Contains("Starting routed send workers", StringComparison.Ordinal))
+            {
+                terrainAlignedGenericSlotExistedWhenSendWorkersStarted = routedClient.SlotsById.Values.Any(
+                    slot => string.Equals(slot.Name?.Value, expectedMaterialName, StringComparison.Ordinal));
+            }
+
+            progressMessages.Add(message);
+        });
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -356,20 +375,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 EnableMeshBake: false,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: message =>
-                {
-                    if (message.Contains("Starting routed send workers", StringComparison.Ordinal))
-                    {
-                        terrainAlignedGenericSlotExistedWhenSendWorkersStarted = routedClient.SlotsById.Values.Any(
-                            slot => string.Equals(slot.Name?.Value, expectedMaterialName, StringComparison.Ordinal));
-                    }
-
-                    progressMessages.Add(message);
-                }),
+                LoggerFactory: loggerFactory),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 session,
                 ResoniteLinkSendDiagnostics.Disabled,
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning, progressReporter: progressMessages.Add)));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -421,7 +431,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             session: session,
-            progressReporter: message =>
+            loggerFactory: new RecordingLoggerFactory(new RecordingLogger(message =>
             {
                 if (message.Contains("Starting routed send workers", StringComparison.Ordinal))
                 {
@@ -430,7 +440,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 }
 
                 progressMessages.Add(message);
-            });
+            })));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,

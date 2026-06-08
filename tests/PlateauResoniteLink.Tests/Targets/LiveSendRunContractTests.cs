@@ -1,5 +1,7 @@
 using System;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -50,19 +52,19 @@ public sealed class LiveSendRunContractTests
             null!,
             new DelegatingClientSession(),
             ResoniteLinkSendDiagnostics.Disabled,
-            ProgressReporter: null));
+            NullLogger.Instance));
         Assert.Throws<ArgumentNullException>(() => new LiveSendRunExecutionContext(
             new Uri("ws://localhost:12345/"),
             1,
             null!,
             ResoniteLinkSendDiagnostics.Disabled,
-            ProgressReporter: null));
+            NullLogger.Instance));
         Assert.Throws<ArgumentOutOfRangeException>(() => new LiveSendRunExecutionContext(
             new Uri("ws://localhost:12345/"),
             0,
             new DelegatingClientSession(),
             ResoniteLinkSendDiagnostics.Disabled,
-            ProgressReporter: null));
+            NullLogger.Instance));
     }
 
     [Fact]
@@ -75,13 +77,13 @@ public sealed class LiveSendRunContractTests
         Assert.Throws<ArgumentNullException>(() => new LiveSendEnqueueContext(
             ConnectionCount: 1,
             GetRoutedClient: null!,
-            ProgressReporter: null));
+            NullLogger.Instance));
         Assert.Throws<ArgumentNullException>(() => new LiveSendWorkerContext(
             new Uri("ws://localhost:12345/"),
             ConnectionCount: 1,
             GetRoutedClient: null!,
             ResoniteLinkSendDiagnostics.Disabled,
-            ProgressReporter: null));
+            NullLogger.Instance));
     }
 
     private static ResoniteSceneSetupInfo CreateSetupInfo()

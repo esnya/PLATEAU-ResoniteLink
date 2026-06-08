@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -58,7 +60,7 @@ internal sealed record LiveSendRunStartContext
         Uri Endpoint,
         ILiveSendClientSession ClientSession,
         ResoniteLinkSendDiagnostics Diagnostics,
-        Action<string>? ProgressReporter)
+        ILogger Logger)
     {
         ArgumentNullException.ThrowIfNull(Endpoint);
         ArgumentNullException.ThrowIfNull(ClientSession);
@@ -67,7 +69,7 @@ internal sealed record LiveSendRunStartContext
         this.Endpoint = Endpoint;
         this.ClientSession = ClientSession;
         this.Diagnostics = Diagnostics;
-        this.ProgressReporter = ProgressReporter;
+        this.Logger = Logger;
     }
 
     public Uri Endpoint { get; }
@@ -76,7 +78,7 @@ internal sealed record LiveSendRunStartContext
 
     public ResoniteLinkSendDiagnostics Diagnostics { get; }
 
-    public Action<string>? ProgressReporter { get; }
+    public ILogger Logger { get; }
 }
 
 internal interface IResoniteLiveSendRunStarter
