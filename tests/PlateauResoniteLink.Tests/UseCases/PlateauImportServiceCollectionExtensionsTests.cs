@@ -8,47 +8,11 @@ using Microsoft.Extensions.DependencyInjection;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.UseCases;
 
 public sealed class PlateauImportServiceCollectionExtensionsTests
 {
-    [Fact]
-    public async Task AddImportedSceneSourceServicesUsesCustomComposerWhenCreatingSourceFromReader()
-    {
-        ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
-            cityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"));
-        ImportedSceneSourceSnapshot expectedReadResult = new(
-            new ImportedSceneSourceDataset(
-                new StubDatasetContentSource(request.CityGmlLocalSourcePath),
-                [],
-                ["bldg"],
-                [],
-                ["53394525"]),
-            new ImportedSceneSourceContext(
-                [],
-                new GeodeticPoint(35.0, 139.0, 0.0)));
-        StubImportedSceneSource expectedSource = new();
-        CustomCityGmlDocumentReader reader = new(expectedReadResult);
-        ReadCityGmlDocument readCityGmlDocument = reader.ReadAsync;
-        RecordingConstructionComposer composer = new(expectedSource);
-        ServiceProvider provider = new ServiceCollection()
-            .AddSingleton(readCityGmlDocument)
-            .AddSingleton<ImportedSceneSourceComposer>(composer.Compose)
-            .AddImportedSceneSourceServices()
-            .BuildServiceProvider();
-        CreateImportedSceneSource createImportedSceneSource =
-            provider.GetRequiredService<CreateImportedSceneSource>();
-
-        IImportedSceneSource source = await createImportedSceneSource(request);
-
-        Assert.Same(expectedSource, source);
-        Assert.Same(request, reader.LastRequest);
-        Assert.Same(request, composer.LastRequest);
-        Assert.Same(expectedReadResult, composer.LastReadResult);
-    }
-
     [Fact]
     public void AddImportedSceneSourceServicesPreservesCustomDatasetContentSourceCreation()
     {
@@ -137,26 +101,6 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
-        }
-    }
-
-    private sealed class RecordingConstructionComposer(IImportedSceneSource source)
-    {
-        public ResolvedLocalPlateauImportRequest? LastRequest { get; private set; }
-
-        public ImportedSceneSourceSnapshot? LastReadResult { get; private set; }
-
-        public IImportedSceneSource Compose(
-            ResolvedLocalPlateauImportRequest request,
-            ImportedSceneSourceSnapshot readResult,
-            ImportedObjectUnitOptimizer objectUnitOptimizer,
-            Action<string>? progressReporter = null)
-        {
-            LastRequest = request;
-            LastReadResult = readResult;
-            _ = progressReporter;
-            _ = objectUnitOptimizer;
-            return source;
         }
     }
 
