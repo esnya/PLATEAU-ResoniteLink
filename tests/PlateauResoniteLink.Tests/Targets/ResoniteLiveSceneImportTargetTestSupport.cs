@@ -257,16 +257,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 && path.EndsWith(suffix, StringComparison.Ordinal));
     }
 
-    public static Slot[] FindSlotsByPathSuffix(SceneSinkRecordingClient client, string suffix)
-    {
-        return client.SlotsById.Values
-            .Where(slot => client.SlotPaths.TryGetValue(slot.ID, out string? path)
-                && path.EndsWith(suffix, StringComparison.Ordinal))
-            .OrderBy(slot => client.SlotPaths[slot.ID!], StringComparer.Ordinal)
-            .ThenBy(slot => slot.ID, StringComparer.Ordinal)
-            .ToArray();
-    }
-
     public static Slot FindUniqueSlotByNameOutsideAssets(SceneSinkRecordingClient client, string name)
     {
         return Assert.Single(
@@ -407,11 +397,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 [importedCityObject],
                 importedCityObject.ActualMeshCode);
         }
-    }
-
-    public static MaterialBinding[] ToContractMaterials(IReadOnlyList<ResoniteMaterialBinding> bindings)
-    {
-        return bindings.Select(ToContractMaterial).ToArray();
     }
 
     public static IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsForTestsAsync(
