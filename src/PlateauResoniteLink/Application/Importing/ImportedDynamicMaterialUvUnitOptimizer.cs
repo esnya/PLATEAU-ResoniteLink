@@ -5,9 +5,9 @@ using System.Threading;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class ImportedDynamicMaterialUvUnitOptimizer : IImportedObjectUnitOptimizer
+internal static class ImportedDynamicMaterialUvUnitOptimizer
 {
-    public async IAsyncEnumerable<ImportedObjectUnit> OptimizeAsync(
+    public static async IAsyncEnumerable<ImportedObjectUnit> OptimizeAsync(
         IAsyncEnumerable<ImportedObjectUnit> objectUnits,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {

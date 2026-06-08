@@ -45,7 +45,8 @@ internal static class PlateauImportServiceCollectionExtensions
             _ => CityGmlAppearanceStore.Create);
         services.TryAddSingleton<IDefaultMaterialResolver, DefaultMaterialResolver>();
         services.TryAddSingleton<ICityGmlGeometryProjector, LocalCityGmlGeometryProjector>();
-        services.TryAddSingleton<IImportedObjectUnitOptimizer, ImportedDynamicMaterialUvUnitOptimizer>();
+        services.TryAddSingleton<ImportedObjectUnitOptimizer>(
+            _ => ImportedDynamicMaterialUvUnitOptimizer.OptimizeAsync);
         services.TryAddSingleton<IImportedSceneSourceComposer>(provider =>
             new DefaultImportedSceneSourceComposer(
                 provider.GetRequiredService<ICityGmlGeometryProjector>(),
@@ -58,7 +59,7 @@ internal static class PlateauImportServiceCollectionExtensions
             new DefaultImportedSceneSourceFactory(
                 provider.GetRequiredService<ICityGmlDocumentReader>(),
                 provider.GetRequiredService<IImportedSceneSourceComposer>(),
-                provider.GetRequiredService<IImportedObjectUnitOptimizer>()));
+                provider.GetRequiredService<ImportedObjectUnitOptimizer>()));
 
         return services;
     }
