@@ -172,29 +172,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
-    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredNonDemSourceFileBakeEmitterFactory()
-    {
-        RecordingNonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory = new();
-        ServiceProvider provider = new ServiceCollection()
-            .AddScoped<INonDemSourceFileBakeEmitterFactory>(_ => sourceFileBakeEmitterFactory)
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-
-        CompositeCityObjectBaker? baker = scope.ServiceProvider
-            .GetRequiredService<ResoniteBufferedCityObjectBakerFactory>()
-            .Create(
-                enableMeshBake: true,
-                ResoniteImportBudgetProfiles.ForProfile(ResoniteImportMemoryProfile.Small));
-
-        Assert.NotNull(baker);
-        Assert.Equal(1, sourceFileBakeEmitterFactory.CreateCallCount);
-        ResoniteImportBudgetProfile? resourceBudget = sourceFileBakeEmitterFactory.LastBudget.ResourceBudget;
-        Assert.NotNull(resourceBudget);
-        Assert.Equal(ResoniteImportMemoryProfile.Small, resourceBudget.Name);
-    }
-
-    [Fact]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
     public async Task AddResoniteLiveSendTargetServicesRegistersDefaultBaseClientFactory()
     {
@@ -360,38 +337,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                         materialPlanning,
                         terrainTextureAssetGenerator: terrainTextureAssetGenerator)));
-        }
-    }
-
-    private sealed class RecordingNonDemSourceFileBakeEmitterFactory : INonDemSourceFileBakeEmitterFactory
-    {
-        public int CreateCallCount { get; private set; }
-
-        public NonDemAtlasBakeBudget LastBudget { get; private set; }
-
-        public INonDemSourceFileBakeEmitter Create(NonDemAtlasBakeBudget atlasBudget)
-        {
-            CreateCallCount++;
-            LastBudget = atlasBudget;
-            return new RecordingNonDemSourceFileBakeEmitter();
-        }
-    }
-
-    private sealed class RecordingNonDemSourceFileBakeEmitter : INonDemSourceFileBakeEmitter
-    {
-        public Task<int> EmitAsync(
-            NonDemSourceFileBatchKey sourceFileKey,
-            IReadOnlyList<NonDemBufferedCityObject> cityObjects,
-            int batchStartIndex,
-            Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
-            CancellationToken cancellationToken)
-        {
-            _ = sourceFileKey;
-            _ = cityObjects;
-            _ = batchStartIndex;
-            _ = onBakedCityObject;
-            cancellationToken.ThrowIfCancellationRequested();
-            throw new NotSupportedException("This test only verifies DI override preservation during baker creation.");
         }
     }
 
