@@ -231,7 +231,7 @@ internal sealed class ResoniteLiveSendRunStarter(
                 layoutFactory,
                 new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
                 new NonDemBakedGeometryComposer(requestLocalOrigin)),
-            new NonDemAtlasBatchFitPolicy(layoutFactory));
+            layoutFactory);
     }
 
     private void LaunchWorkers(

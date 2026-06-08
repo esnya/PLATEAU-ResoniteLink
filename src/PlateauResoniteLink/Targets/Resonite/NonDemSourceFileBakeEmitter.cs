@@ -9,14 +9,14 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed class NonDemSourceFileBakeEmitter(
     NonDemCityObjectBakeCandidateFactory candidateFactory,
     NonDemCityObjectBakeAssembler assembler,
-    NonDemAtlasBatchFitPolicy batchFitPolicy)
+    NonDemAtlasLayoutFactory atlasLayoutFactory)
 {
     private readonly NonDemCityObjectBakeCandidateFactory candidateFactory = candidateFactory
         ?? throw new ArgumentNullException(nameof(candidateFactory));
     private readonly NonDemCityObjectBakeAssembler assembler = assembler
         ?? throw new ArgumentNullException(nameof(assembler));
-    private readonly NonDemAtlasBatchFitPolicy batchFitPolicy = batchFitPolicy
-        ?? throw new ArgumentNullException(nameof(batchFitPolicy));
+    private readonly NonDemAtlasLayoutFactory atlasLayoutFactory = atlasLayoutFactory
+        ?? throw new ArgumentNullException(nameof(atlasLayoutFactory));
 
     public async Task<int> EmitAsync(
         NonDemSourceFileBatchKey sourceFileKey,
@@ -38,7 +38,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
             cancellationToken.ThrowIfCancellationRequested();
             NonDemCityObjectBakeCandidate candidate = await candidateFactory.CreateAsync(bufferedCityObject, cancellationToken);
 
-            if (candidate.AtlasEntries.Count == 0 && !NonDemAtlasBatchFitPolicy.RequiresBakeEmission(candidate))
+            if (candidate.AtlasEntries.Count == 0 && !RequiresBakeEmission(candidate))
             {
                 passThroughCandidates.Add(candidate);
                 continue;
@@ -46,7 +46,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
 
             if (currentAtlasBatch.Count == 0)
             {
-                if (batchFitPolicy.CanFitSingleCandidate(candidate))
+                if (CanFitSingleCandidate(candidate))
                 {
                     currentAtlasBatch.Add(candidate);
                 }
@@ -58,7 +58,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
                 continue;
             }
 
-            if (batchFitPolicy.CanAppendToAtlasBatch(currentAtlasBatch, candidate))
+            if (CanAppendToAtlasBatch(currentAtlasBatch, candidate))
             {
                 currentAtlasBatch.Add(candidate);
                 continue;
@@ -73,7 +73,7 @@ internal sealed class NonDemSourceFileBakeEmitter(
                 cancellationToken);
             currentAtlasBatch.Clear();
 
-            if (batchFitPolicy.CanFitSingleCandidate(candidate))
+            if (CanFitSingleCandidate(candidate))
             {
                 currentAtlasBatch.Add(candidate);
             }
@@ -122,6 +122,24 @@ internal sealed class NonDemSourceFileBakeEmitter(
         }
 
         return emittedCount;
+    }
+
+    private bool CanFitSingleCandidate(NonDemCityObjectBakeCandidate candidate)
+    {
+        return candidate.AtlasEntries.Count == 0 || atlasLayoutFactory.CanFit(candidate.AtlasEntries);
+    }
+
+    private bool CanAppendToAtlasBatch(
+        IReadOnlyList<NonDemCityObjectBakeCandidate> batchCandidates,
+        NonDemCityObjectBakeCandidate candidate)
+    {
+        List<NonDemAtlasBatchEntry> candidateEntries = [.. batchCandidates.SelectMany(static current => current.AtlasEntries), .. candidate.AtlasEntries];
+        return atlasLayoutFactory.CanFit(candidateEntries);
+    }
+
+    private static bool RequiresBakeEmission(NonDemCityObjectBakeCandidate candidate)
+    {
+        return candidate.PreservedEntries.Any(static entry => entry.VertexColorOverride is not null);
     }
 
     private async Task<int> EmitAtlasBatchAsync(

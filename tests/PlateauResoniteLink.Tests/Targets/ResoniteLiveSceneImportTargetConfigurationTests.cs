@@ -478,7 +478,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 layoutFactory,
                 new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
                 new NonDemBakedGeometryComposer(requestLocalOrigin)),
-            new NonDemAtlasBatchFitPolicy(layoutFactory));
+            layoutFactory);
     }
 
     private static ResoniteLocalOrigin CreateRequestLocalOrigin(string meshCode)
