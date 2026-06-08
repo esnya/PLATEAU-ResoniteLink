@@ -148,6 +148,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         Assert.Same(resolveSceneAnchor, scope.ServiceProvider.GetRequiredService<ResolveResoniteSceneAnchor>());
     }
 
+    [Fact]
     public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredGsiFallbackLicenseWriter()
     {
         EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense =
