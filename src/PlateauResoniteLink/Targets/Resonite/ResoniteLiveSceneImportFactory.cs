@@ -23,11 +23,11 @@ internal sealed class ResoniteLiveSceneImportFactory(
             ? ResoniteLinkSendDiagnostics.CreateEnabled(options.ProgressReporter)
             : ResoniteLinkSendDiagnostics.Disabled;
         ILiveSendClientSession clientSession = createClientSession(options, diagnostics);
-        ITerrainTextureAssetGenerator terrainTextureAssetGenerator = new TerrainTextureAssetGenerator(
+        TerrainTextureAssetGenerator terrainTextureAssetGenerator = new(
             terrainTextureAssetHttpClient,
             options.TerrainTileCacheRoot,
             options.DisableTerrainTileCache);
-        ResoniteLiveSendRunStarter runStarter = CreateRunStarter(terrainTextureAssetGenerator);
+        ResoniteLiveSendRunStarter runStarter = CreateRunStarter(terrainTextureAssetGenerator.EnsureTextureAsync);
         ResoniteLiveSceneImportDependencies dependencies = CreateDependencies(clientSession, diagnostics, runStarter);
         return new ResoniteLiveSceneImportTarget(options, dependencies);
     }
@@ -36,32 +36,32 @@ internal sealed class ResoniteLiveSceneImportFactory(
         ResoniteLiveSceneImportTargetOptions options,
         ILiveSendClientSession clientSession,
         ResoniteLinkSendDiagnostics diagnostics,
-        ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+        GenerateTerrainTexture generateTerrainTexture)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clientSession);
         ArgumentNullException.ThrowIfNull(diagnostics);
-        ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
+        ArgumentNullException.ThrowIfNull(generateTerrainTexture);
 
-        ResoniteLiveSendRunStarter runStarter = CreateRunStarter(terrainTextureAssetGenerator);
+        ResoniteLiveSendRunStarter runStarter = CreateRunStarter(generateTerrainTexture);
         ResoniteLiveSceneImportDependencies dependencies = CreateDependencies(clientSession, diagnostics, runStarter);
         return new ResoniteLiveSceneImportTarget(options, dependencies);
     }
 
-    private ResoniteLiveSendRunStarter CreateRunStarter(ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+    private ResoniteLiveSendRunStarter CreateRunStarter(GenerateTerrainTexture generateTerrainTexture)
     {
-        ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
+        ArgumentNullException.ThrowIfNull(generateTerrainTexture);
 
         return new ResoniteLiveSendRunStarter(
             runSetupPreparer,
             sourceFileBakeEmitterFactory,
-            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(terrainTextureAssetGenerator)));
+            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(generateTerrainTexture)));
     }
 
     private ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
-        ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+        GenerateTerrainTexture generateTerrainTexture)
     {
-        ResoniteQueuedTexturePreparer texturePreparer = new(terrainTextureAssetGenerator);
+        ResoniteQueuedTexturePreparer texturePreparer = new(generateTerrainTexture);
         ResoniteQueuedCityObjectPreparation cityObjectPreparation = new(texturePreparer);
         ResoniteQueuedCityObjectSender queuedCityObjectSender = new(
             cityObjectPreparation,

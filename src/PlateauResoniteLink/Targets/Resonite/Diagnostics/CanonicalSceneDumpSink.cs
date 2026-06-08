@@ -22,7 +22,7 @@ internal sealed class CanonicalSceneDumpSink(
         "CA2000:Dispose objects before losing scope",
         Justification = "CanonicalSceneDumpSink owns the recording client after successful construction; failures dispose it here.")]
     public static ISceneSink Create(
-        Func<ResoniteLiveSceneImportTargetOptions, ILiveSendClientSession, ResoniteLinkSendDiagnostics, ITerrainTextureAssetGenerator, ResoniteLiveSceneImportTarget> createTarget,
+        Func<ResoniteLiveSceneImportTargetOptions, ILiveSendClientSession, ResoniteLinkSendDiagnostics, GenerateTerrainTexture, ResoniteLiveSceneImportTarget> createTarget,
         ResoniteLiveSceneImportTargetOptions options,
         string outputPath)
     {
@@ -37,7 +37,7 @@ internal sealed class CanonicalSceneDumpSink(
                 options,
                 new SingleRecordingClientSession(recordingClient),
                 ResoniteLinkSendDiagnostics.Disabled,
-                new DeterministicTerrainTextureAssetGenerator());
+                DeterministicTerrainTextureAssetGenerator.EnsureTextureAsync);
             return new CanonicalSceneDumpSink(target, recordingClient, outputPath);
         }
         catch
@@ -144,7 +144,7 @@ internal sealed class SingleRecordingClientSession(SceneSinkRecordingClient clie
     }
 }
 
-internal sealed class DeterministicTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
+internal static class DeterministicTerrainTextureAssetGenerator
 {
     private static readonly byte[] RawTextureBytes =
     [
@@ -154,7 +154,7 @@ internal sealed class DeterministicTerrainTextureAssetGenerator : ITerrainTextur
         128, 160, 192, 255,
     ];
 
-    public Task<GeneratedTerrainTexture> EnsureTextureAsync(
+    public static Task<GeneratedTerrainTexture> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {

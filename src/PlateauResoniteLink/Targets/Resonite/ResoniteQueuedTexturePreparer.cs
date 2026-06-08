@@ -15,10 +15,10 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteQueuedTexturePreparer(
-    ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+    GenerateTerrainTexture generateTerrainTexture)
 {
-    private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator =
-        terrainTextureAssetGenerator ?? throw new ArgumentNullException(nameof(terrainTextureAssetGenerator));
+    private readonly GenerateTerrainTexture generateTerrainTexture =
+        generateTerrainTexture ?? throw new ArgumentNullException(nameof(generateTerrainTexture));
 
     public async Task<PreparedTextureReference[]> PrepareAsync(
         LiveSendRunState state,
@@ -77,7 +77,7 @@ internal sealed class ResoniteQueuedTexturePreparer(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
-        GeneratedTerrainTexture terrainTexture = await terrainTextureAssetGenerator.EnsureTextureAsync(
+        GeneratedTerrainTexture terrainTexture = await generateTerrainTexture(
             terrainTextureOverlay,
             cancellationToken);
         TerrainTextureSource[] usedSources = GetTrackedTerrainTextureSources(terrainTexture);
