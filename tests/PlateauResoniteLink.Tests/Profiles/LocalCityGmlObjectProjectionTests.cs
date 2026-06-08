@@ -49,8 +49,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         return new LocalCityGmlDocumentReader(
             CreateDatasetContentSourceAsync,
-            CityGmlAppearanceStore.Create,
-            new CityGmlLodSelector());
+            CityGmlAppearanceStore.Create);
     }
 
     [Fact]

@@ -33,8 +33,7 @@ public sealed class CityGmlLodSelectorTests
             </bldg:Building>
             """);
 
-        CityGmlLodSelector selector = new();
-        CityGmlLodSelection selection = selector.SelectPreferredSurfaceElements(
+        CityGmlLodSelection selection = CityGmlLodSelector.SelectPreferredSurfaceElements(
             cityObject,
             "bldg",
             isMarking: false,

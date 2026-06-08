@@ -19,8 +19,7 @@ public sealed class LocalCityGmlDocumentReaderTests
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         LocalCityGmlDocumentReader reader = new(
             CreateDatasetContentSourceAsync,
-            CityGmlAppearanceStore.Create,
-            new CityGmlLodSelector());
+            CityGmlAppearanceStore.Create);
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
             CreateResolvedRequest(fixturePath, ["bldg"]));
@@ -43,8 +42,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
         LocalCityGmlDocumentReader reader = new(
             CreateStubDatasetContentSourceAsync(datasetSource),
-            CityGmlAppearanceStore.Create,
-            new CityGmlLodSelector());
+            CityGmlAppearanceStore.Create);
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
             CreateResolvedRequest(datasetSource.SourcePath, ["dem"]));
@@ -62,8 +60,7 @@ public sealed class LocalCityGmlDocumentReaderTests
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
         LocalCityGmlDocumentReader reader = new(
             CreateDatasetContentSourceAsync,
-            CityGmlAppearanceStore.Create,
-            new CityGmlLodSelector());
+            CityGmlAppearanceStore.Create);
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
             CreateResolvedRequest(fixturePath, ["dem", "tran"]));

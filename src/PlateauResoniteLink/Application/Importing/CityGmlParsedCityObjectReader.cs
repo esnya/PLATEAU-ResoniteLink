@@ -19,7 +19,6 @@ internal static class CityGmlParsedCityObjectReader
         string actualMeshCode,
         bool sharedAcrossMeshCodes,
         ICityGmlAppearanceStore appearanceStore,
-        ICityGmlLodSelector lodSelector,
         CoordinateReferenceSystem coordinateReferenceSystem,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         LodFilteringStrategy lodFilteringStrategy)
@@ -46,7 +45,7 @@ internal static class CityGmlParsedCityObjectReader
             || objectId.Contains("Marking", StringComparison.OrdinalIgnoreCase)
             || objectId.Contains("_road_marking", StringComparison.Ordinal);
 
-        CityGmlLodSelection lodSelection = lodSelector.SelectPreferredSurfaceElements(
+        CityGmlLodSelection lodSelection = CityGmlLodSelector.SelectPreferredSurfaceElements(
             cityObjectElement,
             packageName,
             isMarking,
