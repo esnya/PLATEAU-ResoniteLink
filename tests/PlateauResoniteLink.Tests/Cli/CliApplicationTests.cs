@@ -70,12 +70,13 @@ public sealed class CliApplicationTests
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         StubImportSink importSink = new();
-        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(importSink));
+        Func<ImportCommandOptions, Action<string>?, PlateauImportService> createImportService =
+            CreateImportServiceFactory(_ => CreateImportService(importSink));
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory,
+            createImportService,
             CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
@@ -108,12 +109,13 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        StubImportServiceFactory importServiceFactory = new(_ => throw new InvalidOperationException("Unexpected transport failure."));
+        Func<ImportCommandOptions, Action<string>?, PlateauImportService> createImportService =
+            CreateImportServiceFactory(_ => throw new InvalidOperationException("Unexpected transport failure."));
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory,
+            createImportService,
             CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
@@ -130,14 +132,15 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        StubImportServiceFactory importServiceFactory = new(_ => throw new AggregateException(
-            new InvalidOperationException("first terrain overlay failure"),
-            new InvalidOperationException("second terrain overlay failure")));
+        Func<ImportCommandOptions, Action<string>?, PlateauImportService> createImportService =
+            CreateImportServiceFactory(_ => throw new AggregateException(
+                new InvalidOperationException("first terrain overlay failure"),
+                new InvalidOperationException("second terrain overlay failure")));
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory,
+            createImportService,
             CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
@@ -157,21 +160,23 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
+        List<ImportCommandOptions> capturedOptions = [];
+        Func<ImportCommandOptions, Action<string>?, PlateauImportService> createImportService =
+            CreateImportServiceFactory(_ => CreateImportService(new StubImportSink()), capturedOptions);
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory,
+            createImportService,
             CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
             CreateImportArgs(fixturePath));
 
         Assert.Equal(0, exitCode);
-        ImportCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
-        Assert.Equal(CliTestData.DocumentedDefaultPackageNames, capturedOptions.Request.PackageNames);
-        Assert.Equal(PlateauImportMemoryProfile.Large, capturedOptions.MemoryProfile);
+        ImportCommandOptions capturedOption = Assert.Single(capturedOptions);
+        Assert.Equal(CliTestData.DocumentedDefaultPackageNames, capturedOption.Request.PackageNames);
+        Assert.Equal(PlateauImportMemoryProfile.Large, capturedOption.MemoryProfile);
         Assert.Equal(string.Empty, standardError.ToString());
         Assert.Contains("Resonite import completed.", standardOutput.ToString());
     }
@@ -182,12 +187,14 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
+        List<ImportCommandOptions> capturedOptions = [];
+        Func<ImportCommandOptions, Action<string>?, PlateauImportService> createImportService =
+            CreateImportServiceFactory(_ => CreateImportService(new StubImportSink()), capturedOptions);
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory,
+            createImportService,
             CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
@@ -197,8 +204,8 @@ public sealed class CliApplicationTests
             ]);
 
         Assert.Equal(0, exitCode);
-        ImportCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
-        Assert.False(capturedOptions.EnableMeshBake);
+        ImportCommandOptions capturedOption = Assert.Single(capturedOptions);
+        Assert.False(capturedOption.EnableMeshBake);
     }
 
     [Fact]
@@ -207,12 +214,13 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
+        Func<ImportCommandOptions, Action<string>?, PlateauImportService> createImportService =
+            CreateImportServiceFactory(_ => CreateImportService(new StubImportSink()));
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory,
+            createImportService,
             CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
@@ -233,12 +241,13 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        StubImportServiceFactory importServiceFactory = new(_ => throw new OperationCanceledException());
+        Func<ImportCommandOptions, Action<string>?, PlateauImportService> createImportService =
+            CreateImportServiceFactory(_ => throw new OperationCanceledException());
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory,
+            createImportService,
             CreateDatasetInspectionService());
 
         using CancellationTokenSource cancellationTokenSource = new();
@@ -253,6 +262,17 @@ public sealed class CliApplicationTests
     private static string[] CreateImportArgs(string fixturePath)
     {
         return CliTestData.CreateLocalImportArgs(fixturePath);
+    }
+
+    private static Func<ImportCommandOptions, Action<string>?, PlateauImportService> CreateImportServiceFactory(
+        Func<ImportCommandOptions, PlateauImportService> createImportService,
+        List<ImportCommandOptions>? capturedOptions = null)
+    {
+        return (options, _) =>
+        {
+            capturedOptions?.Add(options);
+            return createImportService(options);
+        };
     }
 
     private sealed class StubImportSink : ISceneSink
@@ -288,15 +308,4 @@ public sealed class CliApplicationTests
         }
     }
 
-    private sealed class StubImportServiceFactory(Func<ImportCommandOptions, PlateauImportService> createImportService)
-        : IImportServiceFactory
-    {
-        public List<ImportCommandOptions> CapturedOptions { get; } = [];
-
-        public PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter)
-        {
-            CapturedOptions.Add(options);
-            return createImportService(options);
-        }
-    }
 }
