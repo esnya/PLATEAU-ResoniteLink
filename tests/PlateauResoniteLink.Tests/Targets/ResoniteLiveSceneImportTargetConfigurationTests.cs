@@ -387,7 +387,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new NonDemCityObjectBakeAssembler(
                 layoutFactory,
                 new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels)),
-            new NonDemAtlasBatchFitPolicy(layoutFactory));
+            layoutFactory);
     }
 
     private static ResoniteConstructionCityObject CreateTriangleBuilding(

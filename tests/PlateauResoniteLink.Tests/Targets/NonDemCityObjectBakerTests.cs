@@ -1080,7 +1080,7 @@ public sealed class NonDemCityObjectBakerTests
             new NonDemCityObjectBakeAssembler(
                 layoutFactory,
                 new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels)),
-            new NonDemAtlasBatchFitPolicy(layoutFactory));
+            layoutFactory);
     }
 
     private static async Task AssertBufferedAsync(NonDemCityObjectBaker baker, ResoniteConstructionCityObject cityObject)

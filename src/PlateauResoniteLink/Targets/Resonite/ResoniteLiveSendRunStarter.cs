@@ -200,7 +200,7 @@ internal sealed class ResoniteLiveSendRunStarter(
             new NonDemCityObjectBakeAssembler(
                 layoutFactory,
                 new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels)),
-            new NonDemAtlasBatchFitPolicy(layoutFactory));
+            layoutFactory);
     }
 
     private void LaunchWorkers(
