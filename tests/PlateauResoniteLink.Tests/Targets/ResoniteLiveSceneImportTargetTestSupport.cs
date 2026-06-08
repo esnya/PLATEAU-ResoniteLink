@@ -313,21 +313,14 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: progressReporter),
-            CreateDependencies(
-                session ?? new DelegatingClientSession(routedClient),
-                diagnostics,
-                CreateRunStarter(materialPlanning, generateTerrainTexture: generateTerrainTexture, progressReporter: progressReporter)));
+            session ?? new DelegatingClientSession(routedClient),
+            diagnostics,
+            CreateRunExecutor(CreateRunStarter(materialPlanning, generateTerrainTexture: generateTerrainTexture, progressReporter: progressReporter)));
     }
 
-    public static ResoniteLiveSceneImportDependencies CreateDependencies(
-        ILiveSendClientSession session,
-        ResoniteLinkSendDiagnostics diagnostics,
-        ResoniteLiveSendRunStarter runStarter)
+    public static ResoniteLiveSendRunExecutor CreateRunExecutor(ResoniteLiveSendRunStarter runStarter)
     {
-        return new ResoniteLiveSceneImportDependencies(
-            session,
-            diagnostics,
-            new ResoniteLiveSendRunExecutor(runStarter));
+        return new ResoniteLiveSendRunExecutor(runStarter);
     }
 
     public static ResoniteLiveSendRunStarter CreateRunStarter(
