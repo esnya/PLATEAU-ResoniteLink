@@ -334,7 +334,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 setupResoniteScene ?? ResoniteSceneSetupInterpreter.SetupAsync,
                 new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
             new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()),
-            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture)));
+            CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture));
     }
 
     private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(

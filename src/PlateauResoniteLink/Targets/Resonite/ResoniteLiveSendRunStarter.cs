@@ -89,7 +89,7 @@ internal sealed record LiveSendRunStartContext
 internal sealed class ResoniteLiveSendRunStarter(
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     NonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory,
-    ResoniteLiveSendWorkerLauncher workerLauncher)
+    ResoniteQueuedCityObjectWorker queuedCityObjectWorker)
 {
     private const int MaxQueuedCityObjects = 4;
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
@@ -117,11 +117,10 @@ internal sealed class ResoniteLiveSendRunStarter(
             preparedSetup.Materials,
             preparedSetup.Placement,
             cancellationToken);
-        workerLauncher.Launch(
-            new LiveSendWorkerLaunchRequest(
-                state,
-                preparedSetup.RunPlan.Queue,
-                preparedSetup.RunPlan.ResourceBudget),
+        LaunchWorkers(
+            state,
+            preparedSetup.RunPlan.Queue,
+            preparedSetup.RunPlan.ResourceBudget,
             context);
         return state;
     }
@@ -225,5 +224,43 @@ internal sealed class ResoniteLiveSendRunStarter(
                         new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget),
                         requestLocalOrigin)))
             : null;
+    }
+
+    private void LaunchWorkers(
+        LiveSendRunState state,
+        LiveSendQueuePlan queuePlan,
+        ResoniteImportBudgetProfile resourceBudget,
+        LiveSendRunStartContext context)
+    {
+        int connectionCount = queuePlan.ConnectionCount;
+
+        context.Logger.WriteInformation(
+            "Starting routed send workers (connection_pool={ConnectionCount}).",
+            connectionCount);
+        state.Progress.Reset();
+        Stopwatch laneStartStopwatch = Stopwatch.StartNew();
+        context.Diagnostics.StartSendWindow(connectionCount);
+        state.Runtime.Start(queuedCityObjectWorker.CreateProcessingTasks(
+            state,
+            new LiveSendWorkerContext(
+                context.Endpoint,
+                connectionCount,
+                context.ClientSession.GetRequiredClient,
+                context.Diagnostics,
+                context.Logger)));
+        context.Logger.WriteInformation(
+            "Send lane tasks launched (connection_budget={ConnectionCount}, queue_capacity_total={QueueCapacity}, memory_budget_bytes={MemoryBudgetBytes}, memory_profile={MemoryProfile}, runtime_vram_budget_bytes={RuntimeVramBudgetBytes}).",
+            connectionCount,
+            queuePlan.QueueCapacity,
+            queuePlan.MemoryBudgetBytes,
+            resourceBudget.Name.ToString().ToLowerInvariant(),
+            resourceBudget.RuntimeVramBudgetBytes);
+        laneStartStopwatch.Stop();
+        context.Logger.WriteInformation(
+            "Send workers ready against connection pool={ConnectionCount}.",
+            connectionCount);
+        context.Logger.WriteInformation(
+            "Send lane startup phase complete in {ElapsedSeconds:F2}s.",
+            laneStartStopwatch.Elapsed.TotalSeconds);
     }
 }

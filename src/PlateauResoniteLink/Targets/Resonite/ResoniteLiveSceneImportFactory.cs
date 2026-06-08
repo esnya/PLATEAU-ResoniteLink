@@ -55,7 +55,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
         return new ResoniteLiveSendRunStarter(
             runSetupPreparer,
             sourceFileBakeEmitterFactory,
-            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(generateTerrainTexture)));
+            CreateQueuedCityObjectWorker(generateTerrainTexture));
     }
 
     private ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
