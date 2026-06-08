@@ -14,7 +14,7 @@ internal sealed class ResoniteSharedSlotIndex(
     ResoniteLocalOrigin requestLocalOrigin,
     IReadOnlyDictionary<string, string> sourceFileSlotNamesByRelativePath,
     SceneAnchor? initialSceneAnchor,
-    Func<IResoniteLinkClient, ResoniteSlotLocator, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> createSlotAsync)
+    CreateResoniteSlot createSlotAsync)
 {
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> sharedSlotCache = new();
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> runScopedSourceFileRootCache = new();

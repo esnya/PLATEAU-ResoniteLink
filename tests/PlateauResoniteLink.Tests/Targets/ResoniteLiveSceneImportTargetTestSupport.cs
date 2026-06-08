@@ -321,7 +321,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return new ResoniteLiveSendRunStarter(
             new ResoniteLiveSendRunSetupPreparer(
                 setupResoniteScene ?? CreateDefaultSetupResoniteScene(),
-                new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
+                new ResoniteCommonMaterialSetupPreparer(materialPlanning),
+                ResoniteSlotCreator.CreateAsync),
             new ResoniteTextureImageLoader(),
             CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture, ensureGsiFallbackLicense));
     }

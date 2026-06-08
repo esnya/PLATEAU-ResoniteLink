@@ -171,6 +171,30 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredSlotCreation()
+    {
+        CreateResoniteSlot createResoniteSlot =
+            static (client, parent, slotName, position, rotation, cancellationToken) =>
+            {
+                _ = client;
+                _ = parent;
+                _ = slotName;
+                _ = position;
+                _ = rotation;
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.FromResult(new CreatedSlot(new ResoniteSlotLocator("custom-slot"), "custom"));
+            };
+
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped(_ => createResoniteSlot)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.Same(createResoniteSlot, scope.ServiceProvider.GetRequiredService<CreateResoniteSlot>());
+    }
+
+    [Fact]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
     public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredTerrainTextureGenerator()
     {

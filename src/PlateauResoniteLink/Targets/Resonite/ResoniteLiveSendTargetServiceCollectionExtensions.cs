@@ -65,6 +65,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         });
         services.TryAddScoped<ResolveResoniteDatasetRootSlot>(_ => ResoniteSceneSlotLocator.TryGetDatasetRootAsync);
         services.TryAddScoped<ResolveResoniteSceneAnchor>(_ => ResoniteSceneAnchorResolver.ResolveAsync);
+        services.TryAddScoped<CreateResoniteSlot>(_ => ResoniteSlotCreator.CreateAsync);
         services.TryAddScoped<SetupResoniteScene>(provider =>
         {
             ResolveResoniteDatasetRootSlot resolveDatasetRootSlot = provider.GetRequiredService<ResolveResoniteDatasetRootSlot>();

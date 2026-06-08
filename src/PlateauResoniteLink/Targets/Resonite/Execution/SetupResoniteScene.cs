@@ -22,3 +22,11 @@ internal delegate Task<SceneAnchor> ResolveResoniteSceneAnchor(
     ResoniteSlotLocator datasetRootSlot,
     string completionMeshCode,
     CancellationToken cancellationToken);
+
+internal delegate Task<CreatedSlot> CreateResoniteSlot(
+    IResoniteLinkClient client,
+    ResoniteSlotLocator parent,
+    string slotName,
+    ResoniteFloat3? position,
+    ResoniteFloatQ? rotation,
+    CancellationToken cancellationToken);
