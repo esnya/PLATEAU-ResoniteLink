@@ -34,7 +34,7 @@ public sealed class LocalCityGmlGeometryProjectorTests
     [Fact]
     public void ProjectCityObjectsValidatesReferenceSystemBeforeProjectingCanonicalObjects()
     {
-        LocalCityGmlGeometryProjector projector = new(new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+        LocalCityGmlGeometryProjector projector = new(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
         CoordinateReferenceSystem sourceReferenceSystem = CoordinateReferenceSystem.Parse("EPSG:6697");
         CachedSourceFileDescriptor sourceFile = new(
             new SourceFileDescriptor(
@@ -79,7 +79,7 @@ public sealed class LocalCityGmlGeometryProjectorTests
     [Fact]
     public void ProjectCityObjectsValidatesSourceFileReferenceSystemWhenSourceFileHasNoCityObjects()
     {
-        LocalCityGmlGeometryProjector projector = new(new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+        LocalCityGmlGeometryProjector projector = new(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
         CachedSourceFileDescriptor sourceFile = new(
             new SourceFileDescriptor(
                 RelativePath: "udx/bldg/53394525/empty.gml",
