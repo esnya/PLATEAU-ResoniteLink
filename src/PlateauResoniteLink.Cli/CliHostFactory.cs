@@ -135,11 +135,12 @@ internal sealed class DefaultSceneSinkFactory(
         {
             if (!string.IsNullOrWhiteSpace(options.CanonicalSceneDumpPath))
             {
-                ResoniteCanonicalSceneDumpSinkFactory dumpSinkFactory =
-                    scope.ServiceProvider.GetRequiredService<ResoniteCanonicalSceneDumpSinkFactory>();
+                IResoniteLiveSceneImportFactory dumpTargetFactory =
+                    scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
                 return new ScopedSceneSink(
                     scope,
-                    dumpSinkFactory.Create(
+                    CanonicalSceneDumpSink.Create(
+                        dumpTargetFactory,
                         CreateCanonicalDumpTargetOptions(options, loggerFactory),
                         options.CanonicalSceneDumpPath));
             }
