@@ -20,6 +20,10 @@ internal delegate Task<GeneratedTerrainTexture> GenerateTerrainTexture(
     TerrainTextureOverlay terrainTextureOverlay,
     CancellationToken cancellationToken);
 
+internal delegate GenerateTerrainTexture CreateTerrainTextureGenerator(
+    ResoniteLiveSceneImportTargetOptions options,
+    HttpClient terrainTextureAssetHttpClient);
+
 internal sealed record GeneratedTerrainTexture
 {
     public GeneratedTerrainTexture(

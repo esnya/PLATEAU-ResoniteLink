@@ -24,6 +24,17 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteLiveSendRunExecutorFactory, ResoniteLiveSendRunExecutorFactory>();
         services.TryAddScoped<EnsureResoniteGsiFallbackLicense>(_ => ResoniteDatasetLicenseWriter.EnsureGsiFallbackLicenseAsync);
         services.TryAddScoped<ResonitePreparedCityObjectImporter>();
+        services.TryAddScoped<CreateTerrainTextureGenerator>(_ => static (options, terrainTextureAssetHttpClient) =>
+        {
+            ArgumentNullException.ThrowIfNull(options);
+            ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
+
+            TerrainTextureAssetGenerator terrainTextureAssetGenerator = new(
+                terrainTextureAssetHttpClient,
+                options.TerrainTileCacheRoot,
+                options.DisableTerrainTileCache);
+            return terrainTextureAssetGenerator.EnsureTextureAsync;
+        });
         services.TryAddScoped<Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession>>(provider =>
         {
             Func<Microsoft.Extensions.Logging.ILogger, IResoniteLinkClient> baseClientFactory =

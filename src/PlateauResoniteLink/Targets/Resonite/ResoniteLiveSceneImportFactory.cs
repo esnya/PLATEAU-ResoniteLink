@@ -12,6 +12,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
     EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense,
     ResoniteTextureImageLoader textureImageLoader,
     ResonitePreparedCityObjectImporter preparedCityObjectImporter,
+    CreateTerrainTextureGenerator createTerrainTextureGenerator,
     IResoniteLiveSendRunExecutorFactory runExecutorFactory)
 {
     public ResoniteLiveSceneImportTarget CreateTarget(
@@ -27,11 +28,9 @@ internal sealed class ResoniteLiveSceneImportFactory(
             ? ResoniteLinkSendDiagnostics.CreateEnabled(diagnosticsLogger)
             : ResoniteLinkSendDiagnostics.Disabled;
         ILiveSendClientSession clientSession = createClientSession(options, diagnostics);
-        TerrainTextureAssetGenerator terrainTextureAssetGenerator = new(
-            terrainTextureAssetHttpClient,
-            options.TerrainTileCacheRoot,
-            options.DisableTerrainTileCache);
-        ResoniteLiveSendRunStarter runStarter = CreateRunStarter(terrainTextureAssetGenerator.EnsureTextureAsync);
+        GenerateTerrainTexture generateTerrainTexture =
+            createTerrainTextureGenerator(options, terrainTextureAssetHttpClient);
+        ResoniteLiveSendRunStarter runStarter = CreateRunStarter(generateTerrainTexture);
         return CreateTarget(options, clientSession, diagnostics, runStarter);
     }
 

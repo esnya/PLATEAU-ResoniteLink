@@ -170,6 +170,52 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredTerrainTextureGenerator()
+    {
+        int createCallCount = 0;
+        ResoniteLiveSceneImportTargetOptions? recordedOptions = null;
+        HttpClient? recordedHttpClient = null;
+        GenerateTerrainTexture generateTerrainTexture = static (terrainTextureOverlay, cancellationToken) =>
+        {
+            ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("The configuration test should not generate terrain textures.");
+        };
+        CreateTerrainTextureGenerator createTerrainTextureGenerator = (options, terrainTextureAssetHttpClient) =>
+        {
+            createCallCount++;
+            recordedOptions = options;
+            recordedHttpClient = terrainTextureAssetHttpClient;
+            return generateTerrainTexture;
+        };
+
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped(_ => createTerrainTextureGenerator)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        ResoniteLiveSceneImportTargetOptions targetOptions = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            EnableSendMetrics: false,
+            MemoryProfile: ResoniteImportMemoryProfile.Large,
+            TerrainTileCacheRoot: null,
+            DisableTerrainTileCache: false,
+            ProgressReporter: null);
+        ISceneSink target = scope.ServiceProvider
+            .GetRequiredService<ResoniteLiveSceneImportFactory>()
+            .CreateTarget(targetOptions, terrainTextureAssetHttpClient);
+        await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+
+        Assert.NotNull(importTarget);
+        Assert.Equal(1, createCallCount);
+        Assert.Same(targetOptions, recordedOptions);
+        Assert.Same(terrainTextureAssetHttpClient, recordedHttpClient);
+    }
+
+    [Fact]
     public async Task CanonicalDumpCreateUsesProvidedLiveSceneImportFactory()
     {
         RecordingLiveSceneImportFactory importFactory = new(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()));
