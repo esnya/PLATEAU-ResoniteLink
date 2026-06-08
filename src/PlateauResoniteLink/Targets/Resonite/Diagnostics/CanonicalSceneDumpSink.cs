@@ -21,18 +21,18 @@ internal sealed class CanonicalSceneDumpSink(
         "CA2000:Dispose objects before losing scope",
         Justification = "CanonicalSceneDumpSink owns the recording client after successful construction; failures dispose it here.")]
     public static ISceneSink Create(
-        IResoniteLiveSceneImportFactory targetFactory,
+        Func<ResoniteLiveSceneImportTargetOptions, ILiveSendClientSession, ResoniteLinkSendDiagnostics, ITerrainTextureAssetGenerator, ResoniteLiveSceneImportTarget> createTarget,
         ResoniteLiveSceneImportTargetOptions options,
         string outputPath)
     {
-        ArgumentNullException.ThrowIfNull(targetFactory);
+        ArgumentNullException.ThrowIfNull(createTarget);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
         SceneSinkRecordingClient recordingClient = new();
         try
         {
-            ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
+            ResoniteLiveSceneImportTarget target = createTarget(
                 options,
                 new SingleRecordingClientSession(recordingClient),
                 ResoniteLinkSendDiagnostics.Disabled,
