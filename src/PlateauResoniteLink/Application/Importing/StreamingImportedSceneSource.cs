@@ -21,7 +21,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private readonly PlateauImportRequest request;
     private readonly SourceFilePipeline[] sourceFiles;
     private readonly GeodeticPoint globalOriginPoint;
-    private readonly ICityGmlGeometryProjector geometryProjector;
+    private readonly CityGmlGeometryProjector geometryProjector;
     private readonly ImportedObjectUnitOptimizer objectUnitOptimizer;
     private readonly ProjectionTerrainOverlayContextResolver terrainOverlayContextResolver;
     private readonly Action<string>? progressReporter;
@@ -35,7 +35,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         ImportedSceneMetadata metadata,
         PlateauImportRequest request,
         ImportedSceneSourceSnapshot readResult,
-        ICityGmlGeometryProjector geometryProjector,
+        CityGmlGeometryProjector geometryProjector,
         IDemTextureSourcePolicy demTextureSourcePolicy,
         ImportedObjectUnitOptimizer objectUnitOptimizer,
         Action<string>? progressReporter = null)
@@ -231,7 +231,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                 continue;
             }
 
-            foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
+            foreach (ImportedCityObject cityObject in geometryProjector(
                          new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject], parsedReferenceSystem),
                          resolvedReferenceSystem,
                          globalOriginPoint,
@@ -257,7 +257,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                     demProjectionSource.SourceFile,
                     demProjectionSource.CityObjects,
                     selectedMeshCodes);
-            foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
+            foreach (ImportedCityObject cityObject in geometryProjector(
                          new CachedSourceFileDescriptor(
                              demProjectionSource.SourceFile,
                              aggregatedDemCityObjects,

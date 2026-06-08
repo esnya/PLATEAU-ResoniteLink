@@ -44,13 +44,18 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore>>(
             _ => CityGmlAppearanceStore.Create);
         services.TryAddSingleton<IDefaultMaterialResolver, DefaultMaterialResolver>();
-        services.TryAddSingleton<ICityGmlGeometryProjector, LocalCityGmlGeometryProjector>();
+        services.TryAddSingleton<CityGmlGeometryProjector>(provider =>
+        {
+            LocalCityGmlGeometryProjector projector = new(
+                provider.GetRequiredService<IDefaultMaterialResolver>());
+            return projector.ProjectCityObjects;
+        });
         services.TryAddSingleton<ImportedObjectUnitOptimizer>(
             _ => ImportedDynamicMaterialUvUnitOptimizer.OptimizeAsync);
         services.TryAddSingleton<ImportedSceneSourceComposer>(provider =>
         {
             DefaultImportedSceneSourceComposer composer = new(
-                provider.GetRequiredService<ICityGmlGeometryProjector>(),
+                provider.GetRequiredService<CityGmlGeometryProjector>(),
                 provider.GetRequiredService<IDemTextureSourcePolicy>());
             return composer.Compose;
         });
