@@ -47,7 +47,9 @@ internal static class CliServiceCollectionExtensions
         services.AddResoniteLiveSendTargetServices();
 
         services.AddSingleton<DatasetInspectionService>();
-        services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
+        services.AddSingleton<DefaultImportServiceFactory>();
+        services.AddSingleton<Func<ImportCommandOptions, ILoggerFactory, PlateauImportService>>(_ =>
+            _.GetRequiredService<DefaultImportServiceFactory>().Create);
         services.AddSingleton<Func<IPlateauDatasetSourceResolver>>(_ =>
             () => new CkanPlateauDatasetSourceResolver(
                 _.GetRequiredService<IHttpClientFactory>().CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName),
@@ -59,16 +61,11 @@ internal static class CliServiceCollectionExtensions
         services.AddSingleton<CliApplication>(_ => new CliApplication(
             standardOutput,
             standardError,
-            _.GetRequiredService<IImportServiceFactory>(),
+            _.GetRequiredService<Func<ImportCommandOptions, ILoggerFactory, PlateauImportService>>(),
             _.GetRequiredService<DatasetInspectionService>()));
 
         return services;
     }
-}
-
-internal interface IImportServiceFactory
-{
-    PlateauImportService Create(ImportCommandOptions options, ILoggerFactory loggerFactory);
 }
 
 internal sealed class DefaultImportServiceFactory(
@@ -76,7 +73,7 @@ internal sealed class DefaultImportServiceFactory(
     Func<ImportCommandOptions, ILoggerFactory, ISceneSink> createSceneSink,
     IImportedSceneSourceFactory importedSceneSourceFactory,
     CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
-    IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IImportServiceFactory
+    IArchiveFileLayoutPolicy archiveFileLayoutPolicy)
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
