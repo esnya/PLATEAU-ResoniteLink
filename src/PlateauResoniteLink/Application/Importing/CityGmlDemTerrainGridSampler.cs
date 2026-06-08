@@ -6,6 +6,8 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class CityGmlDemTerrainGridSampler
 {
+    private const double BoundarySampleToleranceMeters = 0.25;
+
     internal static DemTerrainGridHeightSamples Sample(
         double minX,
         double maxX,
@@ -15,6 +17,7 @@ internal static class CityGmlDemTerrainGridSampler
         int maxResolution,
         double fallbackHeight,
         IReadOnlyList<TerrainGridTriangle> triangles,
+        Func<double, double, double>? fallbackHeightProvider = null,
         CancellationToken cancellationToken = default)
     {
         double extentX = maxX - minX;
@@ -34,7 +37,8 @@ internal static class CityGmlDemTerrainGridSampler
             minX,
             maxX,
             minZ,
-            maxZ);
+            maxZ,
+            BoundarySampleToleranceMeters);
 
         for (int zIndex = 0; zIndex < height; zIndex++)
         {
@@ -53,7 +57,7 @@ internal static class CityGmlDemTerrainGridSampler
                 }
                 else
                 {
-                    localHeights[sampleIndex] = fallbackHeight;
+                    localHeights[sampleIndex] = fallbackHeightProvider?.Invoke(sampleX, sampleZ) ?? fallbackHeight;
                     sampleCoverage[sampleIndex] = TerrainGridSampleCoverage.NoSurface;
                 }
             }
@@ -73,7 +77,12 @@ internal static class CityGmlDemTerrainGridSampler
         foreach (int triangleIndex in spatialIndex.GetCandidateTriangleIndices(x, z))
         {
             TerrainGridTriangle triangle = triangles[triangleIndex];
-            if (TryInterpolateLocalTriangleHeight(triangle, x, z, out height))
+            if (TryInterpolateLocalTriangleHeight(
+                triangle,
+                x,
+                z,
+                BoundarySampleToleranceMeters,
+                out height))
             {
                 return true;
             }
@@ -92,6 +101,7 @@ internal static class CityGmlDemTerrainGridSampler
         TerrainGridTriangle triangle,
         double x,
         double z,
+        double boundaryToleranceMeters,
         out double height)
     {
         double denominator = ((triangle.B.Z - triangle.C.Z) * (triangle.A.X - triangle.C.X))
@@ -109,12 +119,76 @@ internal static class CityGmlDemTerrainGridSampler
         double weight2 = 1.0 - weight0 - weight1;
         if (weight0 < -1e-5 || weight1 < -1e-5 || weight2 < -1e-5)
         {
-            height = 0.0;
-            return false;
+            if (!TryClampToNearbyTriangleFootprint(
+                triangle,
+                x,
+                z,
+                boundaryToleranceMeters,
+                out double clampedX,
+                out double clampedZ))
+            {
+                height = 0.0;
+                return false;
+            }
+
+            weight0 = (((triangle.B.Z - triangle.C.Z) * (clampedX - triangle.C.X))
+                + ((triangle.C.X - triangle.B.X) * (clampedZ - triangle.C.Z))) / denominator;
+            weight1 = (((triangle.C.Z - triangle.A.Z) * (clampedX - triangle.C.X))
+                + ((triangle.A.X - triangle.C.X) * (clampedZ - triangle.C.Z))) / denominator;
+            weight2 = 1.0 - weight0 - weight1;
         }
 
         height = (triangle.A.Y * weight0) + (triangle.B.Y * weight1) + (triangle.C.Y * weight2);
         return true;
+    }
+
+    private static bool TryClampToNearbyTriangleFootprint(
+        TerrainGridTriangle triangle,
+        double x,
+        double z,
+        double boundaryToleranceMeters,
+        out double clampedX,
+        out double clampedZ)
+    {
+        (double X, double Z, double DistanceSquared) closest = ClosestPointOnSegment(x, z, triangle.A, triangle.B);
+        closest = MinByDistanceSquared(closest, ClosestPointOnSegment(x, z, triangle.B, triangle.C));
+        closest = MinByDistanceSquared(closest, ClosestPointOnSegment(x, z, triangle.C, triangle.A));
+        if (closest.DistanceSquared > boundaryToleranceMeters * boundaryToleranceMeters)
+        {
+            clampedX = 0.0;
+            clampedZ = 0.0;
+            return false;
+        }
+
+        clampedX = closest.X;
+        clampedZ = closest.Z;
+        return true;
+    }
+
+    private static (double X, double Z, double DistanceSquared) ClosestPointOnSegment(
+        double x,
+        double z,
+        Float3 start,
+        Float3 end)
+    {
+        double segmentX = end.X - start.X;
+        double segmentZ = end.Z - start.Z;
+        double segmentLengthSquared = (segmentX * segmentX) + (segmentZ * segmentZ);
+        double t = segmentLengthSquared <= 1e-12
+            ? 0.0
+            : Math.Clamp((((x - start.X) * segmentX) + ((z - start.Z) * segmentZ)) / segmentLengthSquared, 0.0, 1.0);
+        double closestX = start.X + (segmentX * t);
+        double closestZ = start.Z + (segmentZ * t);
+        double distanceX = x - closestX;
+        double distanceZ = z - closestZ;
+        return (closestX, closestZ, (distanceX * distanceX) + (distanceZ * distanceZ));
+    }
+
+    private static (double X, double Z, double DistanceSquared) MinByDistanceSquared(
+        (double X, double Z, double DistanceSquared) left,
+        (double X, double Z, double DistanceSquared) right)
+    {
+        return left.DistanceSquared <= right.DistanceSquared ? left : right;
     }
 
 }
@@ -165,7 +239,8 @@ internal sealed class TerrainGridSpatialIndex
         double minX,
         double maxX,
         double minZ,
-        double maxZ)
+        double maxZ,
+        double boundaryToleranceMeters)
     {
         if (triangles.Count == 0)
         {
@@ -185,10 +260,10 @@ internal sealed class TerrainGridSpatialIndex
         for (int triangleIndex = 0; triangleIndex < triangles.Count; triangleIndex++)
         {
             TerrainGridTriangle triangle = triangles[triangleIndex];
-            double triangleMinX = Math.Min(triangle.A.X, Math.Min(triangle.B.X, triangle.C.X));
-            double triangleMaxX = Math.Max(triangle.A.X, Math.Max(triangle.B.X, triangle.C.X));
-            double triangleMinZ = Math.Min(triangle.A.Z, Math.Min(triangle.B.Z, triangle.C.Z));
-            double triangleMaxZ = Math.Max(triangle.A.Z, Math.Max(triangle.B.Z, triangle.C.Z));
+            double triangleMinX = Math.Min(triangle.A.X, Math.Min(triangle.B.X, triangle.C.X)) - boundaryToleranceMeters;
+            double triangleMaxX = Math.Max(triangle.A.X, Math.Max(triangle.B.X, triangle.C.X)) + boundaryToleranceMeters;
+            double triangleMinZ = Math.Min(triangle.A.Z, Math.Min(triangle.B.Z, triangle.C.Z)) - boundaryToleranceMeters;
+            double triangleMaxZ = Math.Max(triangle.A.Z, Math.Max(triangle.B.Z, triangle.C.Z)) + boundaryToleranceMeters;
             int startX = GetCellIndex(triangleMinX, minX, cellSizeX, cellsX);
             int endX = GetCellIndex(triangleMaxX, minX, cellSizeX, cellsX);
             int startZ = GetCellIndex(triangleMinZ, minZ, cellSizeZ, cellsZ);

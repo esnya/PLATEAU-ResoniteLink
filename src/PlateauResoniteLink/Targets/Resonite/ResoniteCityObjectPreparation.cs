@@ -224,19 +224,14 @@ internal static class ResoniteCityObjectPreparation
     private static RgbaFloat32RawTexturePayload CreateTerrainGridDisplacementPayload(ResoniteTerrainGridGeometry geometry)
     {
         float[] rawPixels = new float[geometry.Width * geometry.Height * 4];
-        double heightRange = Math.Max(geometry.MaxHeight - geometry.MinHeight, 0.0);
-
         for (int y = 0; y < geometry.Height; y++)
         {
             for (int x = 0; x < geometry.Width; x++)
             {
-                // FrooxEngine.GridMesh uses `color.r + color.g + color.b / 3` for displacement.
-                // Encode the inverted height into blue only (scaled by 3) so the effective sampled height stays 1x.
+                // FrooxEngine.GridMesh samples the texture channels as an averaged displacement value.
+                // The texture is float32, so store signed local height directly and keep the slot origin unchanged.
                 double heightSample = geometry.HeightSamples[(y * geometry.Width) + x];
-                double normalizedHeight = heightRange <= 1e-9
-                    ? 0.0
-                    : Math.Clamp((heightSample - geometry.MinHeight) / heightRange, 0.0, 1.0);
-                float heightValue = (float)(1.0 - normalizedHeight);
+                float heightValue = (float)heightSample;
                 int pixelIndex = (y * geometry.Width * 4) + (x * 4);
                 rawPixels[pixelIndex] = 0.0f;
                 rawPixels[pixelIndex + 1] = 0.0f;

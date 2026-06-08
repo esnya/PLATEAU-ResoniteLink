@@ -718,6 +718,52 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncAlignsThirdMeshBuildingAndParentMeshDemSourceRootsInWorldSpace()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg", "dem"],
+            sourceFiles: [SecondarySourceFile, ParentDemSourceFile]);
+        using SceneSinkRecordingClient client = new();
+        ResoniteFloat3 sharedThirdMeshWorldPosition = ComputeOriginOffset(LocalOrigin, SecondaryMeshCode);
+
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            metadata,
+            [
+                CreateBundledTriangleCityObject(
+                    "bldg-third-mesh-root",
+                    actualMeshCode: SecondaryMeshCode,
+                    sourceFileRelativePath: SecondarySourceFile,
+                    sourceFileRootMeshCode: SecondaryMeshCode,
+                    worldPosition: sharedThirdMeshWorldPosition),
+                CreateTerrainGridDemCityObject(
+                    "dem-parent-mesh-root",
+                    actualMeshCode: SecondaryMeshCode,
+                    sourceFileRelativePath: ParentDemSourceFile,
+                    sourceFileRootMeshCode: ParentMeshCode,
+                    worldPosition: sharedThirdMeshWorldPosition),
+            ],
+            client);
+
+        Slot buildingSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(
+            client,
+            "CityObject bldg-third-mesh-root");
+        Slot demSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(
+            client,
+            "DEM Terrain Grid dem-parent-mesh-root");
+        ResoniteFloat3 buildingWorldPosition = GetAccumulatedPosition(client, buildingSlot);
+        ResoniteFloat3 demWorldPosition = GetAccumulatedPosition(client, demSlot);
+
+        AssertNear(sharedThirdMeshWorldPosition, buildingWorldPosition, 0.2);
+        AssertNear(sharedThirdMeshWorldPosition, demWorldPosition, 0.2);
+        AssertNear(buildingWorldPosition, demWorldPosition, 0.001);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncCreatesIndependentSourceFileRootAcrossRunsForTerrainGridDem()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -1096,6 +1142,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ResoniteMaterialProjection projection = ResoniteMaterialProjection.Uv,
         string actualMeshCode = MeshCode,
         string sourceFileRelativePath = PrimarySourceFile,
+        string? sourceFileRootMeshCode = null,
         ResoniteFloat3? worldPosition = null,
         int? lodLevel = 0)
     {
@@ -1127,7 +1174,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                         ? ResoniteMaterialAssetBinding.Presentation
                         : ResoniteMaterialAssetBinding.SharedCommon(commonMaterial)),
             ],
-            SourceFileRelativePath: sourceFileRelativePath);
+            SourceFileRelativePath: sourceFileRelativePath,
+            SourceFileRootMeshCode: sourceFileRootMeshCode);
     }
 
     private static ResoniteConstructionCityObject CreatePayloadTriangleCityObject(
@@ -1207,6 +1255,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         string objectIdentity,
         string actualMeshCode = MeshCode,
         string sourceFileRelativePath = PrimaryDemSourceFile,
+        string? sourceFileRootMeshCode = null,
         ResoniteFloat3? worldPosition = null)
     {
         return new ResoniteConstructionCityObject(
@@ -1235,7 +1284,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     SubmeshIndices: [0],
                     ResoniteMaterialAssetBinding.Presentation),
             ],
-            SourceFileRelativePath: sourceFileRelativePath);
+            SourceFileRelativePath: sourceFileRelativePath,
+            SourceFileRootMeshCode: sourceFileRootMeshCode);
     }
 
     private static ResoniteConstructionCityObject CreateVertexColorTriangleCityObject(

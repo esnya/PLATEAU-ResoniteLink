@@ -36,6 +36,47 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncUsesThirdMeshOriginWhilePreservingInputWorldVertices()
+    {
+        const string meshCode = "53394526";
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject first = CreateLod2Building(
+            "building-one",
+            CreateCheckerPayload("textures/one.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 4, 4),
+            4.0,
+            "unit-a") with
+        {
+            ActualMeshCode = meshCode,
+        };
+        ResoniteConstructionCityObject second = CreateLod2Building(
+            "building-two",
+            CreateCheckerPayload("textures/two.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 255, 255, 255), 4, 4),
+            8.0,
+            "unit-a") with
+        {
+            ActualMeshCode = meshCode,
+        };
+        ResoniteFloat3[] expectedWorldVertices = EnumerateWorldVertices([first, second]).ToArray();
+
+        await AssertBufferedAsync(baker, first);
+        await AssertBufferedAsync(baker, second);
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+
+        ResoniteFloat3 expectedBakeOrigin = ResonitePlacementPolicy.ComputeMeshCodeOffset("53394525", meshCode);
+        AssertNear(expectedBakeOrigin, baked.Transform.Position, 0.001);
+        ResoniteFloat3[] actualWorldVertices = EnumerateWorldVertices([baked]).ToArray();
+        Assert.Equal(expectedWorldVertices.Length, actualWorldVertices.Length);
+        for (int index = 0; index < expectedWorldVertices.Length; index++)
+        {
+            AssertNear(expectedWorldVertices[index], actualWorldVertices[index], 0.000001);
+        }
+
+        Assert.Contains(
+            baked.Mesh.Vertices,
+            vertex => Math.Abs(vertex.Position.X - (first.Transform.Position.X - expectedBakeOrigin.X)) < 1e-6);
+    }
+
+    [Fact]
     public async Task FlushAllAsyncTreatsPackageNameCaseVariantsAsTheSameBatch()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
@@ -1066,10 +1107,17 @@ public sealed class NonDemCityObjectBakerTests
     {
         INonDemSourceFileBakeEmitter sourceFileBakeEmitter = new NonDemSourceFileBakeEmitterFactory(
             new ResoniteTextureImageLoader()).Create(
-            new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget));
+            new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget),
+            CreateRequestLocalOrigin("53394525"));
         return new NonDemCityObjectBaker(
             new NonDemCityObjectBakePolicyResolver(bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies),
             sourceFileBakeEmitter);
+    }
+
+    private static ResoniteLocalOrigin CreateRequestLocalOrigin(string meshCode)
+    {
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate center));
+        return new ResoniteLocalOrigin(center.Latitude, center.Longitude, center.Altitude);
     }
 
     private static async Task AssertBufferedAsync(NonDemCityObjectBaker baker, ResoniteConstructionCityObject cityObject)
@@ -1077,6 +1125,32 @@ public sealed class NonDemCityObjectBakerTests
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
         Assert.True(result.Buffered);
         Assert.Empty(result.ReadyCityObjects);
+    }
+
+    private static IEnumerable<ResoniteFloat3> EnumerateWorldVertices(IEnumerable<ResoniteConstructionCityObject> cityObjects)
+    {
+        foreach (ResoniteConstructionCityObject cityObject in cityObjects)
+        {
+            foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes.OrderBy(static submesh => submesh.Index))
+            {
+                foreach (int vertexIndex in submesh.TriangleVertexIndices)
+                {
+                    yield return Add(cityObject.Transform.Position, cityObject.Mesh.Vertices[vertexIndex].Position);
+                }
+            }
+        }
+    }
+
+    private static void AssertNear(ResoniteFloat3 expected, ResoniteFloat3 actual, double tolerance)
+    {
+        Assert.InRange(Math.Abs(actual.X - expected.X), 0.0, tolerance);
+        Assert.InRange(Math.Abs(actual.Y - expected.Y), 0.0, tolerance);
+        Assert.InRange(Math.Abs(actual.Z - expected.Z), 0.0, tolerance);
+    }
+
+    private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
+    {
+        return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
     }
 
     private static ResoniteTexturePayload CreatePayload(string identity, Rgba32 color, int width, int height)

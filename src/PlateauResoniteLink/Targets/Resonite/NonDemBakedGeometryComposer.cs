@@ -27,7 +27,7 @@ internal interface INonDemBakedGeometryComposer
         CancellationToken cancellationToken);
 }
 
-internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
+internal sealed class NonDemBakedGeometryComposer(ResoniteLocalOrigin requestLocalOrigin) : INonDemBakedGeometryComposer
 {
     public NonDemBakedGeometry Compose(
         NonDemSourceFileBatchKey sourceFileKey,
@@ -37,7 +37,7 @@ internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
         Image<Rgba32>? atlasImage,
         CancellationToken cancellationToken)
     {
-        ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(candidates);
+        ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(sourceFileKey, candidates);
         List<ResoniteMeshVertex> vertices = [];
         List<ResoniteMeshSubmesh> submeshes = [];
         List<ResoniteMaterialBinding> materials = [];
@@ -176,7 +176,22 @@ internal sealed class NonDemBakedGeometryComposer : INonDemBakedGeometryComposer
         return new ResoniteFloat2(remapped.X, remapped.Y);
     }
 
-    private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
+    private ResoniteFloat3 ComputeBakeOrigin(
+        NonDemSourceFileBatchKey sourceFileKey,
+        IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
+    {
+        if (ThirdRegionalMeshCode.TryParse(sourceFileKey.ActualMeshCode, out _)
+            && PlateauMeshCode.TryGetGeodeticCenter(sourceFileKey.ActualMeshCode, out GeodeticCoordinate meshCenter))
+        {
+            return ResonitePlacementPolicy.ComputeOriginOffset(
+                requestLocalOrigin,
+                new ResoniteLocalOrigin(meshCenter.Latitude, meshCenter.Longitude, meshCenter.Altitude));
+        }
+
+        return ComputeGeometryMinimumOrigin(candidates);
+    }
+
+    private static ResoniteFloat3 ComputeGeometryMinimumOrigin(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
     {
         double minX = double.PositiveInfinity;
         double minY = double.PositiveInfinity;

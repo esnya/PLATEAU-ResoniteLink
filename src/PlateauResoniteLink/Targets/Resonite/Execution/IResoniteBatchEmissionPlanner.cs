@@ -27,6 +27,16 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         "[FrooxEngine]FrooxEngine.ValueGradientDriver<int2>";
     private const string BooleanAssetDriverMeshComponentType =
         "[FrooxEngine]FrooxEngine.BooleanAssetDriver<[FrooxEngine]FrooxEngine.Mesh>";
+    private static readonly Field_floatQ TerrainGridRotation = new()
+    {
+        Value = new floatQ
+        {
+            x = (float)Math.Sqrt(0.5),
+            y = 0.0f,
+            z = 0.0f,
+            w = (float)Math.Sqrt(0.5),
+        },
+    };
 
     public PlannedBatchEmission Create(
         ResoniteObjectSlotHierarchy objectSlots,
@@ -257,7 +267,6 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
         componentEmissions.Add(heightTextureComponent);
 
-        double displacementMagnitude = Math.Max(geometry.MaxHeight - geometry.MinHeight, 0.0);
         PlannedFieldReference pointsField = new();
         Field_int2 points = new()
         {
@@ -277,7 +286,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         };
         Field_float displacement = new()
         {
-            Value = (float)displacementMagnitude,
+            Value = -1.0f,
         };
         Field_float2? plannedUvScale = uvScale is null
             ? null
@@ -318,6 +327,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         {
             ["Points"] = PlannedMembers.AddressableField(terrainGridMesh.PointsField, terrainGridMesh.Points),
             ["Size"] = PlannedMembers.Literal(terrainGridMesh.Size),
+            ["Rotation"] = PlannedMembers.Literal(TerrainGridRotation),
             ["DisplacementMagnitude"] = PlannedMembers.Literal(terrainGridMesh.DisplacementMagnitude),
             ["DisplacementTexture"] = PlannedMembers.Reference(terrainGridMesh.DisplacementTexture),
         };

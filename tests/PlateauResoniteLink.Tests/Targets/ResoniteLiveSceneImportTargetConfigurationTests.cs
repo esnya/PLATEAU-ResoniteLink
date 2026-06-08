@@ -326,7 +326,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             .GetRequiredService<IResoniteBufferedCityObjectBakerFactory>()
             .Create(
                 enableMeshBake: true,
-                ResoniteImportBudgetProfiles.ForProfile(ResoniteImportMemoryProfile.Small));
+                ResoniteImportBudgetProfiles.ForProfile(ResoniteImportMemoryProfile.Small),
+                CreateRequestLocalOrigin("53394525"));
 
         Assert.NotNull(baker);
         Assert.Equal(1, sourceFileBakeEmitterFactory.CreateCallCount);
@@ -532,10 +533,15 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
         public NonDemAtlasBakeBudget LastBudget { get; private set; }
 
-        public INonDemSourceFileBakeEmitter Create(NonDemAtlasBakeBudget atlasBudget)
+        public ResoniteLocalOrigin? LastRequestLocalOrigin { get; private set; }
+
+        public INonDemSourceFileBakeEmitter Create(
+            NonDemAtlasBakeBudget atlasBudget,
+            ResoniteLocalOrigin requestLocalOrigin)
         {
             CreateCallCount++;
             LastBudget = atlasBudget;
+            LastRequestLocalOrigin = requestLocalOrigin;
             return new RecordingNonDemSourceFileBakeEmitter();
         }
     }
@@ -607,7 +613,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()));
         CompositeCityObjectBaker baker = factory.Create(
                 enableMeshBake: true,
-                ResoniteImportBudgetProfiles.ForProfile(memoryProfile))
+                ResoniteImportBudgetProfiles.ForProfile(memoryProfile),
+                CreateRequestLocalOrigin("53394525"))
             ?? throw new InvalidOperationException("Expected mesh bake composite baker.");
 
         int readyBeforeFlush = 0;
@@ -618,6 +625,12 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         }
 
         return readyBeforeFlush;
+    }
+
+    private static ResoniteLocalOrigin CreateRequestLocalOrigin(string meshCode)
+    {
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate center));
+        return new ResoniteLocalOrigin(center.Latitude, center.Longitude, center.Altitude);
     }
 
     private static ResoniteConstructionCityObject CreateTriangleBuilding(

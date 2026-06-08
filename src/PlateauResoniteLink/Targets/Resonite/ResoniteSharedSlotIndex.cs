@@ -68,7 +68,10 @@ internal sealed class ResoniteSharedSlotIndex(
     {
         string sourceFileRelativePath = ResonitePlacementPolicy.ResolveSourceFileRelativePath(cityObject);
         string sourceFileSlotName = ResonitePlacementPolicy.ResolveSourceFileSlotName(cityObject, sourceFileRelativePath, sourceFileSlotNamesByRelativePath);
-        string rootMeshCode = ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(sourceFileSlotName, cityObject.ActualMeshCode);
+        string rootMeshCode = ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(
+            cityObject.SourceFileRootMeshCode,
+            sourceFileSlotName,
+            cityObject.ActualMeshCode);
         SourceRootPlacement sourceRootPlacement = ResolveSourceRootPlacement(sourceFileSlotName, rootMeshCode);
         CanonicalParentScope parentScope = await canonicalParentScopeCache.GetOrCreateAsync(
             new CanonicalParentSourceFile(sourceFileRelativePath, rootMeshCode, cityObject.LodLevel),

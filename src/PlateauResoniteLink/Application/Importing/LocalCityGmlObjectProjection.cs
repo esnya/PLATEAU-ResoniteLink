@@ -110,7 +110,7 @@ internal static class LocalCityGmlObjectProjection
             request,
             materialResolver,
             logger,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
     internal static IEnumerable<MaterialBinding> EnumerateCommonMaterialsForParsedCityObject(

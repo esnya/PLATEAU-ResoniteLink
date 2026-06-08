@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -60,10 +61,26 @@ internal sealed class CanonicalSceneDumpSink(
         IAsyncEnumerable<ImportedObjectUnit> objectUnits,
         CancellationToken cancellationToken = default)
     {
-        SceneImportExecutionResult result = await inner.ExecuteAsync(plan, objectUnits, cancellationToken);
-        string canonicalJson = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(recordingClient);
+        List<ImportedObjectUnit> recordedObjectUnits = [];
+        SceneImportExecutionResult result = await inner.ExecuteAsync(
+            plan,
+            RecordObjectUnits(objectUnits, recordedObjectUnits, cancellationToken),
+            cancellationToken);
+        string canonicalJson = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(recordingClient, recordedObjectUnits);
         await WriteAtomicallyAsync(outputPath, canonicalJson, cancellationToken);
         return result;
+    }
+
+    private static async IAsyncEnumerable<ImportedObjectUnit> RecordObjectUnits(
+        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
+        List<ImportedObjectUnit> recordedObjectUnits,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
+        {
+            recordedObjectUnits.Add(objectUnit);
+            yield return objectUnit;
+        }
     }
 
     public async ValueTask DisposeAsync()

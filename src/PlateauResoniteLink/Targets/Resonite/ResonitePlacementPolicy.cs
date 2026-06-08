@@ -94,8 +94,17 @@ internal static class ResonitePlacementPolicy
             + "source-file-owned hierarchy requires SourceFileRelativePath.");
     }
 
-    public static string ResolveRequiredSourceFileRootMeshCode(string sourceFileSlotName, string actualMeshCode)
+    public static string ResolveRequiredSourceFileRootMeshCode(
+        string? sourceFileRootMeshCode,
+        string sourceFileSlotName,
+        string actualMeshCode)
     {
+        if (!string.IsNullOrWhiteSpace(sourceFileRootMeshCode)
+            && PlateauMeshCode.TryGetGeodeticCenter(sourceFileRootMeshCode, out _))
+        {
+            return sourceFileRootMeshCode;
+        }
+
         if (ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(sourceFileSlotName, out string meshCode))
         {
             return meshCode;
@@ -108,6 +117,11 @@ internal static class ResonitePlacementPolicy
 
         throw new InvalidOperationException(
             $"source-file root '{sourceFileSlotName}' did not contain a concrete mesh-code and actual mesh-code '{actualMeshCode}' was not concrete.");
+    }
+
+    public static string ResolveRequiredSourceFileRootMeshCode(string sourceFileSlotName, string actualMeshCode)
+    {
+        return ResolveRequiredSourceFileRootMeshCode(null, sourceFileSlotName, actualMeshCode);
     }
 
     public static string FormatLodSlotName(int? lodLevel)

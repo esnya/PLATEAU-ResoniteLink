@@ -44,6 +44,42 @@ internal static class CityGmlParsedCityObjectProjection
                 sourceFile.CityObjects,
                 selectedMeshCodes);
 
+        if (string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+            && request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic)
+        {
+            List<ImportedCityObject> sourceFileProjectedCityObjects = [];
+            ConstructionCityObjectDraft? sourceFileTerrainGridSamplingDraft = CreateDemSourceFileTerrainGridSamplingDraft(sourceFile);
+            foreach (ParsedCityObject parsedCityObject in projectedInputCityObjects)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (predicate is not null && !predicate(parsedCityObject))
+                {
+                    continue;
+                }
+
+                sourceFileProjectedCityObjects.AddRange(Project(
+                    parsedCityObject,
+                    globalOriginPoint,
+                    globalCartesian,
+                    demTerrainTextureOverlays,
+                    requestedMeshCodeBounds,
+                    terrainHeightSampler: null,
+                    request,
+                    materialResolver,
+                    logger,
+                    demTerrainGridSamplingSourceOverride: sourceFileTerrainGridSamplingDraft,
+                    cancellationToken));
+            }
+
+            foreach (ImportedCityObject cityObject in sourceFileProjectedCityObjects)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return AttachSourceFileRoot(cityObject, sourceFile.SourceFile);
+            }
+
+            yield break;
+        }
+
         foreach (ParsedCityObject parsedCityObject in projectedInputCityObjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -62,11 +98,21 @@ internal static class CityGmlParsedCityObjectProjection
                          request,
                          materialResolver,
                          logger,
-                         cancellationToken))
+                         cancellationToken: cancellationToken))
             {
-                yield return cityObject;
+                yield return AttachSourceFileRoot(cityObject, sourceFile.SourceFile);
             }
         }
+    }
+
+    private static ImportedCityObject AttachSourceFileRoot(
+        ImportedCityObject cityObject,
+        SourceFileDescriptor sourceFile)
+    {
+        return cityObject with
+        {
+            SourceFileRootMeshCode = sourceFile.EffectiveSourceFileRootMeshCode,
+        };
     }
 
     internal static IEnumerable<ImportedCityObject> Project(
@@ -79,6 +125,7 @@ internal static class CityGmlParsedCityObjectProjection
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
         ILogger? logger = null,
+        ConstructionCityObjectDraft? demTerrainGridSamplingSourceOverride = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parsedCityObject);
@@ -92,7 +139,7 @@ internal static class CityGmlParsedCityObjectProjection
             GeometryHeightMeters = geometryHeightMeters,
         };
         ConstructionCityObjectDraft constructionDraft = GeneratedLod1RoofCityObjectFactory.CreateDraft(terrainAlignedParsedCityObject);
-        ConstructionCityObjectDraft terrainGridSamplingDraft = constructionDraft;
+        ConstructionCityObjectDraft terrainGridSamplingDraft = demTerrainGridSamplingSourceOverride ?? constructionDraft;
         List<ImportedCityObject> projectedCityObjects = [];
         List<ImportedCityObject> generatedRoadMarkings = [];
 
@@ -155,13 +202,7 @@ internal static class CityGmlParsedCityObjectProjection
             }
         }
 
-        ImportedCityObject[] alignedCityObjects =
-            request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic
-            && string.Equals(constructionDraft.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                ? DemTerrainGridChunkBoundaryAlignmentPolicy.Align(projectedCityObjects)
-                : [.. projectedCityObjects];
-
-        foreach (ImportedCityObject cityObject in alignedCityObjects)
+        foreach (ImportedCityObject cityObject in projectedCityObjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
             yield return cityObject;
@@ -172,6 +213,46 @@ internal static class CityGmlParsedCityObjectProjection
             cancellationToken.ThrowIfCancellationRequested();
             yield return markingObject;
         }
+    }
+
+    private static ConstructionCityObjectDraft? CreateDemSourceFileTerrainGridSamplingDraft(CachedSourceFileDescriptor sourceFile)
+    {
+        ParsedCityObject[] sourceObjects = sourceFile.CityObjects;
+        if (sourceObjects.Length == 0)
+        {
+            return null;
+        }
+
+        ParsedSurface[] surfaces = sourceObjects
+            .SelectMany(static cityObject => cityObject.Surfaces)
+            .OrderBy(static surface => surface, ParsedSurfaceStructuralComparer.Instance)
+            .ToArray();
+        if (surfaces.Length == 0)
+        {
+            return null;
+        }
+
+        ParsedCityObject first = sourceObjects[0];
+        ParsedCityObject samplingSource = first with
+        {
+            SlotKey = $"dem_source_file_sampling_{sourceFile.SourceFile.MatchedMeshCode}",
+            DisplayName = $"DEM source file sampling {sourceFile.SourceFile.MatchedMeshCode}",
+            ActualMeshCode = sourceFile.SourceFile.MatchedMeshCode,
+            LodLevel = sourceObjects
+                .Select(static cityObject => cityObject.LodLevel)
+                .Where(static lodLevel => lodLevel.HasValue)
+                .DefaultIfEmpty()
+                .Max(),
+            Surfaces = surfaces,
+            SourceFileRelativePath = sourceFile.SourceFile.RelativePath,
+            SharedAcrossMeshCodes = true,
+            TerrainAligned = sourceObjects.Any(static cityObject => cityObject.TerrainAligned),
+            GeodeticOriginOverride = null,
+            FloorsAboveGround = null,
+            MeasuredHeightMeters = null,
+            GeometryHeightMeters = null,
+        };
+        return ConstructionCityObjectDraft.FromParsedCityObject(samplingSource);
     }
 
     internal static IEnumerable<MaterialBinding> EnumerateCommonMaterials(
@@ -243,9 +324,23 @@ internal static class CityGmlParsedCityObjectProjection
         CancellationToken cancellationToken)
     {
         bool isDem = string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
-        if (!isDem || request.TerrainMeshMode == TerrainMeshMode.Static)
+        if (!isDem)
         {
             return CityGmlTriangleMeshCityObjectProjection.Project(cityObject, globalOriginPoint, globalCartesian, demTerrainTextureOverlay, materialResolver);
+        }
+
+        if (request.TerrainMeshMode == TerrainMeshMode.Static)
+        {
+            GeodeticPoint staticDemObjectOrigin = DemTerrainObjectFrameResolver.ResolveRequiredThirdMeshOrigin(
+                cityObject.ActualMeshCode,
+                cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
+            return CityGmlTriangleMeshCityObjectProjection.ProjectTriangleMesh(
+                cityObject,
+                globalOriginPoint,
+                globalCartesian,
+                demTerrainTextureOverlay,
+                materialResolver,
+                staticDemObjectOrigin).CityObject;
         }
 
         bool hasGrid = CityGmlDemTerrainGridCityObjectProjection.TryProject(
@@ -278,19 +373,24 @@ internal static class CityGmlParsedCityObjectProjection
             return heightMapCityObject!.CityObject;
         }
 
+        TerrainGridProjectedCityObject projectedHeightMap = heightMapCityObject!;
+        GeodeticPoint dynamicDemObjectOrigin = DemTerrainObjectFrameResolver.ResolveRequiredThirdMeshOrigin(
+            cityObject.ActualMeshCode,
+            cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
         TriangleMeshProjectedCityObject staticCityObject = CityGmlTriangleMeshCityObjectProjection.ProjectTriangleMesh(
             cityObject,
             globalOriginPoint,
             globalCartesian,
             demTerrainTextureOverlay,
-            materialResolver);
+            materialResolver,
+            dynamicDemObjectOrigin);
         TriangleMeshGeometry rebasedStaticMesh = TriangleMeshTransformRebaser.Rebase(
             staticCityObject.Geometry,
             staticCityObject.CityObject.Transform,
-            heightMapCityObject!.CityObject.Transform);
-        return heightMapCityObject.CityObject with
+            projectedHeightMap.CityObject.Transform);
+        return projectedHeightMap.CityObject with
         {
-            Geometry = new DynamicTerrainGeometry(rebasedStaticMesh, heightMapCityObject.Geometry),
+            Geometry = new DynamicTerrainGeometry(rebasedStaticMesh, projectedHeightMap.Geometry),
             Materials = staticCityObject.CityObject.Materials,
         };
     }

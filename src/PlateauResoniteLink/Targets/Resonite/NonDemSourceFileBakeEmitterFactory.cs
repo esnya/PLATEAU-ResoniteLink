@@ -2,13 +2,17 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface INonDemSourceFileBakeEmitterFactory
 {
-    INonDemSourceFileBakeEmitter Create(NonDemAtlasBakeBudget atlasBudget);
+    INonDemSourceFileBakeEmitter Create(
+        NonDemAtlasBakeBudget atlasBudget,
+        ResoniteLocalOrigin requestLocalOrigin);
 }
 
 internal sealed class NonDemSourceFileBakeEmitterFactory(
     ResoniteTextureImageLoader textureImageLoader) : INonDemSourceFileBakeEmitterFactory
 {
-    public INonDemSourceFileBakeEmitter Create(NonDemAtlasBakeBudget atlasBudget)
+    public INonDemSourceFileBakeEmitter Create(
+        NonDemAtlasBakeBudget atlasBudget,
+        ResoniteLocalOrigin requestLocalOrigin)
     {
         NonDemAtlasLayoutFactory layoutFactory = new(
             atlasBudget.EffectiveMaxAtlasSize,
@@ -19,7 +23,7 @@ internal sealed class NonDemSourceFileBakeEmitterFactory(
             new NonDemCityObjectBakeAssembler(
                 layoutFactory,
                 new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
-                new NonDemBakedGeometryComposer()),
+                new NonDemBakedGeometryComposer(requestLocalOrigin)),
             new NonDemAtlasBatchFitPolicy(layoutFactory),
             new NonDemBakeCandidateImageDisposer());
     }

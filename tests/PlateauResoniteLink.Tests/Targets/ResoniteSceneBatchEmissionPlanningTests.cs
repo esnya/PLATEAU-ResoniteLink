@@ -141,6 +141,17 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             batchPlan.ComponentEmissions,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal));
 
+        Assert.Null(objectSlots.CityObjectRotation);
+        Field_floatQ gridRotation = Assert.IsType<Field_floatQ>(ToMember(gridMesh.Members["Rotation"]));
+        Assert.Equal(0.70710677f, gridRotation.Value.x, 6);
+        Assert.Equal(0.0f, gridRotation.Value.y, 6);
+        Assert.Equal(0.0f, gridRotation.Value.z, 6);
+        Assert.Equal(0.70710677f, gridRotation.Value.w, 6);
+        PlannedBatchSlotEmission presentationSlot = AssertPlanned(gridMesh.ContainerTarget);
+        Assert.Equal("Terrain Grid Object", presentationSlot.SlotName);
+        Assert.Equal(-1.0f, Assert.IsType<Field_float>(ToMember(gridMesh.Members["DisplacementMagnitude"])).Value);
+        Assert.Same(presentationSlot, AssertPlanned(meshRenderer.ContainerTarget));
+        Assert.Same(presentationSlot, AssertPlanned(meshCollider.ContainerTarget));
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(ToMember(heightTexture.Members["WrapModeU"])).Value);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(ToMember(heightTexture.Members["WrapModeV"])).Value);
         Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(ToMember(heightTexture.Members["FilterMode"])).Value);
@@ -218,6 +229,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 && component.ComponentType.Contains("bool", StringComparison.Ordinal))
             .ToArray();
 
+        PlannedBatchSlotEmission presentationSlot = AssertPlanned(gridMesh.ContainerTarget);
+        Assert.Equal("Dynamic Terrain Object", presentationSlot.SlotName);
+        Assert.Equal(-1.0f, Assert.IsType<Field_float>(ToMember(gridMesh.Members["DisplacementMagnitude"])).Value);
+        Assert.Same(presentationSlot, AssertPlanned(meshRenderer.ContainerTarget));
+        Assert.Same(presentationSlot, AssertPlanned(meshCollider.ContainerTarget));
+        Assert.All(meshSwitches, meshSwitch => Assert.Same(presentationSlot, AssertPlanned(meshSwitch.ContainerTarget)));
+        Assert.All(boolDrivers, boolDriver => Assert.Same(presentationSlot, AssertPlanned(boolDriver.ContainerTarget)));
         Assert.Equal(2, meshSwitches.Length);
         Assert.Equal(2, boolDrivers.Length);
         PlannedAddressableReferenceMember rendererMesh = Assert.IsType<PlannedAddressableReferenceMember>(meshRenderer.Members["Mesh"]);

@@ -6,7 +6,8 @@ internal interface IResoniteBufferedCityObjectBakerFactory
 {
     CompositeCityObjectBaker? Create(
         bool enableMeshBake,
-        ResoniteImportBudgetProfile resourceBudget);
+        ResoniteImportBudgetProfile resourceBudget,
+        ResoniteLocalOrigin requestLocalOrigin);
 }
 
 internal sealed class ResoniteBufferedCityObjectBakerFactory(
@@ -17,7 +18,8 @@ internal sealed class ResoniteBufferedCityObjectBakerFactory(
 
     public CompositeCityObjectBaker? Create(
         bool enableMeshBake,
-        ResoniteImportBudgetProfile resourceBudget)
+        ResoniteImportBudgetProfile resourceBudget,
+        ResoniteLocalOrigin requestLocalOrigin)
     {
         _ = resourceBudget.Name switch
         {
@@ -30,7 +32,8 @@ internal sealed class ResoniteBufferedCityObjectBakerFactory(
                 new NonDemCityObjectBaker(
                     bakePolicyResolver: new NonDemCityObjectBakePolicyResolver(NonDemCityObjectBakePolicies.DefaultPolicies),
                     sourceFileBakeEmitter: sourceFileBakeEmitterFactory.Create(
-                        new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget))))
+                        new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget),
+                        requestLocalOrigin)))
             : null;
     }
 }
