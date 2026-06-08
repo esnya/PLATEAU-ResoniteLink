@@ -86,7 +86,7 @@ dotnet run --project src/PlateauResoniteLink.Cli -- \
 
 CLI は既定でマイルストーン級の進捗だけを表示し、file ごとの詳細や live-send trace は隠します。debug レベルの import / ResoniteLink trace が必要なときは `--verbose` を付けてください。
 
-`--work-root` を省略した場合、CLI は dataset ごとの archive と live temporary file を `local/<dataset>/` 配下に置きます。terrain tile download は別に local app-data 配下へ既定 cache され、`--terrain-tile-cache-root` で上書き、`--disable-terrain-tile-cache` で cross-run cache を無効化できます。
+`--work-root` を省略した場合、CLI は dataset ごとの archive と live temporary file を `local/<dataset>/` 配下に置きます。terrain tile download は別に local app-data 配下へ既定 cache され、`--terrain-tile-cache-root` で上書き、`--disable-terrain-tile-cache` で cross-run cache を無効化できます。DEM terrain texture source は既定では PLATEAU Ortho から GSI seamless photo tile に fallback できますが、`--exclude-gsi-terrain-tiles` を指定すると GeoTIFF と PLATEAU Ortho のみに限定します。
 
 import 成功後、CLI は run で使われた CityGML source file と、terrain texture 合成で消費した DEM texture source を含む datasource summary を出力します。
 
@@ -103,5 +103,5 @@ import 成功後、CLI は run で使われた CityGML source file と、terrain
 - [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) では、dataset ごとに PDL 1.0、CC BY 4.0、ODC BY、ODbL など異なる条件がありうると案内されています。
 - PLATEAU SDK for Unity は別 upstream の MIT licensed project で、license 控えは `THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt` にあります。
 - `src/PlateauResoniteLink/Assets/DefaultMaterials/` 配下の bundled default material texture は source site または生成元ごとに分けています。AmbientCG asset の追跡メモは `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`、TextureCan asset の追跡メモは `THIRD_PARTY_LICENSES/texturecan-CC0-1.0.txt`、生成 WallSkin fallback texture の追跡メモは `THIRD_PARTY_LICENSES/WallSkin-Generated-Textures.txt` にあります。
-- 既定の DEM terrain imagery overlay は bundled asset ではありません。PLATEAU ortho tile endpoint `https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png` から生成し、取得できない場合は GSI seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg` に fallback します。fallback source の repository 内メモは `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt` にあります。
+- 既定の DEM terrain imagery overlay は bundled asset ではありません。PLATEAU ortho tile endpoint `https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png` から生成し、`--exclude-gsi-terrain-tiles` が指定されていない場合は GSI seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg` に fallback します。fallback source の repository 内メモは `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt` にあります。
 - NuGet package やその他の runtime dependency には upstream license が適用されます。binary や vendored asset を再配布する前に、実際に出荷する version を確認してください。

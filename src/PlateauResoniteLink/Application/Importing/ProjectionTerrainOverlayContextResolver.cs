@@ -103,6 +103,7 @@ internal sealed class ProjectionTerrainOverlayContextResolver
     private async Task<ProjectionTerrainOverlayContext> CreateAsync(CancellationToken cancellationToken)
     {
         if (request.DemTextureSource is null
+            && !request.ExcludeGsiTerrainTiles
             && discoveryTerrainTextureOverlays.Length > 0
             && await HasSceneDemOverlayCoverageAsync(discoveryTerrainTextureOverlays, cancellationToken))
         {

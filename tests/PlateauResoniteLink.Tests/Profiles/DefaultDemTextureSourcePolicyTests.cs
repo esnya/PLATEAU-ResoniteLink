@@ -186,6 +186,40 @@ public sealed class DefaultDemTextureSourcePolicyTests
     }
 
     [Fact]
+    public async Task ResolveAsyncExcludesGsiFallbackWhenRequested()
+    {
+        DefaultDemTextureSourcePolicy policy = new(
+            new StubDemTerrainGeoReferencedRasterCatalogFactory(
+                catalog: null));
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local("C:\\dataset"),
+            PackageNames: ["dem"],
+            ExcludeGsiTerrainTiles: true);
+
+        ResolvedDemTextureSources result = await policy.ResolveAsync(request, CreateOverlayRegions("53394525"));
+
+        TerrainTextureOverlay overlay = Assert.Single(result.Overlays);
+        Assert.Collection(
+            overlay.Sources,
+            source =>
+            {
+                TerrainTextureTileSource tile = Assert.IsType<TerrainTextureTileSource>(source);
+                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, tile.UrlTemplate);
+                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, tile.ZoomLevel);
+            },
+            source =>
+            {
+                TerrainTextureTileSource tile = Assert.IsType<TerrainTextureTileSource>(source);
+                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, tile.UrlTemplate);
+                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, tile.ZoomLevel);
+            });
+        Assert.DoesNotContain(overlay.Sources, DemTerrainTextureDefaults.IsGsiFallbackSource);
+        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoOnly, overlay.LicenseMode);
+    }
+
+    [Fact]
     public void CreateMapTileFallbackOverlaysCreatesProviderOrderInsidePolicy()
     {
         DefaultDemTextureSourcePolicy policy = new(

@@ -165,7 +165,8 @@ public sealed class PlateauImportRequestValidatorTests
             MeshCode: " 53394525 ",
             CityGmlSource: DatasetLocation.Local($"  {sourceRoot.Path}  "),
             DemTextureSource: DatasetLocation.Local($"  {geoTiffPath}  "),
-            PackageNames: [" waterbody ", " tran "]);
+            PackageNames: [" waterbody ", " tran "],
+            ExcludeGsiTerrainTiles: true);
 
         bool success = PlateauImportRequestValidator.TryNormalizeAndValidate(
             request,
@@ -182,6 +183,7 @@ public sealed class PlateauImportRequestValidatorTests
         Assert.Equal(sourceRoot.Path, validatedRequest.CityGmlLocalSourcePath);
         Assert.Equal(geoTiffPath, validatedRequest.DemTextureLocalSourcePath);
         Assert.Equal(["wtr", "tran"], validatedRequest.PackageNames);
+        Assert.True(validatedRequest.ExcludeGsiTerrainTiles);
     }
 
     [Fact]

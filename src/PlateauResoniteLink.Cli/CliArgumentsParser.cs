@@ -48,6 +48,8 @@ public static class CliArgumentsParser
                                 Optional. Override the persistent terrain tile cache root.
           --disable-terrain-tile-cache
                                 Optional. Disable persistent terrain tile caching across runs.
+          --exclude-gsi-terrain-tiles
+                                Optional. Exclude GSI seamless photo tiles from DEM terrain texture sources.
           --canonical-scene-dump <path>
                                 Optional. Developer semantic verification mode. Apply the import to a fake ResoniteLink sink
                                 and write the canonical final scene JSON instead of connecting to ResoniteLink.
@@ -98,6 +100,7 @@ public static class CliArgumentsParser
         string workRoot = "local";
         string? terrainTileCacheRoot = null;
         bool disableTerrainTileCache = false;
+        bool excludeGsiTerrainTiles = false;
         string? canonicalSceneDumpPath = null;
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
@@ -157,6 +160,9 @@ public static class CliArgumentsParser
                         break;
                     case "--disable-terrain-tile-cache":
                         disableTerrainTileCache = true;
+                        break;
+                    case "--exclude-gsi-terrain-tiles":
+                        excludeGsiTerrainTiles = true;
                         break;
                     case "--canonical-scene-dump":
                         canonicalSceneDumpPath = ReadValue(args, ref index, token);
@@ -397,7 +403,8 @@ public static class CliArgumentsParser
             IncludeMarkingAlways: includeMarkingAlways,
             TerrainMeshMode: terrainMesh,
             TerrainGridMetersPerVertex: terrainGridMetersPerVertex,
-            TerrainGridMaxResolution: terrainGridMaxResolution);
+            TerrainGridMaxResolution: terrainGridMaxResolution,
+            ExcludeGsiTerrainTiles: excludeGsiTerrainTiles);
 
         if (canonicalSceneDumpPath is not null && resoniteLinkUri is not null)
         {

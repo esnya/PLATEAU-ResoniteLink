@@ -134,6 +134,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
             overlays[index] = await CreateOverlayAsync(
                 overlayRegions[index],
                 request.Dataset,
+                request.ExcludeGsiTerrainTiles,
                 rasterCatalog,
                 cancellationToken);
         }
@@ -161,6 +162,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
     private static async Task<TerrainTextureOverlay> CreateOverlayAsync(
         DemTerrainOverlayRegion region,
         string datasetName,
+        bool excludeGsiTerrainTiles,
         IDemTerrainGeoReferencedRasterCatalog? rasterCatalog,
         CancellationToken cancellationToken)
     {
@@ -178,13 +180,17 @@ internal sealed class DefaultDemTextureSourcePolicy(
                 new TerrainTextureTileSource(
                     DemTerrainTextureDefaults.PlateauOrthoUrlTemplate,
                     DemTerrainTextureDefaults.FallbackZoomLevel)),
-            CreateTileCandidate(
-                DemTextureSourcePreference.Gsi18,
-                region.GeographicBounds,
-                new TerrainTextureTileSource(
-                    DemTerrainTextureDefaults.GsiFallbackUrlTemplate,
-                    DemTerrainTextureDefaults.FallbackZoomLevel)),
         ];
+        if (!excludeGsiTerrainTiles)
+        {
+            candidates.Add(
+                CreateTileCandidate(
+                    DemTextureSourcePreference.Gsi18,
+                    region.GeographicBounds,
+                    new TerrainTextureTileSource(
+                        DemTerrainTextureDefaults.GsiFallbackUrlTemplate,
+                        DemTerrainTextureDefaults.FallbackZoomLevel)));
+        }
 
         if (rasterCatalog is not null)
         {

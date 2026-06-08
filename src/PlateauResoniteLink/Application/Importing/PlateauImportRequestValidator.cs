@@ -246,7 +246,8 @@ public static class PlateauImportRequestValidator
             normalizedRequest.IncludeMarkingAlways,
             normalizedRequest.TerrainMeshMode,
             normalizedRequest.TerrainGridMetersPerVertex,
-            normalizedRequest.TerrainGridMaxResolution);
+            normalizedRequest.TerrainGridMaxResolution,
+            normalizedRequest.ExcludeGsiTerrainTiles);
         errors = Array.Empty<string>();
         return true;
     }

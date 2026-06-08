@@ -1,6 +1,7 @@
 using System;
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -55,6 +56,38 @@ public sealed class SceneImportExecutionPlanTests
             resolvedRequest.ToImportRequest() with
             {
                 MeshCode = "53394526",
+            });
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(
+            () => SceneImportExecutionPlan.Create(
+                resolvedRequest,
+                metadata,
+                workRoot,
+                CommonMaterialCatalog.Create()));
+
+        Assert.Equal("metadataRequest", exception.ParamName);
+    }
+
+    [Fact]
+    public void CreateRejectsMetadataRequestWithDifferentGsiTerrainTileExclusion()
+    {
+        string workRoot = "work";
+        string cityGmlLocalSourcePath = "/tmp/plateau";
+        ValidatedPlateauImportRequest validatedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: new Regex(@"\A(?:53394525)\z", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)),
+            CityGmlSource: new ValidatedLocalDatasetLocation(cityGmlLocalSourcePath),
+            PackageNames: ["bldg"],
+            ExcludeGsiTerrainTiles: true);
+        ResolvedLocalPlateauImportRequest resolvedRequest = ResolvedLocalPlateauImportRequest.Create(
+            validatedRequest,
+            new ValidatedLocalDatasetLocation(cityGmlLocalSourcePath),
+            demTextureSource: null);
+        ImportedSceneMetadata metadata = CreateMetadata(
+            resolvedRequest.ToImportRequest() with
+            {
+                ExcludeGsiTerrainTiles = false,
             });
 
         ArgumentException exception = Assert.Throws<ArgumentException>(
