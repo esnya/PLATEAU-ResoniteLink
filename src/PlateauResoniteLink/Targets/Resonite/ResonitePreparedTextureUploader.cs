@@ -26,10 +26,10 @@ internal static class ResonitePreparedTextureUploader
         PreparedCityObject preparedCityObject,
         CancellationToken cancellationToken)
     {
-        Dictionary<ResoniteTexturePayload, Uri> textureUrisByPayload = new(ResoniteTexturePayloadReferenceComparer.Instance);
+        Dictionary<ResoniteTexturePayload, Uri> textureUrisByPayload = new(ReferenceEqualityComparer.Instance);
         Dictionary<TerrainTextureOverlay, Uri> terrainTextureUrisByOverlay = [];
         Dictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode = [];
-        HashSet<ResoniteTexturePayload> queuedPayloads = new(ResoniteTexturePayloadReferenceComparer.Instance);
+        HashSet<ResoniteTexturePayload> queuedPayloads = new(ReferenceEqualityComparer.Instance);
         List<(PreparedMaterialTextureReference Texture, Task<Uri> ImportTask)> textureImportTasks = [];
         List<(PreparedTerrainOverlayTextureReference Texture, Task<SharedTerrainTextureAsset> ImportTask)> terrainTextureImportTasks = [];
 
