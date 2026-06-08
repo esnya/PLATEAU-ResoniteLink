@@ -48,7 +48,11 @@ internal static class CliServiceCollectionExtensions
 
         services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
-        services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();
+        services.AddSingleton<Func<IPlateauDatasetSourceResolver>>(_ =>
+            () => new CkanPlateauDatasetSourceResolver(
+                _.GetRequiredService<IHttpClientFactory>().CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName),
+                _.GetRequiredService<IRemoteArchiveDistributionPolicy>(),
+                _.GetRequiredService<IArchiveFileLayoutPolicy>()));
         services.AddSingleton<ISceneSinkFactory, DefaultSceneSinkFactory>();
         services.AddSingleton<CliApplication>(_ => new CliApplication(
             standardOutput,
@@ -65,18 +69,13 @@ internal interface IImportServiceFactory
     PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter);
 }
 
-internal interface IPlateauDatasetSourceResolverFactory
-{
-    IPlateauDatasetSourceResolver Create();
-}
-
 internal interface ISceneSinkFactory
 {
     ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter);
 }
 
 internal sealed class DefaultImportServiceFactory(
-    IPlateauDatasetSourceResolverFactory datasetSourceResolverFactory,
+    Func<IPlateauDatasetSourceResolver> createDatasetSourceResolver,
     ISceneSinkFactory sceneSinkFactory,
     IImportedSceneSourceFactory importedSceneSourceFactory,
     CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
@@ -92,26 +91,11 @@ internal sealed class DefaultImportServiceFactory(
 
         return new PlateauImportService(
             sceneSinkFactory.Create(options, progressReporter),
-            datasetSourceResolverFactory.Create(),
+            createDatasetSourceResolver(),
             importedSceneSourceFactory,
             commonMaterials,
             archiveFileLayoutPolicy,
             progressReporter);
-    }
-}
-
-internal sealed class DefaultPlateauDatasetSourceResolverFactory(
-    IHttpClientFactory httpClientFactory,
-    IRemoteArchiveDistributionPolicy remoteArchiveDistributionPolicy,
-    IArchiveFileLayoutPolicy archiveFileLayoutPolicy)
-    : IPlateauDatasetSourceResolverFactory
-{
-    public IPlateauDatasetSourceResolver Create()
-    {
-        return new CkanPlateauDatasetSourceResolver(
-            httpClientFactory.CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName),
-            remoteArchiveDistributionPolicy,
-            archiveFileLayoutPolicy);
     }
 }
 
