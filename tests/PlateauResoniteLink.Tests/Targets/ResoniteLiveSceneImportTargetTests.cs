@@ -691,6 +691,32 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncResolvesUnkeyedBatchResponsesAfterValidation()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneSinkRecordingClientWithoutSourceMessageIds client = new();
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles:
+            [
+                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
+            ]);
+
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            metadata,
+            [CreateTerrainGridCityObject("terrain-grid", "Terrain Grid")],
+            client);
+
+        Assert.Contains(
+            client.ComponentsById.Values,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteAsyncCreatesDynamicTerrainStaticAndGridAssetsWithGridFallback()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -1846,6 +1872,27 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Success = false,
                     ErrorInfo = "simulated member assignment failure",
                 });
+            }
+
+            return response;
+        }
+    }
+
+    private sealed class SceneSinkRecordingClientWithoutSourceMessageIds : SceneSinkRecordingClient
+    {
+        public override async Task<BatchResponse> RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            BatchResponse response = await base.RunDataModelOperationBatchAsync(operations, cancellationToken);
+            if (response.Responses is null)
+            {
+                return response;
+            }
+
+            foreach (Response operationResponse in response.Responses)
+            {
+                operationResponse.SourceMessageID = null;
             }
 
             return response;
