@@ -6,7 +6,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed class ResoniteLiveSendRunStarterFactory(
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
     LiveSendRunStateFactory runStateFactory,
-    ResoniteLiveSendWorkerLauncherFactory workerLauncherFactory)
+    ResoniteLiveSendWorkerPipelineFactory workerPipelineFactory)
 {
     public ResoniteLiveSendRunStarter Create(
         HttpClient terrainTextureAssetHttpClient,
@@ -15,46 +15,20 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
         ArgumentNullException.ThrowIfNull(options);
 
-        return Create(workerLauncherFactory.Create(terrainTextureAssetHttpClient, options));
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator = new TerrainTextureAssetGenerator(
+            terrainTextureAssetHttpClient,
+            options.TerrainTileCacheRoot,
+            options.DisableTerrainTileCache);
+        return Create(terrainTextureAssetGenerator);
     }
 
     public ResoniteLiveSendRunStarter Create(ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
     {
         ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
 
-        return Create(workerLauncherFactory.Create(terrainTextureAssetGenerator));
-    }
-
-    private ResoniteLiveSendRunStarter Create(ResoniteLiveSendWorkerLauncher workerLauncher)
-    {
-        ArgumentNullException.ThrowIfNull(workerLauncher);
-
         return new ResoniteLiveSendRunStarter(
             runSetupPreparer,
             runStateFactory,
-            workerLauncher);
-    }
-}
-
-internal sealed class ResoniteLiveSendWorkerLauncherFactory(
-    ITerrainTextureAssetGeneratorFactory terrainTextureAssetGeneratorFactory,
-    ResoniteLiveSendWorkerPipelineFactory workerPipelineFactory)
-{
-    public ResoniteLiveSendWorkerLauncher Create(
-        HttpClient terrainTextureAssetHttpClient,
-        ResoniteLiveSceneImportTargetOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
-        ArgumentNullException.ThrowIfNull(options);
-
-        return Create(terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options));
-    }
-
-    public ResoniteLiveSendWorkerLauncher Create(
-        ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
-    {
-        ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
-
-        return new ResoniteLiveSendWorkerLauncher(workerPipelineFactory.Create(terrainTextureAssetGenerator));
+            new ResoniteLiveSendWorkerLauncher(workerPipelineFactory.Create(terrainTextureAssetGenerator)));
     }
 }
