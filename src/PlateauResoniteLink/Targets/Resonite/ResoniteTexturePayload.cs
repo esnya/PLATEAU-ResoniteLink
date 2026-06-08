@@ -3,6 +3,9 @@ using System.Collections.Immutable;
 
 using PlateauResoniteLink.Application.Importing;
 
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 public abstract class ResoniteTexturePayload
@@ -22,6 +25,8 @@ public abstract class ResoniteTexturePayload
 
 public sealed class RawRgba32ResoniteTexturePayload : ResoniteTexturePayload
 {
+    private const string DefaultSrgbColorProfile = "srgb";
+
     public RawRgba32ResoniteTexturePayload(
         int width,
         int height,
@@ -56,6 +61,25 @@ public sealed class RawRgba32ResoniteTexturePayload : ResoniteTexturePayload
     public int Height { get; }
 
     public ImmutableArray<byte> BinaryPayload { get; }
+
+    public static RawRgba32ResoniteTexturePayload Create(
+        Image<Rgba32> image,
+        string colorProfile = DefaultSrgbColorProfile,
+        string? description = null)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
+
+        RawTexturePayload rawPayload = TextureImportSourceFactory.CreateRawPayloadFromImage(
+            image,
+            colorProfile);
+        return new RawRgba32ResoniteTexturePayload(
+            image.Width,
+            image.Height,
+            colorProfile,
+            rawPayload.Bytes,
+            description);
+    }
 
     private static ITextureImportSource CreateSource(
         int width,

@@ -295,7 +295,7 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
             new PreparedMaterialTextureReference(
                 TexturePayload: material.TexturePayload,
                 TextureSourceKind: material.TextureSourceKind,
-                TextureSource: ResoniteTextureImportFactory.CreateSourceFromPayload(material.TexturePayload)));
+                TextureSource: material.TexturePayload.Source));
     }
 
     private static void ReportProgress(Action<string>? progressReporter, string message)
