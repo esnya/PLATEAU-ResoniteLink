@@ -21,7 +21,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new DefaultPlateauDatasetContentSourceFactory(
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
-            new CityGmlAppearanceStoreFactory(),
+            CityGmlAppearanceStore.Create,
             new CityGmlLodSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
@@ -45,7 +45,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
         LocalCityGmlDocumentReader reader = new(
             new StubDatasetContentSourceFactory(datasetSource),
-            new CityGmlAppearanceStoreFactory(),
+            CityGmlAppearanceStore.Create,
             new CityGmlLodSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
@@ -66,7 +66,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new DefaultPlateauDatasetContentSourceFactory(
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
-            new CityGmlAppearanceStoreFactory(),
+            CityGmlAppearanceStore.Create,
             new CityGmlLodSelector());
 
         ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(

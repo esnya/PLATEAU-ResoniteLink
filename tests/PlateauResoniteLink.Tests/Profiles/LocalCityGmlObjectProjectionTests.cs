@@ -55,7 +55,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new DefaultPlateauDatasetContentSourceFactory(
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
-            new CityGmlAppearanceStoreFactory(),
+            CityGmlAppearanceStore.Create,
             new CityGmlLodSelector());
     }
 

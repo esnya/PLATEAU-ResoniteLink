@@ -51,7 +51,7 @@ public sealed class CliApplicationTests
             new DefaultPlateauDatasetContentSourceFactory(
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
-            new CityGmlAppearanceStoreFactory(),
+            CityGmlAppearanceStore.Create,
             new CityGmlLodSelector());
     }
 
