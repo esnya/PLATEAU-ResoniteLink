@@ -19,7 +19,8 @@ public sealed class ImportServiceFactoryTests
     public async Task CreateBuildsRunScopedServicesAndPassesTargetOptionsThrough()
     {
         List<StubPlateauDatasetSourceResolver> createdResolvers = [];
-        StubSceneSinkFactory sceneImportTargetFactory = new();
+        List<ImportCommandOptions> capturedOptions = [];
+        List<StubSceneImportSink> createdTargets = [];
         StubImportedSceneSourceFactory importedSceneSourceFactory = new();
         IArchiveFileLayoutPolicy archiveFileLayoutPolicy = new ArchiveFileLayoutPolicy();
         DefaultImportServiceFactory factory = new(
@@ -29,7 +30,13 @@ public sealed class ImportServiceFactoryTests
                 createdResolvers.Add(resolver);
                 return resolver;
             },
-            sceneImportTargetFactory,
+            (options, _) =>
+            {
+                capturedOptions.Add(options);
+                StubSceneImportSink target = new();
+                createdTargets.Add(target);
+                return target;
+            },
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
             archiveFileLayoutPolicy);
@@ -42,15 +49,15 @@ public sealed class ImportServiceFactoryTests
 
         Assert.NotSame(firstService, secondService);
         Assert.Equal(2, createdResolvers.Count);
-        Assert.Equal(2, sceneImportTargetFactory.CreatedTargets.Count);
-        Assert.Equal([firstOptions, secondOptions], sceneImportTargetFactory.CapturedOptions);
+        Assert.Equal(2, createdTargets.Count);
+        Assert.Equal([firstOptions, secondOptions], capturedOptions);
 
         ImportExecutionResult firstResult = await firstService.ExecuteAsync(firstOptions.Request, firstOptions.WorkRoot);
         ImportExecutionResult secondResult = await secondService.ExecuteAsync(secondOptions.Request, secondOptions.WorkRoot);
 
         Assert.Equal("PLATEAU tokyo23ku 53394525", firstResult.Metadata.SceneName);
         Assert.Equal("PLATEAU tokyo23ku 53394526", secondResult.Metadata.SceneName);
-        Assert.True(sceneImportTargetFactory.CreatedTargets.All(static target => target.DisposeCallCount == 1));
+        Assert.True(createdTargets.All(static target => target.DisposeCallCount == 1));
         Assert.Equal(2, importedSceneSourceFactory.CreateCallCount);
     }
 
@@ -87,21 +94,6 @@ public sealed class ImportServiceFactoryTests
                 ? null
                 : Assert.IsType<ValidatedLocalDatasetLocation>(request.DemTextureSource);
             return Task.FromResult(ResolvedLocalPlateauImportRequest.Create(request, localSource, localDemTextureSource, workRoot));
-        }
-    }
-
-    private sealed class StubSceneSinkFactory : ISceneSinkFactory
-    {
-        public List<ImportCommandOptions> CapturedOptions { get; } = [];
-        public List<StubSceneImportSink> CreatedTargets { get; } = [];
-
-        public ISceneSink Create(ImportCommandOptions options, ILoggerFactory loggerFactory)
-        {
-            _ = loggerFactory;
-            CapturedOptions.Add(options);
-            StubSceneImportSink target = new();
-            CreatedTargets.Add(target);
-            return target;
         }
     }
 

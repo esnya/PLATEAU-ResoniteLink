@@ -53,7 +53,9 @@ internal static class CliServiceCollectionExtensions
                 _.GetRequiredService<IHttpClientFactory>().CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName),
                 _.GetRequiredService<IRemoteArchiveDistributionPolicy>(),
                 _.GetRequiredService<IArchiveFileLayoutPolicy>()));
-        services.AddSingleton<ISceneSinkFactory, DefaultSceneSinkFactory>();
+        services.AddSingleton<DefaultSceneSinkFactory>();
+        services.AddSingleton<Func<ImportCommandOptions, ILoggerFactory, ISceneSink>>(_ =>
+            _.GetRequiredService<DefaultSceneSinkFactory>().Create);
         services.AddSingleton<CliApplication>(_ => new CliApplication(
             standardOutput,
             standardError,
@@ -69,14 +71,9 @@ internal interface IImportServiceFactory
     PlateauImportService Create(ImportCommandOptions options, ILoggerFactory loggerFactory);
 }
 
-internal interface ISceneSinkFactory
-{
-    ISceneSink Create(ImportCommandOptions options, ILoggerFactory loggerFactory);
-}
-
 internal sealed class DefaultImportServiceFactory(
     Func<IPlateauDatasetSourceResolver> createDatasetSourceResolver,
-    ISceneSinkFactory sceneSinkFactory,
+    Func<ImportCommandOptions, ILoggerFactory, ISceneSink> createSceneSink,
     IImportedSceneSourceFactory importedSceneSourceFactory,
     CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IImportServiceFactory
@@ -91,7 +88,7 @@ internal sealed class DefaultImportServiceFactory(
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
         return new PlateauImportService(
-            sceneSinkFactory.Create(options, loggerFactory),
+            createSceneSink(options, loggerFactory),
             createDatasetSourceResolver(),
             importedSceneSourceFactory,
             commonMaterials,
@@ -103,7 +100,6 @@ internal sealed class DefaultImportServiceFactory(
 internal sealed class DefaultSceneSinkFactory(
     IHttpClientFactory httpClientFactory,
     IServiceScopeFactory serviceScopeFactory)
-    : ISceneSinkFactory
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",

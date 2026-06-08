@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using PlateauResoniteLink.Application.Importing;
@@ -47,12 +48,13 @@ public sealed class CliHostFactoryTests
     }
 
     [Fact]
-    public async Task CreateSceneSinkFactoryBuildsCanonicalDumpSinkThroughRegisteredFactory()
+    public async Task CreateSceneSinkBuildsCanonicalDumpSinkThroughRegisteredFactory()
     {
         using IHost host = CliHostFactory.Create([]);
-        ISceneSinkFactory sceneSinkFactory = host.Services.GetRequiredService<ISceneSinkFactory>();
+        Func<ImportCommandOptions, ILoggerFactory, ISceneSink> createSceneSink =
+            host.Services.GetRequiredService<Func<ImportCommandOptions, ILoggerFactory, ISceneSink>>();
 
-        await using ISceneSink sink = sceneSinkFactory.Create(
+        await using ISceneSink sink = createSceneSink(
             new ImportCommandOptions(
                 new PlateauImportRequest(
                     Dataset: "tokyo23ku",
