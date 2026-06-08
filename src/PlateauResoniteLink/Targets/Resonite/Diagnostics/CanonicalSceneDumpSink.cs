@@ -11,17 +11,21 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
 
-internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
-    IResoniteLiveSceneImportFactory targetFactory)
+internal sealed class CanonicalSceneDumpSink(
+    ISceneSink inner,
+    SceneSinkRecordingClient recordingClient,
+    string outputPath) : ISceneSink
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "CanonicalSceneDumpSink owns the recording client after successful construction; failures dispose it here.")]
-    public ISceneSink Create(
+    public static ISceneSink Create(
+        IResoniteLiveSceneImportFactory targetFactory,
         ResoniteLiveSceneImportTargetOptions options,
         string outputPath)
     {
+        ArgumentNullException.ThrowIfNull(targetFactory);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
@@ -41,13 +45,7 @@ internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
             throw;
         }
     }
-}
 
-internal sealed class CanonicalSceneDumpSink(
-    ISceneSink inner,
-    SceneSinkRecordingClient recordingClient,
-    string outputPath) : ISceneSink
-{
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
         IAsyncEnumerable<ImportedObjectUnit> objectUnits,
