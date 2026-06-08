@@ -14,7 +14,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 {
     private readonly Uri endpoint;
     private readonly int connectionCount;
-    private readonly ResoniteLiveSendRunExecutor runExecutor;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
@@ -37,7 +36,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Diagnostics = dependencies.Diagnostics;
         MeshBakeEnabled = options.EnableMeshBake;
         logger = options.LoggerFactory.CreateLogger("PlateauResoniteLink.LiveSend");
-        runExecutor = dependencies.RunExecutor;
+        RunExecutor = dependencies.RunExecutor;
         ClientSessionInternal = dependencies.ClientSession;
     }
 
@@ -48,6 +47,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     internal ILiveSendClientSession ClientSession => ClientSessionInternal;
 
     internal ResoniteImportMemoryProfile MemoryProfile { get; }
+
+    internal ResoniteLiveSendRunExecutor RunExecutor { get; }
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
@@ -62,7 +63,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         }
         try
         {
-            return await runExecutor.ExecuteAsync(
+            return await RunExecutor.ExecuteAsync(
                 ResoniteLiveSendStartRequestFactory.Create(
                     plan,
                     MemoryProfile,
