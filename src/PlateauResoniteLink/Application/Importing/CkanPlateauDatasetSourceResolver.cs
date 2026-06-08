@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
+internal sealed class CkanPlateauDatasetSourceResolver
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient httpClient;
