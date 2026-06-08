@@ -54,8 +54,7 @@ public sealed class CliApplicationTests
     {
         return new LocalCityGmlDocumentReader(
             CreateDatasetContentSourceAsync,
-            CityGmlAppearanceStore.Create,
-            new CityGmlLodSelector());
+            CityGmlAppearanceStore.Create);
     }
 
     private static DatasetInspectionService CreateDatasetInspectionService()

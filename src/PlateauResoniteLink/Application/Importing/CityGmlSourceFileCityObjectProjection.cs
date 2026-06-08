@@ -13,7 +13,6 @@ internal static class CityGmlSourceFileCityObjectProjection
         SourceFileDescriptor sourceFile,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         ICityGmlAppearanceStore appearanceStore,
-        ICityGmlLodSelector lodSelector,
         CoordinateReferenceSystem coordinateReferenceSystem,
         LodFilteringStrategy lodFilteringStrategy)
     {
@@ -30,7 +29,6 @@ internal static class CityGmlSourceFileCityObjectProjection
             sourceFile.MatchedMeshCode,
             sourceFile.RequiresMeshCodeBoundsFilter,
             appearanceStore,
-            lodSelector,
             coordinateReferenceSystem,
             sourceFile.RequiresMeshCodeBoundsFilter ? requestedMeshAreas : [],
             lodFilteringStrategy);
