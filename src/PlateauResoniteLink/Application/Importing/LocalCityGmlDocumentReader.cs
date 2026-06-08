@@ -7,16 +7,16 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
 {
     private readonly IPlateauDatasetContentSourceFactory datasetContentSourceFactory;
-    private readonly ICityGmlAppearanceStoreFactory appearanceStoreFactory;
+    private readonly Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore;
     private readonly ICityGmlLodSelector lodSelector;
 
     internal LocalCityGmlDocumentReader(
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
-        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         ICityGmlLodSelector lodSelector)
     {
         this.datasetContentSourceFactory = datasetContentSourceFactory;
-        this.appearanceStoreFactory = appearanceStoreFactory;
+        this.createAppearanceStore = createAppearanceStore;
         this.lodSelector = lodSelector;
     }
 
@@ -28,7 +28,7 @@ internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
         return await ImportedSceneSourceDiscoveryPipeline.ReadDocumentSetCoreAsync(
             request,
             datasetContentSourceFactory,
-            appearanceStoreFactory,
+            createAppearanceStore,
             lodSelector,
             progressReporter,
             cancellationToken);
