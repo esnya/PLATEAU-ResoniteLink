@@ -136,6 +136,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             cityObjectOrigin,
             cityObjectCartesian,
             demTerrainTextureOverlay,
+            heightMapBounds.GeographicBounds,
             materialResolver);
         Float2? heightMapUvScale = heightMapOccupiedUvRect.HasValue
             ? ToContractFloat2(heightMapOccupiedUvRect.Value.ScaleValue)
@@ -182,6 +183,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
+        GeographicRectangle terrainGridGeographicBounds,
         IDefaultMaterialResolver materialResolver)
     {
         if (demTerrainTextureOverlay is null)
@@ -189,7 +191,6 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             return null;
         }
 
-        GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject.Source, demTerrainTextureOverlay);
         ResolvedSurfaceMaterial? representativeSurface = CityGmlSurfaceMaterialResolver.EnumerateSurfaces(
                 cityObject,
                 cityObjectOrigin,
@@ -206,21 +207,8 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             cityObject.Source,
             representativeSurface,
             demTerrainTextureOverlay,
-            demObjectBounds);
+            terrainGridGeographicBounds);
         return occupiedUvRect is { IsIdentity: true } ? null : occupiedUvRect;
-    }
-
-    private static GeographicRectangle? TryGetDemObjectGeographicBounds(
-        ParsedCityObject cityObject,
-        TerrainTextureOverlay? demTerrainTextureOverlay)
-    {
-        if (demTerrainTextureOverlay is null
-            || !string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return ResolveCityObjectGeographicBounds(cityObject);
     }
 
     private static DemTerrainGridBounds CreateDemTerrainGridBounds(
@@ -259,10 +247,10 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
         if ((clippedMaxX - clippedMinX) <= 1e-6 || (clippedMaxZ - clippedMinZ) <= 1e-6)
         {
-            return new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
+            return new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ, clippedBounds);
         }
 
-        return new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ);
+        return new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ, clippedBounds);
     }
 
     private static GeographicRectangle ResolveDemTerrainGridGeographicBounds(
@@ -457,7 +445,8 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         double MinX,
         double MaxX,
         double MinZ,
-        double MaxZ);
+        double MaxZ,
+        GeographicRectangle GeographicBounds);
 }
 
 internal sealed record TerrainGridProjectedCityObject(

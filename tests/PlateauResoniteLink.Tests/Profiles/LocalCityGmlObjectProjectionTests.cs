@@ -2650,7 +2650,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public async Task DemTerrainGridModeCarriesGeneratedTextureUvTransformOnGeometryInsteadOfMaterial()
+    public async Task DemTerrainGridModeOmitsGeneratedTextureUvTransformWhenGridCoversOverlayMesh()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
@@ -2676,12 +2676,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(demCityObject.Geometry);
         MaterialBinding material = Assert.Single(demCityObject.Materials);
 
-        Assert.NotNull(geometry.UvScale);
-        Assert.NotNull(geometry.UvOffset);
-        Assert.InRange(geometry.UvOffset!.X, 0.07, 0.11);
-        Assert.InRange(geometry.UvOffset.Y, 0.09, 0.11);
-        Assert.InRange(geometry.UvOffset.X + geometry.UvScale!.X, 0.91, 0.93);
-        Assert.InRange(geometry.UvOffset.Y + geometry.UvScale.Y, 0.91, 0.93);
+        Assert.Null(geometry.UvScale);
+        Assert.Null(geometry.UvOffset);
         Assert.Null(material.TextureScale);
         Assert.Null(material.TextureOffset);
     }
@@ -2717,8 +2713,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.NotEmpty(geometry.StaticMesh.Mesh.Submeshes);
         Assert.True(geometry.GridMesh.Width > 1);
         Assert.True(geometry.GridMesh.Height > 1);
-        Assert.NotNull(geometry.GridMesh.UvScale);
-        Assert.NotNull(geometry.GridMesh.UvOffset);
+        Assert.Null(geometry.GridMesh.UvScale);
+        Assert.Null(geometry.GridMesh.UvOffset);
         Assert.Null(material.TextureScale);
         Assert.Null(material.TextureOffset);
     }
@@ -2776,6 +2772,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             CancellationToken.None);
 
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(projected.Geometry);
+        MaterialBinding material = Assert.Single(projected.Materials);
         Assert.All(EnumerateBoundaryCoverage(geometry), static coverage => Assert.Equal(TerrainGridSampleCoverage.Measured, coverage));
         Assert.True(geometry.Size.X > 0.0);
         Assert.True(geometry.Size.Y > 0.0);
@@ -2787,6 +2784,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             geometry.Size.Y / EstimateProjectedLatitudeSpanMeters(south, north, west, east, origin, cartesian),
             0.99,
             1.01);
+        Assert.Null(geometry.UvScale);
+        Assert.Null(geometry.UvOffset);
+        Assert.NotNull(material.TerrainOverlay);
     }
 
     [Fact]
