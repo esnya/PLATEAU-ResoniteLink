@@ -219,7 +219,7 @@ internal static class ResoniteMaterialComponentPolicy
         int variantIndex)
         where TRole : IBundledDefaultTextureRole
     {
-        if (!bundledDefaultMaterialAssetStore.TryGetAbsolutePath(asset, out _))
+        if (!bundledDefaultMaterialAssetStore.Contains(asset))
         {
             throw new InvalidOperationException(
                 $"Could not resolve bundled texture source '{asset.LogicalPath}' "

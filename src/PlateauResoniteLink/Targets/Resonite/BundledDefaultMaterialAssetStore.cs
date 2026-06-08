@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -16,94 +15,42 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed class BundledDefaultMaterialAssetStore
 {
     private const string ResourceRoot = "PlateauResoniteLink.Assets.DefaultMaterials.";
-    private static readonly object SyncRoot = new();
     private static readonly Assembly Assembly = typeof(BundledDefaultMaterialAssetStore).Assembly;
     private static readonly HashSet<string> ResourceNames = Assembly
         .GetManifestResourceNames()
         .ToHashSet(StringComparer.Ordinal);
-    private static readonly Dictionary<string, long> ResourceLengths = new(StringComparer.Ordinal);
-    private static readonly AsyncLocal<string?> ExtractionRootOverride = new();
-    private static readonly string DefaultExtractionRoot = Path.Combine(
-        Path.GetTempPath(),
-        "PlateauResoniteLink",
-        "default-materials",
-        Assembly.ManifestModule.ModuleVersionId.ToString("N"));
 
-    public string GetAbsolutePath(string logicalPath)
+    public Stream OpenRead(string logicalPath)
     {
-        const string logicalPrefix = "default-materials/";
-        if (!logicalPath.StartsWith(logicalPrefix, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException($"Bundled material path must start with '{logicalPrefix}', but was '{logicalPath}'.");
-        }
-
         string resourceName = GetResourceName(logicalPath);
-
-        string absolutePath = Path.Combine(
-            GetExtractionRoot(),
-            logicalPath.Replace('/', Path.DirectorySeparatorChar));
-        string? directory = Path.GetDirectoryName(absolutePath);
-        if (directory is null)
-        {
-            throw new InvalidOperationException($"Could not determine extraction directory for '{logicalPath}'.");
-        }
-
-        lock (SyncRoot)
-        {
-            if (ResourceLengths.TryGetValue(resourceName, out long expectedLength)
-                && TryGetExistingFileLength(absolutePath, out long existingLength)
-                && existingLength == expectedLength)
-            {
-                return absolutePath;
-            }
-
-            using Stream resourceStream = Assembly.GetManifestResourceStream(resourceName)
-                ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' was not found.");
-            ResourceLengths[resourceName] = resourceStream.Length;
-            if (TryGetExistingFileLength(absolutePath, out existingLength)
-                && existingLength == resourceStream.Length)
-            {
-                return absolutePath;
-            }
-
-            Directory.CreateDirectory(directory);
-            WriteResourceAtomically(absolutePath, resourceStream);
-        }
-
-        return absolutePath;
+        return Assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' was not found.");
     }
 
-    public string GetAbsolutePath(BundledDefaultTextureAsset asset)
+    public Stream OpenRead(BundledDefaultTextureAsset asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return GetAbsolutePath(asset.LogicalPath);
+        return OpenRead(asset.LogicalPath);
     }
 
-    public bool TryGetAbsolutePath(string logicalPath, out string absolutePath)
-    {
-        if (!TryGetResourceName(logicalPath, out _))
-        {
-            absolutePath = string.Empty;
-            return false;
-        }
-
-        absolutePath = GetAbsolutePath(logicalPath);
-        return true;
-    }
-
-    public bool TryGetAbsolutePath(BundledDefaultTextureAsset asset, out string absolutePath)
+    public byte[] ReadAllBytes(BundledDefaultTextureAsset asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return TryGetAbsolutePath(asset.LogicalPath, out absolutePath);
+        using Stream stream = OpenRead(asset);
+        using MemoryStream buffer = new();
+        stream.CopyTo(buffer);
+        return buffer.ToArray();
     }
 
-    internal IDisposable PushExtractionRootOverride(string extractionRoot)
+    public bool Contains(string logicalPath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(extractionRoot);
+        return TryGetResourceName(logicalPath, out _);
+    }
 
-        string? previousRoot = ExtractionRootOverride.Value;
-        ExtractionRootOverride.Value = extractionRoot;
-        return new ExtractionRootOverrideScope(previousRoot);
+    public bool Contains(BundledDefaultTextureAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return Contains(asset.LogicalPath);
     }
 
     private static string GetResourceName(string logicalPath)
@@ -149,31 +96,6 @@ internal sealed class BundledDefaultMaterialAssetStore
         return false;
     }
 
-    internal static bool TryGetExistingFileLength(string path, out long length)
-    {
-        try
-        {
-            if (!File.Exists(path))
-            {
-                length = 0;
-                return false;
-            }
-
-            length = new FileInfo(path).Length;
-            return true;
-        }
-        catch (IOException)
-        {
-            length = 0;
-            return false;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            length = 0;
-            return false;
-        }
-    }
-
     private static string CreateNormalizedResourceSuffix(string relativePath)
     {
         string[] segments = relativePath.Split('/');
@@ -188,52 +110,5 @@ internal sealed class BundledDefaultMaterialAssetStore
         }
 
         return string.Join('.', segments);
-    }
-
-    private static string GetExtractionRoot()
-    {
-        return ExtractionRootOverride.Value ?? DefaultExtractionRoot;
-    }
-
-    private static void WriteResourceAtomically(string absolutePath, Stream resourceStream)
-    {
-        string temporaryPath = $"{absolutePath}.{Guid.NewGuid():N}.tmp";
-        try
-        {
-            using (FileStream fileStream = new(
-                temporaryPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None))
-            {
-                resourceStream.CopyTo(fileStream);
-            }
-
-            File.Move(temporaryPath, absolutePath, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-        }
-    }
-
-    private sealed class ExtractionRootOverrideScope(string? previousRoot) : IDisposable
-    {
-        private readonly string? previousRoot = previousRoot;
-        private bool disposed;
-
-        public void Dispose()
-        {
-            if (disposed)
-            {
-                return;
-            }
-
-            ExtractionRootOverride.Value = previousRoot;
-            disposed = true;
-        }
     }
 }
