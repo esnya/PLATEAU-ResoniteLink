@@ -48,6 +48,7 @@ internal static class PlateauImportServiceCollectionExtensions
         });
         services.TryAddSingleton<Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore>>(
             _ => CityGmlAppearanceStore.Create);
+        services.TryAddSingleton<SelectCityGmlLod>(_ => CityGmlLodSelector.SelectPreferredSurfaceElements);
         services.TryAddSingleton<ResolveDefaultMaterial>(provider =>
         {
             DefaultMaterialResolver resolver = new(
@@ -88,7 +89,8 @@ internal static class PlateauImportServiceCollectionExtensions
         {
             LocalCityGmlDocumentReader reader = new(
                 provider.GetRequiredService<Func<string, CancellationToken, Task<IPlateauDatasetContentSource>>>(),
-                provider.GetRequiredService<Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore>>());
+                provider.GetRequiredService<Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore>>(),
+                provider.GetRequiredService<SelectCityGmlLod>());
             return reader.ReadAsync;
         });
         services.TryAddSingleton<CreateImportedSceneSource>(provider =>

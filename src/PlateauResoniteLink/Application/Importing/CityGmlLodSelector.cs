@@ -7,6 +7,12 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
+internal delegate CityGmlLodSelection SelectCityGmlLod(
+    XElement cityObjectElement,
+    string packageName,
+    bool isMarking,
+    LodFilteringStrategy lodFilteringStrategy);
+
 internal static class CityGmlLodSelector
 {
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
