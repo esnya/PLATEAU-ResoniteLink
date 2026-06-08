@@ -130,6 +130,60 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_UsesInjectedConnectionInitializer()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        DelegatingClientSession session = new();
+        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        LiveSendRunStartRequest? observedRequest = null;
+        LiveSendRunPlan? observedRunPlan = null;
+        EnsureResoniteLiveSendConnected ensureConnected = (request, runPlan, context, cancellationToken) =>
+        {
+            _ = context;
+            cancellationToken.ThrowIfCancellationRequested();
+            observedRequest = request;
+            observedRunPlan = runPlan;
+            return Task.FromException(new InvalidOperationException("injected connection initializer failed"));
+        };
+        await using ResoniteLiveSceneImportTarget importTarget = new(
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                ResoniteImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
+            session,
+            diagnostics,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
+                    materialPlanning,
+                    ensureConnected: ensureConnected)));
+
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(
+            request,
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+
+        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => importTarget.ExecuteAsync(
+                ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
+                EmptyImportedObjectUnits()));
+
+        Assert.Contains("injected connection initializer failed", error.Message, StringComparison.Ordinal);
+        Assert.NotNull(observedRequest);
+        Assert.NotNull(observedRunPlan);
+        Assert.Equal(request.Dataset, observedRequest.SetupInfo.Dataset);
+        Assert.Equal(request.MeshCode, observedRequest.SetupInfo.MeshCode);
+        Assert.Equal(Path.GetFullPath(workDirectory.Path), observedRunPlan.ResolvedWorkRoot);
+        Assert.Equal(0, session.EnsureConnectedCallCount);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_DoesNotLaunchWorkersWhenRunSetupFails()
     {
         using TemporaryDirectory datasetDirectory = new();

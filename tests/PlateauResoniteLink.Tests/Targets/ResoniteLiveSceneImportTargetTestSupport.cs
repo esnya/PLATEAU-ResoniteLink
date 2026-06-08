@@ -316,6 +316,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     public static ResoniteLiveSendRunStarter CreateRunStarter(
         ResoniteMaterialPlanning materialPlanning,
         SetupResoniteScene? setupResoniteScene = null,
+        EnsureResoniteLiveSendConnected? ensureConnected = null,
         GenerateTerrainTexture? generateTerrainTexture = null,
         Action<string>? progressReporter = null)
     {
@@ -323,6 +324,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new ResoniteLiveSendRunSetupPreparer(
                 setupResoniteScene ?? CreateDefaultSetupResoniteScene(),
                 new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
+            ensureConnected ?? ResoniteLiveSendConnectionInitializer.EnsureConnectedAsync,
             new ResoniteTextureImageLoader(),
             CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture));
     }

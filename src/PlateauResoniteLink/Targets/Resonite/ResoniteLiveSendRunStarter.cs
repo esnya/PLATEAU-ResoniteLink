@@ -87,6 +87,7 @@ internal sealed record LiveSendRunStartContext
 
 internal sealed class ResoniteLiveSendRunStarter(
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
+    EnsureResoniteLiveSendConnected ensureConnected,
     ResoniteTextureImageLoader textureImageLoader,
     ResoniteQueuedCityObjectWorker queuedCityObjectWorker)
 {
@@ -103,7 +104,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         ArgumentNullException.ThrowIfNull(context);
 
         LiveSendRunPlan runPlan = CreateRunPlan(request);
-        await ResoniteLiveSendConnectionInitializer.EnsureConnectedAsync(
+        await ensureConnected(
             request,
             runPlan,
             context,
