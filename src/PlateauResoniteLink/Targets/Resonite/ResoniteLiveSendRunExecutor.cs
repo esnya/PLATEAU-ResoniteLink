@@ -44,12 +44,12 @@ internal sealed record LiveSendRunExecutionContext
 
 internal interface IResoniteLiveSendRunExecutorFactory
 {
-    ResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter);
+    IResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter);
 }
 
 internal sealed class ResoniteLiveSendRunExecutorFactory : IResoniteLiveSendRunExecutorFactory
 {
-    public ResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter)
+    public IResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter)
     {
         ArgumentNullException.ThrowIfNull(runStarter);
 
@@ -57,8 +57,17 @@ internal sealed class ResoniteLiveSendRunExecutorFactory : IResoniteLiveSendRunE
     }
 }
 
+internal interface IResoniteLiveSendRunExecutor
+{
+    Task<SceneImportExecutionResult> ExecuteAsync(
+        LiveSendRunStartRequest request,
+        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
+        LiveSendRunExecutionContext context,
+        CancellationToken cancellationToken);
+}
+
 internal sealed class ResoniteLiveSendRunExecutor(
-    ResoniteLiveSendRunStarter runStarter)
+    ResoniteLiveSendRunStarter runStarter) : IResoniteLiveSendRunExecutor
 {
     private readonly ResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));

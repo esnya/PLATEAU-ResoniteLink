@@ -297,7 +297,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
         Assert.Equal(1, runExecutorFactory.CreateCallCount);
         Assert.NotNull(runExecutorFactory.LastRunStarter);
-        Assert.Same(runExecutorFactory.LastExecutor, importTarget.RunExecutor);
+        Assert.Same(runExecutorFactory.Executor, importTarget.RunExecutor);
     }
 
     [Fact]
@@ -584,14 +584,29 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
         public ResoniteLiveSendRunStarter? LastRunStarter { get; private set; }
 
-        public ResoniteLiveSendRunExecutor? LastExecutor { get; private set; }
+        public IResoniteLiveSendRunExecutor Executor { get; } = new ThrowingRunExecutor();
 
-        public ResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter)
+        public IResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter)
         {
             CreateCallCount++;
             LastRunStarter = runStarter;
-            LastExecutor = new ResoniteLiveSendRunExecutor(runStarter);
-            return LastExecutor;
+            return Executor;
+        }
+    }
+
+    private sealed class ThrowingRunExecutor : IResoniteLiveSendRunExecutor
+    {
+        public Task<SceneImportExecutionResult> ExecuteAsync(
+            LiveSendRunStartRequest request,
+            IAsyncEnumerable<ImportedObjectUnit> objectUnits,
+            LiveSendRunExecutionContext context,
+            CancellationToken cancellationToken)
+        {
+            _ = request;
+            _ = objectUnits;
+            _ = context;
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
         }
     }
 

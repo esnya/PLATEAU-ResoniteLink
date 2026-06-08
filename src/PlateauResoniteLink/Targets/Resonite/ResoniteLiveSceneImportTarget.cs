@@ -48,7 +48,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     internal ResoniteImportMemoryProfile MemoryProfile { get; }
 
-    internal ResoniteLiveSendRunExecutor RunExecutor { get; }
+    internal IResoniteLiveSendRunExecutor RunExecutor { get; }
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
