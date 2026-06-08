@@ -108,7 +108,7 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
         cityObject = ResoniteCityObjectPreparation.ApplyTerrainTextureCanvasUv(
             cityObject,
             preparedTerrainTextureDataByOverlay,
-            clampCanvasUv: ResonitePackageSemantics.IsDemPackage(cityObject.PackageName));
+            clampCanvasUv: string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase));
         if (cityObject.Geometry is ResoniteTriangleMeshGeometry resolvedTriangleMesh
             && preparedGeometry is PreparedTriangleMeshGeometry)
         {
