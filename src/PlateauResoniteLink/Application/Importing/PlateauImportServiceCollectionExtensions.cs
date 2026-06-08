@@ -64,13 +64,16 @@ internal static class PlateauImportServiceCollectionExtensions
                 provider.GetRequiredService<IDemTextureSourcePolicy>());
             return composer.Compose;
         });
-        services.TryAddSingleton<ICityGmlDocumentReader>(provider =>
-            new LocalCityGmlDocumentReader(
+        services.TryAddSingleton<ReadCityGmlDocument>(provider =>
+        {
+            LocalCityGmlDocumentReader reader = new(
                 provider.GetRequiredService<Func<string, CancellationToken, Task<IPlateauDatasetContentSource>>>(),
-                provider.GetRequiredService<Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore>>()));
+                provider.GetRequiredService<Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore>>());
+            return reader.ReadAsync;
+        });
         services.TryAddSingleton<IImportedSceneSourceFactory>(provider =>
             new DefaultImportedSceneSourceFactory(
-                provider.GetRequiredService<ICityGmlDocumentReader>(),
+                provider.GetRequiredService<ReadCityGmlDocument>(),
                 provider.GetRequiredService<ImportedSceneSourceComposer>(),
                 provider.GetRequiredService<ImportedObjectUnitOptimizer>()));
 

@@ -32,9 +32,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
                 new GeodeticPoint(35.0, 139.0, 0.0)));
         StubImportedSceneSource expectedSource = new();
         CustomCityGmlDocumentReader reader = new(expectedReadResult);
+        ReadCityGmlDocument readCityGmlDocument = reader.ReadAsync;
         RecordingConstructionComposer composer = new(expectedSource);
         ServiceProvider provider = new ServiceCollection()
-            .AddSingleton<ICityGmlDocumentReader>(reader)
+            .AddSingleton(readCityGmlDocument)
             .AddSingleton<ImportedSceneSourceComposer>(composer.Compose)
             .AddImportedSceneSourceServices()
             .BuildServiceProvider();
@@ -67,12 +68,13 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     public void AddImportedSceneSourceServicesPreservesCustomDocumentReader()
     {
         CustomCityGmlDocumentReader reader = new();
+        ReadCityGmlDocument readCityGmlDocument = reader.ReadAsync;
         ServiceProvider provider = new ServiceCollection()
-            .AddSingleton<ICityGmlDocumentReader>(reader)
+            .AddSingleton(readCityGmlDocument)
             .AddImportedSceneSourceServices()
             .BuildServiceProvider();
 
-        Assert.Same(reader, provider.GetRequiredService<ICityGmlDocumentReader>());
+        Assert.Same(readCityGmlDocument, provider.GetRequiredService<ReadCityGmlDocument>());
     }
 
     [Fact]
@@ -99,7 +101,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         Assert.Same(policy, provider.GetRequiredService<IDemTextureSourcePolicy>());
     }
 
-    private sealed class CustomCityGmlDocumentReader(ImportedSceneSourceSnapshot? readResult = null) : ICityGmlDocumentReader
+    private sealed class CustomCityGmlDocumentReader(ImportedSceneSourceSnapshot? readResult = null)
     {
         public ResolvedLocalPlateauImportRequest? LastRequest { get; private set; }
 
