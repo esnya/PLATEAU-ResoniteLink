@@ -128,30 +128,24 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
-    public async Task AddResoniteLiveSendTargetServicesRoutesCanonicalDumpThroughRegisteredLiveSceneImportFactory()
+    public async Task CanonicalDumpCreateUsesProvidedLiveSceneImportFactory()
     {
         RecordingLiveSceneImportFactory importFactory = new(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()));
-        ServiceProvider provider = new ServiceCollection()
-            .AddScoped<IResoniteLiveSceneImportFactory>(_ => importFactory)
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
         using TemporaryDirectory outputDirectory = new();
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
 
-        await using ISceneSink _ = scope.ServiceProvider
-            .GetRequiredService<ResoniteCanonicalSceneDumpSinkFactory>()
-            .Create(
-                new ResoniteLiveSceneImportTargetOptions(
-                    new Uri("ws://localhost:12345/"),
-                    1,
-                    EnableSendMetrics: true,
-                    MemoryProfile: ResoniteImportMemoryProfile.Large,
-                    EnableMeshBake: true,
-                    TerrainTileCacheRoot: null,
-                    DisableTerrainTileCache: false,
-                    ProgressReporter: null),
-                outputPath);
+        await using ISceneSink _ = CanonicalSceneDumpSink.Create(
+            importFactory,
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: true,
+                MemoryProfile: ResoniteImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
+            outputPath);
 
         Assert.Equal(1, importFactory.PreconfiguredCreateCallCount);
         Assert.NotNull(importFactory.LastClientSession);

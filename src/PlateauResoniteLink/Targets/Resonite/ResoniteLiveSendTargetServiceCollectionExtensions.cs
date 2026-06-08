@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using PlateauResoniteLink.Targets.Resonite.Execution;
-using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -25,7 +24,6 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteCommonMaterialSetupPreparer>();
         services.TryAddScoped<ResoniteLiveSendRunSetupPreparer>();
         services.TryAddScoped<ResonitePreparedCityObjectImporter>();
-        services.TryAddScoped<ResoniteCanonicalSceneDumpSinkFactory>();
         services.TryAddScoped<IResoniteClientSessionFactory, ResoniteLinkClientSessionFactory>();
         services.TryAddScoped<IResoniteSceneSetupInterpreter, ResoniteSceneSetupInterpreter>();
         services.TryAddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
