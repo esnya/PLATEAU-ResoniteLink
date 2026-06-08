@@ -2650,7 +2650,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public async Task DemTerrainGridModeOmitsGeneratedTextureUvTransformWhenGridCoversOverlayMesh()
+    public async Task DemTerrainGridModeKeepsGeneratedTextureUvTransformOnGridMeshWhenGridCoversPartialOverlayMesh()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
@@ -2676,10 +2676,54 @@ public sealed class LocalCityGmlObjectProjectionTests
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(demCityObject.Geometry);
         MaterialBinding material = Assert.Single(demCityObject.Materials);
 
-        Assert.Null(geometry.UvScale);
-        Assert.Null(geometry.UvOffset);
+        Assert.NotNull(geometry.UvScale);
+        Assert.NotNull(geometry.UvOffset);
         Assert.Null(material.TextureScale);
         Assert.Null(material.TextureOffset);
+    }
+
+    [Fact]
+    public void DemTerrainGridModeKeepsGeneratedTextureUvTransformWhenGridCoversPartialOverlayMesh()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        const string meshCode = "53394525";
+        ParsedSurface partialSurface = CreateParsedSurface(
+            "partial-dem",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices(meshCode, altitudeMeters: 20.0, minRatio: 0.2, maxRatio: 0.8, reverseWinding: false),
+            texturePayload: null,
+            baseColor: new ColorRgba(0.4, 0.5, 0.3, 1.0));
+        ParsedCityObject cityObject = CreateParsedCityObject("dem", [partialSurface], referenceSystem);
+        GeodeticPoint origin = CreateMeshCenterPoint(meshCode, 0.0);
+        GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
+
+        ImportedCityObject projected = CityGmlParsedCityObjectProjection.ProjectTerrainMeshModeCityObject(
+            GeneratedLod1RoofCityObjectFactory.CreateDraft(cityObject),
+            GeneratedLod1RoofCityObjectFactory.CreateDraft(cityObject),
+            origin,
+            cartesian,
+            CreateThirdMeshOverlay(meshCode),
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: meshCode,
+                CityGmlSource: DatasetLocation.Local("dataset"),
+                PackageNames: ["dem"],
+                TerrainMeshMode: TerrainMeshMode.Grid,
+                TerrainGridMetersPerVertex: 100.0,
+                TerrainGridMaxResolution: 8),
+            [MeshCodeBounds.Parse(meshCode)],
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
+            progressReporter: null,
+            CancellationToken.None);
+
+        TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(projected.Geometry);
+        Float2 uvScale = Assert.IsType<Float2>(geometry.UvScale);
+        Float2 uvOffset = Assert.IsType<Float2>(geometry.UvOffset);
+
+        Assert.InRange(uvScale.X, 0.0, 1.0);
+        Assert.InRange(uvScale.Y, 0.0, 1.0);
+        Assert.InRange(uvOffset.X, 0.0, 1.0);
+        Assert.InRange(uvOffset.Y, 0.0, 1.0);
     }
 
     [Fact]
@@ -2713,8 +2757,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.NotEmpty(geometry.StaticMesh.Mesh.Submeshes);
         Assert.True(geometry.GridMesh.Width > 1);
         Assert.True(geometry.GridMesh.Height > 1);
-        Assert.Null(geometry.GridMesh.UvScale);
-        Assert.Null(geometry.GridMesh.UvOffset);
+        Assert.NotNull(geometry.GridMesh.UvScale);
+        Assert.NotNull(geometry.GridMesh.UvOffset);
         Assert.Null(material.TextureScale);
         Assert.Null(material.TextureOffset);
     }

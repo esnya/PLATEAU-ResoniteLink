@@ -72,6 +72,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
         if (!TryCreateDemTerrainGridBounds(
             cityObject,
+            terrainGridSamplingSource,
             slotPosition,
             globalOriginPoint,
             globalCartesian,
@@ -222,6 +223,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
     private static bool TryCreateDemTerrainGridBounds(
         ConstructionCityObjectDraft cityObject,
+        ConstructionCityObjectDraft terrainGridSamplingSource,
         Float3 slotPosition,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -240,6 +242,18 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             cityObject,
             demTerrainTextureOverlay,
             requestedMeshCodeBounds);
+        GeographicRectangle rawGeographicBounds = ResolveCityObjectGeographicBounds(terrainGridSamplingSource.Source);
+        GeographicRectangle clampedGeographicBounds = IntersectGeographicBounds(clippedBounds, rawGeographicBounds);
+        if (NearlyCoversGeographicBounds(rawGeographicBounds, clippedBounds))
+        {
+            clampedGeographicBounds = clippedBounds;
+        }
+
+        if (!IsUsableGeographicBounds(clampedGeographicBounds))
+        {
+            clampedGeographicBounds = rawGeographicBounds;
+        }
+
         Float3[] clippedAxisPositions = CreateClippedAxisPositions(
             clippedBounds,
             slotPosition,
@@ -263,11 +277,11 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
                 return false;
             }
 
-            bounds = new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ, clippedBounds);
+            bounds = new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ, clampedGeographicBounds);
             return true;
         }
 
-        bounds = new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ, clippedBounds);
+        bounds = new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ, clampedGeographicBounds);
         return true;
     }
 
@@ -389,6 +403,19 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
     {
         return (bounds.MaxLatitude - bounds.MinLatitude) > 1e-12
             && (bounds.MaxLongitude - bounds.MinLongitude) > 1e-12;
+    }
+
+    private static bool NearlyCoversGeographicBounds(
+        GeographicRectangle candidate,
+        GeographicRectangle bounds)
+    {
+        const double relativeTolerance = 1e-3;
+        double latitudeTolerance = Math.Max(bounds.MaxLatitude - bounds.MinLatitude, 0.0) * relativeTolerance;
+        double longitudeTolerance = Math.Max(bounds.MaxLongitude - bounds.MinLongitude, 0.0) * relativeTolerance;
+        return candidate.MinLatitude <= bounds.MinLatitude + latitudeTolerance
+            && candidate.MaxLatitude >= bounds.MaxLatitude - latitudeTolerance
+            && candidate.MinLongitude <= bounds.MinLongitude + longitudeTolerance
+            && candidate.MaxLongitude >= bounds.MaxLongitude - longitudeTolerance;
     }
 
     private static TerrainGridTriangle[] CreateDemTerrainGridTriangles(
