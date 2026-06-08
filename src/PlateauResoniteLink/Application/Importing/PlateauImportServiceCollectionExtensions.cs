@@ -18,14 +18,26 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<IArchiveFileLayoutPolicy, ArchiveFileLayoutPolicy>();
         services.TryAddSingleton<IRemoteArchiveDistributionPolicy, RemoteArchiveDistributionPolicy>();
         services.TryAddSingleton(CommonMaterialCatalog.Create());
-        services.TryAddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
+        services.TryAddSingleton<Func<string, CancellationToken, Task<IPlateauDatasetContentSource>>>(provider =>
+        {
+            IRemoteArchiveDistributionPolicy remoteArchiveDistributionPolicy =
+                provider.GetRequiredService<IRemoteArchiveDistributionPolicy>();
+            IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
+                provider.GetRequiredService<IArchiveFileLayoutPolicy>();
+
+            return (sourcePath, cancellationToken) => PlateauDatasetContentSourceFactory.CreateAsync(
+                sourcePath,
+                remoteArchiveDistributionPolicy,
+                archiveFileLayoutPolicy,
+                cancellationToken);
+        });
         services.TryAddSingleton<Func<DatasetLocation?, CancellationToken, Task<IDemTerrainGeoReferencedRasterCatalog?>>>(provider =>
         {
-            IPlateauDatasetContentSourceFactory datasetContentSourceFactory =
-                provider.GetRequiredService<IPlateauDatasetContentSourceFactory>();
+            Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource =
+                provider.GetRequiredService<Func<string, CancellationToken, Task<IPlateauDatasetContentSource>>>();
             return (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
                 source,
-                datasetContentSourceFactory,
+                createDatasetContentSource,
                 cancellationToken);
         });
         services.TryAddSingleton<IDemTextureSourcePolicy, DefaultDemTextureSourcePolicy>();
@@ -46,7 +58,7 @@ internal static class PlateauImportServiceCollectionExtensions
                 provider.GetRequiredService<IDemTextureSourcePolicy>()));
         services.TryAddSingleton<ICityGmlDocumentReader>(provider =>
             new LocalCityGmlDocumentReader(
-                provider.GetRequiredService<IPlateauDatasetContentSourceFactory>(),
+                provider.GetRequiredService<Func<string, CancellationToken, Task<IPlateauDatasetContentSource>>>(),
                 provider.GetRequiredService<Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore>>(),
                 provider.GetRequiredService<ICityGmlLodSelector>()));
         services.TryAddSingleton<IImportedSceneSourceFactory>(provider =>

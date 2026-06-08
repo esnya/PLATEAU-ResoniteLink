@@ -354,20 +354,19 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     {
         IDemTerrainGeoReferencedRasterCatalog? catalog = await DemTerrainGeoReferencedRasterCatalog.CreateAsync(
             DatasetLocation.Local(datasetSource.SourcePath),
-            new StubDatasetContentSourceFactory(datasetSource),
+            CreateStubDatasetContentSourceAsync(datasetSource),
             CancellationToken.None);
         return Assert.IsType<DemTerrainGeoReferencedRasterCatalog>(catalog);
     }
 
-    private sealed class StubDatasetContentSourceFactory(IPlateauDatasetContentSource datasetSource) : IPlateauDatasetContentSourceFactory
+    private static Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> CreateStubDatasetContentSourceAsync(
+        IPlateauDatasetContentSource datasetSource)
     {
-        public Task<IPlateauDatasetContentSource> CreateAsync(
-            string sourcePath,
-            CancellationToken cancellationToken = default)
+        return (sourcePath, _) =>
         {
             Assert.Equal(datasetSource.SourcePath, sourcePath);
             return Task.FromResult(datasetSource);
-        }
+        };
     }
 
     private sealed class RecordingDatasetContentSource(

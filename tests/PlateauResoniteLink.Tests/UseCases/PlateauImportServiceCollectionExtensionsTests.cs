@@ -48,15 +48,18 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddImportedSceneSourceServicesPreservesCustomDatasetContentSourceFactory()
+    public void AddImportedSceneSourceServicesPreservesCustomDatasetContentSourceCreation()
     {
-        CustomPlateauDatasetContentSourceFactory factory = new();
+        Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource =
+            static (_, _) => throw new NotSupportedException();
         ServiceProvider provider = new ServiceCollection()
-            .AddSingleton<IPlateauDatasetContentSourceFactory>(factory)
+            .AddSingleton(createDatasetContentSource)
             .AddImportedSceneSourceServices()
             .BuildServiceProvider();
 
-        Assert.Same(factory, provider.GetRequiredService<IPlateauDatasetContentSourceFactory>());
+        Assert.Same(
+            createDatasetContentSource,
+            provider.GetRequiredService<Func<string, CancellationToken, Task<IPlateauDatasetContentSource>>>());
     }
 
     [Fact]
@@ -93,16 +96,6 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             .BuildServiceProvider();
 
         Assert.Same(policy, provider.GetRequiredService<IDemTextureSourcePolicy>());
-    }
-
-    private sealed class CustomPlateauDatasetContentSourceFactory : IPlateauDatasetContentSourceFactory
-    {
-        public Task<IPlateauDatasetContentSource> CreateAsync(
-            string sourcePath,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 
     private sealed class CustomCityGmlDocumentReader(ImportedSceneSourceSnapshot? readResult = null) : ICityGmlDocumentReader

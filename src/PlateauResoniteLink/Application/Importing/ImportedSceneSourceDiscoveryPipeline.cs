@@ -14,18 +14,18 @@ internal static class ImportedSceneSourceDiscoveryPipeline
 {
     internal static async Task<ImportedSceneSourceSnapshot> ReadDocumentSetCoreAsync(
         ResolvedLocalPlateauImportRequest request,
-        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource,
         Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         ICityGmlLodSelector lodSelector,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
+        ArgumentNullException.ThrowIfNull(createDatasetContentSource);
         ArgumentNullException.ThrowIfNull(createAppearanceStore);
         ArgumentNullException.ThrowIfNull(lodSelector);
 
-        IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(
+        IPlateauDatasetContentSource datasetSource = await createDatasetContentSource(
             request.CityGmlLocalSourcePath,
             cancellationToken);
         Stopwatch totalStopwatch = Stopwatch.StartNew();
