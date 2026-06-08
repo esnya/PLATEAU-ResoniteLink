@@ -22,13 +22,6 @@ internal static class ResoniteMeshImportFactory
         return new ResoniteMeshImportSource(mesh);
     }
 
-    internal static ImportMeshRawData CreateRawDataForTests(ResoniteImportedMesh mesh)
-    {
-        ArgumentNullException.ThrowIfNull(mesh);
-        Validate(mesh);
-        return CreateRawData(mesh);
-    }
-
     private static ImportMeshRawData CreateRawData(ResoniteImportedMesh mesh)
     {
         ArgumentNullException.ThrowIfNull(mesh);

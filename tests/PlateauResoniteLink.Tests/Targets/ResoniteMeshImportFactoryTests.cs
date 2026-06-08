@@ -1,7 +1,10 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
@@ -10,7 +13,7 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class ResoniteMeshImportFactoryTests
 {
     [Fact]
-    public void CreateOrdersSubmeshesAndExportsVertexColors()
+    public async Task CreateOrdersSubmeshesAndExportsVertexColors()
     {
         ResoniteImportedMesh mesh = new(
             Vertices:
@@ -36,7 +39,9 @@ public sealed class ResoniteMeshImportFactoryTests
                 new ResoniteMeshSubmesh(1, [0, 1, 2]),
             ]);
 
-        ImportMeshRawData result = ResoniteMeshImportFactory.CreateRawDataForTests(mesh);
+        ImportMeshRawData result = await GeometryImportSourceMaterializer.MaterializeRawAsync(
+            ResoniteMeshImportFactory.Create(mesh),
+            CancellationToken.None);
 
         Assert.True(result.HasColors);
         Assert.Equal(2, result.Submeshes.Count);
@@ -64,7 +69,7 @@ public sealed class ResoniteMeshImportFactoryTests
     }
 
     [Fact]
-    public void CreateAcceptsTriangleIndicesBeyondUInt16Range()
+    public async Task CreateAcceptsTriangleIndicesBeyondUInt16Range()
     {
         ResoniteMeshVertex[] vertices = Enumerable.Range(0, 65_537)
             .Select(static index => new ResoniteMeshVertex(
@@ -92,7 +97,9 @@ public sealed class ResoniteMeshImportFactoryTests
                 new ResoniteMeshSubmesh(0, [0, 65_535, 65_536]),
             ]);
 
-        ImportMeshRawData result = ResoniteMeshImportFactory.CreateRawDataForTests(mesh);
+        ImportMeshRawData result = await GeometryImportSourceMaterializer.MaterializeRawAsync(
+            ResoniteMeshImportFactory.Create(mesh),
+            CancellationToken.None);
 
         TriangleSubmeshRawData submesh = Assert.IsType<TriangleSubmeshRawData>(Assert.Single(result.Submeshes));
         Assert.Equal(65_537, result.VertexCount);
