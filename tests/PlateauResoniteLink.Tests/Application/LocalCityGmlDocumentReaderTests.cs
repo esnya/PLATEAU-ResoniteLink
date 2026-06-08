@@ -18,9 +18,7 @@ public sealed class LocalCityGmlDocumentReaderTests
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         LocalCityGmlDocumentReader reader = new(
-            new DefaultPlateauDatasetContentSourceFactory(
-                new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()),
+            CreateDatasetContentSourceAsync,
             CityGmlAppearanceStore.Create,
             new CityGmlLodSelector());
 
@@ -44,7 +42,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             "C:\\fixtures\\plateau",
             ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
         LocalCityGmlDocumentReader reader = new(
-            new StubDatasetContentSourceFactory(datasetSource),
+            CreateStubDatasetContentSourceAsync(datasetSource),
             CityGmlAppearanceStore.Create,
             new CityGmlLodSelector());
 
@@ -63,9 +61,7 @@ public sealed class LocalCityGmlDocumentReaderTests
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
         LocalCityGmlDocumentReader reader = new(
-            new DefaultPlateauDatasetContentSourceFactory(
-                new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()),
+            CreateDatasetContentSourceAsync,
             CityGmlAppearanceStore.Create,
             new CityGmlLodSelector());
 
@@ -79,15 +75,25 @@ public sealed class LocalCityGmlDocumentReaderTests
         Assert.Equal(expectedOrigin.Altitude, readResult.DiscoveryContext.GlobalOriginPoint.Altitude, 12);
     }
 
-    private sealed class StubDatasetContentSourceFactory(IPlateauDatasetContentSource datasetSource) : IPlateauDatasetContentSourceFactory
+    private static Task<IPlateauDatasetContentSource> CreateDatasetContentSourceAsync(
+        string sourcePath,
+        CancellationToken cancellationToken)
     {
-        public Task<IPlateauDatasetContentSource> CreateAsync(
-            string sourcePath,
-            CancellationToken cancellationToken = default)
+        return PlateauDatasetContentSourceFactory.CreateAsync(
+            sourcePath,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy(),
+            cancellationToken);
+    }
+
+    private static Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> CreateStubDatasetContentSourceAsync(
+        IPlateauDatasetContentSource datasetSource)
+    {
+        return (sourcePath, _) =>
         {
             Assert.Equal(datasetSource.SourcePath, sourcePath);
             return Task.FromResult(datasetSource);
-        }
+        };
     }
 
     private static ResolvedLocalPlateauImportRequest CreateResolvedRequest(
