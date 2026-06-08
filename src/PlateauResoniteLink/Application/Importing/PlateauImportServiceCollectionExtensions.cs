@@ -31,7 +31,7 @@ internal static class PlateauImportServiceCollectionExtensions
                 archiveFileLayoutPolicy,
                 cancellationToken);
         });
-        services.TryAddSingleton<Func<DatasetLocation?, CancellationToken, Task<IDemTerrainGeoReferencedRasterCatalog?>>>(provider =>
+        services.TryAddSingleton<Func<DatasetLocation?, CancellationToken, Task<DemTerrainGeoReferencedRasterResolver?>>>(provider =>
         {
             Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource =
                 provider.GetRequiredService<Func<string, CancellationToken, Task<IPlateauDatasetContentSource>>>();

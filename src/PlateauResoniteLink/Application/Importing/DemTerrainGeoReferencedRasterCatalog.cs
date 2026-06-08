@@ -9,7 +9,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoReferencedRasterCatalog
+internal sealed class DemTerrainGeoReferencedRasterCatalog
 {
     private readonly string? directRasterPath;
     private readonly string? singleRelativeRasterPath;
@@ -44,7 +44,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
 
     public DemTerrainRasterSourceScope CacheScope { get; }
 
-    public static async Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
+    public static async Task<DemTerrainGeoReferencedRasterResolver?> CreateAsync(
         DatasetLocation? source,
         Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource,
         CancellationToken cancellationToken)
@@ -59,14 +59,14 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
         string fullSourcePath = Path.GetFullPath(localSource.LocalSourcePath);
         if (File.Exists(fullSourcePath) && IsSupportedRasterFile(fullSourcePath))
         {
-            return new DemTerrainGeoReferencedRasterCatalog(
+            return CreateResolver(new DemTerrainGeoReferencedRasterCatalog(
                 directRasterPath: fullSourcePath,
                 singleRelativeRasterPath: null,
                 contentSource: null,
                 sourceScopePath: fullSourcePath,
                 outputRoot: null,
                 orderedRelativeRasterPaths: [],
-                relativeRasterPathsByStem: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+                relativeRasterPathsByStem: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
         }
 
         if (!Directory.Exists(fullSourcePath) && !IsSupportedArchive(fullSourcePath))
@@ -94,14 +94,19 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
                 static path => path,
                 StringComparer.OrdinalIgnoreCase);
 
-        return new DemTerrainGeoReferencedRasterCatalog(
+        return CreateResolver(new DemTerrainGeoReferencedRasterCatalog(
             directRasterPath: null,
             singleRelativeRasterPath: rasterFiles.Length == 1 ? rasterFiles[0] : null,
             contentSource,
             sourceScopePath: fullSourcePath,
             outputRoot: Path.GetDirectoryName(fullSourcePath) ?? fullSourcePath,
             orderedRelativeRasterPaths: rasterFiles,
-            relativeRasterPathsByStem: rasterFilesByStem);
+            relativeRasterPathsByStem: rasterFilesByStem));
+    }
+
+    private static DemTerrainGeoReferencedRasterResolver CreateResolver(DemTerrainGeoReferencedRasterCatalog catalog)
+    {
+        return new DemTerrainGeoReferencedRasterResolver(catalog.CacheScope, catalog.TryResolveRasterSourceAsync);
     }
 
     public async Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
