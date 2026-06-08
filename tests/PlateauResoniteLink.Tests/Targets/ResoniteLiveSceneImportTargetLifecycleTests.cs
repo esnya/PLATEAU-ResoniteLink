@@ -512,7 +512,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 overlay.PrimarySource));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
-            terrainTextureGenerator,
+            terrainTextureGenerator.EnsureTextureAsync,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -583,7 +583,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             _ => throw new HttpRequestException("offline"));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
-            terrainTextureGenerator,
+            terrainTextureGenerator.EnsureTextureAsync,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -665,7 +665,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel)));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
-            terrainTextureGenerator,
+            terrainTextureGenerator.EnsureTextureAsync,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -742,7 +742,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 [gsiFallbackSource, rasterSource]));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
-            terrainTextureGenerator,
+            terrainTextureGenerator.EnsureTextureAsync,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -818,7 +818,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel)));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
-            terrainTextureGenerator,
+            terrainTextureGenerator.EnsureTextureAsync,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -883,7 +883,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 rasterSource));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
-            terrainTextureGenerator,
+            terrainTextureGenerator.EnsureTextureAsync,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
