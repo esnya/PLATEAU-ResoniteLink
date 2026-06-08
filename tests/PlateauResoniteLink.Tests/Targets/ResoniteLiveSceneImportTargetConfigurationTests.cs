@@ -101,12 +101,17 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
     [Fact]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
-    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredSessionFactory()
+    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredSessionCreation()
     {
         ILiveSendClientSession? recordedSession = null;
         ServiceProvider provider = new ServiceCollection()
-            .AddScoped<IResoniteClientSessionFactory>(
-                _ => new RecordingClientSessionFactory(() => recordedSession = new DelegatingClientSession()))
+            .AddScoped<Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession>>(
+                _ => new Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession>((options, diagnostics) =>
+                {
+                    ArgumentNullException.ThrowIfNull(options);
+                    ArgumentNullException.ThrowIfNull(diagnostics);
+                    return recordedSession = new DelegatingClientSession();
+                }))
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -430,20 +435,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             _ = context;
             cancellationToken.ThrowIfCancellationRequested();
             throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
-        }
-    }
-
-    private sealed class RecordingClientSessionFactory(
-        Func<ILiveSendClientSession> createSession)
-        : IResoniteClientSessionFactory
-    {
-        public ILiveSendClientSession Create(
-            ResoniteLiveSceneImportTargetOptions options,
-            ResoniteLinkSendDiagnostics diagnostics)
-        {
-            _ = options;
-            _ = diagnostics;
-            return createSession();
         }
     }
 
