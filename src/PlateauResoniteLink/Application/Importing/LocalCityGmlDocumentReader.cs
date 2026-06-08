@@ -8,13 +8,16 @@ internal sealed class LocalCityGmlDocumentReader
 {
     private readonly Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource;
     private readonly Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore;
+    private readonly SelectCityGmlLod selectLod;
 
     internal LocalCityGmlDocumentReader(
         Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource,
-        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore)
+        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
+        SelectCityGmlLod? selectLod = null)
     {
         this.createDatasetContentSource = createDatasetContentSource;
         this.createAppearanceStore = createAppearanceStore;
+        this.selectLod = selectLod ?? CityGmlLodSelector.SelectPreferredSurfaceElements;
     }
 
     public async Task<ImportedSceneSourceSnapshot> ReadAsync(
@@ -26,6 +29,7 @@ internal sealed class LocalCityGmlDocumentReader
             request,
             createDatasetContentSource,
             createAppearanceStore,
+            selectLod,
             progressReporter,
             cancellationToken);
     }

@@ -16,6 +16,72 @@ namespace PlateauResoniteLink.Tests.Profiles;
 public sealed class LocalCityGmlSourceFileParserStreamingTests
 {
     [Fact]
+    public async Task SourceFilePipeline_StreamParsedCityObjectsAsync_UsesInjectedLodSelector()
+    {
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0100 139.0100 10</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-1">
+                  <gml:name>Building One</gml:name>
+                  <bldg:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-1">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-1">
+                              <gml:posList>35.0000 139.0000 0 35.0000 139.0010 0 35.0010 139.0010 8 35.0000 139.0000 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod1MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+        InMemoryDatasetContentSource datasetSource = new(Encoding.UTF8.GetBytes(xml));
+        SourceFileDescriptor sourceFile = new(
+            "udx/bldg/53394525/custom-lod.gml",
+            "bldg",
+            "53394525",
+            RequiresMeshCodeBoundsFilter: false);
+        int selectorCallCount = 0;
+        SelectCityGmlLod selectLod = (cityObjectElement, packageName, isMarking, lodFilteringStrategy) =>
+        {
+            _ = cityObjectElement;
+            _ = packageName;
+            _ = isMarking;
+            _ = lodFilteringStrategy;
+            selectorCallCount++;
+            return new CityGmlLodSelection([], null);
+        };
+
+        SourceFilePipeline[] pipelines = await LocalCityGmlSourceFileParser.CreateSourceFilePipelinesCoreAsync(
+            [sourceFile],
+            datasetSource,
+            [],
+            progressReporter: null,
+            new LodFilteringStrategy(),
+            CityGmlAppearanceStore.Create,
+            CancellationToken.None,
+            selectLod);
+
+        ParsedCityObject[] cityObjects = await pipelines.Single().StreamParsedCityObjectsAsync().ToArrayAsync();
+
+        Assert.Equal(1, selectorCallCount);
+        Assert.Empty(cityObjects);
+    }
+
+    [Fact]
     public async Task SourceFilePipeline_StreamParsedCityObjectsAsync_YieldsFirstObjectBeforeBlockedSecondHalfOfStream()
     {
         string xml =

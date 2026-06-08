@@ -21,8 +21,11 @@ internal static class CityGmlParsedCityObjectReader
         CityGmlAppearanceStore appearanceStore,
         CoordinateReferenceSystem coordinateReferenceSystem,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
-        LodFilteringStrategy lodFilteringStrategy)
+        LodFilteringStrategy lodFilteringStrategy,
+        SelectCityGmlLod selectLod)
     {
+        ArgumentNullException.ThrowIfNull(selectLod);
+
         string objectTypeName = cityObjectElement.Name.LocalName;
         string objectId = GetAttribute(cityObjectElement, Gml + "id") ?? objectTypeName;
         string displayName = cityObjectElement.Elements(Gml + "name").FirstOrDefault()?.Value.Trim() ?? objectId;
@@ -45,7 +48,7 @@ internal static class CityGmlParsedCityObjectReader
             || objectId.Contains("Marking", StringComparison.OrdinalIgnoreCase)
             || objectId.Contains("_road_marking", StringComparison.Ordinal);
 
-        CityGmlLodSelection lodSelection = CityGmlLodSelector.SelectPreferredSurfaceElements(
+        CityGmlLodSelection lodSelection = selectLod(
             cityObjectElement,
             packageName,
             isMarking,
