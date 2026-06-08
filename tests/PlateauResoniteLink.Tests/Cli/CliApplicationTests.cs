@@ -45,22 +45,17 @@ public sealed class CliApplicationTests
 
     private static DefaultDemTextureSourcePolicy CreateDemTextureSourcePolicy()
     {
-        IPlateauDatasetContentSourceFactory datasetContentSourceFactory = new DefaultPlateauDatasetContentSourceFactory(
-            new RemoteArchiveDistributionPolicy(),
-            new ArchiveFileLayoutPolicy());
         return new DefaultDemTextureSourcePolicy(
             (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
                 source,
-                datasetContentSourceFactory,
+                CreateDatasetContentSourceAsync,
                 cancellationToken));
     }
 
     private static LocalCityGmlDocumentReader CreateDocumentReader()
     {
         return new LocalCityGmlDocumentReader(
-            new DefaultPlateauDatasetContentSourceFactory(
-                new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()),
+            CreateDatasetContentSourceAsync,
             CityGmlAppearanceStore.Create,
             new CityGmlLodSelector());
     }
@@ -68,9 +63,18 @@ public sealed class CliApplicationTests
     private static DatasetInspectionService CreateDatasetInspectionService()
     {
         return new DatasetInspectionService(
-            new DefaultPlateauDatasetContentSourceFactory(
-                new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()));
+            CreateDatasetContentSourceAsync);
+    }
+
+    private static Task<IPlateauDatasetContentSource> CreateDatasetContentSourceAsync(
+        string sourcePath,
+        CancellationToken cancellationToken)
+    {
+        return PlateauDatasetContentSourceFactory.CreateAsync(
+            sourcePath,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy(),
+            cancellationToken);
     }
 
     [Fact]

@@ -34,6 +34,17 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         return new RecordingLoggerFactory(new RecordingLogger(record));
     }
 
+    private static Task<IPlateauDatasetContentSource> CreateDatasetContentSourceAsync(
+        string sourcePath,
+        CancellationToken cancellationToken)
+    {
+        return PlateauDatasetContentSourceFactory.CreateAsync(
+            sourcePath,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy(),
+            cancellationToken);
+    }
+
     [Fact]
     public async Task ExecuteAsync_DelegatesNormalizedRequestsToInjectedSession()
     {
@@ -923,7 +934,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             cityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
             packageNames: ["dem"]);
         ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
-            new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
+            CreateDatasetContentSourceAsync,
             CityGmlAppearanceStore.Create,
             new CityGmlLodSelector())
             .ReadAsync(
@@ -934,9 +945,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new DefaultDemTextureSourcePolicy(
                     (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
                         source,
-                        new DefaultPlateauDatasetContentSourceFactory(
-                            new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy()),
+                        CreateDatasetContentSourceAsync,
                         cancellationToken)))
             .Compose(
                 request,

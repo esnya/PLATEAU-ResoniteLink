@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
@@ -15,9 +16,18 @@ namespace PlateauResoniteLink.Tests.Application;
 public sealed class DatasetInspectionServiceTests
 {
     private readonly DatasetInspectionService service = new(
-        new DefaultPlateauDatasetContentSourceFactory(
+        CreateDatasetContentSourceAsync);
+
+    private static Task<IPlateauDatasetContentSource> CreateDatasetContentSourceAsync(
+        string sourcePath,
+        CancellationToken cancellationToken)
+    {
+        return PlateauDatasetContentSourceFactory.CreateAsync(
+            sourcePath,
             new RemoteArchiveDistributionPolicy(),
-            new ArchiveFileLayoutPolicy()));
+            new ArchiveFileLayoutPolicy(),
+            cancellationToken);
+    }
 
     [Fact]
     public async Task GetStatsAsyncSummarizesPackagesMeshCodesAndLods()

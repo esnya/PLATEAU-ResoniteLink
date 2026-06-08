@@ -46,10 +46,10 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
 
     public static async Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
         DatasetLocation? source,
-        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
+        ArgumentNullException.ThrowIfNull(createDatasetContentSource);
 
         if (source is not LocalDatasetLocation localSource)
         {
@@ -74,7 +74,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
             return null;
         }
 
-        IPlateauDatasetContentSource contentSource = await datasetContentSourceFactory.CreateAsync(
+        IPlateauDatasetContentSource contentSource = await createDatasetContentSource(
             fullSourcePath,
             cancellationToken);
         string[] rasterFiles = contentSource.EnumerateFiles()

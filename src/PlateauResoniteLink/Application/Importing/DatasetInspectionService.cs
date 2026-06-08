@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFactory datasetContentSourceFactory)
+internal sealed class DatasetInspectionService(Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource)
 {
 
     [SuppressMessage(
@@ -23,7 +23,7 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
     {
         try
         {
-            IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(sourcePath, cancellationToken);
+            IPlateauDatasetContentSource datasetSource = await createDatasetContentSource(sourcePath, cancellationToken);
             LocalCityGmlSourceFileDiscoveryResult discovery = LocalCityGmlSourceFileDiscovery.Discover(
                 datasetSource.EnumerateFiles(),
                 meshCode,
@@ -58,7 +58,7 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
     {
         try
         {
-            IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(sourcePath, cancellationToken);
+            IPlateauDatasetContentSource datasetSource = await createDatasetContentSource(sourcePath, cancellationToken);
             LocalCityGmlDatasetSourceFileCandidate[] candidates = LocalCityGmlSourceFileDiscovery
                 .EnumerateCandidates(datasetSource.EnumerateFiles(), packageNames)
                 .Where(static candidate => candidate.IsRequestedPackage)
