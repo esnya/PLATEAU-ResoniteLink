@@ -198,7 +198,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             metadata,
             request,
             readResult,
-            geometryProjector,
+            geometryProjector.ProjectCityObjects,
             new StubDemTextureSourcePolicy(),
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         List<ImportedCityObject> yieldedObjects = [];
@@ -323,7 +323,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             metadata,
             request,
             readResult,
-            geometryProjector ?? new RecordingGeometryProjector(),
+            (geometryProjector ?? new RecordingGeometryProjector()).ProjectCityObjects,
             new StubDemTextureSourcePolicy(),
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
     }
@@ -383,7 +383,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             BuildingAttributes: BuildingAttributeContext.Empty);
     }
 
-    private sealed class RecordingGeometryProjector : ICityGmlGeometryProjector
+    private sealed class RecordingGeometryProjector
     {
         private readonly ConcurrentQueue<string> calls = [];
         private readonly ConcurrentQueue<ReferenceSystemCallRecord> callRecords = [];

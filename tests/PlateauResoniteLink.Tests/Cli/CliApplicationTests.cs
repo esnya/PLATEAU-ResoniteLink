@@ -36,7 +36,7 @@ public sealed class CliApplicationTests
             new DefaultImportedSceneSourceFactory(
                 documentReader,
                 new DefaultImportedSceneSourceComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ProjectCityObjects,
                     CreateDemTextureSourcePolicy()).Compose,
                 PassthroughImportedObjectUnitOptimizer.OptimizeAsync),
             CommonMaterialCatalog.Create(),

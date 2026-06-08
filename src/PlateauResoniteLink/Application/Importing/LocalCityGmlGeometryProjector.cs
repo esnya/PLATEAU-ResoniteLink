@@ -11,7 +11,7 @@ using PlateauResoniteLink.Domain.Importing;
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class LocalCityGmlGeometryProjector(
-    IDefaultMaterialResolver materialResolver) : ICityGmlGeometryProjector
+    IDefaultMaterialResolver materialResolver)
 {
     private readonly IDefaultMaterialResolver materialResolver = materialResolver;
 
