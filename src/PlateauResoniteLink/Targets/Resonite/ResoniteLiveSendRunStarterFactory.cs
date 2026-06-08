@@ -38,7 +38,7 @@ internal sealed class ResoniteLiveSendRunStarterFactory(
 
 internal sealed class ResoniteLiveSendWorkerLauncherFactory(
     ITerrainTextureAssetGeneratorFactory terrainTextureAssetGeneratorFactory,
-    IResoniteLiveSendWorkerPipelineFactory workerPipelineFactory)
+    ResoniteLiveSendWorkerPipelineFactory workerPipelineFactory)
 {
     public ResoniteLiveSendWorkerLauncher Create(
         HttpClient terrainTextureAssetHttpClient,
