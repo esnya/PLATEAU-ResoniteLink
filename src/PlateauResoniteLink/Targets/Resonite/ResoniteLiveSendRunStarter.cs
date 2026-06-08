@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -87,6 +88,10 @@ internal sealed class ResoniteLiveSendRunStarter(
     ResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory,
     ResoniteLiveSendWorkerLauncher workerLauncher)
 {
+    private const int MaxQueuedCityObjects = 4;
+    private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
+    private const long MaxInFlightCityObjectWorkingSetBytesFloor = 512L * 1024L * 1024L;
+
     public async Task<LiveSendRunState> StartAsync(
         LiveSendRunStartRequest request,
         LiveSendRunStartContext context,
@@ -95,13 +100,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
-        LiveSendRunPlan runPlan = LiveSendRunPlanFactory.Create(
-            request.SetupInfo,
-            request.WorkRoot,
-            request.RequestLocalOrigin,
-            request.MemoryProfile,
-            request.ConnectionCount,
-            request.MeshBakeEnabled);
+        LiveSendRunPlan runPlan = CreateRunPlan(request);
         await ResoniteLiveSendConnectionInitializer.EnsureConnectedAsync(
             request,
             runPlan,
@@ -126,6 +125,26 @@ internal sealed class ResoniteLiveSendRunStarter(
                 preparedSetup.RunPlan.ResourceBudget),
             context);
         return state;
+    }
+
+    private static LiveSendRunPlan CreateRunPlan(LiveSendRunStartRequest request)
+    {
+        ResoniteImportBudgetProfile resourceBudget = ResoniteImportBudgetProfiles.ForProfile(request.MemoryProfile);
+        return new LiveSendRunPlan(
+            request.SetupInfo,
+            Path.GetFullPath(request.WorkRoot),
+            request.RequestLocalOrigin,
+            ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(request.SetupInfo.SourceFiles),
+            resourceBudget,
+            new LiveSendQueuePlan(
+                request.ConnectionCount,
+                Math.Max(MaxQueuedCityObjects * request.ConnectionCount, request.ConnectionCount),
+                Math.Max(
+                    resourceBudget.ImportWorkingSetBytes,
+                    Math.Max(
+                        MaxInFlightCityObjectWorkingSetBytesFloor,
+                        request.ConnectionCount * MaxInFlightCityObjectWorkingSetBytesPerLane))),
+            request.MeshBakeEnabled);
     }
 
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership is transferred to LiveSendRunState and released by ResoniteLiveSendRunResourceReleaser.")]
