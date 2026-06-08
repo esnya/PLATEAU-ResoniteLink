@@ -165,6 +165,28 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredConnectionInitializer()
+    {
+        EnsureResoniteLiveSendConnected ensureConnected =
+            static (request, runPlan, context, cancellationToken) =>
+            {
+                _ = request;
+                _ = runPlan;
+                _ = context;
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.CompletedTask;
+            };
+
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped(_ => ensureConnected)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.Same(ensureConnected, scope.ServiceProvider.GetRequiredService<EnsureResoniteLiveSendConnected>());
+    }
+
+    [Fact]
     public async Task CanonicalDumpCreateUsesProvidedLiveSceneImportFactory()
     {
         RecordingLiveSceneImportFactory importFactory = new(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()));
