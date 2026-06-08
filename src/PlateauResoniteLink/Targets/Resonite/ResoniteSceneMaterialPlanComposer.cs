@@ -11,7 +11,7 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlanning materialPlanning)
+internal sealed class ResoniteSceneMaterialPlanComposer(ResoniteMaterialPlanning materialPlanning)
 {
     public async Task<PlannedSceneMaterialPlan> ComposeAsync(
         LiveSendRunState state,

@@ -21,7 +21,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteTextureImageLoader>();
         services.TryAddScoped<INonDemSourceFileBakeEmitterFactory, NonDemSourceFileBakeEmitterFactory>();
         services.TryAddScoped<ResoniteBufferedCityObjectBakerFactory>();
-        services.TryAddScoped<IResoniteMaterialPlanning, ResoniteMaterialPlanning>();
+        services.TryAddScoped<ResoniteMaterialPlanning>();
         services.TryAddScoped<ResoniteSceneMaterialPlanComposer>();
         services.TryAddScoped<ResoniteCommonMaterialSetupPreparer>();
         services.TryAddScoped<IResoniteLiveSendRunSetupPreparer, ResoniteLiveSendRunSetupPreparer>();

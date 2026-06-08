@@ -325,7 +325,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     }
 
     public static ResoniteLiveSendRunStarter CreateRunStarter(
-        IResoniteMaterialPlanning materialPlanning,
+        ResoniteMaterialPlanning materialPlanning,
         IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null)
     {
@@ -340,7 +340,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     }
 
     private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
-        IResoniteMaterialPlanning materialPlanning,
+        ResoniteMaterialPlanning materialPlanning,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator)
     {
         return new ResoniteQueuedCityObjectWorker(
@@ -352,7 +352,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     }
 
     private static ResonitePreparedCityObjectImporter CreatePreparedCityObjectImporter(
-        IResoniteMaterialPlanning materialPlanning)
+        ResoniteMaterialPlanning materialPlanning)
     {
         return new ResonitePreparedCityObjectImporter(
             new ResoniteSceneMaterialPlanComposer(materialPlanning));
