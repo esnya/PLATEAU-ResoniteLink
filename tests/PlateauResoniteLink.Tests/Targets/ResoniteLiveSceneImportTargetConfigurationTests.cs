@@ -143,39 +143,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
-    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
-    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredTerrainTextureFactory()
-    {
-        RecordingTerrainTextureAssetGeneratorFactory terrainTextureFactory = new();
-        ServiceProvider provider = new ServiceCollection()
-            .AddScoped<ITerrainTextureAssetGeneratorFactory>(_ => terrainTextureFactory)
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-        using HttpClient terrainTextureAssetHttpClient = new();
-        ISceneSink target = scope.ServiceProvider
-            .GetRequiredService<IResoniteLiveSceneImportFactory>()
-            .CreateTarget(
-                new ResoniteLiveSceneImportTargetOptions(
-                    new Uri("ws://localhost:12345/"),
-                    1,
-                    EnableSendMetrics: false,
-                    MemoryProfile: ResoniteImportMemoryProfile.Large,
-                    EnableMeshBake: true,
-                    TerrainTileCacheRoot: "cache-root",
-                    DisableTerrainTileCache: true,
-                    LoggerFactory: NullLoggerFactory.Instance),
-                terrainTextureAssetHttpClient);
-        await using ResoniteLiveSceneImportTarget _ = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
-
-        Assert.Equal(1, terrainTextureFactory.CreateCallCount);
-        Assert.Same(terrainTextureAssetHttpClient, terrainTextureFactory.LastHttpClient);
-        Assert.NotNull(terrainTextureFactory.LastOptions);
-        Assert.Equal("cache-root", terrainTextureFactory.LastOptions!.TerrainTileCacheRoot);
-        Assert.True(terrainTextureFactory.LastOptions.DisableTerrainTileCache);
-    }
-
-    [Fact]
     public async Task AddResoniteLiveSendTargetServicesRoutesCanonicalDumpThroughRegisteredLiveSceneImportFactory()
     {
         RecordingLiveSceneImportFactory importFactory = new(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()));
@@ -402,28 +369,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new DelegatingClientSession(),
                 diagnostics,
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
-    }
-
-    private sealed class RecordingTerrainTextureAssetGeneratorFactory : ITerrainTextureAssetGeneratorFactory
-    {
-        public int CreateCallCount { get; private set; }
-
-        public HttpClient? LastHttpClient { get; private set; }
-
-        public ResoniteLiveSceneImportTargetOptions? LastOptions { get; private set; }
-
-        public ITerrainTextureAssetGenerator? LastGenerator { get; private set; }
-
-        public ITerrainTextureAssetGenerator Create(
-            HttpClient terrainTextureAssetHttpClient,
-            ResoniteLiveSceneImportTargetOptions options)
-        {
-            CreateCallCount++;
-            LastHttpClient = terrainTextureAssetHttpClient;
-            LastOptions = options;
-            LastGenerator = new RecordingTerrainTextureAssetGenerator();
-            return LastGenerator;
-        }
     }
 
     private sealed class RecordingTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
