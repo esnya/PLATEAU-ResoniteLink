@@ -47,11 +47,15 @@ internal static class CliServiceCollectionExtensions
         services.AddResoniteLiveSendTargetServices();
 
         services.AddSingleton<DatasetInspectionService>();
-        services.AddSingleton<Func<IPlateauDatasetSourceResolver>>(_ =>
-            () => new CkanPlateauDatasetSourceResolver(
-                _.GetRequiredService<IHttpClientFactory>().CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName),
-                _.GetRequiredService<IRemoteArchiveDistributionPolicy>(),
-                _.GetRequiredService<IArchiveFileLayoutPolicy>()));
+        services.AddSingleton<Func<ResolvePlateauDatasetSource>>(_ =>
+            () =>
+            {
+                CkanPlateauDatasetSourceResolver resolver = new(
+                    _.GetRequiredService<IHttpClientFactory>().CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName),
+                    _.GetRequiredService<IRemoteArchiveDistributionPolicy>(),
+                    _.GetRequiredService<IArchiveFileLayoutPolicy>());
+                return resolver.ResolveAsync;
+            });
         services.AddSingleton<Func<ImportCommandOptions, Action<string>?, ISceneSink>>(_ =>
         {
             IHttpClientFactory httpClientFactory = _.GetRequiredService<IHttpClientFactory>();
@@ -65,8 +69,8 @@ internal static class CliServiceCollectionExtensions
         });
         services.AddSingleton<Func<ImportCommandOptions, Action<string>?, PlateauImportService>>(_ =>
         {
-            Func<IPlateauDatasetSourceResolver> createDatasetSourceResolver =
-                _.GetRequiredService<Func<IPlateauDatasetSourceResolver>>();
+            Func<ResolvePlateauDatasetSource> createDatasetSourceResolver =
+                _.GetRequiredService<Func<ResolvePlateauDatasetSource>>();
             Func<ImportCommandOptions, Action<string>?, ISceneSink> createSceneSink =
                 _.GetRequiredService<Func<ImportCommandOptions, Action<string>?, ISceneSink>>();
             IImportedSceneSourceFactory importedSceneSourceFactory =
@@ -99,7 +103,7 @@ internal static class CliServiceCollectionExtensions
         "CA2000:Dispose objects before losing scope",
         Justification = "PlateauImportService owns the target lifetime and disposes it after each execution.")]
     internal static PlateauImportService CreateImportService(
-        Func<IPlateauDatasetSourceResolver> createDatasetSourceResolver,
+        Func<ResolvePlateauDatasetSource> createDatasetSourceResolver,
         Func<ImportCommandOptions, Action<string>?, ISceneSink> createSceneSink,
         IImportedSceneSourceFactory importedSceneSourceFactory,
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,

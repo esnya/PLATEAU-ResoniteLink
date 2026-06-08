@@ -53,7 +53,7 @@ public sealed class PlateauImportServiceTests
 
         PlateauImportService service = new(
             sceneSink,
-            datasetSourceResolver,
+            datasetSourceResolver.ResolveAsync,
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
@@ -127,7 +127,7 @@ public sealed class PlateauImportServiceTests
 
         PlateauImportService service = new(
             sceneSink,
-            datasetSourceResolver,
+            datasetSourceResolver.ResolveAsync,
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
@@ -170,7 +170,7 @@ public sealed class PlateauImportServiceTests
 
         PlateauImportService service = new(
             sceneSink,
-            datasetSourceResolver,
+            datasetSourceResolver.ResolveAsync,
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
@@ -207,7 +207,7 @@ public sealed class PlateauImportServiceTests
 
         PlateauImportService service = new(
             sceneSink,
-            datasetSourceResolver,
+            datasetSourceResolver.ResolveAsync,
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
@@ -249,7 +249,7 @@ public sealed class PlateauImportServiceTests
 
         PlateauImportService service = new(
             sceneSink,
-            datasetSourceResolver,
+            datasetSourceResolver.ResolveAsync,
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
@@ -290,7 +290,7 @@ public sealed class PlateauImportServiceTests
 
         PlateauImportService service = new(
             sceneSink,
-            datasetSourceResolver,
+            datasetSourceResolver.ResolveAsync,
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
@@ -346,7 +346,7 @@ public sealed class PlateauImportServiceTests
 
         PlateauImportService service = new(
             sceneSink,
-            datasetSourceResolver,
+            datasetSourceResolver.ResolveAsync,
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
@@ -391,7 +391,7 @@ public sealed class PlateauImportServiceTests
 
         PlateauImportService service = new(
             sceneSink,
-            datasetSourceResolver,
+            datasetSourceResolver.ResolveAsync,
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
@@ -440,7 +440,7 @@ public sealed class PlateauImportServiceTests
 
         PlateauImportService service = new(
             sceneSink,
-            datasetSourceResolver,
+            datasetSourceResolver.ResolveAsync,
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
@@ -594,7 +594,7 @@ public sealed class PlateauImportServiceTests
         }
     }
 
-    private sealed class RecordingDatasetSourceResolver(ValidatedPlateauImportRequest resolvedRequest) : IPlateauDatasetSourceResolver
+    private sealed class RecordingDatasetSourceResolver(ValidatedPlateauImportRequest resolvedRequest)
     {
         public int ResolveCallCount { get; private set; }
 
@@ -619,7 +619,7 @@ public sealed class PlateauImportServiceTests
         }
     }
 
-    private sealed class ThrowingDatasetSourceResolver : IPlateauDatasetSourceResolver
+    private sealed class ThrowingDatasetSourceResolver
     {
         public int ResolveCallCount { get; private set; }
 
