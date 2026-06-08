@@ -6,16 +6,16 @@ using System.Threading.Tasks;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemCityObjectBaker(
-    INonDemCityObjectBakePolicyResolver bakePolicyResolver,
-    INonDemSourceFileBakeEmitter sourceFileBakeEmitter) : IResoniteBufferedCityObjectBaker
+    NonDemCityObjectBakePolicyResolver bakePolicyResolver,
+    INonDemSourceFileBakeEmitter sourceFileBakeEmitter)
 {
     private readonly NonDemSourceFileBakeBuffer sourceFileBuffer = new();
-    private readonly INonDemCityObjectBakePolicyResolver bakePolicyResolver = bakePolicyResolver
+    private readonly NonDemCityObjectBakePolicyResolver bakePolicyResolver = bakePolicyResolver
         ?? throw new ArgumentNullException(nameof(bakePolicyResolver));
     private readonly INonDemSourceFileBakeEmitter sourceFileBakeEmitter = sourceFileBakeEmitter
         ?? throw new ArgumentNullException(nameof(sourceFileBakeEmitter));
 
-    public string Name => "AtlasBake";
+    public static string Name => "AtlasBake";
 
     public int BakedInputCityObjectCount { get; private set; }
 

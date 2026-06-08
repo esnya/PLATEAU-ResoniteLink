@@ -3,13 +3,8 @@ using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface INonDemCityObjectBakePolicyResolver
-{
-    NonDemCityObjectBakePolicy? Resolve(ResoniteConstructionCityObject cityObject);
-}
-
 internal sealed class NonDemCityObjectBakePolicyResolver(
-    IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies) : INonDemCityObjectBakePolicyResolver
+    IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies)
 {
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? throw new ArgumentNullException(nameof(bakePolicies));

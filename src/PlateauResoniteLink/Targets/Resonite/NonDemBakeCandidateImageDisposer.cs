@@ -6,21 +6,14 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface INonDemBakeCandidateImageDisposer
+internal static class NonDemBakeCandidateImageDisposer
 {
-    void Dispose(NonDemCityObjectBakeCandidate candidate);
-
-    void Dispose(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates);
-}
-
-internal sealed class NonDemBakeCandidateImageDisposer : INonDemBakeCandidateImageDisposer
-{
-    public void Dispose(NonDemCityObjectBakeCandidate candidate)
+    public static void Dispose(NonDemCityObjectBakeCandidate candidate)
     {
         Dispose([candidate]);
     }
 
-    public void Dispose(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
+    public static void Dispose(IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
     {
         foreach (Image<Rgba32> tileImage in candidates
                      .SelectMany(static candidate => candidate.AtlasEntries)
