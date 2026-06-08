@@ -72,8 +72,7 @@ internal sealed record LiveSendRunPlan
         ResoniteLocalOrigin RequestLocalOrigin,
         IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath,
         ResoniteImportBudgetProfile ResourceBudget,
-        LiveSendQueuePlan Queue,
-        bool MeshBakeEnabled)
+        LiveSendQueuePlan Queue)
     {
         ArgumentNullException.ThrowIfNull(SetupInfo);
         ArgumentException.ThrowIfNullOrWhiteSpace(ResolvedWorkRoot);
@@ -87,7 +86,6 @@ internal sealed record LiveSendRunPlan
         this.SourceFileSlotNamesByRelativePath = SourceFileSlotNamesByRelativePath;
         this.ResourceBudget = ResourceBudget;
         this.Queue = Queue;
-        this.MeshBakeEnabled = MeshBakeEnabled;
     }
 
     public ResoniteSceneSetupInfo SetupInfo { get; }
@@ -102,7 +100,6 @@ internal sealed record LiveSendRunPlan
 
     public LiveSendQueuePlan Queue { get; }
 
-    public bool MeshBakeEnabled { get; }
 }
 
 internal sealed record LiveSendQueuePlan
@@ -133,7 +130,7 @@ internal sealed record LiveSendRunContext(
     CreatedSlot DatasetRootSlot,
     CreatedSlot DatasetAssetsRootSlot,
     CreatedSlot CommonAssetsRootSlot,
-    NonDemCityObjectBaker? CityObjectBaker);
+    NonDemCityObjectBaker CityObjectBaker);
 
 internal sealed class LiveSendRunState
 {

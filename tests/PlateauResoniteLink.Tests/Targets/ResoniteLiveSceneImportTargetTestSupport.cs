@@ -26,13 +26,11 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         SceneSinkRecordingClient client,
         GenerateTerrainTexture? generateTerrainTexture = null,
-        bool enableMeshBake = true,
         CommonMaterialCatalog<DefaultCommonMaterialMember>? commonMaterials = null)
     {
         await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(
             client,
-            generateTerrainTexture,
-            enableMeshBake);
+            generateTerrainTexture);
 
         using TemporaryDirectory workDirectory = new();
         _ = await ExecuteSceneAsync(
@@ -40,7 +38,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             metadata,
             workDirectory.Path,
             cityObjects,
-            commonMaterials: commonMaterials ?? CreateReferencedCommonMaterials(cityObjects, enableMeshBake));
+            commonMaterials: commonMaterials ?? CreateReferencedCommonMaterials(cityObjects));
     }
 
     public static ResoniteImportedMesh CreateTriangleMesh(
@@ -114,29 +112,28 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ImportedSceneMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> firstRunCityObjects,
         IReadOnlyList<ResoniteConstructionCityObject> secondRunCityObjects,
-        SceneSinkRecordingClient client,
-        bool enableMeshBake = false)
+        SceneSinkRecordingClient client)
     {
         using TemporaryDirectory firstWorkDirectory = new();
-        await using (ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(client, enableMeshBake: enableMeshBake))
+        await using (ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(client))
         {
             _ = await ExecuteSceneAsync(
                 importTarget,
                 metadata,
                 firstWorkDirectory.Path,
                 firstRunCityObjects,
-                commonMaterials: CreateReferencedCommonMaterials(firstRunCityObjects, enableMeshBake));
+                commonMaterials: CreateReferencedCommonMaterials(firstRunCityObjects));
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
-        await using (ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(client, enableMeshBake: enableMeshBake))
+        await using (ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(client))
         {
             _ = await ExecuteSceneAsync(
                 importTarget,
                 metadata,
                 secondWorkDirectory.Path,
                 secondRunCityObjects,
-                commonMaterials: CreateReferencedCommonMaterials(secondRunCityObjects, enableMeshBake));
+                commonMaterials: CreateReferencedCommonMaterials(secondRunCityObjects));
         }
     }
 
@@ -152,7 +149,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             CreateExecutionPlan(
                 metadata,
                 workDirectory,
-                commonMaterials: commonMaterials ?? CreateReferencedCommonMaterials(cityObjects, importTarget.MeshBakeEnabled)),
+                commonMaterials: commonMaterials ?? CreateReferencedCommonMaterials(cityObjects)),
             CreateImportedObjectUnitsAsync(cityObjects, cancellationToken),
             cancellationToken);
     }
@@ -178,12 +175,11 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             resolvedRequest,
             effectiveMetadata,
             workDirectory,
-            commonMaterials ?? CreateReferencedCommonMaterials([], enableMeshBake: false));
+            commonMaterials ?? CreateReferencedCommonMaterials([]));
     }
 
     public static CommonMaterialCatalog<DefaultCommonMaterialMember> CreateReferencedCommonMaterials(
-        IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
-        bool enableMeshBake)
+        IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
     {
         CommonMaterialCatalog<DefaultCommonMaterialMember> catalog = CommonMaterialCatalog.Create();
         IEnumerable<CommonMaterialDefinition> definitions =
@@ -191,16 +187,13 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 .SelectMany(static cityObject => cityObject.Materials)
                 .Select(static material => material.CommonMaterial?.Definition)
                 .Where(static definition => definition is not null)
-                .Cast<CommonMaterialDefinition>();
-        if (enableMeshBake)
-        {
-            definitions = definitions.Concat(
+                .Cast<CommonMaterialDefinition>()
+                .Concat(
             [
                 catalog.Generic.Uv.Definition,
                 catalog.VertexColor.Uv.Definition,
                 catalog.VertexColor.TerrainAlignedUv.Definition,
             ]);
-        }
 
         return catalog.FilterToDefinitions(definitions);
     }
@@ -290,7 +283,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     public static ResoniteLiveSceneImportTarget CreateImportTarget(
         IResoniteLinkClient routedClient,
         GenerateTerrainTexture? generateTerrainTexture = null,
-        bool enableMeshBake = true,
         EnsureResoniteGsiFallbackLicense? ensureGsiFallbackLicense = null,
         DelegatingClientSession? session = null,
         Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null)
@@ -304,7 +296,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 1,
                 EnableSendMetrics: false,
                 ResoniteImportMemoryProfile.Large,
-                enableMeshBake,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 LoggerFactory: loggerFactory),

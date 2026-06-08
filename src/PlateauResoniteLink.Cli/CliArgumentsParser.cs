@@ -59,7 +59,6 @@ public static class CliArgumentsParser
                                 Optional. Parallel ResoniteLink connection count for live sends. Default: 4.
           --memory-profile <small|large>
                                 Optional. Texture/import memory budget profile. Default: large.
-          --no-mesh-bake         Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
           --verbose              Optional. Include debug-level progress logs.
 
@@ -105,7 +104,6 @@ public static class CliArgumentsParser
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
         PlateauImportMemoryProfile memoryProfile = CliDefaultOptions.MemoryProfile;
-        bool enableMeshBake = true;
         bool enableSendMetrics = false;
         bool verboseLogging = false;
         IReadOnlyList<string> packageNames = DefaultPackageNames;
@@ -239,9 +237,6 @@ public static class CliArgumentsParser
 
                             break;
                         }
-                    case "--no-mesh-bake":
-                        enableMeshBake = false;
-                        break;
                     case "--send-metrics":
                         enableSendMetrics = true;
                         break;
@@ -425,7 +420,6 @@ public static class CliArgumentsParser
                 resoniteLinkUri,
                 resoniteLinkConnectionCount,
                 memoryProfile,
-                enableMeshBake,
                 terrainTileCacheRoot,
                 disableTerrainTileCache,
                 canonicalSceneDumpPath,

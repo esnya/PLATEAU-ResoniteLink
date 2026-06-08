@@ -13,8 +13,6 @@ using PlateauResoniteLink.Targets.Resonite;
 
 using ResoniteLink;
 
-using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
-
 namespace PlateauResoniteLink.Tests.Targets;
 
 [Trait("Category", "Slow")]
@@ -46,8 +44,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 CreateBundledTriangleCityObject("shared-material-one"),
                 CreateBundledTriangleCityObject("shared-material-two"),
             ],
-            client,
-            enableMeshBake: false);
+            client);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-material-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-material-two");
@@ -69,8 +66,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 CreateBundledTriangleCityObject("shared-material-scale-one"),
                 CreateBundledTriangleCityObject("shared-material-scale-two", textureScale: new ResoniteFloat2(0.5, 0.5)),
             ],
-            client,
-            enableMeshBake: false);
+            client);
 
         Assert.NotEqual(
             GetRendererMaterialReferenceTarget(client, "CityObject shared-material-scale-one"),
@@ -96,46 +92,13 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     family: BundledDefaultMaterialFamilies.Roof,
                     projection: ResoniteMaterialProjection.Triplanar),
             ],
-            client,
-            enableMeshBake: false);
+            client);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-roof-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-roof-two");
 
         Assert.Equal(firstMaterialId, secondMaterialId);
         AssertResolvedComponent(client, firstMaterialId);
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncReusesSharedCommonMaterialForPayloadAlbedoOverrides()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneSinkRecordingClient client = new();
-
-        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            metadata,
-            [
-                CreatePayloadTriangleCityObject(
-                    "dataset-texture-one",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/albedo-one.png")),
-                CreatePayloadTriangleCityObject(
-                    "dataset-texture-two",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/albedo-two.png")),
-            ],
-            client,
-            enableMeshBake: false);
-
-        string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-one");
-        string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-two");
-        string firstPropertyBlockId = GetRendererMaterialPropertyBlockReferenceTarget(client, "CityObject dataset-texture-one");
-        string secondPropertyBlockId = GetRendererMaterialPropertyBlockReferenceTarget(client, "CityObject dataset-texture-two");
-
-        Assert.Equal(firstMaterialId, secondMaterialId);
-        AssertResolvedComponent(client, firstMaterialId);
-        Assert.NotEqual(firstPropertyBlockId, secondPropertyBlockId);
-        Assert.Contains(ImportedRgba32Textures(client), static texture => IsSolidColorTexture(texture, 255, 0, 0));
-        Assert.Contains(ImportedRgba32Textures(client), static texture => IsSolidColorTexture(texture, 0, 255, 0));
     }
 
     [Fact]
@@ -157,8 +120,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     "dataset-texture-noop-transform-two",
                     ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/albedo-noop-two.png")),
             ],
-            client,
-            enableMeshBake: false);
+            client);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-noop-transform-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-noop-transform-two");
@@ -188,8 +150,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     textureScale: new ResoniteFloat2(2.0, 1.5),
                     textureOffset: new ResoniteFloat2(0.25, 0.5)),
             ],
-            client,
-            enableMeshBake: false);
+            client);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-two");
@@ -227,8 +188,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 CreateVertexColorTriangleCityObject("vertex-color-one"),
                 CreateVertexColorTriangleCityObject("vertex-color-two"),
             ],
-            client,
-            enableMeshBake: false);
+            client);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject vertex-color-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject vertex-color-two");
@@ -255,34 +215,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         Assert.Equal(firstMaterialId, secondMaterialId);
         AssertResolvedComponent(client, firstMaterialId);
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncReusesExistingEmptyCurrentGenericCommonMaterialSlot()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneSinkRecordingClient client = new();
-
-        string emptyCurrentMaterialSlotId = await SeedEmptyCurrentGenericSharedMaterialSlotAsync(client);
-
-        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            metadata,
-            [
-                CreatePayloadTriangleCityObject(
-                    "empty-current-generic-slot-reuse",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/empty-current-generic-slot.png")),
-            ],
-            client,
-            enableMeshBake: false);
-
-        string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject empty-current-generic-slot-reuse");
-        AddComponent materialComponentRequest = Assert.Single(
-            client.AddedComponents,
-            request => string.Equals(request.Data.ID, rendererMaterialId, StringComparison.Ordinal));
-
-        Assert.Equal(emptyCurrentMaterialSlotId, materialComponentRequest.ContainerSlotId);
-        AssertResolvedComponent(client, rendererMaterialId);
     }
 
     [Fact]
@@ -313,37 +245,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                         "incomplete-current-generic-slot",
                         ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/incomplete-current-generic-slot.png")),
                 ],
-                client,
-                enableMeshBake: false));
+                client));
 
         Assert.Contains("exists but does not contain material component", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncReadsExistingSharedMaterialAssets()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneSinkRecordingClient client = new();
-
-        string emptyCurrentMaterialSlotId = await SeedEmptyCurrentGenericSharedMaterialSlotAsync(client);
-
-        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            metadata,
-            [
-                CreatePayloadTriangleCityObject(
-                    "targeted-shared-material-read",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/targeted-shared-material-read.png")),
-            ],
-            client,
-            enableMeshBake: false);
-
-        string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject targeted-shared-material-read");
-        AddComponent materialComponentRequest = Assert.Single(
-            client.AddedComponents,
-            request => string.Equals(request.Data.ID, rendererMaterialId, StringComparison.Ordinal));
-        Assert.Equal(emptyCurrentMaterialSlotId, materialComponentRequest.ContainerSlotId);
-        AssertResolvedComponent(client, rendererMaterialId);
     }
 
     [Fact]
@@ -369,8 +273,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     textureScale: new ResoniteFloat2(2.0, 1.5),
                     textureOffset: new ResoniteFloat2(0.25, 0.5)),
             ],
-            client,
-            enableMeshBake: false);
+            client);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-run-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-run-two");
@@ -392,62 +295,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 new ResoniteFloat2(2.25, 0.5),
                 new ResoniteFloat2(0.25, 2.0)),
             importedUvSignatures);
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncUsesDistinctPropertyBlocksForSamePresentationMaterialWithDifferentPayloadOverrides()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneSinkRecordingClient client = new();
-
-        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            metadata,
-            [
-                CreateSameKeyPayloadOverrideCityObject(
-                    "same-material-override",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/same-material-a.png"),
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/same-material-b.png")),
-            ],
-            client,
-            enableMeshBake: false);
-
-        string[] materialIds = GetRendererMaterialReferenceTargets(client, "CityObject same-material-override");
-        string?[] propertyBlockIds = GetRendererMaterialPropertyBlockReferenceTargets(client, "CityObject same-material-override");
-
-        Assert.Equal(2, materialIds.Length);
-        Assert.All(materialIds, materialId => Assert.Equal(materialIds[0], materialId));
-        Assert.Equal(2, propertyBlockIds.Length);
-        Assert.All(propertyBlockIds, static propertyBlockId => Assert.False(string.IsNullOrWhiteSpace(propertyBlockId)));
-        Assert.Equal(2, propertyBlockIds.Distinct(StringComparer.Ordinal).Count());
-    }
-
-    [Fact]
-    public async Task ImportAsyncPreservesMixedCommonAndOverrideMaterialOrder()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneSinkRecordingClient client = new();
-
-        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
-            metadata,
-            [
-                CreateMixedMaterialCityObject(
-                    "mixed-material-order",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/mixed-albedo.png")),
-            ],
-            client,
-            enableMeshBake: false);
-
-        string[] materialIds = GetRendererMaterialReferenceTargets(client, "CityObject mixed-material-order");
-        Assert.Equal(2, materialIds.Length);
-        string?[] propertyBlockIds = GetRendererMaterialPropertyBlockReferenceTargets(client, "CityObject mixed-material-order");
-
-        AssertResolvedComponent(client, materialIds[0]);
-        AssertResolvedComponent(client, materialIds[1]);
-        Assert.Null(propertyBlockIds[0]);
-        Assert.NotNull(propertyBlockIds[1]);
-        Assert.Contains(ImportedRgba32Textures(client), static texture => IsSolidColorTexture(texture, 255, 0, 0));
     }
 
     [Fact]
@@ -638,7 +485,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         };
 
         using TemporaryDirectory workDirectory = new();
-        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client);
         _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             importTarget,
             metadata,
@@ -921,7 +768,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneSinkRecordingClient client = new();
         using TemporaryDirectory workDirectory = new();
-        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client);
 
         SceneImportExecutionResult executionResult = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             importTarget,
@@ -959,7 +806,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ResoniteFloat3 primaryObjectPosition = new(4.0, 1.0, 8.0);
         ResoniteFloat3 secondaryObjectPosition = new(10.0, 2.0, 20.0);
 
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(importTarget, metadata, firstWorkDirectory.Path, []);
         }
@@ -967,7 +814,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, $"PLATEAU {DatasetName}");
         datasetRoot.Position = CreateFloat3(datasetRootPosition);
 
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
         {
             SceneImportExecutionResult executionResult = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
                 importTarget,
@@ -1021,7 +868,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         using TemporaryDirectory secondWorkDirectory = new();
         ResoniteFloat3 secondRunLocalPosition = new(10.0, 0.0, 20.0);
 
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
                 importTarget,
@@ -1036,7 +883,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 ]);
         }
 
-        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false))
+        await using (ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client))
         {
             _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
                 importTarget,
@@ -1068,7 +915,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
         using SceneSinkRecordingClient client = new();
         using TemporaryDirectory workDirectory = new();
-        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client);
 
         _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             importTarget,
@@ -1127,7 +974,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         string workDirectory,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
     {
-        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client, enableMeshBake: false);
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(client);
         _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             importTarget,
             metadata,
@@ -1529,30 +1376,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 new ResoniteMeshSubmesh(0, [0, 1, 2]),
                 new ResoniteMeshSubmesh(1, [1, 3, 2]),
             ]);
-    }
-
-    private static string GetRendererMaterialPropertyBlockReferenceTarget(
-        SceneSinkRecordingClient client,
-        string slotName)
-    {
-        string? targetId = Assert.Single(GetRendererMaterialPropertyBlockReferenceTargets(client, slotName));
-        return Assert.IsType<string>(targetId);
-    }
-
-    private static string?[] GetRendererMaterialPropertyBlockReferenceTargets(
-        SceneSinkRecordingClient client,
-        string slotName)
-    {
-        Component renderer = Assert.Single(
-            client.AddedComponents.Where(request =>
-                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
-                    && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, slotName, StringComparison.Ordinal))
-                .Select(static request => request.Data));
-        SyncList propertyBlocks = Assert.IsType<SyncList>(renderer.Members["MaterialPropertyBlocks"]);
-        return propertyBlocks.Elements
-            .Select(Assert.IsType<Reference>)
-            .Select(static reference => reference.TargetID)
-            .ToArray();
     }
 
     private static void AssertResolvedComponent(SceneSinkRecordingClient client, string componentId)

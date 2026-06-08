@@ -23,8 +23,7 @@ public sealed class LiveSendRunContractTests
             new LiveSendConnectionRequest("dataset", "53394525"),
             new ResoniteLocalOrigin(0, 0, 0),
             ResoniteImportMemoryProfile.Large,
-            1,
-            MeshBakeEnabled: true));
+            1));
         Assert.Throws<ArgumentException>(() => new LiveSendRunStartRequest(
             setupInfo,
             " ",
@@ -32,8 +31,7 @@ public sealed class LiveSendRunContractTests
             new LiveSendConnectionRequest("dataset", "53394525"),
             new ResoniteLocalOrigin(0, 0, 0),
             ResoniteImportMemoryProfile.Large,
-            1,
-            MeshBakeEnabled: true));
+            1));
         Assert.Throws<ArgumentOutOfRangeException>(() => new LiveSendRunStartRequest(
             setupInfo,
             "work",
@@ -41,8 +39,7 @@ public sealed class LiveSendRunContractTests
             new LiveSendConnectionRequest("dataset", "53394525"),
             new ResoniteLocalOrigin(0, 0, 0),
             ResoniteImportMemoryProfile.Large,
-            0,
-            MeshBakeEnabled: true));
+            0));
     }
 
     [Fact]

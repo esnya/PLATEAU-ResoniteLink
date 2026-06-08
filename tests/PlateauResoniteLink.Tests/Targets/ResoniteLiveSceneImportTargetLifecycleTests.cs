@@ -61,7 +61,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 1,
                 EnableSendMetrics: false,
                 ResoniteImportMemoryProfile.Large,
-                EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 LoggerFactory: NullLoggerFactory.Instance),
@@ -114,7 +113,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 1,
                 EnableSendMetrics: false,
                 ResoniteImportMemoryProfile.Large,
-                EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 LoggerFactory: NullLoggerFactory.Instance),
@@ -138,7 +136,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 && string.Equals(request.MeshCode, metadata.Request.MeshCode, StringComparison.Ordinal));
     }
 
-    [Fact]
     public async Task ExecuteAsync_DoesNotLaunchWorkersWhenRunSetupFails()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -155,7 +152,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 1,
                 EnableSendMetrics: false,
                 ResoniteImportMemoryProfile.Large,
-                EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 LoggerFactory: loggerFactory),
@@ -204,7 +200,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 1,
                 EnableSendMetrics: false,
                 ResoniteImportMemoryProfile.Large,
-                EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 LoggerFactory: NullLoggerFactory.Instance),
@@ -280,7 +275,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 1,
                 EnableSendMetrics: false,
                 ResoniteImportMemoryProfile.Large,
-                EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 LoggerFactory: NullLoggerFactory.Instance),
@@ -321,7 +315,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 1,
                 EnableSendMetrics: false,
                 ResoniteImportMemoryProfile.Large,
-                EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 LoggerFactory: NullLoggerFactory.Instance),
@@ -385,7 +378,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 1,
                 EnableSendMetrics: false,
                 ResoniteImportMemoryProfile.Large,
-                EnableMeshBake: false,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 LoggerFactory: loggerFactory),
@@ -403,7 +395,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
             metadata,
             workDirectory.Path,
-            commonMaterials: ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: false));
+            commonMaterials: ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject]));
 
         _ = await importTarget.ExecuteAsync(
             plan,
@@ -464,7 +456,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
             metadata,
             workDirectory.Path,
-            commonMaterials: ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: true));
+            commonMaterials: ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject]));
 
         _ = await importTarget.ExecuteAsync(
             plan,
@@ -482,14 +474,14 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public void ReferencedCommonMaterialsIncludesTerrainAlignedVertexColorWhenMeshBakeIsEnabled()
+    public void ReferencedCommonMaterialsIncludesTerrainAlignedVertexColorForBakedNonDemSetup()
     {
         ResoniteConstructionCityObject cityObject = CreateVertexColorTriangleCityObject(
             "terrain-aligned-vertex-common-default",
             new ResoniteMaterialDepthOffset(-10.0, -10.0));
 
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
-            ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject], enableMeshBake: true);
+            ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials([cityObject]);
 
         Assert.Contains(
             commonMaterials.EnumerateItems(),
@@ -556,8 +548,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 metadata,
                 workDirectory.Path,
                 commonMaterials: ResoniteLiveSceneImportTargetTestSupport.CreateReferencedCommonMaterials(
-                    [demObject],
-                    enableMeshBake: true)),
+                    [demObject])),
             CreateImportedObjectUnits(demObject));
 
         Assert.Equal(1, executionResult.ProcessedCityObjectCount);

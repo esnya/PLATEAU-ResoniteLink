@@ -33,13 +33,7 @@ internal static class ResoniteQueuedCityObjectEnqueuer
                 cancellationToken);
         }
 
-        NonDemCityObjectBaker? cityObjectBaker = state.Context.CityObjectBaker;
-        if (cityObjectBaker is null)
-        {
-            return;
-        }
-
-        await FlushBufferedAsync(state, cityObjectBaker, context, cancellationToken);
+        await FlushBufferedAsync(state, state.Context.CityObjectBaker, context, cancellationToken);
     }
 
     public static async Task<int> FlushBufferedAsync(
@@ -82,26 +76,19 @@ internal static class ResoniteQueuedCityObjectEnqueuer
     {
         ArgumentNullException.ThrowIfNull(cityObject);
 
-        NonDemCityObjectBaker? cityObjectBaker = state.Context.CityObjectBaker;
-        if (cityObjectBaker is not null)
+        NonDemCityObjectBaker cityObjectBaker = state.Context.CityObjectBaker;
+        IReadOnlyList<ResoniteConstructionCityObject> queuedCityObjects = await cityObjectBaker.BufferAsync(
+            cityObject,
+            cancellationToken);
+        if (queuedCityObjects.Count == 0)
         {
-            IReadOnlyList<ResoniteConstructionCityObject> queuedCityObjects = await cityObjectBaker.BufferAsync(
-                cityObject,
-                cancellationToken);
-            if (queuedCityObjects.Count == 0)
-            {
-                return;
-            }
-
-            foreach (ResoniteConstructionCityObject queuedCityObject in queuedCityObjects)
-            {
-                await EnqueueAsync(state, queuedCityObject, context, cancellationToken);
-            }
-
             return;
         }
 
-        await EnqueueAsync(state, cityObject, context, cancellationToken);
+        foreach (ResoniteConstructionCityObject queuedCityObject in queuedCityObjects)
+        {
+            await EnqueueAsync(state, queuedCityObject, context, cancellationToken);
+        }
     }
 
     private static async Task EnqueueAsync(
