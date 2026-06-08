@@ -35,7 +35,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         RecordingConstructionComposer composer = new(expectedSource);
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<ICityGmlDocumentReader>(reader)
-            .AddSingleton<IImportedSceneSourceComposer>(composer)
+            .AddSingleton<ImportedSceneSourceComposer>(composer.Compose)
             .AddImportedSceneSourceServices()
             .BuildServiceProvider();
         IImportedSceneSourceFactory factory = provider.GetRequiredService<IImportedSceneSourceFactory>();
@@ -144,7 +144,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class RecordingConstructionComposer(IImportedSceneSource source) : IImportedSceneSourceComposer
+    private sealed class RecordingConstructionComposer(IImportedSceneSource source)
     {
         public ResolvedLocalPlateauImportRequest? LastRequest { get; private set; }
 

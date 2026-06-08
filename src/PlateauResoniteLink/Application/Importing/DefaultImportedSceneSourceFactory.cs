@@ -10,12 +10,12 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFactory
 {
     private readonly ICityGmlDocumentReader documentReader;
-    private readonly IImportedSceneSourceComposer constructionComposer;
+    private readonly ImportedSceneSourceComposer constructionComposer;
     private readonly ImportedObjectUnitOptimizer objectUnitOptimizer;
 
     internal DefaultImportedSceneSourceFactory(
         ICityGmlDocumentReader documentReader,
-        IImportedSceneSourceComposer constructionComposer,
+        ImportedSceneSourceComposer constructionComposer,
         ImportedObjectUnitOptimizer objectUnitOptimizer)
     {
         ArgumentNullException.ThrowIfNull(documentReader);
@@ -47,6 +47,6 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
             request,
             loggerFactory.CreateLogger("PlateauResoniteLink.Import"),
             cancellationToken);
-        return constructionComposer.Compose(request, readResult, objectUnitOptimizer, loggerFactory);
+        return constructionComposer(request, readResult, objectUnitOptimizer, loggerFactory);
     }
 }
