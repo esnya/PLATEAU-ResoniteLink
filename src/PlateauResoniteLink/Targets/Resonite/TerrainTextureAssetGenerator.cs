@@ -16,12 +16,9 @@ using SixLabors.ImageSharp.Processing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface ITerrainTextureAssetGenerator
-{
-    Task<GeneratedTerrainTexture> EnsureTextureAsync(
-        TerrainTextureOverlay terrainTextureOverlay,
-        CancellationToken cancellationToken);
-}
+internal delegate Task<GeneratedTerrainTexture> GenerateTerrainTexture(
+    TerrainTextureOverlay terrainTextureOverlay,
+    CancellationToken cancellationToken);
 
 internal sealed record GeneratedTerrainTexture
 {
@@ -101,7 +98,7 @@ internal sealed record GeneratedTerrainTexture
 internal sealed class TerrainTextureAssetGenerator(
     HttpClient? httpClient = null,
     string? persistentCacheRoot = null,
-    bool disablePersistentCache = false) : ITerrainTextureAssetGenerator
+    bool disablePersistentCache = false)
 {
     // Approximate dry brown soil tone (Munsell 10YR 5/3 family) for uncovered DEM texels.
     internal static readonly Rgba32 DefaultDemGroundFillColor = new(181, 176, 166, byte.MaxValue);

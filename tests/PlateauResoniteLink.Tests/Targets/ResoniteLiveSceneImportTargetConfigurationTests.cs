@@ -4,13 +4,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 using PlateauResoniteLink.Targets.Resonite.Execution;
@@ -155,7 +153,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         Assert.Equal(1, importFactory.PreconfiguredCreateCallCount);
         Assert.NotNull(importFactory.LastClientSession);
         Assert.Same(ResoniteLinkSendDiagnostics.Disabled, importFactory.LastDiagnostics);
-        Assert.NotNull(importFactory.LastTerrainTextureAssetGenerator);
+        Assert.NotNull(importFactory.LastGenerateTerrainTexture);
     }
 
     [Fact]
@@ -271,18 +269,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
     }
 
-    private sealed class RecordingTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
-    {
-        public Task<GeneratedTerrainTexture> EnsureTextureAsync(
-            TerrainTextureOverlay terrainTextureOverlay,
-            CancellationToken cancellationToken)
-        {
-            _ = terrainTextureOverlay;
-            cancellationToken.ThrowIfCancellationRequested();
-            throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
-        }
-    }
-
     private sealed class RecordingLiveSceneImportFactory(
         ResoniteMaterialPlanning materialPlanning)
     {
@@ -292,18 +278,18 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
         public ResoniteLinkSendDiagnostics? LastDiagnostics { get; private set; }
 
-        public ITerrainTextureAssetGenerator? LastTerrainTextureAssetGenerator { get; private set; }
+        public GenerateTerrainTexture? LastGenerateTerrainTexture { get; private set; }
 
         public ResoniteLiveSceneImportTarget CreateTarget(
             ResoniteLiveSceneImportTargetOptions options,
             ILiveSendClientSession clientSession,
             ResoniteLinkSendDiagnostics diagnostics,
-            ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+            GenerateTerrainTexture generateTerrainTexture)
         {
             PreconfiguredCreateCallCount++;
             LastClientSession = clientSession;
             LastDiagnostics = diagnostics;
-            LastTerrainTextureAssetGenerator = terrainTextureAssetGenerator;
+            LastGenerateTerrainTexture = generateTerrainTexture;
             return new ResoniteLiveSceneImportTarget(
                 options,
                 ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
@@ -311,7 +297,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     diagnostics,
                     ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                         materialPlanning,
-                        terrainTextureAssetGenerator: terrainTextureAssetGenerator)));
+                        generateTerrainTexture: generateTerrainTexture)));
         }
     }
 

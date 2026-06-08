@@ -77,7 +77,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [cityObject],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator.EnsureTextureAsync);
 
         RawTexturePayload importedTexture = Assert.Single(
             ImportedRgba32Textures(client),
@@ -176,7 +176,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [terrain, roof],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator.EnsureTextureAsync);
 
         string[] propertyBlockTextureIds = client.AddedComponents
             .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))
@@ -257,7 +257,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [first, second],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator.EnsureTextureAsync);
 
         AddComponent[] sharedTextures = client.AddedComponents
             .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
@@ -303,7 +303,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [sharedTerrain],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator.EnsureTextureAsync);
 
         AddComponent sharedTexture = Assert.Single(
             client.AddedComponents,
@@ -330,7 +330,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [dedicatedTerrain],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator.EnsureTextureAsync);
 
         Assert.DoesNotContain(
             client.AddedComponents.Skip(addedComponentCountBeforeDedicatedRun),
@@ -389,7 +389,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 metadata,
                 [cityObject],
                 client,
-                terrainTextureGenerator));
+                terrainTextureGenerator.EnsureTextureAsync));
         Assert.Contains("matches the overlay geographic bounds", exception.Message, StringComparison.Ordinal);
         Assert.Contains("object_slot='terrain-mismatched-overlay'", exception.Message, StringComparison.Ordinal);
         Assert.Contains($"actual_mesh_code='{MeshCode}'", exception.Message, StringComparison.Ordinal);
@@ -455,7 +455,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [cityObject],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator.EnsureTextureAsync);
 
         Component meshRenderer = Assert.Single(
             client.AddedComponents,
@@ -822,7 +822,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             metadata,
             [cityObject],
             client,
-            terrainTextureGenerator);
+            terrainTextureGenerator.EnsureTextureAsync);
 
         Component gridMesh = Assert.Single(
             client.ComponentsById.Values,

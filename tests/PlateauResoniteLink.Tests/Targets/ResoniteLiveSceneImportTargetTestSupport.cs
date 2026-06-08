@@ -22,13 +22,13 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ImportedSceneMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         SceneSinkRecordingClient client,
-        ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
+        GenerateTerrainTexture? generateTerrainTexture = null,
         bool enableMeshBake = true,
         CommonMaterialCatalog<DefaultCommonMaterialMember>? commonMaterials = null)
     {
         await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(
             client,
-            terrainTextureAssetGenerator,
+            generateTerrainTexture,
             enableMeshBake);
 
         using TemporaryDirectory workDirectory = new();
@@ -286,7 +286,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 
     public static ResoniteLiveSceneImportTarget CreateImportTarget(
         IResoniteLinkClient routedClient,
-        ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
+        GenerateTerrainTexture? generateTerrainTexture = null,
         bool enableMeshBake = true,
         DelegatingClientSession? session = null,
         Action<string>? progressReporter = null)
@@ -306,7 +306,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             CreateDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,
-                CreateRunStarter(materialPlanning, terrainTextureAssetGenerator: terrainTextureAssetGenerator, progressReporter: progressReporter)));
+                CreateRunStarter(materialPlanning, generateTerrainTexture: generateTerrainTexture, progressReporter: progressReporter)));
     }
 
     public static ResoniteLiveSceneImportDependencies CreateDependencies(
@@ -323,26 +323,27 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     public static ResoniteLiveSendRunStarter CreateRunStarter(
         ResoniteMaterialPlanning materialPlanning,
         IResoniteSceneSetupInterpreter? sceneSetupInterpreter = null,
-        ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
+        GenerateTerrainTexture? generateTerrainTexture = null,
         Action<string>? progressReporter = null)
     {
         return new ResoniteLiveSendRunStarter(
             new ResoniteLiveSendRunSetupPreparer(
                 sceneSetupInterpreter ?? new ResoniteSceneSetupInterpreter(),
-                new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
+            new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
             new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()),
-            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning, terrainTextureAssetGenerator)));
+            new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture)));
     }
 
     private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
         ResoniteMaterialPlanning materialPlanning,
-        ITerrainTextureAssetGenerator? terrainTextureAssetGenerator)
+        GenerateTerrainTexture? generateTerrainTexture)
     {
+        TerrainTextureAssetGenerator defaultGenerator = new();
         return new ResoniteQueuedCityObjectWorker(
             new ResoniteQueuedCityObjectSender(
                 new ResoniteQueuedCityObjectPreparation(
                     new ResoniteQueuedTexturePreparer(
-                        terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator())),
+                        generateTerrainTexture ?? defaultGenerator.EnsureTextureAsync)),
                 CreatePreparedCityObjectImporter(materialPlanning)));
     }
 
@@ -502,7 +503,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 }
 
 internal sealed class RecordingTerrainTextureAssetGenerator(
-    Func<TerrainTextureOverlay, GeneratedTerrainTexture> textureFactory) : ITerrainTextureAssetGenerator
+    Func<TerrainTextureOverlay, GeneratedTerrainTexture> textureFactory)
 {
     public List<TerrainTextureOverlay> RequestedOverlays { get; } = [];
 
