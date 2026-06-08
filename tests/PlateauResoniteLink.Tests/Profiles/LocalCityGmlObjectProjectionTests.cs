@@ -2984,7 +2984,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 [MeshCodeBounds.Parse(leftMeshCode), MeshCodeBounds.Parse(rightMeshCode)],
                 [leftMeshCode, rightMeshCode],
                 request,
-                new DefaultMaterialResolver(CommonMaterialCatalog.Create()))
+                new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial)
             .ToArray();
         ImportedCityObject leftProjected = Assert.Single(
             projectedObjects,
@@ -3045,7 +3045,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 TerrainGridMetersPerVertex: 10.0,
                 TerrainGridMaxResolution: 64),
             [MeshCodeBounds.Parse(meshCode)],
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial,
             logger: null,
             CancellationToken.None);
 
@@ -3097,7 +3097,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 TerrainGridMetersPerVertex: 10.0,
                 TerrainGridMaxResolution: 64),
             [MeshCodeBounds.Parse(meshCode)],
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial,
             logger: null,
             CancellationToken.None);
 
@@ -3299,7 +3299,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.Parse(meshCode)],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         TerrainGridGeometry grid = Assert.IsType<TerrainGridGeometry>(dem.Geometry);
         TriangleMeshGeometry buildingGeometry = Assert.IsType<TriangleMeshGeometry>(building.Geometry);
@@ -4506,7 +4506,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: null,
             request,
             [MeshCodeBounds.Parse(cityObject.ActualMeshCode)],
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial,
             logger: null,
             CancellationToken.None);
     }
@@ -4533,7 +4533,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: null,
             request,
             [MeshCodeBounds.Parse(cityObject.ActualMeshCode)],
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial,
             logger: null,
             CancellationToken.None);
     }
