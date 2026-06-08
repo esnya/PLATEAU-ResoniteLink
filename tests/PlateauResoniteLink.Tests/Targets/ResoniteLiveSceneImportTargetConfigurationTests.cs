@@ -262,7 +262,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
-                    ProgressReporter: null),
+                    LoggerFactory: NullLoggerFactory.Instance),
                 terrainTextureAssetHttpClient);
         await using ResoniteLiveSceneImportTarget _ = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
@@ -291,7 +291,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
-                    ProgressReporter: null),
+                    LoggerFactory: NullLoggerFactory.Instance),
                 terrainTextureAssetHttpClient);
         await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
