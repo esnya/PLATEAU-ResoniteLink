@@ -67,7 +67,7 @@ internal static class NonDemPreservedMaterialGrouping
 
             if (x.CommonMaterial is not null)
             {
-                return ResoniteTexturePayloadReferenceComparer.Instance.Equals(x.TexturePayload, y.TexturePayload)
+                return ReferenceEqualityComparer.Instance.Equals(x.TexturePayload, y.TexturePayload)
                     && x.TextureSourceKind == y.TextureSourceKind
                     && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
                     && string.Equals(x.TerrainMeshCode, y.TerrainMeshCode, StringComparison.Ordinal);
@@ -75,7 +75,7 @@ internal static class NonDemPreservedMaterialGrouping
 
             return x.BaseColor == y.BaseColor
                 && x.MaterialType == y.MaterialType
-                && ResoniteTexturePayloadReferenceComparer.Instance.Equals(x.TexturePayload, y.TexturePayload)
+                && ReferenceEqualityComparer.Instance.Equals(x.TexturePayload, y.TexturePayload)
                 && x.TextureSourceKind == y.TextureSourceKind
                 && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
                 && x.Projection == y.Projection
@@ -121,7 +121,7 @@ internal static class NonDemPreservedMaterialGrouping
         {
             hash.Add(texturePayload is null
                 ? 0
-                : ResoniteTexturePayloadReferenceComparer.Instance.GetHashCode(texturePayload));
+                : ReferenceEqualityComparer.Instance.GetHashCode(texturePayload));
         }
     }
 }
