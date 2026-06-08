@@ -8,11 +8,11 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
 {
     private readonly Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource;
-    private readonly Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore;
+    private readonly Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore;
 
     internal LocalCityGmlDocumentReader(
         Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource,
-        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore)
+        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore)
     {
         this.createDatasetContentSource = createDatasetContentSource;
         this.createAppearanceStore = createAppearanceStore;

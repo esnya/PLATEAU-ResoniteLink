@@ -18,7 +18,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
     internal static async Task<ImportedSceneSourceSnapshot> ReadDocumentSetCoreAsync(
         ResolvedLocalPlateauImportRequest request,
         Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource,
-        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
         ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {

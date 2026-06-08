@@ -6,7 +6,7 @@ using System.Xml.Linq;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
+internal sealed class CityGmlAppearanceStore
 {
     private static readonly ColorRgba DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
     private static readonly XNamespace App = "http://www.opengis.net/citygml/appearance/2.0";
@@ -26,7 +26,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
         this.datasetSource = datasetSource;
     }
 
-    internal static ICityGmlAppearanceStore Create(
+    internal static CityGmlAppearanceStore Create(
         string sourceFileRelativePath,
         IPlateauDatasetContentSource datasetSource)
     {

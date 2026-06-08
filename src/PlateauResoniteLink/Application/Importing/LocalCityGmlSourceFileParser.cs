@@ -30,7 +30,7 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         ILogger? logger,
         LodFilteringStrategy lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
         CancellationToken cancellationToken)
     {
         return Task.FromResult(
@@ -62,7 +62,7 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         ILogger? logger,
         LodFilteringStrategy lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -115,7 +115,7 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (global::PlateauResoniteLink.Application.Importing.ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
@@ -136,7 +136,7 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -180,12 +180,12 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
-        ICityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
+        CityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
         CoordinateReferenceSystem coordinateReferenceSystem =
             CoordinateReferenceSystem.Parse((string?)null);
 
@@ -272,7 +272,7 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -282,7 +282,7 @@ internal static class LocalCityGmlSourceFileParser
         CoordinateReferenceSystem coordinateReferenceSystem =
             CoordinateReferenceSystem.Parse(cityModel);
         parsedReferenceSystem?.Invoke(coordinateReferenceSystem);
-        ICityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
+        CityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
         appearanceStore.LoadFromDocument(cityModel);
 
         if (cityModel.Root is null)
