@@ -1,7 +1,11 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+
+using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
@@ -15,7 +19,15 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<IRemoteArchiveDistributionPolicy, RemoteArchiveDistributionPolicy>();
         services.TryAddSingleton(CommonMaterialCatalog.Create());
         services.TryAddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
-        services.TryAddSingleton<IDemTerrainGeoReferencedRasterCatalogFactory, DefaultDemTerrainGeoReferencedRasterCatalogFactory>();
+        services.TryAddSingleton<Func<DatasetLocation?, CancellationToken, Task<IDemTerrainGeoReferencedRasterCatalog?>>>(provider =>
+        {
+            IPlateauDatasetContentSourceFactory datasetContentSourceFactory =
+                provider.GetRequiredService<IPlateauDatasetContentSourceFactory>();
+            return (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
+                source,
+                datasetContentSourceFactory,
+                cancellationToken);
+        });
         services.TryAddSingleton<IDemTextureSourcePolicy, DefaultDemTextureSourcePolicy>();
         services.TryAddSingleton<Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore>>(
             _ => CityGmlAppearanceStore.Create);
