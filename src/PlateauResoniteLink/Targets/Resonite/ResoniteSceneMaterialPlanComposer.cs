@@ -60,7 +60,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
                 preparedTextureUrisByPayload,
                 preparedTerrainTextureUrisByOverlay,
                 preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-                preserveDedicatedMaterialSlot: false,
+                preserveDedicatedMaterialSlot: string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase),
                 cancellationToken);
         }
 
