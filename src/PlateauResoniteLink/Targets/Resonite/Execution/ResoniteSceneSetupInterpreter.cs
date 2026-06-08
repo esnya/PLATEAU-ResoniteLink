@@ -21,11 +21,15 @@ internal static class ResoniteSceneSetupInterpreter
         IResoniteLinkClient setupClient,
         ResoniteSceneSetupInfo setupInfo,
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
+        ResolveResoniteDatasetRootSlot resolveDatasetRootSlot,
+        ResolveResoniteSceneAnchor resolveSceneAnchor,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(setupClient);
         ArgumentNullException.ThrowIfNull(setupInfo);
         ArgumentNullException.ThrowIfNull(commonMaterials);
+        ArgumentNullException.ThrowIfNull(resolveDatasetRootSlot);
+        ArgumentNullException.ThrowIfNull(resolveSceneAnchor);
 
         string completionMeshCode = ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(setupInfo);
         string datasetRootName = $"PLATEAU {setupInfo.Dataset}";
@@ -37,7 +41,7 @@ internal static class ResoniteSceneSetupInterpreter
             setupClient,
             sharedAssetsSlot,
             cancellationToken);
-        CreatedSlot? existingDatasetRoot = await ResoniteSceneSlotLocator.TryGetDatasetRootAsync(
+        CreatedSlot? existingDatasetRoot = await resolveDatasetRootSlot(
             setupClient,
             datasetRootName,
             cancellationToken);
@@ -124,7 +128,7 @@ internal static class ResoniteSceneSetupInterpreter
             ?? pendingSharedCommon?.LocalId.Value
             ?? throw new InvalidOperationException("Setup could not determine the Common Materials parent slot.");
 
-        SceneAnchor sceneAnchor = await ResoniteSceneAnchorResolver.ResolveAsync(
+        SceneAnchor sceneAnchor = await resolveSceneAnchor(
             setupClient,
             existingDatasetRoot.Value.Locator,
             completionMeshCode,
