@@ -42,6 +42,21 @@ internal sealed record LiveSendRunExecutionContext
     public ILogger Logger { get; }
 }
 
+internal interface IResoniteLiveSendRunExecutorFactory
+{
+    ResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter);
+}
+
+internal sealed class ResoniteLiveSendRunExecutorFactory : IResoniteLiveSendRunExecutorFactory
+{
+    public ResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter)
+    {
+        ArgumentNullException.ThrowIfNull(runStarter);
+
+        return new ResoniteLiveSendRunExecutor(runStarter);
+    }
+}
+
 internal sealed class ResoniteLiveSendRunExecutor(
     ResoniteLiveSendRunStarter runStarter)
 {

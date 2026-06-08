@@ -241,6 +241,37 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredRunExecutorFactory()
+    {
+        RecordingRunExecutorFactory runExecutorFactory = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteLiveSendRunExecutorFactory>(_ => runExecutorFactory)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        ISceneSink target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false,
+                    ProgressReporter: null),
+                terrainTextureAssetHttpClient);
+        await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+
+        Assert.Equal(1, runExecutorFactory.CreateCallCount);
+        Assert.NotNull(runExecutorFactory.LastRunStarter);
+        Assert.Same(runExecutorFactory.LastExecutor, importTarget.RunExecutor);
+    }
+
+    [Fact]
     public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredNonDemSourceFileBakeEmitterFactory()
     {
         RecordingNonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory = new();
@@ -515,6 +546,23 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             _ = state;
             _ = context;
             return [];
+        }
+    }
+
+    private sealed class RecordingRunExecutorFactory : IResoniteLiveSendRunExecutorFactory
+    {
+        public int CreateCallCount { get; private set; }
+
+        public ResoniteLiveSendRunStarter? LastRunStarter { get; private set; }
+
+        public ResoniteLiveSendRunExecutor? LastExecutor { get; private set; }
+
+        public ResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter)
+        {
+            CreateCallCount++;
+            LastRunStarter = runStarter;
+            LastExecutor = new ResoniteLiveSendRunExecutor(runStarter);
+            return LastExecutor;
         }
     }
 
