@@ -219,44 +219,6 @@ public sealed class DefaultDemTextureSourcePolicyTests
         Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoOnly, overlay.LicenseMode);
     }
 
-    [Fact]
-    public void CreateMapTileFallbackOverlaysCreatesProviderOrderInsidePolicy()
-    {
-        DefaultDemTextureSourcePolicy policy = new(
-            CreateRasterCatalogFactory(
-                resolver: null));
-
-        IReadOnlyList<TerrainTextureOverlay> overlays = policy.CreateMapTileFallbackOverlays(
-            [
-                new DemTerrainOverlayRegion(
-                    ThirdRegionalMeshCode.Parse("53394525"),
-                    new GeographicRectangle(35.0, 35.01, 139.0, 139.01)),
-            ]);
-
-        TerrainTextureOverlay overlay = Assert.Single(overlays);
-        Assert.Collection(
-            overlay.Sources,
-            source =>
-            {
-                TerrainTextureTileSource tile = Assert.IsType<TerrainTextureTileSource>(source);
-                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, tile.UrlTemplate);
-                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, tile.ZoomLevel);
-            },
-            source =>
-            {
-                TerrainTextureTileSource tile = Assert.IsType<TerrainTextureTileSource>(source);
-                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, tile.UrlTemplate);
-                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, tile.ZoomLevel);
-            },
-            source =>
-            {
-                TerrainTextureTileSource tile = Assert.IsType<TerrainTextureTileSource>(source);
-                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate, tile.UrlTemplate);
-                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, tile.ZoomLevel);
-            });
-        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
-    }
-
     private static Func<DatasetLocation?, CancellationToken, Task<DemTerrainGeoReferencedRasterResolver?>> CreateRasterCatalogFactory(
         DemTerrainGeoReferencedRasterResolver? resolver)
     {

@@ -433,10 +433,11 @@ internal sealed class ResoniteMaterialPlanning
         string colorProfile,
         CancellationToken cancellationToken)
     {
-        string absolutePath = bundledDefaultMaterialAssetStore.GetAbsolutePath(asset);
-        ITextureImportSource textureSource = TextureImportSourceFactory.CreateFileImage(
-            absolutePath,
-            colorProfile);
+        byte[] encodedBytes = bundledDefaultMaterialAssetStore.ReadAllBytes(asset);
+        ITextureImportSource textureSource = TextureImportSourceFactory.CreateInMemoryEncodedImage(
+            colorProfile,
+            encodedBytes,
+            $"bundled:{asset.LogicalPath}");
         return await importClient.ImportTextureAsync(textureSource, cancellationToken);
     }
 

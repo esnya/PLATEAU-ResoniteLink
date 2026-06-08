@@ -228,7 +228,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             MemoryProfile: ResoniteImportMemoryProfile.Large,
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: false,
-            ProgressReporter: null);
+            LoggerFactory: NullLoggerFactory.Instance);
         ISceneSink target = scope.ServiceProvider
             .GetRequiredService<ResoniteLiveSceneImportFactory>()
             .CreateTarget(targetOptions, terrainTextureAssetHttpClient);

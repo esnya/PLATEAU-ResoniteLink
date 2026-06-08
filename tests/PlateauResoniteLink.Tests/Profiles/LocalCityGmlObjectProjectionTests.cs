@@ -2739,7 +2739,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 TerrainGridMetersPerVertex: 100.0,
                 TerrainGridMaxResolution: 8),
             [MeshCodeBounds.Parse(meshCode)],
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial,
             logger: NullLogger.Instance,
             CancellationToken.None);
 
@@ -2881,7 +2881,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 TerrainGridMetersPerVertex: 100.0,
                 TerrainGridMaxResolution: 8),
             [MeshCodeBounds.Parse(meshCode)],
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial,
             logger: NullLogger.Instance,
             CancellationToken.None);
 
@@ -3351,7 +3351,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.Parse("53394526")],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         Assert.Empty(projected);
     }
