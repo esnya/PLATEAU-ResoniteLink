@@ -1,6 +1,7 @@
 using System;
 using System.Net.Http;
 
+using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -9,6 +10,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
     Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession> createClientSession,
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
     EnsureResoniteLiveSendConnected ensureConnected,
+    EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense,
     ResoniteTextureImageLoader textureImageLoader,
     ResonitePreparedCityObjectImporter preparedCityObjectImporter)
 {
@@ -60,7 +62,9 @@ internal sealed class ResoniteLiveSceneImportFactory(
     private ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
         GenerateTerrainTexture generateTerrainTexture)
     {
-        ResoniteQueuedCityObjectPreparation cityObjectPreparation = new(generateTerrainTexture);
+        ResoniteQueuedCityObjectPreparation cityObjectPreparation = new(
+            generateTerrainTexture,
+            ensureGsiFallbackLicense);
         return new ResoniteQueuedCityObjectWorker(
             cityObjectPreparation,
             preparedCityObjectImporter);

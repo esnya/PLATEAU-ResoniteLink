@@ -298,6 +298,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         IResoniteLinkClient routedClient,
         GenerateTerrainTexture? generateTerrainTexture = null,
         bool enableMeshBake = true,
+        EnsureResoniteGsiFallbackLicense? ensureGsiFallbackLicense = null,
         DelegatingClientSession? session = null,
         Action<string>? progressReporter = null)
     {
@@ -315,7 +316,11 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 ProgressReporter: progressReporter),
             session ?? new DelegatingClientSession(routedClient),
             diagnostics,
-            CreateRunExecutor(CreateRunStarter(materialPlanning, generateTerrainTexture: generateTerrainTexture, progressReporter: progressReporter)));
+            CreateRunExecutor(CreateRunStarter(
+                materialPlanning,
+                generateTerrainTexture: generateTerrainTexture,
+                ensureGsiFallbackLicense: ensureGsiFallbackLicense,
+                progressReporter: progressReporter)));
     }
 
     public static ResoniteLiveSendRunExecutor CreateRunExecutor(ResoniteLiveSendRunStarter runStarter)
@@ -328,6 +333,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         SetupResoniteScene? setupResoniteScene = null,
         EnsureResoniteLiveSendConnected? ensureConnected = null,
         GenerateTerrainTexture? generateTerrainTexture = null,
+        EnsureResoniteGsiFallbackLicense? ensureGsiFallbackLicense = null,
         Action<string>? progressReporter = null)
     {
         return new ResoniteLiveSendRunStarter(
@@ -336,7 +342,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
             ensureConnected ?? ResoniteLiveSendConnectionInitializer.EnsureConnectedAsync,
             new ResoniteTextureImageLoader(),
-            CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture));
+            CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture, ensureGsiFallbackLicense));
     }
 
     private static SetupResoniteScene CreateDefaultSetupResoniteScene()
@@ -352,12 +358,14 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 
     private static ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
         ResoniteMaterialPlanning materialPlanning,
-        GenerateTerrainTexture? generateTerrainTexture)
+        GenerateTerrainTexture? generateTerrainTexture,
+        EnsureResoniteGsiFallbackLicense? ensureGsiFallbackLicense = null)
     {
         TerrainTextureAssetGenerator defaultGenerator = new();
         return new ResoniteQueuedCityObjectWorker(
             new ResoniteQueuedCityObjectPreparation(
-                generateTerrainTexture ?? defaultGenerator.EnsureTextureAsync),
+                generateTerrainTexture ?? defaultGenerator.EnsureTextureAsync,
+                ensureGsiFallbackLicense ?? ResoniteDatasetLicenseWriter.EnsureGsiFallbackLicenseAsync),
             CreatePreparedCityObjectImporter(materialPlanning));
     }
 

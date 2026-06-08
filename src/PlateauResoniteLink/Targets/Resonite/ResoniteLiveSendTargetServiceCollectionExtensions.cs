@@ -22,6 +22,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteCommonMaterialSetupPreparer>();
         services.TryAddScoped<ResoniteLiveSendRunSetupPreparer>();
         services.TryAddScoped<EnsureResoniteLiveSendConnected>(_ => ResoniteLiveSendConnectionInitializer.EnsureConnectedAsync);
+        services.TryAddScoped<EnsureResoniteGsiFallbackLicense>(_ => ResoniteDatasetLicenseWriter.EnsureGsiFallbackLicenseAsync);
         services.TryAddScoped<ResonitePreparedCityObjectImporter>();
         services.TryAddScoped<Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession>>(provider =>
         {
