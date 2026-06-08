@@ -28,11 +28,9 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<LiveSendRunStateFactory>();
         services.TryAddScoped<ResoniteLiveSendRunStarterFactory>();
         services.TryAddScoped<ResoniteLiveSendWorkerPipelineFactory>();
-        services.TryAddScoped<ResoniteLiveSendWorkerLauncherFactory>();
         services.TryAddScoped<ResonitePreparedCityObjectImporter>();
         services.TryAddScoped<ResoniteCanonicalSceneDumpSinkFactory>();
         services.TryAddScoped<IResoniteClientSessionFactory, ResoniteLinkClientSessionFactory>();
-        services.TryAddScoped<ITerrainTextureAssetGeneratorFactory, TerrainTextureAssetGeneratorFactory>();
         services.TryAddScoped<IResoniteSceneSetupInterpreter, ResoniteSceneSetupInterpreter>();
         services.TryAddScoped<ResoniteLiveSceneImportDependencyFactory>();
         services.TryAddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
