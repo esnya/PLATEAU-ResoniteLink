@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -86,7 +88,7 @@ internal sealed record LiveSendRunStartContext
 internal sealed class ResoniteLiveSendRunStarter(
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
     NonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory,
-    ResoniteLiveSendWorkerLauncher workerLauncher)
+    ResoniteQueuedCityObjectWorker queuedCityObjectWorker)
 {
     private const int MaxQueuedCityObjects = 4;
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
@@ -118,11 +120,10 @@ internal sealed class ResoniteLiveSendRunStarter(
             preparedSetup.Materials,
             preparedSetup.Placement,
             cancellationToken);
-        workerLauncher.Launch(
-            new LiveSendWorkerLaunchRequest(
-                state,
-                preparedSetup.RunPlan.Queue,
-                preparedSetup.RunPlan.ResourceBudget),
+        LaunchWorkers(
+            state,
+            preparedSetup.RunPlan.Queue,
+            preparedSetup.RunPlan.ResourceBudget,
             context);
         return state;
     }
@@ -196,5 +197,58 @@ internal sealed class ResoniteLiveSendRunStarter(
                     sourceFileBakeEmitter: sourceFileBakeEmitterFactory.Create(
                         new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget))))
             : null;
+    }
+
+    private void LaunchWorkers(
+        LiveSendRunState state,
+        LiveSendQueuePlan queuePlan,
+        ResoniteImportBudgetProfile resourceBudget,
+        LiveSendRunStartContext context)
+    {
+        int connectionCount = queuePlan.ConnectionCount;
+
+        ReportProgress(
+            context,
+            PlateauLog.Info(
+                "live",
+                $"Starting routed send workers (connection_pool={connectionCount})."));
+        state.Progress.Reset();
+        Stopwatch laneStartStopwatch = Stopwatch.StartNew();
+        context.Diagnostics.StartSendWindow(connectionCount);
+        state.Runtime.Start(queuedCityObjectWorker.CreateProcessingTasks(
+            state,
+            new LiveSendWorkerContext(
+                context.Endpoint,
+                connectionCount,
+                context.ClientSession.GetRequiredClient,
+                context.Diagnostics,
+                context.ProgressReporter)));
+        ReportProgress(
+            context,
+            PlateauLog.Info(
+                "live",
+                $"Send lane tasks launched (connection budget={connectionCount}, "
+                + $"queue_capacity_total={queuePlan.QueueCapacity}, "
+                + $"memory_budget_bytes={queuePlan.MemoryBudgetBytes}, "
+                + $"memory_profile={resourceBudget.Name.ToString().ToLowerInvariant()}, "
+                + $"runtime_vram_budget_bytes={resourceBudget.RuntimeVramBudgetBytes})."));
+        laneStartStopwatch.Stop();
+        ReportProgress(
+            context,
+            PlateauLog.Info(
+                "live",
+                $"Send workers ready against connection pool={connectionCount}."));
+        ReportProgress(
+            context,
+            PlateauLog.Info(
+                "live",
+                $"Send lane startup phase complete in {laneStartStopwatch.Elapsed.TotalSeconds:F2}s."));
+    }
+
+    private static void ReportProgress(
+        LiveSendRunStartContext context,
+        string message)
+    {
+        context.ProgressReporter?.Invoke(message);
     }
 }
