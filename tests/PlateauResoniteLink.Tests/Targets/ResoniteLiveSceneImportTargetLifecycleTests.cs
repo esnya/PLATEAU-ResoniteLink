@@ -135,6 +135,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 && string.Equals(request.MeshCode, metadata.Request.MeshCode, StringComparison.Ordinal));
     }
 
+    [Fact]
     public async Task ExecuteAsync_DoesNotLaunchWorkersWhenRunSetupFails()
     {
         using TemporaryDirectory datasetDirectory = new();
