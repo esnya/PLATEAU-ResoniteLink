@@ -61,11 +61,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         try
         {
             return await runExecutor.ExecuteAsync(
-                ResoniteLiveSendStartRequestFactory.Create(
-                    plan,
-                    MemoryProfile,
-                    connectionCount,
-                    MeshBakeEnabled),
+                CreateStartRequest(plan),
                 objectUnits,
                 new LiveSendRunExecutionContext(
                     endpoint,
@@ -79,6 +75,32 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             Volatile.Write(ref executionClaimed, 0);
         }
+    }
+
+    private LiveSendRunStartRequest CreateStartRequest(SceneImportExecutionPlan plan)
+    {
+        SceneImportRequest request = plan.SceneImportRequest;
+        return new LiveSendRunStartRequest(
+            new ResoniteSceneSetupInfo(
+                request.Metadata.Request.Dataset,
+                request.Metadata.Request.MeshCode,
+                request.Metadata.SourceDataset.SourceFiles,
+                request.Metadata.SourceDataset.SelectedMeshCodes ?? [],
+                new ResoniteLicenseAttributionMetadata(
+                    request.Metadata.Attribution.DatasetLicense.RequireCredit,
+                    request.Metadata.Attribution.DatasetLicense.CreditText,
+                    request.Metadata.Attribution.DatasetLicense.LicenseName,
+                    request.Metadata.Attribution.DatasetLicense.LicenseUrl)),
+            request.WorkRoot,
+            request.CommonMaterials,
+            new LiveSendConnectionRequest(request.Metadata.Request.Dataset, request.Metadata.Request.MeshCode),
+            new ResoniteLocalOrigin(
+                request.Metadata.GeodeticOrigin.Latitude,
+                request.Metadata.GeodeticOrigin.Longitude,
+                request.Metadata.GeodeticOrigin.Altitude),
+            MemoryProfile,
+            connectionCount,
+            MeshBakeEnabled);
     }
 
     public async ValueTask DisposeAsync()
