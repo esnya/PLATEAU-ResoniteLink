@@ -38,7 +38,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 documentReader,
                 new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
-                    CreateDemTextureSourcePolicy()),
+                    CreateDemTextureSourcePolicy()).Compose,
                 PassthroughImportedObjectUnitOptimizer.OptimizeAsync),
             commonMaterials: CommonMaterialCatalog.Create(),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy(),
@@ -69,7 +69,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             documentReader,
                 new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
-                    CreateDemTextureSourcePolicy()),
+                    CreateDemTextureSourcePolicy()).Compose,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         IImportedSceneSource source = await factory.CreateAsync(request);
 

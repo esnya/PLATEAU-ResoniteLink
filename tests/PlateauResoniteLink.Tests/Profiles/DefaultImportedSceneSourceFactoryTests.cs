@@ -21,13 +21,13 @@ public sealed class DefaultImportedSceneSourceFactoryTests
 
         Assert.Throws<ArgumentNullException>(
             "documentReader",
-            () => new DefaultImportedSceneSourceFactory(null!, composer, optimizer));
+            () => new DefaultImportedSceneSourceFactory(null!, composer.Compose, optimizer));
         Assert.Throws<ArgumentNullException>(
             "constructionComposer",
             () => new DefaultImportedSceneSourceFactory(reader, null!, optimizer));
         Assert.Throws<ArgumentNullException>(
             "objectUnitOptimizer",
-            () => new DefaultImportedSceneSourceFactory(reader, composer, null!));
+            () => new DefaultImportedSceneSourceFactory(reader, composer.Compose, null!));
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         RecordingComposer composer = new(expectedSource);
         DefaultImportedSceneSourceFactory factory = new(
             reader,
-            composer,
+            composer.Compose,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         Action<string> progressReporter = _ => { };
 
@@ -71,7 +71,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         RecordingComposer composer = new(new StubImportedSceneSource());
         DefaultImportedSceneSourceFactory factory = new(
             reader,
-            composer,
+            composer.Compose,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
             packageNames: ["dem"]);
@@ -113,7 +113,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         RecordingComposer composer = new(new StubImportedSceneSource());
         DefaultImportedSceneSourceFactory factory = new(
             reader,
-            composer,
+            composer.Compose,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
             packageNames: ["dem"],
@@ -158,7 +158,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         }
     }
 
-    private sealed class RecordingComposer(IImportedSceneSource importedSceneSource) : IImportedSceneSourceComposer
+    private sealed class RecordingComposer(IImportedSceneSource importedSceneSource)
     {
         internal IImportedSceneSource ImportedSceneSource { get; } = importedSceneSource;
 
