@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -76,11 +77,23 @@ internal static class PlateauImportServiceCollectionExtensions
                 provider.GetRequiredService<Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore>>());
             return reader.ReadAsync;
         });
-        services.TryAddSingleton<IImportedSceneSourceFactory>(provider =>
-            new DefaultImportedSceneSourceFactory(
-                provider.GetRequiredService<ReadCityGmlDocument>(),
-                provider.GetRequiredService<ImportedSceneSourceComposer>(),
-                provider.GetRequiredService<ImportedObjectUnitOptimizer>()));
+        services.TryAddSingleton<CreateImportedSceneSource>(provider =>
+        {
+            ReadCityGmlDocument readCityGmlDocument = provider.GetRequiredService<ReadCityGmlDocument>();
+            ImportedSceneSourceComposer constructionComposer =
+                provider.GetRequiredService<ImportedSceneSourceComposer>();
+            ImportedObjectUnitOptimizer objectUnitOptimizer =
+                provider.GetRequiredService<ImportedObjectUnitOptimizer>();
+            return async (request, loggerFactory, cancellationToken) =>
+            {
+                ArgumentNullException.ThrowIfNull(request);
+                ImportedSceneSourceSnapshot readResult = await readCityGmlDocument(
+                    request,
+                    loggerFactory?.CreateLogger("PlateauResoniteLink.Import"),
+                    cancellationToken);
+                return constructionComposer(request, readResult, objectUnitOptimizer, loggerFactory);
+            };
+        });
 
         return services;
     }

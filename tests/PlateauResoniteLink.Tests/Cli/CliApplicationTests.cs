@@ -34,12 +34,7 @@ public sealed class CliApplicationTests
         return new PlateauImportService(
             sceneImportSink,
             datasetSourceResolver.ResolveAsync,
-            new DefaultImportedSceneSourceFactory(
-                documentReader.ReadAsync,
-                new DefaultImportedSceneSourceComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ProjectCityObjects,
-                    CreateDemTextureSourcePolicy().ResolveAsync).Compose,
-                PassthroughImportedObjectUnitOptimizer.OptimizeAsync),
+            CreateImportedSceneSource(documentReader),
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
     }
@@ -58,6 +53,26 @@ public sealed class CliApplicationTests
         return new LocalCityGmlDocumentReader(
             CreateDatasetContentSourceAsync,
             CityGmlAppearanceStore.Create);
+    }
+
+    private static CreateImportedSceneSource CreateImportedSceneSource(LocalCityGmlDocumentReader documentReader)
+    {
+        ImportedSceneSourceComposer composer = new DefaultImportedSceneSourceComposer(
+            new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial)
+                .ProjectCityObjects,
+            CreateDemTextureSourcePolicy().ResolveAsync).Compose;
+        return async (request, loggerFactory, cancellationToken) =>
+        {
+            ImportedSceneSourceSnapshot readResult = await documentReader.ReadAsync(
+                request,
+                loggerFactory?.CreateLogger("PlateauResoniteLink.Import"),
+                cancellationToken);
+            return composer(
+                request,
+                readResult,
+                PassthroughImportedObjectUnitOptimizer.OptimizeAsync,
+                loggerFactory);
+        };
     }
 
     private static DatasetInspectionService CreateDatasetInspectionService()

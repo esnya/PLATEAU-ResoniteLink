@@ -73,8 +73,8 @@ internal static class CliServiceCollectionExtensions
                 _.GetRequiredService<Func<ResolvePlateauDatasetSource>>();
             Func<ImportCommandOptions, ILoggerFactory, ISceneSink> createSceneSink =
                 _.GetRequiredService<Func<ImportCommandOptions, ILoggerFactory, ISceneSink>>();
-            IImportedSceneSourceFactory importedSceneSourceFactory =
-                _.GetRequiredService<IImportedSceneSourceFactory>();
+            CreateImportedSceneSource createImportedSceneSource =
+                _.GetRequiredService<CreateImportedSceneSource>();
             CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
                 _.GetRequiredService<CommonMaterialCatalog<DefaultCommonMaterialMember>>();
             IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
@@ -83,7 +83,7 @@ internal static class CliServiceCollectionExtensions
             return (options, loggerFactory) => CliServiceCollectionExtensions.CreateImportService(
                 createDatasetSourceResolver,
                 createSceneSink,
-                importedSceneSourceFactory,
+                createImportedSceneSource,
                 commonMaterials,
                 archiveFileLayoutPolicy,
                 options,
@@ -105,7 +105,7 @@ internal static class CliServiceCollectionExtensions
     internal static PlateauImportService CreateImportService(
         Func<ResolvePlateauDatasetSource> createDatasetSourceResolver,
         Func<ImportCommandOptions, ILoggerFactory, ISceneSink> createSceneSink,
-        IImportedSceneSourceFactory importedSceneSourceFactory,
+        CreateImportedSceneSource createImportedSceneSource,
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
         IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
         ImportCommandOptions options,
@@ -117,7 +117,7 @@ internal static class CliServiceCollectionExtensions
         return new PlateauImportService(
             createSceneSink(options, loggerFactory),
             createDatasetSourceResolver(),
-            importedSceneSourceFactory,
+            createImportedSceneSource,
             commonMaterials,
             archiveFileLayoutPolicy,
             loggerFactory);

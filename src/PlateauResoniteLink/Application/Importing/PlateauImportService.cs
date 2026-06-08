@@ -18,7 +18,7 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed class PlateauImportService(
     ISceneSink sceneSink,
     ResolvePlateauDatasetSource resolveDatasetSource,
-    IImportedSceneSourceFactory importedSceneSourceFactory,
+    CreateImportedSceneSource createImportedSceneSource,
     CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     ILoggerFactory? loggerFactory = null)
@@ -29,8 +29,8 @@ internal sealed class PlateauImportService(
         resolveDatasetSource ?? throw new ArgumentNullException(nameof(resolveDatasetSource));
     private readonly ILoggerFactory loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
     private readonly ILogger logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger("PlateauResoniteLink.Import");
-    private readonly IImportedSceneSourceFactory importedSceneSourceFactory =
-        importedSceneSourceFactory ?? throw new ArgumentNullException(nameof(importedSceneSourceFactory));
+    private readonly CreateImportedSceneSource createImportedSceneSource =
+        createImportedSceneSource ?? throw new ArgumentNullException(nameof(createImportedSceneSource));
     private readonly CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
         commonMaterials ?? throw new ArgumentNullException(nameof(commonMaterials));
     private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
@@ -59,7 +59,7 @@ internal sealed class PlateauImportService(
                 resolvedRequest.MeshCode);
 
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
-            IImportedSceneSource importedSceneSource = await importedSceneSourceFactory.CreateAsync(
+            IImportedSceneSource importedSceneSource = await createImportedSceneSource(
                 resolvedRequest,
                 loggerFactory,
                 cancellationToken);
