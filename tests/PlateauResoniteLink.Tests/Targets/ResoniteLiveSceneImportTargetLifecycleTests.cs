@@ -949,7 +949,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             .Compose(
                 request,
                 readResult,
-                new PassthroughImportedObjectUnitOptimizer())
+                PassthroughImportedObjectUnitOptimizer.OptimizeAsync)
             .Metadata;
 
         _ = await importTarget.ExecuteAsync(

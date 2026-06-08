@@ -11,12 +11,12 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
 {
     private readonly ICityGmlDocumentReader documentReader;
     private readonly IImportedSceneSourceComposer constructionComposer;
-    private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
+    private readonly ImportedObjectUnitOptimizer objectUnitOptimizer;
 
     internal DefaultImportedSceneSourceFactory(
         ICityGmlDocumentReader documentReader,
         IImportedSceneSourceComposer constructionComposer,
-        IImportedObjectUnitOptimizer objectUnitOptimizer)
+        ImportedObjectUnitOptimizer objectUnitOptimizer)
     {
         ArgumentNullException.ThrowIfNull(documentReader);
         ArgumentNullException.ThrowIfNull(constructionComposer);

@@ -32,7 +32,7 @@ public sealed class StreamingImportedSceneSourceTests
             CreateReadResult(sourceFileCount),
             new TrackingGeometryProjector(),
             new StubDemTextureSourcePolicy(),
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -79,7 +79,7 @@ public sealed class StreamingImportedSceneSourceTests
                 [overlay]),
             geometryProjector,
             new StubDemTextureSourcePolicy(),
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -140,7 +140,7 @@ public sealed class StreamingImportedSceneSourceTests
                 selectedMeshCodes: ["53394525"]),
             geometryProjector,
             demTextureSourcePolicy,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ValidateBeforeSinkSetupAsync();
         await source.ReadCityObjectsAsync().ToListAsync();
@@ -189,7 +189,7 @@ public sealed class StreamingImportedSceneSourceTests
                 selectedMeshCodes: ["53394525"]),
             geometryProjector,
             demTextureSourcePolicy,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ReadCityObjectsAsync().ToListAsync();
 
@@ -248,7 +248,7 @@ public sealed class StreamingImportedSceneSourceTests
                 selectedMeshCodes: ["53394525"]),
             geometryProjector,
             demTextureSourcePolicy,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -294,7 +294,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ]),
             geometryProjector,
             demTextureSourcePolicy,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -364,7 +364,7 @@ public sealed class StreamingImportedSceneSourceTests
             CreateReadResult(pipelines),
             new TrackingGeometryProjector(),
             demTextureSourcePolicy,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ReadCityObjectsAsync().ToListAsync();
 
@@ -438,7 +438,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ]),
             new TrackingGeometryProjector(),
             demTextureSourcePolicy,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ReadCityObjectsAsync().ToListAsync();
 
@@ -494,7 +494,7 @@ public sealed class StreamingImportedSceneSourceTests
                 selectedMeshCodes: ["53394525"]),
             geometryProjector,
             demTextureSourcePolicy,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ValidateBeforeSinkSetupAsync();
         await source.ReadCityObjectsAsync().ToListAsync();
@@ -559,7 +559,7 @@ public sealed class StreamingImportedSceneSourceTests
                 selectedMeshCodes: ["533945"]),
             new OverlayRecordingGeometryProjector(),
             demTextureSourcePolicy,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ValidateBeforeSinkSetupAsync();
 
@@ -604,7 +604,7 @@ public sealed class StreamingImportedSceneSourceTests
                 selectedMeshCodes: ["53394525"]),
             geometryProjector,
             demTextureSourcePolicy,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -638,7 +638,7 @@ public sealed class StreamingImportedSceneSourceTests
                 selectedMeshCodes: ["53394525"]),
             new TrackingGeometryProjector(),
             new ThrowingDemTextureSourcePolicy(expectedException),
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         PlateauImportValidationException actualException = await Assert.ThrowsAsync<PlateauImportValidationException>(
             () => source.ReadCityObjectsAsync().ToListAsync().AsTask());
@@ -676,7 +676,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ]),
             new TrackingGeometryProjector(),
             demTextureSourcePolicy,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         using CancellationTokenSource cancellationTokenSource = new();
         Task readTask = source.ReadCityObjectsAsync(cancellationTokenSource.Token).ToListAsync(cancellationTokenSource.Token).AsTask();

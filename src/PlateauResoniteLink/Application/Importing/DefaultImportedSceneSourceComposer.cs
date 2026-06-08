@@ -20,7 +20,7 @@ internal sealed class DefaultImportedSceneSourceComposer(
     public IImportedSceneSource Compose(
         ResolvedLocalPlateauImportRequest request,
         ImportedSceneSourceSnapshot readResult,
-        IImportedObjectUnitOptimizer objectUnitOptimizer,
+        ImportedObjectUnitOptimizer objectUnitOptimizer,
         ILoggerFactory? loggerFactory = null)
     {
         ArgumentNullException.ThrowIfNull(request);

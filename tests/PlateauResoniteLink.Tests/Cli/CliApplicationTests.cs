@@ -38,7 +38,7 @@ public sealed class CliApplicationTests
                 new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                     CreateDemTextureSourcePolicy()),
-                new PassthroughImportedObjectUnitOptimizer()),
+                PassthroughImportedObjectUnitOptimizer.OptimizeAsync),
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
     }
