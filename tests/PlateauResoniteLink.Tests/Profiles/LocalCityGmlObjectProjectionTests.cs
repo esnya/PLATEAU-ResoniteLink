@@ -2724,6 +2724,72 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void DemTerrainGridModeSamplesRawDemSourceAcrossThirdMeshBounds()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        const string meshCode = "53394525";
+        (double south, double north, double west, double east) = GetMeshBounds(meshCode);
+        ParsedSurface rawSurface = CreateParsedSurface(
+            "raw-dem",
+            ParsedSurfaceSemantic.Ground,
+            CreateBoundsQuadVertices(
+                south - ((north - south) * 0.05),
+                north + ((north - south) * 0.05),
+                west - ((east - west) * 0.05),
+                east + ((east - west) * 0.05),
+                20.0),
+            texturePayload: null,
+            baseColor: new ColorRgba(0.4, 0.5, 0.3, 1.0));
+        ParsedSurface clippedVisualSurface = CreateParsedSurface(
+            "clipped-dem",
+            ParsedSurfaceSemantic.Ground,
+            CreateBoundsQuadVertices(
+                south + ((north - south) * 0.05),
+                north - ((north - south) * 0.05),
+                west + ((east - west) * 0.05),
+                east - ((east - west) * 0.05),
+                20.0),
+            texturePayload: null,
+            baseColor: new ColorRgba(0.4, 0.5, 0.3, 1.0));
+        ParsedCityObject visualCityObject = CreateParsedCityObject("dem", [clippedVisualSurface], referenceSystem);
+        ParsedCityObject rawCityObject = visualCityObject with { Surfaces = [rawSurface] };
+        GeodeticPoint origin = CreateMeshCenterPoint(meshCode, 0.0);
+        GeographicLib.LocalCartesian cartesian = new(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric);
+
+        ImportedCityObject projected = CityGmlParsedCityObjectProjection.ProjectTerrainMeshModeCityObject(
+            GeneratedLod1RoofCityObjectFactory.CreateDraft(visualCityObject),
+            GeneratedLod1RoofCityObjectFactory.CreateDraft(rawCityObject),
+            origin,
+            cartesian,
+            CreateThirdMeshOverlay(meshCode),
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: meshCode,
+                CityGmlSource: DatasetLocation.Local("dataset"),
+                PackageNames: ["dem"],
+                TerrainMeshMode: TerrainMeshMode.Grid,
+                TerrainGridMetersPerVertex: 100.0,
+                TerrainGridMaxResolution: 8),
+            [MeshCodeBounds.Parse(meshCode)],
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
+            progressReporter: null,
+            CancellationToken.None);
+
+        TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(projected.Geometry);
+        Assert.All(EnumerateBoundaryCoverage(geometry), static coverage => Assert.Equal(TerrainGridSampleCoverage.Measured, coverage));
+        Assert.True(geometry.Size.X > 0.0);
+        Assert.True(geometry.Size.Y > 0.0);
+        Assert.InRange(
+            geometry.Size.X / EstimateProjectedLongitudeSpanMeters(south, north, west, east, origin, cartesian),
+            0.99,
+            1.01);
+        Assert.InRange(
+            geometry.Size.Y / EstimateProjectedLatitudeSpanMeters(south, north, west, east, origin, cartesian),
+            0.99,
+            1.01);
+    }
+
+    [Fact]
     public void DemTerrainDynamicModeKeepsMaterialBindingsCompatibleWithStaticMesh()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
@@ -3784,6 +3850,81 @@ public sealed class LocalCityGmlObjectProjectionTests
         return new GeodeticPoint((south + north) / 2.0, (west + east) / 2.0, altitudeMeters);
     }
 
+    private static IReadOnlyList<GeodeticPoint> CreateBoundsQuadVertices(
+        double south,
+        double north,
+        double west,
+        double east,
+        double altitudeMeters)
+    {
+        return
+        [
+            new(south, west, altitudeMeters),
+            new(south, east, altitudeMeters),
+            new(north, east, altitudeMeters),
+            new(north, west, altitudeMeters),
+            new(south, west, altitudeMeters),
+        ];
+    }
+
+    private static IEnumerable<TerrainGridSampleCoverage> EnumerateBoundaryCoverage(TerrainGridGeometry geometry)
+    {
+        for (int column = 0; column < geometry.Width; column++)
+        {
+            yield return geometry.SampleCoverage[column];
+            yield return geometry.SampleCoverage[((geometry.Height - 1) * geometry.Width) + column];
+        }
+
+        for (int row = 0; row < geometry.Height; row++)
+        {
+            yield return geometry.SampleCoverage[row * geometry.Width];
+            yield return geometry.SampleCoverage[(row * geometry.Width) + geometry.Width - 1];
+        }
+    }
+
+    private static double EstimateProjectedLongitudeSpanMeters(
+        double south,
+        double north,
+        double west,
+        double east,
+        GeodeticPoint origin,
+        GeographicLib.LocalCartesian cartesian)
+    {
+        double latitude = (south + north) / 2.0;
+        Float3 westPosition = CreateScenePosition(new GeodeticPoint(latitude, west, origin.Altitude), origin, cartesian);
+        Float3 eastPosition = CreateScenePosition(new GeodeticPoint(latitude, east, origin.Altitude), origin, cartesian);
+        return Math.Abs(eastPosition.X - westPosition.X);
+    }
+
+    private static double EstimateProjectedLatitudeSpanMeters(
+        double south,
+        double north,
+        double west,
+        double east,
+        GeodeticPoint origin,
+        GeographicLib.LocalCartesian cartesian)
+    {
+        double longitude = (west + east) / 2.0;
+        Float3 southPosition = CreateScenePosition(new GeodeticPoint(south, longitude, origin.Altitude), origin, cartesian);
+        Float3 northPosition = CreateScenePosition(new GeodeticPoint(north, longitude, origin.Altitude), origin, cartesian);
+        return Math.Abs(northPosition.Z - southPosition.Z);
+    }
+
+    private static Float3 CreateScenePosition(
+        GeodeticPoint point,
+        GeodeticPoint origin,
+        GeographicLib.LocalCartesian cartesian)
+    {
+        return SceneAxisMapper.CreatePosition(
+            point.Latitude,
+            point.Longitude,
+            point.Altitude,
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            cartesian);
+    }
+
     private static TerrainTextureOverlay CreateThirdMeshOverlay(string meshCode)
     {
         (double south, double north, double west, double east) = GetMeshBounds(meshCode);
@@ -3866,6 +4007,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         return CityGmlParsedCityObjectProjection.ProjectTerrainMeshModeCityObject(
             GeneratedLod1RoofCityObjectFactory.CreateDraft(cityObject),
+            demTerrainGridSamplingSource: null,
             globalOriginPoint,
             globalCartesian: null,
             demTerrainTextureOverlay: null,

@@ -90,6 +90,7 @@ internal static class CityGmlParsedCityObjectProjection
             GeometryHeightMeters = geometryHeightMeters,
         };
         ConstructionCityObjectDraft constructionDraft = GeneratedLod1RoofCityObjectFactory.CreateDraft(terrainAlignedParsedCityObject);
+        ConstructionCityObjectDraft terrainGridSamplingDraft = constructionDraft;
         List<ImportedCityObject> projectedCityObjects = [];
         List<ImportedCityObject> generatedRoadMarkings = [];
 
@@ -105,6 +106,7 @@ internal static class CityGmlParsedCityObjectProjection
             cancellationToken.ThrowIfCancellationRequested();
             ImportedCityObject cityObject = ProjectTerrainMeshModeCityObject(
                 partitionedCityObject.CityObject,
+                terrainGridSamplingDraft,
                 globalOriginPoint,
                 globalCartesian,
                 partitionedCityObject.Overlay,
@@ -228,6 +230,7 @@ internal static class CityGmlParsedCityObjectProjection
 
     internal static ImportedCityObject ProjectTerrainMeshModeCityObject(
         ConstructionCityObjectDraft cityObject,
+        ConstructionCityObjectDraft? demTerrainGridSamplingSource,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
@@ -245,6 +248,7 @@ internal static class CityGmlParsedCityObjectProjection
 
         bool hasGrid = CityGmlDemTerrainGridCityObjectProjection.TryProject(
             cityObject,
+            demTerrainGridSamplingSource ?? cityObject,
             globalOriginPoint,
             globalCartesian,
             demTerrainTextureOverlay,
