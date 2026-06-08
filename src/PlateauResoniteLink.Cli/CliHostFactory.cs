@@ -52,9 +52,17 @@ internal static class CliServiceCollectionExtensions
                 _.GetRequiredService<IHttpClientFactory>().CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName),
                 _.GetRequiredService<IRemoteArchiveDistributionPolicy>(),
                 _.GetRequiredService<IArchiveFileLayoutPolicy>()));
-        services.AddSingleton<DefaultSceneSinkFactory>();
         services.AddSingleton<Func<ImportCommandOptions, ILoggerFactory, ISceneSink>>(_ =>
-            _.GetRequiredService<DefaultSceneSinkFactory>().Create);
+        {
+            IHttpClientFactory httpClientFactory = _.GetRequiredService<IHttpClientFactory>();
+            IServiceScopeFactory serviceScopeFactory = _.GetRequiredService<IServiceScopeFactory>();
+
+            return (options, loggerFactory) => CliServiceCollectionExtensions.CreateSceneSink(
+                httpClientFactory,
+                serviceScopeFactory,
+                options,
+                loggerFactory);
+        });
         services.AddSingleton<Func<ImportCommandOptions, ILoggerFactory, PlateauImportService>>(_ =>
         {
             Func<IPlateauDatasetSourceResolver> createDatasetSourceResolver =
@@ -110,18 +118,19 @@ internal static class CliServiceCollectionExtensions
             archiveFileLayoutPolicy,
             loggerFactory);
     }
-}
 
-internal sealed class DefaultSceneSinkFactory(
-    IHttpClientFactory httpClientFactory,
-    IServiceScopeFactory serviceScopeFactory)
-{
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "The returned ScopedSceneSink owns the target and associated service scope for the import run.")]
-    public ISceneSink Create(ImportCommandOptions options, ILoggerFactory loggerFactory)
+    internal static ISceneSink CreateSceneSink(
+        IHttpClientFactory httpClientFactory,
+        IServiceScopeFactory serviceScopeFactory,
+        ImportCommandOptions options,
+        ILoggerFactory loggerFactory)
     {
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(serviceScopeFactory);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
