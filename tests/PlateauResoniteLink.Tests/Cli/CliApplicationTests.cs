@@ -37,14 +37,22 @@ public sealed class CliApplicationTests
                 documentReader,
                 new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
-                    new DefaultDemTextureSourcePolicy(
-                        new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
-                            new DefaultPlateauDatasetContentSourceFactory(
-                                new RemoteArchiveDistributionPolicy(),
-                                new ArchiveFileLayoutPolicy())))),
+                    CreateDemTextureSourcePolicy()),
                 new PassthroughImportedObjectUnitOptimizer()),
             CommonMaterialCatalog.Create(),
             new ArchiveFileLayoutPolicy());
+    }
+
+    private static DefaultDemTextureSourcePolicy CreateDemTextureSourcePolicy()
+    {
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory = new DefaultPlateauDatasetContentSourceFactory(
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
+        return new DefaultDemTextureSourcePolicy(
+            (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
+                source,
+                datasetContentSourceFactory,
+                cancellationToken));
     }
 
     private static LocalCityGmlDocumentReader CreateDocumentReader()

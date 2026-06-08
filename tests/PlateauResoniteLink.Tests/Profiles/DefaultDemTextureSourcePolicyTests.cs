@@ -23,7 +23,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
                 PixelWidthMeters: 0.8,
                 PixelHeightMeters: 0.8));
         DefaultDemTextureSourcePolicy policy = new(
-            new StubDemTerrainGeoReferencedRasterCatalogFactory(
+            CreateRasterCatalogFactory(
                 new StubDemTerrainGeoReferencedRasterCatalog(
                     new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -62,7 +62,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
                 PixelWidthMeters: 0.01,
                 PixelHeightMeters: 0.01));
         DefaultDemTextureSourcePolicy policy = new(
-            new StubDemTerrainGeoReferencedRasterCatalogFactory(
+            CreateRasterCatalogFactory(
                 new StubDemTerrainGeoReferencedRasterCatalog(
                     new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -103,7 +103,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
                 ortho19PixelSize.PixelWidthMeters,
                 ortho19PixelSize.PixelHeightMeters));
         DefaultDemTextureSourcePolicy policy = new(
-            new StubDemTerrainGeoReferencedRasterCatalogFactory(
+            CreateRasterCatalogFactory(
                 new StubDemTerrainGeoReferencedRasterCatalog(
                     new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -129,7 +129,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
     public async Task ResolveAsyncRejectsExplicitGeoTiffSourceWhenRequestedMeshIsNotCovered()
     {
         DefaultDemTextureSourcePolicy policy = new(
-            new StubDemTerrainGeoReferencedRasterCatalogFactory(
+            CreateRasterCatalogFactory(
                 new StubDemTerrainGeoReferencedRasterCatalog(
                     new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase))));
         PlateauImportRequest request = new(
@@ -151,7 +151,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
     public async Task ResolveAsyncUsesPlateauOrthoThenGsiFallbackWhenNoExplicitRasterMatches()
     {
         DefaultDemTextureSourcePolicy policy = new(
-            new StubDemTerrainGeoReferencedRasterCatalogFactory(
+            CreateRasterCatalogFactory(
                 catalog: null));
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -223,7 +223,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
     public void CreateMapTileFallbackOverlaysCreatesProviderOrderInsidePolicy()
     {
         DefaultDemTextureSourcePolicy policy = new(
-            new StubDemTerrainGeoReferencedRasterCatalogFactory(
+            CreateRasterCatalogFactory(
                 catalog: null));
 
         IReadOnlyList<TerrainTextureOverlay> overlays = policy.CreateMapTileFallbackOverlays(
@@ -257,15 +257,10 @@ public sealed class DefaultDemTextureSourcePolicyTests
         Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
     }
 
-    private sealed class StubDemTerrainGeoReferencedRasterCatalogFactory(IDemTerrainGeoReferencedRasterCatalog? catalog)
-        : IDemTerrainGeoReferencedRasterCatalogFactory
+    private static Func<DatasetLocation?, CancellationToken, Task<IDemTerrainGeoReferencedRasterCatalog?>> CreateRasterCatalogFactory(
+        IDemTerrainGeoReferencedRasterCatalog? catalog)
     {
-        public Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
-            DatasetLocation? source,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(catalog);
-        }
+        return (_, _) => Task.FromResult(catalog);
     }
 
     private sealed class StubDemTerrainGeoReferencedRasterCatalog(

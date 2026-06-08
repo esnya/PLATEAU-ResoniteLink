@@ -932,10 +932,12 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ImportedSceneMetadata metadata = new DefaultImportedSceneSourceComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                 new DefaultDemTextureSourcePolicy(
-                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
+                    (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
+                        source,
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy()))))
+                            new ArchiveFileLayoutPolicy()),
+                        cancellationToken)))
             .Compose(
                 request,
                 readResult,

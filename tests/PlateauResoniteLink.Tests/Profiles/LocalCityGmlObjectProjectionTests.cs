@@ -42,11 +42,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 documentReader,
                 new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
-                    new DefaultDemTextureSourcePolicy(
-                        new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
-                            new DefaultPlateauDatasetContentSourceFactory(
-                                new RemoteArchiveDistributionPolicy(),
-                                new ArchiveFileLayoutPolicy())))),
+                    CreateDemTextureSourcePolicy()),
                 new PassthroughImportedObjectUnitOptimizer()),
             commonMaterials: CommonMaterialCatalog.Create(),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy(),
@@ -78,13 +74,9 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         DefaultImportedSceneSourceFactory factory = new(
             documentReader,
-            new DefaultImportedSceneSourceComposer(
-                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
-                new DefaultDemTextureSourcePolicy(
-                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
-                        new DefaultPlateauDatasetContentSourceFactory(
-                            new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy())))),
+                new DefaultImportedSceneSourceComposer(
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
+                    CreateDemTextureSourcePolicy()),
             new PassthroughImportedObjectUnitOptimizer());
         IImportedSceneSource source = await factory.CreateAsync(request);
 
@@ -94,6 +86,18 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Contains("bldg", source.Metadata.SourceDataset.PackageNames);
         Assert.Contains("53394525", source.Metadata.SourceDataset.SelectedMeshCodes!);
         Assert.NotEmpty(source.Metadata.SourceDataset.SourceFiles);
+    }
+
+    private static DefaultDemTextureSourcePolicy CreateDemTextureSourcePolicy()
+    {
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory = new DefaultPlateauDatasetContentSourceFactory(
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
+        return new DefaultDemTextureSourcePolicy(
+            (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
+                source,
+                datasetContentSourceFactory,
+                cancellationToken));
     }
 
     [Fact]
