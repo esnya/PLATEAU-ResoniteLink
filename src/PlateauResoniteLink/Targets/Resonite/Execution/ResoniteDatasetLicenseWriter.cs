@@ -9,6 +9,11 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
+internal delegate Task EnsureResoniteGsiFallbackLicense(
+    IResoniteLinkClient client,
+    CreatedSlot datasetRootSlot,
+    CancellationToken cancellationToken);
+
 internal static class ResoniteDatasetLicenseWriter
 {
     private const string LicenseComponentType = "[FrooxEngine]FrooxEngine.License";
