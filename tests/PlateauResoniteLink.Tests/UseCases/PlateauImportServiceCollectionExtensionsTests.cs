@@ -43,6 +43,26 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddImportedSceneSourceServicesPreservesCustomLodSelector()
+    {
+        SelectCityGmlLod selectLod =
+            static (cityObjectElement, packageName, isMarking, lodFilteringStrategy) =>
+            {
+                _ = cityObjectElement;
+                _ = packageName;
+                _ = isMarking;
+                _ = lodFilteringStrategy;
+                return new CityGmlLodSelection([], null);
+            };
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton(selectLod)
+            .AddImportedSceneSourceServices()
+            .BuildServiceProvider();
+
+        Assert.Same(selectLod, provider.GetRequiredService<SelectCityGmlLod>());
+    }
+
+    [Fact]
     public void AddImportedSceneSourceServicesPreservesCustomImportedSceneSourceCreation()
     {
         CustomImportedSceneSourceCreation sourceCreation = new();
