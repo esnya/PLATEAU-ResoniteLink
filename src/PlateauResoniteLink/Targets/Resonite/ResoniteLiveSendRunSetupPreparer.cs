@@ -17,10 +17,19 @@ internal sealed record LiveSendPreparedRunSetup(
     CommonMaterialAssetCache Materials,
     ResoniteSharedSlotIndex Placement);
 
+internal interface IResoniteLiveSendRunSetupPreparer
+{
+    Task<LiveSendPreparedRunSetup> PrepareAsync(
+        LiveSendRunPlan runPlan,
+        LiveSendRunStartRequest request,
+        LiveSendRunStartContext context,
+        CancellationToken cancellationToken);
+}
+
 internal sealed class ResoniteLiveSendRunSetupPreparer(
     IResoniteSceneSetupInterpreter sceneSetupInterpreter,
     ResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
-    ResonitePreparedRunSetupComposer preparedRunSetupComposer)
+    ResonitePreparedRunSetupComposer preparedRunSetupComposer) : IResoniteLiveSendRunSetupPreparer
 {
     public async Task<LiveSendPreparedRunSetup> PrepareAsync(
         LiveSendRunPlan runPlan,

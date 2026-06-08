@@ -4,7 +4,7 @@ using System.Net.Http;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteLiveSendRunStarterFactory(
-    ResoniteLiveSendRunSetupPreparer runSetupPreparer,
+    IResoniteLiveSendRunSetupPreparer runSetupPreparer,
     LiveSendRunStateFactory runStateFactory,
     ResoniteLiveSendWorkerLauncherFactory workerLauncherFactory)
 {
