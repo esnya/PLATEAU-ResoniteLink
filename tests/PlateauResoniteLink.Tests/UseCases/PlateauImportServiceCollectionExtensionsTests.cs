@@ -15,7 +15,7 @@ namespace PlateauResoniteLink.Tests.UseCases;
 public sealed class PlateauImportServiceCollectionExtensionsTests
 {
     [Fact]
-    public async Task AddImportedSceneSourceServicesUsesCustomComposerWhenFactoryCreatesSourceFromReader()
+    public async Task AddImportedSceneSourceServicesUsesCustomComposerWhenCreatingSourceFromReader()
     {
         ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
             cityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"));
@@ -38,9 +38,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             .AddSingleton<ImportedSceneSourceComposer>(composer.Compose)
             .AddImportedSceneSourceServices()
             .BuildServiceProvider();
-        IImportedSceneSourceFactory factory = provider.GetRequiredService<IImportedSceneSourceFactory>();
+        CreateImportedSceneSource createImportedSceneSource =
+            provider.GetRequiredService<CreateImportedSceneSource>();
 
-        IImportedSceneSource source = await factory.CreateAsync(request);
+        IImportedSceneSource source = await createImportedSceneSource(request);
 
         Assert.Same(expectedSource, source);
         Assert.Same(request, reader.LastRequest);
@@ -77,15 +78,16 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddImportedSceneSourceServicesPreservesCustomImportedSceneSourceFactory()
+    public void AddImportedSceneSourceServicesPreservesCustomImportedSceneSourceCreation()
     {
-        CustomImportedSceneSourceFactory factory = new();
+        CustomImportedSceneSourceCreation sourceCreation = new();
+        CreateImportedSceneSource createImportedSceneSource = sourceCreation.CreateAsync;
         ServiceProvider provider = new ServiceCollection()
-            .AddSingleton<IImportedSceneSourceFactory>(factory)
+            .AddSingleton(createImportedSceneSource)
             .AddImportedSceneSourceServices()
             .BuildServiceProvider();
 
-        Assert.Same(factory, provider.GetRequiredService<IImportedSceneSourceFactory>());
+        Assert.Same(createImportedSceneSource, provider.GetRequiredService<CreateImportedSceneSource>());
     }
 
     [Fact]
@@ -115,7 +117,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class CustomImportedSceneSourceFactory : IImportedSceneSourceFactory
+    private sealed class CustomImportedSceneSourceCreation
     {
         public Task<IImportedSceneSource> CreateAsync(
             ResolvedLocalPlateauImportRequest request,

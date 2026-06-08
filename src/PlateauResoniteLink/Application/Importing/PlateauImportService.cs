@@ -14,7 +14,7 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed class PlateauImportService(
     ISceneSink sceneSink,
     ResolvePlateauDatasetSource resolveDatasetSource,
-    IImportedSceneSourceFactory importedSceneSourceFactory,
+    CreateImportedSceneSource createImportedSceneSource,
     CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
@@ -24,8 +24,8 @@ internal sealed class PlateauImportService(
     private readonly ResolvePlateauDatasetSource resolveDatasetSource =
         resolveDatasetSource ?? throw new ArgumentNullException(nameof(resolveDatasetSource));
     private readonly Action<string>? progressReporter = progressReporter;
-    private readonly IImportedSceneSourceFactory importedSceneSourceFactory =
-        importedSceneSourceFactory ?? throw new ArgumentNullException(nameof(importedSceneSourceFactory));
+    private readonly CreateImportedSceneSource createImportedSceneSource =
+        createImportedSceneSource ?? throw new ArgumentNullException(nameof(createImportedSceneSource));
     private readonly CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
         commonMaterials ?? throw new ArgumentNullException(nameof(commonMaterials));
     private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
@@ -52,7 +52,7 @@ internal sealed class PlateauImportService(
                 PlateauLog.Debug("import", $"Resolved CityGML source for '{resolvedRequest.Dataset}' mesh-code '{resolvedRequest.MeshCode}'."));
 
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
-            IImportedSceneSource importedSceneSource = await importedSceneSourceFactory.CreateAsync(
+            IImportedSceneSource importedSceneSource = await createImportedSceneSource(
                 resolvedRequest,
                 progressReporter,
                 cancellationToken);

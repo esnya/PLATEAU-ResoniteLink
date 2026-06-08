@@ -35,12 +35,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         return new PlateauImportService(
             sceneSink,
             datasetSourceResolver.ResolveAsync,
-            importedSceneSourceFactory: new DefaultImportedSceneSourceFactory(
-                documentReader.ReadAsync,
-                new DefaultImportedSceneSourceComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ProjectCityObjects,
-                    CreateDemTextureSourcePolicy().ResolveAsync).Compose,
-                PassthroughImportedObjectUnitOptimizer.OptimizeAsync),
+            createImportedSceneSource: CreateImportedSceneSource(documentReader),
             commonMaterials: CommonMaterialCatalog.Create(),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy(),
             progressReporter);
@@ -58,7 +53,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         "Performance",
         "CA1849:Call async methods when in an async method",
         Justification = "This test intentionally compares the sync wrapper against the async entrypoint.")]
-    public async Task ImportedSceneSourceFactoryComposesExpectedSetupMetadata()
+    public async Task ImportedSceneSourceCreationComposesExpectedSetupMetadata()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
@@ -66,13 +61,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             cityGmlLocalSourcePath: fixturePath);
         PlateauImportRequest importRequest = request.ToImportRequest();
 
-        DefaultImportedSceneSourceFactory factory = new(
-            documentReader.ReadAsync,
-                new DefaultImportedSceneSourceComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ProjectCityObjects,
-                    CreateDemTextureSourcePolicy().ResolveAsync).Compose,
-            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
-        IImportedSceneSource source = await factory.CreateAsync(request);
+        CreateImportedSceneSource createImportedSceneSource = CreateImportedSceneSource(documentReader);
+        IImportedSceneSource source = await createImportedSceneSource(request);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
@@ -89,6 +79,26 @@ public sealed class LocalCityGmlObjectProjectionTests
                 source,
                 CreateDatasetContentSourceAsync,
                 cancellationToken));
+    }
+
+    private static CreateImportedSceneSource CreateImportedSceneSource(LocalCityGmlDocumentReader documentReader)
+    {
+        ImportedSceneSourceComposer composer = new DefaultImportedSceneSourceComposer(
+            new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial)
+                .ProjectCityObjects,
+            CreateDemTextureSourcePolicy().ResolveAsync).Compose;
+        return async (request, progressReporter, cancellationToken) =>
+        {
+            ImportedSceneSourceSnapshot readResult = await documentReader.ReadAsync(
+                request,
+                progressReporter,
+                cancellationToken);
+            return composer(
+                request,
+                readResult,
+                PassthroughImportedObjectUnitOptimizer.OptimizeAsync,
+                progressReporter);
+        };
     }
 
     private static Task<IPlateauDatasetContentSource> CreateDatasetContentSourceAsync(
