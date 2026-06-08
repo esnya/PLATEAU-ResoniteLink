@@ -76,12 +76,15 @@ internal sealed class ResoniteQueuedCityObjectSender(
                 preparedCityObject.CityObject.SlotKey);
             if (processedCount % 25 == 0)
             {
+                int queuedCount = state.Progress.QueuedCityObjectCount;
                 logger.WriteInformation(
-                    "Live send progress: attempted={AttemptedCount}, sent={SentCount}, failed={FailedCount}, queued_source={QueuedSourceCount}.",
-                    state.Progress.AttemptedCityObjectCount,
+                    "Live send progress: phase=sending, source_city_objects_seen={SourceCityObjectCount}, sent={SentCount}, failed={FailedCount}, attempted={AttemptedCount}, queued={QueuedSourceCount}, backlog={BacklogCount}.",
+                    state.Progress.SourceCityObjectCount,
                     processedCount,
                     state.Progress.FailedCityObjectCount,
-                    state.Progress.QueuedCityObjectCount);
+                    state.Progress.AttemptedCityObjectCount,
+                    queuedCount,
+                    Math.Max(0, queuedCount - processedCount - state.Progress.FailedCityObjectCount));
             }
         }
         catch (OperationCanceledException)

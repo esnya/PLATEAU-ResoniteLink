@@ -50,20 +50,23 @@ internal sealed class ResoniteLiveSendFinalizer(
         }
 
         context.Logger.WriteInformation(
-            "Completing live send. Closing lane writers (attempted={AttemptedCount}, processed={ProcessedCount}, failed={FailedCount}, queued_source={QueuedSourceCount}).",
+            "Source stream ended; closing live-send queue: source_units_seen={SourceObjectUnitCount}, source_city_objects_seen={SourceCityObjectCount}, queued={QueuedSourceCount}, attempted={AttemptedCount}, sent={SentCount}, failed={FailedCount}, backlog={BacklogCount}.",
+            state.Progress.SourceObjectUnitCount,
+            state.Progress.SourceCityObjectCount,
+            state.Progress.QueuedCityObjectCount,
             state.Progress.AttemptedCityObjectCount,
             state.Progress.ProcessedCityObjectCount,
             state.Progress.FailedCityObjectCount,
-            state.Progress.QueuedCityObjectCount);
+            Math.Max(0, state.Progress.QueuedCityObjectCount - state.Progress.ProcessedCityObjectCount - state.Progress.FailedCityObjectCount));
         runtime.CompleteWriter();
 
-        context.Logger.WriteInformation(
+        context.Logger.WriteDebug(
             "Awaiting {ProcessingTaskCount} send lane task(s) to drain after queue close.",
             runtime.ProcessingTaskCount);
         await runtime.AwaitCompletionAsync(cancellationToken);
-        context.Logger.WriteInformation("All send lanes drained and completion barrier passed.");
+        context.Logger.WriteDebug("All send lanes drained and completion barrier passed.");
         context.Diagnostics.CompleteSendWindow();
-        context.Logger.WriteInformation(
+        context.Logger.WriteDebug(
             "Completed {ProcessedCount} city objects (failed={FailedCount}, attempted={AttemptedCount}, queued_source={QueuedSourceCount}).",
             state.Progress.ProcessedCityObjectCount,
             state.Progress.FailedCityObjectCount,
@@ -99,7 +102,8 @@ internal sealed class ResoniteLiveSendFinalizer(
                 ", ",
                 pendingBakeSummaries.Select(static summary =>
                     $"{summary.Name}: input={summary.InputCount}, currentOutput={summary.OutputCount}"));
-            context.Logger.WriteInformation("Starting buffered bake flush: {SummaryText}.", summaryText);
+            context.Logger.WriteInformation("Flushing buffered bake output before closing live-send queue.");
+            context.Logger.WriteDebug("Buffered bake flush input summary: {SummaryText}.", summaryText);
         }
 
         Stopwatch bakeFlushStopwatch = Stopwatch.StartNew();
@@ -109,7 +113,7 @@ internal sealed class ResoniteLiveSendFinalizer(
             context.EnqueueContext,
             cancellationToken);
         bakeFlushStopwatch.Stop();
-        context.Logger.WriteInformation(
+        context.Logger.WriteDebug(
             "Buffered bake flush produced {BakedCityObjectCount} baked city objects in {ElapsedSeconds:F3}s.",
             bakedCityObjectCount,
             bakeFlushStopwatch.Elapsed.TotalSeconds);

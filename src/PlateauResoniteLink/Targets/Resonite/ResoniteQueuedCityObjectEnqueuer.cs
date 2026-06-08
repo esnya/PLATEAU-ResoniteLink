@@ -159,12 +159,13 @@ internal sealed class ResoniteQueuedCityObjectEnqueuer : IResoniteQueuedCityObje
             int queuedCount = Interlocked.Increment(ref state.Progress.QueuedCityObjectCount);
             if (queuedCount % 25 == 0)
             {
-                context.Logger.WriteInformation(
-                    "Live send progress: queued_source={QueuedSourceCount}, attempted={AttemptedCount}, sent={SentCount}, failed={FailedCount}.",
+                context.Logger.WriteDebug(
+                    "Live send queue progress: queued={QueuedSourceCount}, attempted={AttemptedCount}, sent={SentCount}, failed={FailedCount}, backlog={BacklogCount}.",
                     queuedCount,
                     state.Progress.AttemptedCityObjectCount,
                     state.Progress.ProcessedCityObjectCount,
-                    state.Progress.FailedCityObjectCount);
+                    state.Progress.FailedCityObjectCount,
+                    Math.Max(0, queuedCount - state.Progress.ProcessedCityObjectCount - state.Progress.FailedCityObjectCount));
             }
         }
         catch (OperationCanceledException) when (runtime.IsCancellationRequested)
