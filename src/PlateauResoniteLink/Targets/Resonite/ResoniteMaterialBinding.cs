@@ -50,22 +50,20 @@ public abstract record ResoniteMaterialAssetBinding
         ? ResoniteMaterialAssetScope.Common
         : ResoniteMaterialAssetScope.PresentationSlotScoped;
 
-    public DefaultCommonMaterialMember? CommonMaterial => this is ICommonMaterialAssetBinding commonBinding
-        ? commonBinding.Member
-        : null;
+    public DefaultCommonMaterialMember? CommonMaterial => this switch
+    {
+        PresentationCommonMaterialAssetBinding presentationCommon => presentationCommon.Member,
+        SharedCommonMaterialAssetBinding sharedCommon => sharedCommon.Member,
+        _ => null,
+    };
 
     public bool IsSharedCommon => this is SharedCommonMaterialAssetBinding;
-
-    private interface ICommonMaterialAssetBinding
-    {
-        DefaultCommonMaterialMember Member { get; }
-    }
 
     private sealed record PresentationMaterialAssetBinding : ResoniteMaterialAssetBinding;
 
     private sealed record SharedMaterialAssetBinding : ResoniteMaterialAssetBinding;
 
-    private sealed record PresentationCommonMaterialAssetBinding : ResoniteMaterialAssetBinding, ICommonMaterialAssetBinding
+    private sealed record PresentationCommonMaterialAssetBinding : ResoniteMaterialAssetBinding
     {
         public PresentationCommonMaterialAssetBinding(DefaultCommonMaterialMember commonMaterial)
         {
@@ -76,7 +74,7 @@ public abstract record ResoniteMaterialAssetBinding
         public DefaultCommonMaterialMember Member { get; }
     }
 
-    private sealed record SharedCommonMaterialAssetBinding : ResoniteMaterialAssetBinding, ICommonMaterialAssetBinding
+    private sealed record SharedCommonMaterialAssetBinding : ResoniteMaterialAssetBinding
     {
         public SharedCommonMaterialAssetBinding(DefaultCommonMaterialMember commonMaterial)
         {
