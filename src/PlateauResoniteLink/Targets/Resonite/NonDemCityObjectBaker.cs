@@ -25,23 +25,13 @@ internal sealed class NonDemCityObjectBaker(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken = default)
     {
-        BufferedCityObjectBufferResult result = await TryBufferAsync(cityObject, cancellationToken);
-        return result.Buffered
-            ? result.ReadyCityObjects
-            : [cityObject];
-    }
-
-    public ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
-        ResoniteConstructionCityObject cityObject,
-        CancellationToken cancellationToken = default)
-    {
         ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
 
         NonDemCityObjectBakePolicy? policy = ResolveBakePolicy(cityObject);
         if (policy is null)
         {
-            return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
+            return [cityObject];
         }
 
         ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
@@ -49,7 +39,7 @@ internal sealed class NonDemCityObjectBaker(
         List<ResoniteConstructionCityObject> readyCityObjects = [];
         sourceFileBuffer.Add(sourceFileKey, new NonDemBufferedCityObject(normalizedCityObject, policy));
         BakedInputCityObjectCount++;
-        return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects));
+        return readyCityObjects;
     }
 
     public async Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushAllAsync(
