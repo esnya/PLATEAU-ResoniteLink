@@ -37,7 +37,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             importedSceneSourceFactory: new DefaultImportedSceneSourceFactory(
                 documentReader,
                 new DefaultImportedSceneSourceComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ProjectCityObjects,
                     CreateDemTextureSourcePolicy()).Compose,
                 PassthroughImportedObjectUnitOptimizer.OptimizeAsync),
             commonMaterials: CommonMaterialCatalog.Create(),
@@ -68,7 +68,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         DefaultImportedSceneSourceFactory factory = new(
             documentReader,
                 new DefaultImportedSceneSourceComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ProjectCityObjects,
                     CreateDemTextureSourcePolicy()).Compose,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         IImportedSceneSource source = await factory.CreateAsync(request);

@@ -28,7 +28,7 @@ public sealed class StreamingImportedSceneSourceTests
             CreateMetadata(request),
             request,
             CreateReadResult(sourceFileCount),
-            new TrackingGeometryProjector(),
+            new TrackingGeometryProjector().ProjectCityObjects,
             new StubDemTextureSourcePolicy(),
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -75,7 +75,7 @@ public sealed class StreamingImportedSceneSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
                 ],
                 [overlay]),
-            geometryProjector,
+            geometryProjector.ProjectCityObjects,
             new StubDemTextureSourcePolicy(),
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -136,7 +136,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ],
                 [discoveryOverlay],
                 selectedMeshCodes: ["53394525"]),
-            geometryProjector,
+            geometryProjector.ProjectCityObjects,
             demTextureSourcePolicy,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -185,7 +185,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ],
                 [staleDiscoveryOverlay],
                 selectedMeshCodes: ["53394525"]),
-            geometryProjector,
+            geometryProjector.ProjectCityObjects,
             demTextureSourcePolicy,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -244,7 +244,7 @@ public sealed class StreamingImportedSceneSourceTests
                                 TimeSpan.Zero))),
                 ],
                 selectedMeshCodes: ["53394525"]),
-            geometryProjector,
+            geometryProjector.ProjectCityObjects,
             demTextureSourcePolicy,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -290,7 +290,7 @@ public sealed class StreamingImportedSceneSourceTests
                 [
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
                 ]),
-            geometryProjector,
+            geometryProjector.ProjectCityObjects,
             demTextureSourcePolicy,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -360,7 +360,7 @@ public sealed class StreamingImportedSceneSourceTests
             CreateMetadata(request),
             request,
             CreateReadResult(pipelines),
-            new TrackingGeometryProjector(),
+            new TrackingGeometryProjector().ProjectCityObjects,
             demTextureSourcePolicy,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -434,7 +434,7 @@ public sealed class StreamingImportedSceneSourceTests
                                 TimeSpan.Zero)),
                         streamFactory: cancellationToken => StreamParsedCityObjects(secondSourceFile, referenceSystem, cancellationToken)),
                 ]),
-            new TrackingGeometryProjector(),
+            new TrackingGeometryProjector().ProjectCityObjects,
             demTextureSourcePolicy,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -490,7 +490,7 @@ public sealed class StreamingImportedSceneSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
                 ],
                 selectedMeshCodes: ["53394525"]),
-            geometryProjector,
+            geometryProjector.ProjectCityObjects,
             demTextureSourcePolicy,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -555,7 +555,7 @@ public sealed class StreamingImportedSceneSourceTests
                                 TimeSpan.Zero))),
                 ],
                 selectedMeshCodes: ["533945"]),
-            new OverlayRecordingGeometryProjector(),
+            new OverlayRecordingGeometryProjector().ProjectCityObjects,
             demTextureSourcePolicy,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -600,7 +600,7 @@ public sealed class StreamingImportedSceneSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
                 ],
                 selectedMeshCodes: ["53394525"]),
-            geometryProjector,
+            geometryProjector.ProjectCityObjects,
             demTextureSourcePolicy,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -634,7 +634,7 @@ public sealed class StreamingImportedSceneSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "53394525", RequiresMeshCodeBoundsFilter: false),
                 ],
                 selectedMeshCodes: ["53394525"]),
-            new TrackingGeometryProjector(),
+            new TrackingGeometryProjector().ProjectCityObjects,
             new ThrowingDemTextureSourcePolicy(expectedException),
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -672,7 +672,7 @@ public sealed class StreamingImportedSceneSourceTests
                             [],
                             TimeSpan.Zero))),
                 ]),
-            new TrackingGeometryProjector(),
+            new TrackingGeometryProjector().ProjectCityObjects,
             demTextureSourcePolicy,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
@@ -894,7 +894,7 @@ public sealed class StreamingImportedSceneSourceTests
         Assert.True(predicate(), "Timed out waiting for expected condition.");
     }
 
-    private sealed class TrackingGeometryProjector : ICityGmlGeometryProjector
+    private sealed class TrackingGeometryProjector
     {
         private static int currentConcurrency;
         private static int maxObservedConcurrency;
@@ -972,7 +972,7 @@ public sealed class StreamingImportedSceneSourceTests
         }
     }
 
-    private sealed class OverlayRecordingGeometryProjector : ICityGmlGeometryProjector
+    private sealed class OverlayRecordingGeometryProjector
     {
         public ConcurrentDictionary<string, int> OverlayCountsByPackage { get; } = new(StringComparer.Ordinal);
         public ConcurrentDictionary<string, TerrainTextureOverlay?> LastOverlayByPackage { get; } = new(StringComparer.Ordinal);
