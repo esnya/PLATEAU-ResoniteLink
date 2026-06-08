@@ -16,14 +16,12 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         ResolvedLocalPlateauImportRequest request,
         Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource,
         Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
-        ICityGmlLodSelector lodSelector,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(createDatasetContentSource);
         ArgumentNullException.ThrowIfNull(createAppearanceStore);
-        ArgumentNullException.ThrowIfNull(lodSelector);
 
         IPlateauDatasetContentSource datasetSource = await createDatasetContentSource(
             request.CityGmlLocalSourcePath,
@@ -70,7 +68,6 @@ internal static class ImportedSceneSourceDiscoveryPipeline
                 progressReporter,
                 lodFilteringStrategy,
                 createAppearanceStore,
-                lodSelector,
                 cancellationToken);
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
