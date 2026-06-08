@@ -88,7 +88,7 @@ internal sealed record LiveSendRunStartContext
 
 internal sealed class ResoniteLiveSendRunStarter(
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
-    NonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory,
+    ResoniteTextureImageLoader textureImageLoader,
     ResoniteQueuedCityObjectWorker queuedCityObjectWorker)
 {
     private const int MaxQueuedCityObjects = 4;
@@ -220,10 +220,27 @@ internal sealed class ResoniteLiveSendRunStarter(
             ? new CompositeCityObjectBaker(
                 new NonDemCityObjectBaker(
                     bakePolicyResolver: new NonDemCityObjectBakePolicyResolver(NonDemCityObjectBakePolicies.DefaultPolicies),
-                    sourceFileBakeEmitter: sourceFileBakeEmitterFactory.Create(
+                    sourceFileBakeEmitter: CreateSourceFileBakeEmitter(
                         new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget),
                         requestLocalOrigin)))
             : null;
+    }
+
+    private NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(
+        NonDemAtlasBakeBudget atlasBudget,
+        ResoniteLocalOrigin requestLocalOrigin)
+    {
+        NonDemAtlasLayoutFactory layoutFactory = new(
+            atlasBudget.EffectiveMaxAtlasSize,
+            atlasBudget.TilePaddingPixels);
+        return new NonDemSourceFileBakeEmitter(
+            new NonDemCityObjectBakeCandidateFactory(
+                new NonDemBakeEntryFactory(textureImageLoader, atlasBudget.EffectiveMaxAtlasTextureEdge)),
+            new NonDemCityObjectBakeAssembler(
+                layoutFactory,
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                new NonDemBakedGeometryComposer(requestLocalOrigin)),
+            new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 
     private void LaunchWorkers(

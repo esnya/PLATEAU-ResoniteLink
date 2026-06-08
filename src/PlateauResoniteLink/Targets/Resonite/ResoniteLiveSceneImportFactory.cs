@@ -8,7 +8,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed class ResoniteLiveSceneImportFactory(
     Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession> createClientSession,
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
-    NonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory,
+    ResoniteTextureImageLoader textureImageLoader,
     ResonitePreparedCityObjectImporter preparedCityObjectImporter,
     IResoniteLiveSendRunExecutorFactory runExecutorFactory)
 {
@@ -54,7 +54,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
 
         return new ResoniteLiveSendRunStarter(
             runSetupPreparer,
-            sourceFileBakeEmitterFactory,
+            textureImageLoader,
             CreateQueuedCityObjectWorker(generateTerrainTexture));
     }
 

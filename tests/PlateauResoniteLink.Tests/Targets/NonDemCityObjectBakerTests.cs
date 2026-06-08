@@ -1105,13 +1105,28 @@ public sealed class NonDemCityObjectBakerTests
         IReadOnlyList<NonDemCityObjectBakePolicy>? bakePolicies = null,
         ResoniteImportBudgetProfile? resourceBudget = null)
     {
-        NonDemSourceFileBakeEmitter sourceFileBakeEmitter = new NonDemSourceFileBakeEmitterFactory(
-            new ResoniteTextureImageLoader()).Create(
-            new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget),
-            CreateRequestLocalOrigin("53394525"));
         return new NonDemCityObjectBaker(
             new NonDemCityObjectBakePolicyResolver(bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies),
-            sourceFileBakeEmitter);
+            CreateSourceFileBakeEmitter(
+                new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget),
+                CreateRequestLocalOrigin("53394525")));
+    }
+
+    private static NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(
+        NonDemAtlasBakeBudget atlasBudget,
+        ResoniteLocalOrigin requestLocalOrigin)
+    {
+        NonDemAtlasLayoutFactory layoutFactory = new(
+            atlasBudget.EffectiveMaxAtlasSize,
+            atlasBudget.TilePaddingPixels);
+        return new NonDemSourceFileBakeEmitter(
+            new NonDemCityObjectBakeCandidateFactory(
+                new NonDemBakeEntryFactory(new ResoniteTextureImageLoader(), atlasBudget.EffectiveMaxAtlasTextureEdge)),
+            new NonDemCityObjectBakeAssembler(
+                layoutFactory,
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                new NonDemBakedGeometryComposer(requestLocalOrigin)),
+            new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 
     private static ResoniteLocalOrigin CreateRequestLocalOrigin(string meshCode)

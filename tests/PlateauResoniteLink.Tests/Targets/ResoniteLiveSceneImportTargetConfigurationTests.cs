@@ -420,7 +420,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         CompositeCityObjectBaker baker = new(
             new NonDemCityObjectBaker(
                 new NonDemCityObjectBakePolicyResolver(NonDemCityObjectBakePolicies.DefaultPolicies),
-                new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()).Create(
+                CreateSourceFileBakeEmitter(
                     new NonDemAtlasBakeBudget(ResourceBudget: ResoniteImportBudgetProfiles.ForProfile(memoryProfile)),
                     CreateRequestLocalOrigin("53394525"))));
 
@@ -432,6 +432,23 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         }
 
         return readyBeforeFlush;
+    }
+
+    private static NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(
+        NonDemAtlasBakeBudget atlasBudget,
+        ResoniteLocalOrigin requestLocalOrigin)
+    {
+        NonDemAtlasLayoutFactory layoutFactory = new(
+            atlasBudget.EffectiveMaxAtlasSize,
+            atlasBudget.TilePaddingPixels);
+        return new NonDemSourceFileBakeEmitter(
+            new NonDemCityObjectBakeCandidateFactory(
+                new NonDemBakeEntryFactory(new ResoniteTextureImageLoader(), atlasBudget.EffectiveMaxAtlasTextureEdge)),
+            new NonDemCityObjectBakeAssembler(
+                layoutFactory,
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                new NonDemBakedGeometryComposer(requestLocalOrigin)),
+            new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 
     private static ResoniteLocalOrigin CreateRequestLocalOrigin(string meshCode)
