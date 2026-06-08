@@ -79,10 +79,7 @@ internal sealed class PlateauImportService(
                 datasetWorkRoot,
                 this.commonMaterials);
 
-            if (importedSceneSource is IImportedSceneSourcePreflight preflight)
-            {
-                await preflight.ValidateBeforeSinkSetupAsync(cancellationToken);
-            }
+            await importedSceneSource.ValidateBeforeSinkSetupAsync(cancellationToken);
 
             logger.WriteInformation("Starting live scene initialization with codebase-reachable common materials.");
 

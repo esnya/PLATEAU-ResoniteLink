@@ -18,7 +18,7 @@ using LocalCartesian = GeographicLib.LocalCartesian;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImportedSceneSourcePreflight
+internal sealed class StreamingImportedSceneSource : IImportedSceneSource
 {
     internal const int MaxConcurrentCityObjectProducers = 8;
 

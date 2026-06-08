@@ -688,7 +688,7 @@ public sealed class PlateauImportServiceTests
     }
 
     private sealed class PreflightThrowingImportedSceneSource(ImportedSceneMetadata metadata)
-        : IImportedSceneSource, IImportedSceneSourcePreflight
+        : IImportedSceneSource
     {
         public ImportedSceneMetadata Metadata { get; } = metadata;
 
