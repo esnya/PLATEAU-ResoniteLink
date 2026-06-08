@@ -40,7 +40,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
 
         DefaultImportedSceneSourceComposer composer = new(
             new ThrowingGeometryProjector().ProjectCityObjects,
-            new StubDemTextureSourcePolicy());
+            new StubDemTextureSourcePolicy().ResolveAsync);
 
         IImportedSceneSource source = composer.Compose(
             request,
@@ -91,7 +91,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
         RecordingDemTextureSourcePolicy demTextureSourcePolicy = new();
         DefaultImportedSceneSourceComposer composer = new(
             new ThrowingGeometryProjector().ProjectCityObjects,
-            demTextureSourcePolicy);
+            demTextureSourcePolicy.ResolveAsync);
 
         IImportedSceneSource source = composer.Compose(
             request,
@@ -171,7 +171,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
         }
     }
 
-    private sealed class StubDemTextureSourcePolicy : IDemTextureSourcePolicy
+    private sealed class StubDemTextureSourcePolicy
     {
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
@@ -182,16 +182,9 @@ public sealed class DefaultImportedSceneSourceComposerTests
             _ = overlayRegions;
             return Task.FromResult(new ResolvedDemTextureSources([]));
         }
-
-        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
-            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
-        {
-            _ = overlayRegions;
-            return [];
-        }
     }
 
-    private sealed class RecordingDemTextureSourcePolicy : IDemTextureSourcePolicy
+    private sealed class RecordingDemTextureSourcePolicy
     {
         public int ResolveCallCount { get; private set; }
 
@@ -218,13 +211,6 @@ public sealed class DefaultImportedSceneSourceComposerTests
                         overlayRegions[0].GeographicBounds,
                         1024),
                 ]));
-        }
-
-        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
-            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
-        {
-            _ = overlayRegions;
-            return [];
         }
     }
 }

@@ -40,7 +40,12 @@ internal static class PlateauImportServiceCollectionExtensions
                 createDatasetContentSource,
                 cancellationToken);
         });
-        services.TryAddSingleton<IDemTextureSourcePolicy, DefaultDemTextureSourcePolicy>();
+        services.TryAddSingleton<ResolveDemTextureSources>(provider =>
+        {
+            DefaultDemTextureSourcePolicy policy = new(
+                provider.GetRequiredService<Func<DatasetLocation?, CancellationToken, Task<DemTerrainGeoReferencedRasterResolver?>>>());
+            return policy.ResolveAsync;
+        });
         services.TryAddSingleton<Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore>>(
             _ => CityGmlAppearanceStore.Create);
         services.TryAddSingleton<ResolveDefaultMaterial>(provider =>
@@ -61,7 +66,7 @@ internal static class PlateauImportServiceCollectionExtensions
         {
             DefaultImportedSceneSourceComposer composer = new(
                 provider.GetRequiredService<CityGmlGeometryProjector>(),
-                provider.GetRequiredService<IDemTextureSourcePolicy>());
+                provider.GetRequiredService<ResolveDemTextureSources>());
             return composer.Compose;
         });
         services.TryAddSingleton<ReadCityGmlDocument>(provider =>
