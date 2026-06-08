@@ -536,6 +536,100 @@ public sealed class DatasetInspectionServiceTests
             result.SourceFiles.Select(static entry => entry.RelativePath).ToArray());
     }
 
+    [Fact]
+    public async Task SearchAsyncExpandsRegexParentDemSourceMatchToThirdMeshCodes()
+    {
+        byte[] archiveBytes = CreateZipArchive(
+            ("udx/dem/533914_dem_6697_00_op.gml", "<dem:CityModel />"),
+            ("udx/dem/533914_dem_6697_05_op.gml", "<dem:CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        string archivePath = Path.Combine(workRoot.Path, "dataset.zip");
+        await File.WriteAllBytesAsync(archivePath, archiveBytes);
+
+        DatasetSearchResult result = await service.SearchAsync(archivePath, "53391[4].*", ["dem"]);
+
+        Assert.Equal(CreateThirdMeshCodes("533914"), result.SelectedMeshCodes);
+        Assert.Equal(
+            [
+                "udx/dem/533914_dem_6697_00_op.gml",
+                "udx/dem/533914_dem_6697_05_op.gml",
+            ],
+            result.SourceFiles.Select(static entry => entry.RelativePath).ToArray());
+        Assert.All(result.SourceFiles, static entry =>
+        {
+            Assert.Equal("533914", entry.MatchedMeshCode);
+            Assert.True(entry.RequiresMeshCodeBoundsFilter);
+        });
+    }
+
+    [Fact]
+    public async Task SearchAsyncExpandsExactParentDemSourceMatchToThirdMeshCodes()
+    {
+        byte[] archiveBytes = CreateZipArchive(
+            ("udx/dem/533914_dem_6697_00_op.gml", "<dem:CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        string archivePath = Path.Combine(workRoot.Path, "dataset.zip");
+        await File.WriteAllBytesAsync(archivePath, archiveBytes);
+
+        DatasetSearchResult result = await service.SearchAsync(archivePath, "533914", ["dem"]);
+
+        Assert.Equal(CreateThirdMeshCodes("533914"), result.SelectedMeshCodes);
+        DatasetSearchEntry entry = Assert.Single(result.SourceFiles);
+        Assert.Equal("533914", entry.MatchedMeshCode);
+        Assert.True(entry.RequiresMeshCodeBoundsFilter);
+    }
+
+    [Fact]
+    public async Task SearchAsyncTreatsRegexParentDemMatchLikeExplicitThirdMeshRegex()
+    {
+        byte[] archiveBytes = CreateZipArchive(
+            ("udx/dem/533914_dem_6697_00_op.gml", "<dem:CityModel />"),
+            ("udx/dem/533914_dem_6697_05_op.gml", "<dem:CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        string archivePath = Path.Combine(workRoot.Path, "dataset.zip");
+        await File.WriteAllBytesAsync(archivePath, archiveBytes);
+
+        DatasetSearchResult parentRegexResult = await service.SearchAsync(archivePath, "53391[4].*", ["dem"]);
+        DatasetSearchResult thirdRegexResult = await service.SearchAsync(archivePath, "533914..", ["dem"]);
+
+        Assert.Equal(thirdRegexResult.SelectedMeshCodes, parentRegexResult.SelectedMeshCodes);
+        Assert.Equal(CreateThirdMeshCodes("533914"), parentRegexResult.SelectedMeshCodes);
+    }
+
+    [Fact]
+    public async Task SearchAsyncKeepsRegexParentNonDemMatchAsParentMeshCode()
+    {
+        byte[] archiveBytes = CreateZipArchive(
+            ("udx/tran/533914/plateau_yokohama_tran_533914.gml", "<tran:CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        string archivePath = Path.Combine(workRoot.Path, "dataset.zip");
+        await File.WriteAllBytesAsync(archivePath, archiveBytes);
+
+        DatasetSearchResult result = await service.SearchAsync(archivePath, "53391[4].*", ["tran"]);
+
+        Assert.Equal(["533914"], result.SelectedMeshCodes);
+        DatasetSearchEntry entry = Assert.Single(result.SourceFiles);
+        Assert.Equal("533914", entry.MatchedMeshCode);
+        Assert.False(entry.RequiresMeshCodeBoundsFilter);
+    }
+
+    [Fact]
+    public async Task SearchAsyncKeepsChildRegexParentNonDemMatchBoundsFiltered()
+    {
+        byte[] archiveBytes = CreateZipArchive(
+            ("udx/tran/533914/plateau_yokohama_tran_533914.gml", "<tran:CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        string archivePath = Path.Combine(workRoot.Path, "dataset.zip");
+        await File.WriteAllBytesAsync(archivePath, archiveBytes);
+
+        DatasetSearchResult result = await service.SearchAsync(archivePath, "5339142.", ["tran"]);
+
+        Assert.Equal(CreateThirdMeshCodes("533914").Where(static meshCode => meshCode.StartsWith("5339142", StringComparison.Ordinal)).ToArray(), result.SelectedMeshCodes);
+        DatasetSearchEntry entry = Assert.Single(result.SourceFiles);
+        Assert.Equal("533914", entry.MatchedMeshCode);
+        Assert.True(entry.RequiresMeshCodeBoundsFilter);
+    }
+
     private static void WriteDatasetFile(string datasetRoot, string relativePath, string content)
     {
         string absolutePath = Path.Combine(
@@ -582,5 +676,12 @@ public sealed class DatasetInspectionServiceTests
         }
 
         return stream.ToArray();
+    }
+
+    private static string[] CreateThirdMeshCodes(string parentMeshCode)
+    {
+        return Enumerable.Range(0, 100)
+            .Select(index => $"{parentMeshCode}{index / 10}{index % 10}")
+            .ToArray();
     }
 }

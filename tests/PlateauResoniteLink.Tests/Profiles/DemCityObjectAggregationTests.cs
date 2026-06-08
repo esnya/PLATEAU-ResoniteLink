@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
@@ -78,6 +79,30 @@ public sealed class DemCityObjectAggregationTests
         Assert.Equal("dem_plateau_fukuoka_dem_503033_50303312", result.SlotKey);
         Assert.Equal("DEM 50303312", result.DisplayName);
         Assert.Equal("50303312", result.ActualMeshCode);
+    }
+
+    [Fact]
+    public void AggregateBySourceFileAndThirdMeshUsesSelectedThirdMeshWithoutDependingOnBoundsFilterFlag()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("EPSG:4326");
+        SourceFileDescriptor sourceFile = new(
+            "udx/dem/533914_dem_6697_00_op.gml",
+            "dem",
+            "533914",
+            RequiresMeshCodeBoundsFilter: false);
+        ParsedCityObject[] cityObjects =
+        [
+            CreateCityObject("dem-parent", "polygon-parent", "533914", sourceFile.RelativePath, referenceSystem),
+        ];
+
+        ParsedCityObject[] results = DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
+            sourceFile,
+            cityObjects,
+            ["53391400", "53391401"]);
+
+        Assert.Equal(["53391400", "53391401"], results.Select(static result => result.ActualMeshCode).ToArray());
+        Assert.All(results, static result => Assert.StartsWith("DEM 533914", result.DisplayName, StringComparison.Ordinal));
+        Assert.DoesNotContain(results, static result => string.Equals(result.ActualMeshCode, "533914", StringComparison.Ordinal));
     }
 
     private static ParsedCityObject CreateCityObject(

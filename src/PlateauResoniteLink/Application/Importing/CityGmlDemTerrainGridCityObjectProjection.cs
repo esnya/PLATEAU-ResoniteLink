@@ -20,6 +20,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
     internal static bool TryProject(
         ConstructionCityObjectDraft cityObject,
+        ConstructionCityObjectDraft terrainGridSamplingSource,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
@@ -28,12 +29,14 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         IDefaultMaterialResolver materialResolver,
         Action<string>? progressReporter,
         CancellationToken cancellationToken,
+        out bool outsideSamplingBounds,
         out TerrainGridProjectedCityObject? heightMapCityObject)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        outsideSamplingBounds = false;
         heightMapCityObject = null;
 
-        if (cityObject.Surfaces.SelectMany(static surface => surface.Vertices).Take(3).Count() < 3)
+        if (terrainGridSamplingSource.Surfaces.SelectMany(static surface => surface.Vertices).Take(3).Count() < 3)
         {
             return false;
         }
@@ -52,11 +55,11 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         }
 
         Float3 slotPosition = CreateScenePosition(cityObjectOrigin, globalOriginPoint, globalCartesian);
-        Float3[] positions = cityObject.Surfaces
+        Float3[] positions = terrainGridSamplingSource.Surfaces
             .SelectMany(static surface => surface.Vertices)
             .Select(point => CreateGlobalTerrainGridLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
             .ToArray();
-        TerrainGridTriangle[] triangles = CreateDemTerrainGridTriangles(cityObject, slotPosition, globalOriginPoint, globalCartesian);
+        TerrainGridTriangle[] triangles = CreateDemTerrainGridTriangles(terrainGridSamplingSource, slotPosition, globalOriginPoint, globalCartesian);
         double seaLevelLocalHeight = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(cityObjectOrigin.Latitude, cityObjectOrigin.Longitude, 0.0),
             slotPosition,
@@ -67,13 +70,22 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             return false;
         }
 
-        DemTerrainGridBounds heightMapBounds = CreateDemTerrainGridBounds(
+        if (!TryCreateDemTerrainGridBounds(
             cityObject,
+            terrainGridSamplingSource,
             slotPosition,
             globalOriginPoint,
             globalCartesian,
             demTerrainTextureOverlay,
-            positions);
+            requestedMeshCodeBounds,
+            positions,
+            out DemTerrainGridBounds? heightMapBounds)
+            || heightMapBounds is null)
+        {
+            outsideSamplingBounds = true;
+            return false;
+        }
+
         double minX = heightMapBounds.MinX;
         double maxX = heightMapBounds.MaxX;
         double minZ = heightMapBounds.MinZ;
@@ -134,6 +146,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             cityObjectOrigin,
             cityObjectCartesian,
             demTerrainTextureOverlay,
+            heightMapBounds.GeographicBounds,
             materialResolver);
         Float2? heightMapUvScale = heightMapOccupiedUvRect.HasValue
             ? ToContractFloat2(heightMapOccupiedUvRect.Value.ScaleValue)
@@ -180,6 +193,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
+        GeographicRectangle terrainGridGeographicBounds,
         IDefaultMaterialResolver materialResolver)
     {
         if (demTerrainTextureOverlay is null)
@@ -187,7 +201,6 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             return null;
         }
 
-        GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject.Source, demTerrainTextureOverlay);
         ResolvedSurfaceMaterial? representativeSurface = CityGmlSurfaceMaterialResolver.EnumerateSurfaces(
                 cityObject,
                 cityObjectOrigin,
@@ -204,44 +217,43 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             cityObject.Source,
             representativeSurface,
             demTerrainTextureOverlay,
-            demObjectBounds);
+            terrainGridGeographicBounds);
         return occupiedUvRect is { IsIdentity: true } ? null : occupiedUvRect;
     }
 
-    private static GeographicRectangle? TryGetDemObjectGeographicBounds(
-        ParsedCityObject cityObject,
-        TerrainTextureOverlay? demTerrainTextureOverlay)
-    {
-        if (demTerrainTextureOverlay is null
-            || !string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return ResolveCityObjectGeographicBounds(cityObject);
-    }
-
-    private static DemTerrainGridBounds CreateDemTerrainGridBounds(
+    private static bool TryCreateDemTerrainGridBounds(
         ConstructionCityObjectDraft cityObject,
+        ConstructionCityObjectDraft terrainGridSamplingSource,
         Float3 slotPosition,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        IReadOnlyList<Float3> positions)
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
+        IReadOnlyList<Float3> positions,
+        out DemTerrainGridBounds? bounds)
     {
+        bounds = null;
         double rawMinX = positions.Min(static position => position.X);
         double rawMaxX = positions.Max(static position => position.X);
         double rawMinZ = positions.Min(static position => position.Z);
         double rawMaxZ = positions.Max(static position => position.Z);
 
-        if (demTerrainTextureOverlay is null)
+        GeographicRectangle clippedBounds = ResolveDemTerrainGridGeographicBounds(
+            cityObject,
+            demTerrainTextureOverlay,
+            requestedMeshCodeBounds);
+        GeographicRectangle rawGeographicBounds = ResolveCityObjectGeographicBounds(terrainGridSamplingSource.Source);
+        GeographicRectangle clampedGeographicBounds = IntersectGeographicBounds(clippedBounds, rawGeographicBounds);
+        if (NearlyCoversGeographicBounds(rawGeographicBounds, clippedBounds))
         {
-            return new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
+            clampedGeographicBounds = clippedBounds;
         }
 
-        GeographicRectangle clippedBounds = IntersectGeographicBounds(
-            ResolveCityObjectGeographicBounds(cityObject.Source),
-            demTerrainTextureOverlay.GeographicBounds);
+        if (!IsUsableGeographicBounds(clampedGeographicBounds))
+        {
+            clampedGeographicBounds = rawGeographicBounds;
+        }
+
         Float3[] clippedAxisPositions = CreateClippedAxisPositions(
             clippedBounds,
             slotPosition,
@@ -260,10 +272,77 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
         if ((clippedMaxX - clippedMinX) <= 1e-6 || (clippedMaxZ - clippedMinZ) <= 1e-6)
         {
-            return new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
+            if (cityObject.Source.SharedAcrossMeshCodes)
+            {
+                return false;
+            }
+
+            bounds = new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ, clampedGeographicBounds);
+            return true;
         }
 
-        return new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ);
+        bounds = new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ, clampedGeographicBounds);
+        return true;
+    }
+
+    private static GeographicRectangle ResolveDemTerrainGridGeographicBounds(
+        ConstructionCityObjectDraft cityObject,
+        TerrainTextureOverlay? demTerrainTextureOverlay,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds)
+    {
+        GeographicRectangle bounds = TryCreateThirdMeshGeographicBounds(cityObject.ActualMeshCode, out GeographicRectangle thirdMeshBounds)
+            ? thirdMeshBounds
+            : ResolveCityObjectGeographicBounds(cityObject.Source);
+
+        if (requestedMeshCodeBounds.Count > 0)
+        {
+            bounds = IntersectRequestedMeshBounds(bounds, requestedMeshCodeBounds)
+                ?? bounds;
+        }
+
+        return demTerrainTextureOverlay is null
+            ? bounds
+            : IntersectGeographicBounds(bounds, demTerrainTextureOverlay.GeographicBounds);
+    }
+
+    private static GeographicRectangle? IntersectRequestedMeshBounds(
+        GeographicRectangle bounds,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds)
+    {
+        GeographicRectangle[] intersections = requestedMeshCodeBounds
+            .Select(requested => IntersectGeographicBounds(bounds, new GeographicRectangle(
+                requested.SouthLatitude,
+                requested.NorthLatitude,
+                requested.WestLongitude,
+                requested.EastLongitude)))
+            .Where(static intersection => IsUsableGeographicBounds(intersection))
+            .ToArray();
+        return intersections.Length == 0
+            ? null
+            : new GeographicRectangle(
+                intersections.Min(static intersection => intersection.MinLatitude),
+                intersections.Max(static intersection => intersection.MaxLatitude),
+                intersections.Min(static intersection => intersection.MinLongitude),
+                intersections.Max(static intersection => intersection.MaxLongitude));
+    }
+
+    private static bool TryCreateThirdMeshGeographicBounds(
+        string actualMeshCode,
+        out GeographicRectangle bounds)
+    {
+        if (ThirdRegionalMeshCode.TryParse(actualMeshCode, out ThirdRegionalMeshCode thirdMeshCode))
+        {
+            JisRegionalMeshBounds meshBounds = thirdMeshCode.Bounds;
+            bounds = new GeographicRectangle(
+                meshBounds.SouthLatitude,
+                meshBounds.NorthLatitude,
+                meshBounds.WestLongitude,
+                meshBounds.EastLongitude);
+            return true;
+        }
+
+        bounds = new GeographicRectangle(0.0, 0.0, 0.0, 0.0);
+        return false;
     }
 
     private static Float3[] CreateClippedAxisPositions(
@@ -318,6 +397,25 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             MaxLatitude: Math.Min(left.MaxLatitude, right.MaxLatitude),
             MinLongitude: Math.Max(left.MinLongitude, right.MinLongitude),
             MaxLongitude: Math.Min(left.MaxLongitude, right.MaxLongitude));
+    }
+
+    private static bool IsUsableGeographicBounds(GeographicRectangle bounds)
+    {
+        return (bounds.MaxLatitude - bounds.MinLatitude) > 1e-12
+            && (bounds.MaxLongitude - bounds.MinLongitude) > 1e-12;
+    }
+
+    private static bool NearlyCoversGeographicBounds(
+        GeographicRectangle candidate,
+        GeographicRectangle bounds)
+    {
+        const double relativeTolerance = 1e-3;
+        double latitudeTolerance = Math.Max(bounds.MaxLatitude - bounds.MinLatitude, 0.0) * relativeTolerance;
+        double longitudeTolerance = Math.Max(bounds.MaxLongitude - bounds.MinLongitude, 0.0) * relativeTolerance;
+        return candidate.MinLatitude <= bounds.MinLatitude + latitudeTolerance
+            && candidate.MaxLatitude >= bounds.MaxLatitude - latitudeTolerance
+            && candidate.MinLongitude <= bounds.MinLongitude + longitudeTolerance
+            && candidate.MaxLongitude >= bounds.MaxLongitude - longitudeTolerance;
     }
 
     private static TerrainGridTriangle[] CreateDemTerrainGridTriangles(
@@ -392,7 +490,8 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         double MinX,
         double MaxX,
         double MinZ,
-        double MaxZ);
+        double MaxZ,
+        GeographicRectangle GeographicBounds);
 }
 
 internal sealed record TerrainGridProjectedCityObject(

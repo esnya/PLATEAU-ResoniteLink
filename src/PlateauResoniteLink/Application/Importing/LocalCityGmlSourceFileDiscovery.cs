@@ -75,9 +75,8 @@ internal static class LocalCityGmlSourceFileDiscovery
     {
         string[] selectedMeshCodes = candidates
             .Where(static candidate => candidate.IsRequestedPackage)
-            .SelectMany(static candidate => candidate.FileMeshCodes.Concat(candidate.DirectoryMeshCodes))
-            .Distinct(StringComparer.Ordinal)
-            .SelectMany(matcher.GetSelectedMeshCodes)
+            .SelectMany(candidate => EnumerateCandidateMeshCodesForSelection(candidate)
+                .SelectMany(meshCode => matcher.GetSelectedMeshCodes(meshCode, candidate.PackageName)))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
             .ToArray();
@@ -97,6 +96,25 @@ internal static class LocalCityGmlSourceFileDiscovery
             .ToArray();
 
         return new LocalCityGmlSourceFileDiscoveryResult(sourceFiles, selectedMeshCodes);
+    }
+
+    private static IEnumerable<string> EnumerateCandidateMeshCodesForSelection(
+        LocalCityGmlDatasetSourceFileCandidate candidate)
+    {
+        if (string.Equals(candidate.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        {
+            string[] detailedMeshCodes = candidate.FileMeshCodes
+                .Concat(candidate.DirectoryMeshCodes)
+                .Where(static meshCode => meshCode.Length == 8)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (detailedMeshCodes.Length > 0)
+            {
+                return detailedMeshCodes;
+            }
+        }
+
+        return candidate.FileMeshCodes.Concat(candidate.DirectoryMeshCodes);
     }
 
     private static LocalCityGmlDatasetSourceFileCandidate? CreateCandidateSourceFile(
@@ -165,16 +183,39 @@ internal static class LocalCityGmlSourceFileDiscovery
             return null;
         }
 
-        string? matchedMeshCode = matcher.Match(candidate.FileMeshCodes, requestedMeshCodes)
-            ?? matcher.Match(candidate.DirectoryMeshCodes, requestedMeshCodes);
-        if (matchedMeshCode is not null)
+        string? matchedFileMeshCode = matcher.Match(candidate.FileMeshCodes, requestedMeshCodes);
+        if (matchedFileMeshCode is not null)
         {
             return new LocalCityGmlSourceFileDescriptor(
                 candidate.AbsolutePath,
                 candidate.RelativePath,
                 candidate.PackageName,
-                matchedMeshCode,
-                matcher.RequiresMeshCodeBoundsFilter(matchedMeshCode));
+                matchedFileMeshCode,
+                matcher.RequiresMeshCodeBoundsFilter(matchedFileMeshCode)
+                || RequiresParentDemMeshCodeBoundsFilter(candidate.PackageName, matchedFileMeshCode, requestedMeshCodes));
+        }
+
+        string? requestedDemDetailedMeshCode = TryMatchRequestedDemDetailedMeshCode(candidate, requestedMeshCodes);
+        if (requestedDemDetailedMeshCode is not null)
+        {
+            return new LocalCityGmlSourceFileDescriptor(
+                candidate.AbsolutePath,
+                candidate.RelativePath,
+                candidate.PackageName,
+                requestedDemDetailedMeshCode,
+                RequiresMeshCodeBoundsFilter: false);
+        }
+
+        string? matchedDirectoryMeshCode = matcher.Match(candidate.DirectoryMeshCodes, requestedMeshCodes);
+        if (matchedDirectoryMeshCode is not null)
+        {
+            return new LocalCityGmlSourceFileDescriptor(
+                candidate.AbsolutePath,
+                candidate.RelativePath,
+                candidate.PackageName,
+                matchedDirectoryMeshCode,
+                matcher.RequiresMeshCodeBoundsFilter(matchedDirectoryMeshCode)
+                || RequiresParentDemMeshCodeBoundsFilter(candidate.PackageName, matchedDirectoryMeshCode, requestedMeshCodes));
         }
 
         string? parentMeshCode = candidate.FileMeshCodes
@@ -194,6 +235,34 @@ internal static class LocalCityGmlSourceFileDiscovery
             candidate.PackageName,
             parentMeshCode,
             RequiresMeshCodeBoundsFilter: true);
+    }
+
+    private static bool RequiresParentDemMeshCodeBoundsFilter(
+        string packageName,
+        string matchedMeshCode,
+        IReadOnlySet<string> requestedMeshCodes)
+    {
+        return string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
+            && matchedMeshCode.Length == 6
+            && requestedMeshCodes.Any(meshCode => meshCode.Length >= 8
+                && meshCode.StartsWith(matchedMeshCode, StringComparison.Ordinal));
+    }
+
+    private static string? TryMatchRequestedDemDetailedMeshCode(
+        LocalCityGmlDatasetSourceFileCandidate candidate,
+        IReadOnlySet<string> requestedMeshCodes)
+    {
+        if (!string.Equals(candidate.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return candidate.FileMeshCodes
+            .Concat(candidate.DirectoryMeshCodes)
+            .Where(static meshCode => meshCode.Length == 8)
+            .Where(requestedMeshCodes.Contains)
+            .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
+            .FirstOrDefault();
     }
 
     private static string[] ExtractMeshCodes(string value)
@@ -298,10 +367,33 @@ internal static class LocalCityGmlSourceFileDiscovery
             return new MeshCodeSelectionMatcher(requestedValue, [], regex);
         }
 
-        public IEnumerable<string> GetSelectedMeshCodes(string candidateMeshCode)
+        public IEnumerable<string> GetSelectedMeshCodes(string candidateMeshCode, string packageName)
         {
+            bool isDem = string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase);
             if (IsLiteral)
             {
+                if (isDem
+                    && RequestedValue.Length == 6
+                    && candidateMeshCode.Length == 6
+                    && exactCodes.Contains(candidateMeshCode, StringComparer.Ordinal))
+                {
+                    foreach (string detailedMeshCode in EnumerateDetailedMeshCodes(candidateMeshCode))
+                    {
+                        yield return detailedMeshCode;
+                    }
+
+                    yield break;
+                }
+
+                if (isDem
+                    && RequestedValue.Length == 6
+                    && candidateMeshCode.Length == 8
+                    && candidateMeshCode.StartsWith(RequestedValue, StringComparison.Ordinal))
+                {
+                    yield return candidateMeshCode;
+                    yield break;
+                }
+
                 if (candidateMeshCode.Length == RequestedValue.Length
                     && exactCodes.Contains(candidateMeshCode, StringComparer.Ordinal))
                 {
@@ -317,23 +409,38 @@ internal static class LocalCityGmlSourceFileDiscovery
                 yield break;
             }
 
-            if (regex!.IsMatch(candidateMeshCode))
+            if (candidateMeshCode.Length == 6)
             {
-                yield return candidateMeshCode;
-                yield break;
-            }
+                string[] detailedMeshCodes = EnumerateDetailedMeshCodes(candidateMeshCode)
+                    .Where(meshCode => regex!.IsMatch(meshCode))
+                    .ToArray();
+                if (isDem && detailedMeshCodes.Length > 0)
+                {
+                    foreach (string detailedMeshCode in detailedMeshCodes)
+                    {
+                        yield return detailedMeshCode;
+                    }
 
-            if (candidateMeshCode.Length != 6)
-            {
-                yield break;
-            }
+                    yield break;
+                }
 
-            foreach (string detailedMeshCode in EnumerateDetailedMeshCodes(candidateMeshCode))
-            {
-                if (regex.IsMatch(detailedMeshCode))
+                if (regex!.IsMatch(candidateMeshCode))
+                {
+                    yield return candidateMeshCode;
+                    yield break;
+                }
+
+                foreach (string detailedMeshCode in detailedMeshCodes)
                 {
                     yield return detailedMeshCode;
                 }
+
+                yield break;
+            }
+
+            if (regex!.IsMatch(candidateMeshCode))
+            {
+                yield return candidateMeshCode;
             }
         }
 

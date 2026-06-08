@@ -61,6 +61,31 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
     }
 
     [Fact]
+    public void DiscoverParentDemRequestIncludesRequestedDetailedDemFiles()
+    {
+        LocalCityGmlSourceFileDiscoveryResult discoveryResult = LocalCityGmlSourceFileDiscovery.Discover(
+            [
+                "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml",
+                "udx/dem/533945/plateau_tokyo23ku_dem_53394526.gml",
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+            ],
+            "533945",
+            packageNames: null);
+        LocalCityGmlSourceFileDescriptor[] descriptors = discoveryResult.SourceFiles.ToArray();
+
+        Assert.Equal(["53394525", "53394526"], discoveryResult.SelectedMeshCodes);
+        Assert.Equal(
+            [
+                "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml",
+                "udx/dem/533945/plateau_tokyo23ku_dem_53394526.gml",
+            ],
+            descriptors.Select(static descriptor => descriptor.RelativePath).ToArray());
+        Assert.All(descriptors, static descriptor => Assert.Equal("dem", descriptor.PackageName));
+        Assert.Equal(["53394525", "53394526"], descriptors.Select(static descriptor => descriptor.MatchedMeshCode).ToArray());
+        Assert.All(descriptors, static descriptor => Assert.False(descriptor.RequiresMeshCodeBoundsFilter));
+    }
+
+    [Fact]
     public void DiscoverMatchesRegexMeshCodesFromFileNamesAndDirectories()
     {
         LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
