@@ -7,7 +7,6 @@ internal sealed record ResoniteLiveSceneImportTargetOptions(
     int ConnectionCount,
     bool EnableSendMetrics,
     ResoniteImportMemoryProfile MemoryProfile,
-    bool EnableMeshBake,
     string? TerrainTileCacheRoot,
     bool DisableTerrainTileCache,
     Action<string>? ProgressReporter);

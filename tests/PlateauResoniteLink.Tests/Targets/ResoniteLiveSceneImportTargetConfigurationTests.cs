@@ -21,22 +21,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
 
     [Fact]
-    public async Task OptionsConstructorEnablesMeshBakeByDefault()
-    {
-        await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget();
-
-        Assert.True(importTarget.MeshBakeEnabled);
-    }
-
-    [Fact]
-    public async Task OptionsConstructorCanDisableMeshBake()
-    {
-        await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(enableMeshBake: false);
-
-        Assert.False(importTarget.MeshBakeEnabled);
-    }
-
-    [Fact]
     public async Task OptionsConstructorUsesLargeMemoryProfileByDefault()
     {
         await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget();
@@ -55,7 +39,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 1,
                 EnableSendMetrics: true,
                 ResoniteImportMemoryProfile.Large,
-                EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
@@ -84,7 +67,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     1,
                     EnableSendMetrics: true,
                     MemoryProfile: ResoniteImportMemoryProfile.Large,
-                    EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
                     ProgressReporter: null),
@@ -119,7 +101,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     1,
                     EnableSendMetrics: false,
                     MemoryProfile: ResoniteImportMemoryProfile.Large,
-                    EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
                     ProgressReporter: null),
@@ -221,7 +202,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 1,
                 EnableSendMetrics: true,
                 MemoryProfile: ResoniteImportMemoryProfile.Large,
-                EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),
@@ -250,7 +230,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     1,
                     EnableSendMetrics: false,
                     MemoryProfile: ResoniteImportMemoryProfile.Large,
-                    EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
                     ProgressReporter: null),
@@ -326,7 +305,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
 
-    private static ResoniteLiveSceneImportTarget CreateImportTarget(bool enableMeshBake = true)
+    private static ResoniteLiveSceneImportTarget CreateImportTarget()
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
@@ -336,7 +315,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 1,
                 EnableSendMetrics: false,
                 ResoniteImportMemoryProfile.Large,
-                enableMeshBake,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 ProgressReporter: null),

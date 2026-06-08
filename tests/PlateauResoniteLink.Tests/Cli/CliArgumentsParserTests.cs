@@ -210,6 +210,21 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseRejectsRemovedNoMeshBakeOption()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--no-mesh-bake",
+            ]);
+
+        Assert.Equal("Unknown option '--no-mesh-bake'.", result.Error);
+    }
+
+    [Fact]
     public void ParseParsesSearchCommand()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -314,6 +329,7 @@ public sealed class CliArgumentsParserTests
             StringComparison.Ordinal);
         Assert.Contains("--citygml-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.Contains("--geotiff-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+        Assert.DoesNotContain("--no-mesh-bake", CliArgumentsParser.HelpText, StringComparison.Ordinal);
     }
 
 }

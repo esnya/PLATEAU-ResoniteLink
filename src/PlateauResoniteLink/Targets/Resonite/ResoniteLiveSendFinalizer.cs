@@ -23,16 +23,11 @@ internal static class ResoniteLiveSendFinalizer
 
         LiveSendExecutionRuntime runtime = state.Runtime;
         LiveSendRunContext runContext = state.Context;
-        NonDemCityObjectBaker? cityObjectBaker = runContext.CityObjectBaker;
-
-        if (cityObjectBaker is not null)
-        {
-            await FlushBufferedCityObjectsAsync(
-                state,
-                cityObjectBaker,
-                context,
-                cancellationToken);
-        }
+        await FlushBufferedCityObjectsAsync(
+            state,
+            runContext.CityObjectBaker,
+            context,
+            cancellationToken);
 
         ReportProgress(
             context,

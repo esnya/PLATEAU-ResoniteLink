@@ -10,7 +10,6 @@ public sealed record ImportCommandOptions(
     Uri? ResoniteLinkUri,
     int ResoniteLinkConnectionCount,
     PlateauImportMemoryProfile MemoryProfile,
-    bool EnableMeshBake,
     string? TerrainTileCacheRoot,
     bool DisableTerrainTileCache,
     string? CanonicalSceneDumpPath,

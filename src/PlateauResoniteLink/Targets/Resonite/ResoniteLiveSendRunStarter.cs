@@ -22,8 +22,7 @@ internal sealed record LiveSendRunStartRequest
         LiveSendConnectionRequest ConnectionRequest,
         ResoniteLocalOrigin RequestLocalOrigin,
         ResoniteImportMemoryProfile MemoryProfile,
-        int ConnectionCount,
-        bool MeshBakeEnabled)
+        int ConnectionCount)
     {
         ArgumentNullException.ThrowIfNull(SetupInfo);
         ArgumentException.ThrowIfNullOrWhiteSpace(WorkRoot);
@@ -38,7 +37,6 @@ internal sealed record LiveSendRunStartRequest
         this.RequestLocalOrigin = RequestLocalOrigin;
         this.MemoryProfile = MemoryProfile;
         this.ConnectionCount = ConnectionCount;
-        this.MeshBakeEnabled = MeshBakeEnabled;
     }
 
     public ResoniteSceneSetupInfo SetupInfo { get; }
@@ -55,7 +53,6 @@ internal sealed record LiveSendRunStartRequest
 
     public int ConnectionCount { get; }
 
-    public bool MeshBakeEnabled { get; }
 }
 
 internal sealed record LiveSendRunStartContext
@@ -145,8 +142,7 @@ internal sealed class ResoniteLiveSendRunStarter(
                     resourceBudget.ImportWorkingSetBytes,
                     Math.Max(
                         MaxInFlightCityObjectWorkingSetBytesFloor,
-                        request.ConnectionCount * MaxInFlightCityObjectWorkingSetBytesPerLane))),
-            request.MeshBakeEnabled);
+                        request.ConnectionCount * MaxInFlightCityObjectWorkingSetBytesPerLane))));
     }
 
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership is transferred to LiveSendRunState and released by ResoniteLiveSendRunResourceReleaser.")]
@@ -158,9 +154,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         ResoniteSharedSlotIndex placement,
         CancellationToken cancellationToken)
     {
-        NonDemCityObjectBaker? cityObjectBaker = CreateCityObjectBaker(
-            runPlan.MeshBakeEnabled,
-            runPlan.ResourceBudget);
+        NonDemCityObjectBaker cityObjectBaker = CreateCityObjectBaker(runPlan.ResourceBudget);
         LiveSendRunContext context = new(
             runPlan,
             setupState.DatasetRootSlot,
@@ -181,9 +175,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         };
     }
 
-    private NonDemCityObjectBaker? CreateCityObjectBaker(
-        bool enableMeshBake,
-        ResoniteImportBudgetProfile resourceBudget)
+    private NonDemCityObjectBaker CreateCityObjectBaker(ResoniteImportBudgetProfile resourceBudget)
     {
         _ = resourceBudget.Name switch
         {
@@ -191,12 +183,10 @@ internal sealed class ResoniteLiveSendRunStarter(
             _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
         };
 
-        return enableMeshBake
-            ? new NonDemCityObjectBaker(
-                bakePolicies: NonDemCityObjectBakePolicies.DefaultPolicies,
-                sourceFileBakeEmitter: CreateSourceFileBakeEmitter(
-                    new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget)))
-            : null;
+        return new NonDemCityObjectBaker(
+            bakePolicies: NonDemCityObjectBakePolicies.DefaultPolicies,
+            sourceFileBakeEmitter: CreateSourceFileBakeEmitter(
+                new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget)));
     }
 
     private NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(NonDemAtlasBakeBudget atlasBudget)

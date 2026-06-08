@@ -35,13 +35,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         connectionCount = options.ConnectionCount;
         MemoryProfile = options.MemoryProfile;
         Diagnostics = diagnostics;
-        MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
         this.runExecutor = runExecutor;
         ClientSessionInternal = clientSession;
     }
-
-    internal bool MeshBakeEnabled { get; }
 
     internal ResoniteLinkSendDiagnostics Diagnostics { get; }
 
@@ -101,8 +98,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 request.Metadata.GeodeticOrigin.Longitude,
                 request.Metadata.GeodeticOrigin.Altitude),
             MemoryProfile,
-            connectionCount,
-            MeshBakeEnabled);
+            connectionCount);
     }
 
     public async ValueTask DisposeAsync()

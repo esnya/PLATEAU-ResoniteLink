@@ -161,7 +161,6 @@ internal static class CliServiceCollectionExtensions
                     PlateauImportMemoryProfile.Large => ResoniteImportMemoryProfile.Large,
                     _ => throw new ArgumentOutOfRangeException(nameof(options), options.MemoryProfile, "Unsupported memory profile."),
                 },
-                options.EnableMeshBake,
                 options.TerrainTileCacheRoot,
                 options.DisableTerrainTileCache,
                 progressReporter);
@@ -193,7 +192,6 @@ internal static class CliServiceCollectionExtensions
                 PlateauImportMemoryProfile.Large => ResoniteImportMemoryProfile.Large,
                 _ => throw new ArgumentOutOfRangeException(nameof(options), options.MemoryProfile, "Unsupported memory profile."),
             },
-            options.EnableMeshBake,
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: true,
             progressReporter);

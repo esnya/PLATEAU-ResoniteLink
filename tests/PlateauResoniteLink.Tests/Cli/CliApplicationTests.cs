@@ -207,33 +207,6 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
-    public async Task RunAsyncPassesMeshBakeDisableOptionToFactory()
-    {
-        using StringWriter standardOutput = new();
-        using StringWriter standardError = new();
-        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        List<ImportCommandOptions> capturedOptions = [];
-        Func<ImportCommandOptions, Action<string>?, PlateauImportService> createImportService =
-            CreateImportServiceFactory(_ => CreateImportService(new StubImportSink()), capturedOptions);
-
-        CliApplication application = new(
-            standardOutput,
-            standardError,
-            createImportService,
-            CreateDatasetInspectionService());
-
-        int exitCode = await application.RunAsync(
-            [
-                ..CreateImportArgs(fixturePath),
-                "--no-mesh-bake",
-            ]);
-
-        Assert.Equal(0, exitCode);
-        ImportCommandOptions capturedOption = Assert.Single(capturedOptions);
-        Assert.False(capturedOption.EnableMeshBake);
-    }
-
-    [Fact]
     public async Task RunAsyncDoesNotWarnWhenMultipleConnectionsAreConfigured()
     {
         using StringWriter standardOutput = new();

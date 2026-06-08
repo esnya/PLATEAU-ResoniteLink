@@ -48,8 +48,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
                 metadata,
                 [CreateTerrainGridCityObject("dem-grid", "DEM Grid")],
-                client,
-                enableMeshBake: false));
+                client));
 
         Assert.Equal("ResoniteLink batch response failed: simulated member assignment failure", exception.Message);
     }
@@ -1106,7 +1105,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: sourceFile);
 
-        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false);
+        await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client);
 
         Assert.All(client.SlotsById.Values, static slot => AssertNoPlannedIds(slot));
         Assert.All(client.ComponentsById.Values, static component => AssertNoPlannedReferences(component.Members.Values));
@@ -1166,7 +1165,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncPreservesOriginalNameForNonBakedLod1WhenMeshBakeIsDisabled()
+    public async Task ExecuteAsyncPreservesOriginalNameForBakeIneligibleLod1()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneSinkRecordingClient client = new();
@@ -1204,8 +1203,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
             [cityObject],
-            client,
-            enableMeshBake: false);
+            client);
 
         AddComponent meshRendererRequest = Assert.Single(
             client.AddedComponents,
@@ -1259,8 +1257,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
             [cityObject],
-            client,
-            enableMeshBake: false);
+            client);
 
         Component meshRenderer = Assert.Single(
             client.AddedComponents,
@@ -1334,8 +1331,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
             metadata,
             [cityObject],
-            client,
-            enableMeshBake: false);
+            client);
 
         AddComponent meshRendererRequest = Assert.Single(
             client.AddedComponents,
@@ -1528,7 +1524,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         );
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(metadata, [cityObject], client));
 
         Assert.Contains("assigned submesh index 0", exception.Message, StringComparison.Ordinal);
         Assert.Contains("materials=2", exception.Message, StringComparison.Ordinal);
