@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -101,11 +102,7 @@ internal sealed class ResoniteLiveSendRunStarter(
             request.MemoryProfile,
             request.ConnectionCount,
             request.MeshBakeEnabled);
-        await ResoniteLiveSendConnectionInitializer.EnsureConnectedAsync(
-            request,
-            runPlan,
-            context,
-            cancellationToken);
+        await EnsureConnectedAsync(request, runPlan, context, cancellationToken);
         LiveSendPreparedRunSetup preparedSetup = await runSetupPreparer.PrepareAsync(
             runPlan,
             request,
@@ -125,5 +122,32 @@ internal sealed class ResoniteLiveSendRunStarter(
                 preparedSetup.RunPlan.ResourceBudget),
             context);
         return state;
+    }
+
+    private static async Task EnsureConnectedAsync(
+        LiveSendRunStartRequest request,
+        LiveSendRunPlan runPlan,
+        LiveSendRunStartContext context,
+        CancellationToken cancellationToken)
+    {
+        context.Logger.WriteInformation(
+            "Initializing scene state for dataset '{Dataset}' mesh '{MeshCode}' at '{ResolvedWorkRoot}'.",
+            request.SetupInfo.Dataset,
+            request.SetupInfo.MeshCode,
+            runPlan.ResolvedWorkRoot);
+        Stopwatch connectionStopwatch = Stopwatch.StartNew();
+        context.Logger.WriteInformation(
+            "Connecting ResoniteLink connection pool to {Endpoint} with {ConnectionCount} available routed connection(s).",
+            context.Endpoint,
+            request.ConnectionCount);
+        await context.ClientSession.EnsureConnectedAsync(
+            request.ConnectionRequest,
+            cancellationToken);
+        connectionStopwatch.Stop();
+        context.Logger.WriteInformation(
+            "ResoniteLink connection pool ready in {ElapsedSeconds:F2}s (dataset='{Dataset}', mesh='{MeshCode}').",
+            connectionStopwatch.Elapsed.TotalSeconds,
+            request.SetupInfo.Dataset,
+            request.SetupInfo.MeshCode);
     }
 }
