@@ -21,7 +21,7 @@ internal interface IResoniteLiveSceneImportFactory
 internal sealed class ResoniteLiveSceneImportFactory(
     IResoniteClientSessionFactory clientSessionFactory,
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
-    ResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory,
+    NonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory,
     ResonitePreparedCityObjectImporter preparedCityObjectImporter) : IResoniteLiveSceneImportFactory
 {
     public ResoniteLiveSceneImportTarget CreateTarget(
@@ -66,7 +66,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
 
         return new ResoniteLiveSendRunStarter(
             runSetupPreparer,
-            cityObjectBakerFactory,
+            sourceFileBakeEmitterFactory,
             new ResoniteLiveSendWorkerLauncher(CreateQueuedCityObjectWorker(terrainTextureAssetGenerator)));
     }
 

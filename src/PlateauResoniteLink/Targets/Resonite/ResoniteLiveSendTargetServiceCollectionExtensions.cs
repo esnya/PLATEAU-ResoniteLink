@@ -20,7 +20,6 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<BundledDefaultMaterialAssetStore>();
         services.TryAddScoped<ResoniteTextureImageLoader>();
         services.TryAddScoped<NonDemSourceFileBakeEmitterFactory>();
-        services.TryAddScoped<ResoniteBufferedCityObjectBakerFactory>();
         services.TryAddScoped<ResoniteMaterialPlanning>();
         services.TryAddScoped<ResoniteSceneMaterialPlanComposer>();
         services.TryAddScoped<ResoniteCommonMaterialSetupPreparer>();
