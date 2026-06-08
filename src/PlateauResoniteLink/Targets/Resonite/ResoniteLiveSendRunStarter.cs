@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -85,7 +87,7 @@ internal sealed record LiveSendRunStartContext
 
 internal sealed class ResoniteLiveSendRunStarter(
     IResoniteLiveSendRunSetupPreparer runSetupPreparer,
-    LiveSendRunStateFactory runStateFactory,
+    ResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory,
     ResoniteLiveSendWorkerLauncher workerLauncher)
 {
     public async Task<LiveSendRunState> StartAsync(
@@ -109,7 +111,7 @@ internal sealed class ResoniteLiveSendRunStarter(
             request,
             context,
             cancellationToken);
-        LiveSendRunState state = runStateFactory.Create(
+        LiveSendRunState state = CreateRunState(
             preparedSetup.RunPlan,
             preparedSetup.SetupState,
             preparedSetup.Progress,
@@ -150,5 +152,38 @@ internal sealed class ResoniteLiveSendRunStarter(
             connectionStopwatch.Elapsed.TotalSeconds,
             request.SetupInfo.Dataset,
             request.SetupInfo.MeshCode);
+    }
+
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership is transferred to LiveSendRunState and released by ResoniteLiveSendRunResourceReleaser.")]
+    private LiveSendRunState CreateRunState(
+        LiveSendRunPlan runPlan,
+        ResoniteSceneSetupState setupState,
+        LiveSendProgressSink progress,
+        CommonMaterialAssetCache materials,
+        ResoniteSharedSlotIndex placement,
+        CancellationToken cancellationToken)
+    {
+        CompositeCityObjectBaker? cityObjectBaker = cityObjectBakerFactory.Create(
+            runPlan.MeshBakeEnabled,
+            runPlan.ResourceBudget,
+            runPlan.RequestLocalOrigin);
+        LiveSendRunContext context = new(
+            runPlan,
+            setupState.DatasetRootSlot,
+            setupState.DatasetAssetsRootSlot,
+            setupState.CommonAssetsRootSlot,
+            cityObjectBaker);
+
+        return new LiveSendRunState
+        {
+            Context = context,
+            Progress = progress,
+            Materials = materials,
+            TerrainTextures = new TerrainTextureAssetCache(),
+            Placement = placement,
+            Runtime = new LiveSendExecutionRuntime(runPlan.Queue, cancellationToken),
+            GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
+            DemSourceUseCounts = new ConcurrentDictionary<TerrainTextureSource, int>(),
+        };
     }
 }
