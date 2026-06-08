@@ -46,12 +46,13 @@ public sealed class CliHostFactoryTests
     }
 
     [Fact]
-    public async Task CreateSceneSinkFactoryBuildsCanonicalDumpSinkThroughRegisteredFactory()
+    public async Task CreateSceneSinkBuildsCanonicalDumpSinkThroughRegisteredFactory()
     {
         using IHost host = CliHostFactory.Create([]);
-        ISceneSinkFactory sceneSinkFactory = host.Services.GetRequiredService<ISceneSinkFactory>();
+        Func<ImportCommandOptions, Action<string>?, ISceneSink> createSceneSink =
+            host.Services.GetRequiredService<Func<ImportCommandOptions, Action<string>?, ISceneSink>>();
 
-        await using ISceneSink sink = sceneSinkFactory.Create(
+        await using ISceneSink sink = createSceneSink(
             new ImportCommandOptions(
                 new PlateauImportRequest(
                     Dataset: "tokyo23ku",
@@ -67,7 +68,7 @@ public sealed class CliHostFactoryTests
                 CanonicalSceneDumpPath: Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json"),
                 EnableSendMetrics: true,
                 VerboseLogging: false),
-            progressReporter: null);
+            null);
 
         Assert.NotNull(sink);
     }
