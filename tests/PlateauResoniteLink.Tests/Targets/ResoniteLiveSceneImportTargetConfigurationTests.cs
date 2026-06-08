@@ -79,7 +79,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         using IServiceScope scope = provider.CreateScope();
         using HttpClient terrainTextureAssetHttpClient = new();
         ISceneSink target = scope.ServiceProvider
-            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .GetRequiredService<ResoniteLiveSceneImportFactory>()
             .CreateTarget(
                 new ResoniteLiveSceneImportTargetOptions(
                     new Uri("ws://localhost:12345/"),
@@ -114,7 +114,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         using IServiceScope scope = provider.CreateScope();
         using HttpClient terrainTextureAssetHttpClient = new();
         ISceneSink target = scope.ServiceProvider
-            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .GetRequiredService<ResoniteLiveSceneImportFactory>()
             .CreateTarget(
                 new ResoniteLiveSceneImportTargetOptions(
                     new Uri("ws://localhost:12345/"),
@@ -140,7 +140,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
 
         await using ISceneSink _ = CanonicalSceneDumpSink.Create(
-            importFactory,
+            importFactory.CreateTarget,
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
                 1,
@@ -168,7 +168,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         using IServiceScope scope = provider.CreateScope();
         using HttpClient terrainTextureAssetHttpClient = new();
         ISceneSink target = scope.ServiceProvider
-            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .GetRequiredService<ResoniteLiveSceneImportFactory>()
             .CreateTarget(
                 new ResoniteLiveSceneImportTargetOptions(
                     new Uri("ws://localhost:12345/"),
@@ -284,7 +284,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     private sealed class RecordingLiveSceneImportFactory(
-        ResoniteMaterialPlanning materialPlanning) : IResoniteLiveSceneImportFactory
+        ResoniteMaterialPlanning materialPlanning)
     {
         public int PreconfiguredCreateCallCount { get; private set; }
 
@@ -293,18 +293,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         public ResoniteLinkSendDiagnostics? LastDiagnostics { get; private set; }
 
         public ITerrainTextureAssetGenerator? LastTerrainTextureAssetGenerator { get; private set; }
-
-        public ResoniteLiveSceneImportTarget CreateTarget(
-            ResoniteLiveSceneImportTargetOptions options,
-            HttpClient terrainTextureAssetHttpClient)
-        {
-            _ = terrainTextureAssetHttpClient;
-            return CreateTarget(
-                options,
-                new DelegatingClientSession(),
-                ResoniteLinkSendDiagnostics.Disabled,
-                new RecordingTerrainTextureAssetGenerator());
-        }
 
         public ResoniteLiveSceneImportTarget CreateTarget(
             ResoniteLiveSceneImportTargetOptions options,
