@@ -29,6 +29,32 @@ public sealed class ResoniteLiveSceneImportTargetTests
     private static readonly ResoniteLocalOrigin LocalOrigin = new(35.6875, 139.69375, 0.0);
 
     [Fact]
+    public async Task ExecuteAsyncFailsWhenObjectBatchContainsFailedNonEntityResponse()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using FailingObjectBatchResponseClient client = new();
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles:
+            [
+                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
+            ]);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+                metadata,
+                [CreateTerrainGridCityObject("dem-grid", "DEM Grid")],
+                client,
+                enableMeshBake: false));
+
+        Assert.Equal("ResoniteLink batch response failed: simulated member assignment failure", exception.Message);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncImportsGeneratedDemTerrainTextureWithCanvasTransform()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -1750,6 +1776,28 @@ public sealed class ResoniteLiveSceneImportTargetTests
     private sealed record SeededCommonMaterialComponent(
         string ComponentId,
         string MaterialSlotId);
+
+    private sealed class FailingObjectBatchResponseClient : SceneSinkRecordingClient
+    {
+        public override async Task<BatchResponse> RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            BatchResponse response = await base.RunDataModelOperationBatchAsync(operations, cancellationToken);
+            if (operations.OfType<AddComponent>().Any(static operation =>
+                string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)))
+            {
+                response.Responses ??= [];
+                response.Responses.Add(new Response
+                {
+                    Success = false,
+                    ErrorInfo = "simulated member assignment failure",
+                });
+            }
+
+            return response;
+        }
+    }
 
     private static void AssertNoPlannedReferences(IEnumerable<Member> members)
     {
