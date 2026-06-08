@@ -320,7 +320,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     private sealed class RecordingLiveSceneImportFactory(
-        IResoniteMaterialPlanning materialPlanning) : IResoniteLiveSceneImportFactory
+        ResoniteMaterialPlanning materialPlanning) : IResoniteLiveSceneImportFactory
     {
         public int PreconfiguredCreateCallCount { get; private set; }
 
