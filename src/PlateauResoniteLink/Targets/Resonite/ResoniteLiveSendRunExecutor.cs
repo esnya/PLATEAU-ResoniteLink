@@ -89,10 +89,17 @@ internal sealed class ResoniteLiveSendRunExecutor(
         {
             state = await runStarter.StartAsync(
                 request,
-                ResoniteLiveSendPhaseContextFactory.CreateRunStartContext(context),
+                new LiveSendRunStartContext(
+                    context.Endpoint,
+                    context.ClientSession,
+                    context.Diagnostics,
+                    context.ProgressReporter),
                 cancellationToken);
 
-            LiveSendEnqueueContext enqueueContext = ResoniteLiveSendPhaseContextFactory.CreateEnqueueContext(context);
+            LiveSendEnqueueContext enqueueContext = new(
+                context.ConnectionCount,
+                context.ClientSession.GetRequiredClient,
+                context.ProgressReporter);
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
                 await ResoniteLiveSendQueue.QueueUnitAsync(
@@ -104,7 +111,11 @@ internal sealed class ResoniteLiveSendRunExecutor(
 
             SceneImportExecutionResult result = await ResoniteLiveSendQueue.CompleteAsync(
                 state,
-                ResoniteLiveSendPhaseContextFactory.CreateFinalizationContext(context, enqueueContext),
+                new LiveSendFinalizationContext(
+                    context.Endpoint,
+                    enqueueContext,
+                    context.Diagnostics,
+                    context.ProgressReporter),
                 cancellationToken);
             completedSuccessfully = true;
             return result;
