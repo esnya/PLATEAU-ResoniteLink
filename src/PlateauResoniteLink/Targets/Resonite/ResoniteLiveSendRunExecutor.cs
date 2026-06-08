@@ -93,13 +93,13 @@ internal sealed class ResoniteLiveSendRunExecutor(
                     context.Endpoint,
                     context.ClientSession,
                     context.Diagnostics,
-                    context.ProgressReporter),
+                    context.Logger),
                 cancellationToken);
 
             LiveSendEnqueueContext enqueueContext = new(
                 context.ConnectionCount,
                 context.ClientSession.GetRequiredClient,
-                context.ProgressReporter);
+                context.Logger);
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
                 await ResoniteLiveSendQueue.QueueUnitAsync(
@@ -115,7 +115,7 @@ internal sealed class ResoniteLiveSendRunExecutor(
                     context.Endpoint,
                     enqueueContext,
                     context.Diagnostics,
-                    context.ProgressReporter),
+                    context.Logger),
                 cancellationToken);
             completedSuccessfully = true;
             return result;

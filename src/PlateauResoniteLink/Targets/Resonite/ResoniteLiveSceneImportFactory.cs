@@ -19,8 +19,10 @@ internal sealed class ResoniteLiveSceneImportFactory(
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
 
+        Microsoft.Extensions.Logging.ILogger diagnosticsLogger =
+            options.LoggerFactory.CreateLogger("PlateauResoniteLink.ResoniteLink");
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
-            ? ResoniteLinkSendDiagnostics.CreateEnabled(options.ProgressReporter)
+            ? ResoniteLinkSendDiagnostics.CreateEnabled(diagnosticsLogger)
             : ResoniteLinkSendDiagnostics.Disabled;
         ILiveSendClientSession clientSession = createClientSession(options, diagnostics);
         TerrainTextureAssetGenerator terrainTextureAssetGenerator = new(
@@ -28,8 +30,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
             options.TerrainTileCacheRoot,
             options.DisableTerrainTileCache);
         ResoniteLiveSendRunStarter runStarter = CreateRunStarter(terrainTextureAssetGenerator.EnsureTextureAsync);
-        ResoniteLiveSceneImportDependencies dependencies = CreateDependencies(clientSession, diagnostics, runStarter);
-        return new ResoniteLiveSceneImportTarget(options, dependencies);
+        return CreateTarget(options, clientSession, diagnostics, runStarter);
     }
 
     public ResoniteLiveSceneImportTarget CreateTarget(
@@ -44,8 +45,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
         ArgumentNullException.ThrowIfNull(generateTerrainTexture);
 
         ResoniteLiveSendRunStarter runStarter = CreateRunStarter(generateTerrainTexture);
-        ResoniteLiveSceneImportDependencies dependencies = CreateDependencies(clientSession, diagnostics, runStarter);
-        return new ResoniteLiveSceneImportTarget(options, dependencies);
+        return CreateTarget(options, clientSession, diagnostics, runStarter);
     }
 
     private ResoniteLiveSendRunStarter CreateRunStarter(GenerateTerrainTexture generateTerrainTexture)
@@ -67,16 +67,19 @@ internal sealed class ResoniteLiveSceneImportFactory(
             preparedCityObjectImporter);
     }
 
-    private ResoniteLiveSceneImportDependencies CreateDependencies(
+    private ResoniteLiveSceneImportTarget CreateTarget(
+        ResoniteLiveSceneImportTargetOptions options,
         ILiveSendClientSession clientSession,
         ResoniteLinkSendDiagnostics diagnostics,
         ResoniteLiveSendRunStarter runStarter)
     {
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clientSession);
         ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentNullException.ThrowIfNull(runStarter);
 
-        return new ResoniteLiveSceneImportDependencies(
+        return new ResoniteLiveSceneImportTarget(
+            options,
             clientSession,
             diagnostics,
             runExecutorFactory.Create(runStarter));

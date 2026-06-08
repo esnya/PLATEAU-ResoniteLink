@@ -62,9 +62,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 LoggerFactory: NullLoggerFactory.Instance),
-            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                new DelegatingClientSession(),
-                diagnostics,
+            new DelegatingClientSession(),
+            diagnostics,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
 
         Assert.Same(diagnostics, importTarget.Diagnostics);
@@ -326,9 +326,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 LoggerFactory: NullLoggerFactory.Instance),
-            ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                new DelegatingClientSession(),
-                diagnostics,
+            new DelegatingClientSession(),
+            diagnostics,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
     }
 
@@ -355,9 +355,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             LastGenerateTerrainTexture = generateTerrainTexture;
             return new ResoniteLiveSceneImportTarget(
                 options,
-                ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                    clientSession,
-                    diagnostics,
+                clientSession,
+                diagnostics,
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                     ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                         materialPlanning,
                         generateTerrainTexture: generateTerrainTexture)));

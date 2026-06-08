@@ -23,21 +23,23 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     internal ResoniteLiveSceneImportTarget(
         ResoniteLiveSceneImportTargetOptions options,
-        ResoniteLiveSceneImportDependencies dependencies)
+        ILiveSendClientSession clientSession,
+        ResoniteLinkSendDiagnostics diagnostics,
+        IResoniteLiveSendRunExecutor runExecutor)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(dependencies);
-        ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
-        ArgumentNullException.ThrowIfNull(dependencies.RunExecutor);
+        ArgumentNullException.ThrowIfNull(clientSession);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        ArgumentNullException.ThrowIfNull(runExecutor);
 
         endpoint = options.Endpoint;
         connectionCount = options.ConnectionCount;
         MemoryProfile = options.MemoryProfile;
-        Diagnostics = dependencies.Diagnostics;
+        Diagnostics = diagnostics;
         MeshBakeEnabled = options.EnableMeshBake;
         logger = options.LoggerFactory.CreateLogger("PlateauResoniteLink.LiveSend");
-        RunExecutor = dependencies.RunExecutor;
-        ClientSessionInternal = dependencies.ClientSession;
+        RunExecutor = runExecutor;
+        ClientSessionInternal = clientSession;
     }
 
     internal bool MeshBakeEnabled { get; }

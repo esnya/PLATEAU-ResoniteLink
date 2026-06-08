@@ -26,8 +26,8 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResonitePreparedCityObjectImporter>();
         services.TryAddScoped<Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession>>(provider =>
         {
-            Func<Action<string>?, IResoniteLinkClient> baseClientFactory =
-                provider.GetRequiredService<Func<Action<string>?, IResoniteLinkClient>>();
+            Func<Microsoft.Extensions.Logging.ILogger, IResoniteLinkClient> baseClientFactory =
+                provider.GetRequiredService<Func<Microsoft.Extensions.Logging.ILogger, IResoniteLinkClient>>();
 
             return (options, diagnostics) =>
             {
@@ -38,7 +38,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
                     options.Endpoint,
                     options.ConnectionCount,
                     diagnostics,
-                    options.ProgressReporter,
+                    options.LoggerFactory.CreateLogger("PlateauResoniteLink.ResoniteLink"),
                     baseClientFactory);
             };
         });
