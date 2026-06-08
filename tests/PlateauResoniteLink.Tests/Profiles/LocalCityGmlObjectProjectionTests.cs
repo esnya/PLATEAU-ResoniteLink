@@ -2790,14 +2790,51 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void DemTerrainGridModeSkipsSourceSurfaceOutsideActualThirdMeshBounds()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        ParsedSurface rawSurface = CreateParsedSurface(
+            "raw-dem-outside-actual-mesh",
+            ParsedSurfaceSemantic.Ground,
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 20.0, minRatio: 0.1, maxRatio: 0.9, reverseWinding: false),
+            texturePayload: null,
+            baseColor: new ColorRgba(0.4, 0.5, 0.3, 1.0));
+        ParsedCityObject cityObject = CreateParsedCityObject("dem", [rawSurface], referenceSystem) with
+        {
+            ActualMeshCode = "53394526",
+            SharedAcrossMeshCodes = true,
+        };
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394526",
+            CityGmlSource: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem"],
+            TerrainMeshMode: TerrainMeshMode.Grid,
+            TerrainGridMetersPerVertex: 100.0,
+            TerrainGridMaxResolution: 8);
+
+        ImportedCityObject[] projected = LocalCityGmlObjectProjection.ProjectParsedCityObject(
+            cityObject,
+            CreateMeshCenterPoint("53394526", altitudeMeters: 0.0),
+            globalCartesian: null,
+            demTerrainTextureOverlays: [],
+            requestedMeshCodeBounds: [MeshCodeBounds.Parse("53394526")],
+            terrainHeightSampler: null,
+            request,
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+
+        Assert.Empty(projected);
+    }
+
+    [Fact]
     public void DemTerrainDynamicModeKeepsMaterialBindingsCompatibleWithStaticMesh()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        GeodeticPoint origin = new(35.0, 139.0, 10.0);
+        GeodeticPoint origin = CreateMeshCenterPoint("53394525", 10.0);
         ParsedSurface validSurface = CreateParsedSurface(
             "valid-dem",
             ParsedSurfaceSemantic.Ground,
-            CreateHorizontalQuadVertices(origin, origin.Altitude, 10.0, reverseWinding: false),
+            CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 10.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: false),
             texturePayload: null,
             baseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0));
         ParsedSurface degenerateSurface = CreateParsedSurface(

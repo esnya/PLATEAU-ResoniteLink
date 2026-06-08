@@ -29,9 +29,11 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         IDefaultMaterialResolver materialResolver,
         Action<string>? progressReporter,
         CancellationToken cancellationToken,
+        out bool outsideSamplingBounds,
         out TerrainGridProjectedCityObject? heightMapCityObject)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        outsideSamplingBounds = false;
         heightMapCityObject = null;
 
         if (terrainGridSamplingSource.Surfaces.SelectMany(static surface => surface.Vertices).Take(3).Count() < 3)
@@ -68,14 +70,21 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             return false;
         }
 
-        DemTerrainGridBounds heightMapBounds = CreateDemTerrainGridBounds(
+        if (!TryCreateDemTerrainGridBounds(
             cityObject,
             slotPosition,
             globalOriginPoint,
             globalCartesian,
             demTerrainTextureOverlay,
             requestedMeshCodeBounds,
-            positions);
+            positions,
+            out DemTerrainGridBounds? heightMapBounds)
+            || heightMapBounds is null)
+        {
+            outsideSamplingBounds = true;
+            return false;
+        }
+
         double minX = heightMapBounds.MinX;
         double maxX = heightMapBounds.MaxX;
         double minZ = heightMapBounds.MinZ;
@@ -211,15 +220,17 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         return occupiedUvRect is { IsIdentity: true } ? null : occupiedUvRect;
     }
 
-    private static DemTerrainGridBounds CreateDemTerrainGridBounds(
+    private static bool TryCreateDemTerrainGridBounds(
         ConstructionCityObjectDraft cityObject,
         Float3 slotPosition,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
-        IReadOnlyList<Float3> positions)
+        IReadOnlyList<Float3> positions,
+        out DemTerrainGridBounds? bounds)
     {
+        bounds = null;
         double rawMinX = positions.Min(static position => position.X);
         double rawMaxX = positions.Max(static position => position.X);
         double rawMinZ = positions.Min(static position => position.Z);
@@ -247,10 +258,17 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
         if ((clippedMaxX - clippedMinX) <= 1e-6 || (clippedMaxZ - clippedMinZ) <= 1e-6)
         {
-            return new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ, clippedBounds);
+            if (cityObject.Source.SharedAcrossMeshCodes)
+            {
+                return false;
+            }
+
+            bounds = new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ, clippedBounds);
+            return true;
         }
 
-        return new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ, clippedBounds);
+        bounds = new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ, clippedBounds);
+        return true;
     }
 
     private static GeographicRectangle ResolveDemTerrainGridGeographicBounds(

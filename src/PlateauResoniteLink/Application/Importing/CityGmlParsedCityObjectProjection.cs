@@ -257,9 +257,15 @@ internal static class CityGmlParsedCityObjectProjection
             materialResolver,
             progressReporter,
             cancellationToken,
+            out bool outsideTerrainGridSamplingBounds,
             out TerrainGridProjectedCityObject? heightMapCityObject);
         if (!hasGrid)
         {
+            if (outsideTerrainGridSamplingBounds)
+            {
+                return CreateNonRenderableCityObject(cityObject);
+            }
+
             return request.TerrainMeshMode == TerrainMeshMode.Dynamic
                 ? CreateNonRenderableCityObject(cityObject)
                 : CityGmlTriangleMeshCityObjectProjection.Project(cityObject, globalOriginPoint, globalCartesian, demTerrainTextureOverlay, materialResolver);
