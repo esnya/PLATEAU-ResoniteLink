@@ -23,7 +23,7 @@ internal static class ResoniteLiveSendFinalizer
 
         LiveSendExecutionRuntime runtime = state.Runtime;
         LiveSendRunContext runContext = state.Context;
-        CompositeCityObjectBaker? cityObjectBaker = runContext.CityObjectBaker;
+        NonDemCityObjectBaker? cityObjectBaker = runContext.CityObjectBaker;
 
         if (cityObjectBaker is not null)
         {
@@ -71,14 +71,14 @@ internal static class ResoniteLiveSendFinalizer
 
     private static async Task FlushBufferedCityObjectsAsync(
         LiveSendRunState state,
-        CompositeCityObjectBaker cityObjectBaker,
+        NonDemCityObjectBaker cityObjectBaker,
         LiveSendFinalizationContext context,
         CancellationToken cancellationToken)
     {
-        (string Name, int InputCount, int OutputCount)[] pendingBakeSummaries = cityObjectBaker
-            .GetBakeSummaries()
-            .Where(static summary => summary.InputCount > 0)
-            .ToArray();
+        (string Name, int InputCount, int OutputCount) bakeSummary = cityObjectBaker.GetBakeSummary();
+        (string Name, int InputCount, int OutputCount)[] pendingBakeSummaries = bakeSummary.InputCount > 0
+            ? [bakeSummary]
+            : [];
         if (pendingBakeSummaries.Length > 0)
         {
             string summaryText = string.Join(
@@ -102,14 +102,15 @@ internal static class ResoniteLiveSendFinalizer
                 $"Buffered bake flush produced {bakedCityObjectCount} baked city objects "
                 + $"in {bakeFlushStopwatch.Elapsed.TotalSeconds:F3}s."));
 
-        foreach ((string name, int inputCount, int outputCount) in cityObjectBaker.GetBakeSummaries().Where(static summary => summary.OutputCount > 0))
+        bakeSummary = cityObjectBaker.GetBakeSummary();
+        if (bakeSummary.OutputCount > 0)
         {
             ReportProgress(
                 context,
                 PlateauLog.Debug(
                     "live",
-                    $"{name} batched {inputCount} input city objects "
-                    + $"into {outputCount} baked batch objects."));
+                    $"{bakeSummary.Name} batched {bakeSummary.InputCount} input city objects "
+                    + $"into {bakeSummary.OutputCount} baked batch objects."));
         }
     }
 
