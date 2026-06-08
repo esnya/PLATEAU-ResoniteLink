@@ -150,7 +150,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         public IImportedSceneSource Compose(
             ResolvedLocalPlateauImportRequest request,
             ImportedSceneSourceSnapshot readResult,
-            IImportedObjectUnitOptimizer objectUnitOptimizer,
+            ImportedObjectUnitOptimizer objectUnitOptimizer,
             Action<string>? progressReporter = null)
         {
             LastRequest = request;

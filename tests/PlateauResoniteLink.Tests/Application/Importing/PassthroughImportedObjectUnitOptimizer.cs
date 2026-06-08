@@ -6,9 +6,9 @@ using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Application.Importing;
 
-internal sealed class PassthroughImportedObjectUnitOptimizer : IImportedObjectUnitOptimizer
+internal static class PassthroughImportedObjectUnitOptimizer
 {
-    public async IAsyncEnumerable<ImportedObjectUnit> OptimizeAsync(
+    public static async IAsyncEnumerable<ImportedObjectUnit> OptimizeAsync(
         IAsyncEnumerable<ImportedObjectUnit> objectUnits,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {

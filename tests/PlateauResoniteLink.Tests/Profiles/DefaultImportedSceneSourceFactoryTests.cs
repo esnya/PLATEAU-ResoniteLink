@@ -17,7 +17,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
     {
         RecordingDocumentReader reader = new();
         RecordingComposer composer = new(new StubImportedSceneSource());
-        PassthroughImportedObjectUnitOptimizer optimizer = new();
+        ImportedObjectUnitOptimizer optimizer = PassthroughImportedObjectUnitOptimizer.OptimizeAsync;
 
         Assert.Throws<ArgumentNullException>(
             "documentReader",
@@ -39,7 +39,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         DefaultImportedSceneSourceFactory factory = new(
             reader,
             composer,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         Action<string> progressReporter = _ => { };
 
         ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create();
@@ -72,7 +72,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         DefaultImportedSceneSourceFactory factory = new(
             reader,
             composer,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
             packageNames: ["dem"]);
 
@@ -114,7 +114,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         DefaultImportedSceneSourceFactory factory = new(
             reader,
             composer,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
             packageNames: ["dem"],
             demTextureLocalSourcePath: "C:\\ortho\\53394525.tif");
@@ -171,7 +171,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         public IImportedSceneSource Compose(
             ResolvedLocalPlateauImportRequest request,
             ImportedSceneSourceSnapshot readResult,
-            IImportedObjectUnitOptimizer objectUnitOptimizer,
+            ImportedObjectUnitOptimizer objectUnitOptimizer,
             Action<string>? progressReporter = null)
         {
             LastRequest = request;
