@@ -15,12 +15,17 @@ public sealed class ImportServiceFactoryTests
     [Fact]
     public async Task CreateBuildsRunScopedServicesAndPassesTargetOptionsThrough()
     {
-        StubPlateauDatasetSourceResolverFactory datasetResolverFactory = new();
+        List<StubPlateauDatasetSourceResolver> createdResolvers = [];
         StubSceneSinkFactory sceneImportTargetFactory = new();
         StubImportedSceneSourceFactory importedSceneSourceFactory = new();
         IArchiveFileLayoutPolicy archiveFileLayoutPolicy = new ArchiveFileLayoutPolicy();
         DefaultImportServiceFactory factory = new(
-            datasetResolverFactory,
+            () =>
+            {
+                StubPlateauDatasetSourceResolver resolver = new();
+                createdResolvers.Add(resolver);
+                return resolver;
+            },
             sceneImportTargetFactory,
             importedSceneSourceFactory,
             CommonMaterialCatalog.Create(),
@@ -33,7 +38,7 @@ public sealed class ImportServiceFactoryTests
         PlateauImportService secondService = factory.Create(secondOptions, progressReporter: null);
 
         Assert.NotSame(firstService, secondService);
-        Assert.Equal(2, datasetResolverFactory.CreatedResolvers.Count);
+        Assert.Equal(2, createdResolvers.Count);
         Assert.Equal(2, sceneImportTargetFactory.CreatedTargets.Count);
         Assert.Equal([firstOptions, secondOptions], sceneImportTargetFactory.CapturedOptions);
 
@@ -65,18 +70,6 @@ public sealed class ImportServiceFactoryTests
             CanonicalSceneDumpPath: null,
             EnableSendMetrics: false,
             VerboseLogging: false);
-    }
-
-    private sealed class StubPlateauDatasetSourceResolverFactory : IPlateauDatasetSourceResolverFactory
-    {
-        public List<StubPlateauDatasetSourceResolver> CreatedResolvers { get; } = [];
-
-        public IPlateauDatasetSourceResolver Create()
-        {
-            StubPlateauDatasetSourceResolver resolver = new();
-            CreatedResolvers.Add(resolver);
-            return resolver;
-        }
     }
 
     private sealed class StubPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
