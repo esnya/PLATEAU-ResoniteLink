@@ -46,12 +46,7 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
         services.TryAddSingleton<IDefaultMaterialResolver, DefaultMaterialResolver>();
         services.TryAddSingleton<ICityGmlGeometryProjector, LocalCityGmlGeometryProjector>();
-        services.TryAddSingleton<ImportedDynamicMaterialUvUnitOptimizer>();
-        services.TryAddSingleton<IImportedObjectUnitOptimizer>(provider =>
-            new CompositeImportedObjectUnitOptimizer(
-                [
-                    provider.GetRequiredService<ImportedDynamicMaterialUvUnitOptimizer>(),
-                ]));
+        services.TryAddSingleton<IImportedObjectUnitOptimizer, ImportedDynamicMaterialUvUnitOptimizer>();
         services.TryAddSingleton<IImportedSceneSourceComposer>(provider =>
             new DefaultImportedSceneSourceComposer(
                 provider.GetRequiredService<ICityGmlGeometryProjector>(),
