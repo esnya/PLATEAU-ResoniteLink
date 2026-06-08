@@ -82,7 +82,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             [],
             progressReporter: null,
             new LodFilteringStrategy(),
-            new CityGmlAppearanceStoreFactory(),
+            CityGmlAppearanceStore.Create,
             new CityGmlLodSelector(),
             CancellationToken.None);
 
@@ -337,7 +337,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             [],
             progressReporter: null,
             new LodFilteringStrategy(),
-            new CityGmlAppearanceStoreFactory(),
+            CityGmlAppearanceStore.Create,
             new CityGmlLodSelector(),
             CancellationToken.None);
 
@@ -460,7 +460,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             [],
             progressReporter: null,
             new LodFilteringStrategy(),
-            new CityGmlAppearanceStoreFactory(),
+            CityGmlAppearanceStore.Create,
             new CityGmlLodSelector(),
             CancellationToken.None);
 
@@ -523,7 +523,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             [],
             progressReporter: null,
             new LodFilteringStrategy(),
-            new CityGmlAppearanceStoreFactory(),
+            CityGmlAppearanceStore.Create,
             new CityGmlLodSelector(),
             CancellationToken.None);
 

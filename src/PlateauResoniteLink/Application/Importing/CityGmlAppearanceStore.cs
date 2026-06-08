@@ -26,6 +26,15 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
         this.datasetSource = datasetSource;
     }
 
+    internal static ICityGmlAppearanceStore Create(
+        string sourceFileRelativePath,
+        IPlateauDatasetContentSource datasetSource)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceFileRelativePath);
+        ArgumentNullException.ThrowIfNull(datasetSource);
+        return new CityGmlAppearanceStore(sourceFileRelativePath, datasetSource);
+    }
+
     public void LoadFromDocument(XDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
