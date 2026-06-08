@@ -267,7 +267,7 @@ internal static class LocalCityGmlSourceFileParser
             using XmlReader subtreeReader = reader.ReadSubtree();
             XElement cityObjectMember = await XElement.LoadAsync(subtreeReader, LoadOptions.None, cancellationToken);
             global::PlateauResoniteLink.Application.Importing.ParsedCityObject? cityObject =
-                CityGmlSourceFileCityObjectProjection.Parse(
+                ParseCityObjectMember(
                     cityObjectMember,
                     sourceFile,
                     requestedMeshAreas,
@@ -310,7 +310,7 @@ internal static class LocalCityGmlSourceFileParser
         {
             cancellationToken.ThrowIfCancellationRequested();
             global::PlateauResoniteLink.Application.Importing.ParsedCityObject? cityObject =
-                CityGmlSourceFileCityObjectProjection.Parse(
+                ParseCityObjectMember(
                     cityObjectMember,
                     sourceFile,
                     requestedMeshAreas,
@@ -325,4 +325,31 @@ internal static class LocalCityGmlSourceFileParser
         }
     }
 
+    private static global::PlateauResoniteLink.Application.Importing.ParsedCityObject? ParseCityObjectMember(
+        XElement cityObjectMember,
+        global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        CityGmlAppearanceStore appearanceStore,
+        CoordinateReferenceSystem coordinateReferenceSystem,
+        LodFilteringStrategy lodFilteringStrategy,
+        SelectCityGmlLod selectLod)
+    {
+        XElement? cityObjectElement = cityObjectMember.Elements().FirstOrDefault();
+        if (cityObjectElement is null)
+        {
+            return null;
+        }
+
+        return CityGmlParsedCityObjectReader.Parse(
+            cityObjectElement,
+            sourceFile.PackageName,
+            sourceFile.RelativePath,
+            sourceFile.MatchedMeshCode,
+            sourceFile.RequiresMeshCodeBoundsFilter,
+            appearanceStore,
+            coordinateReferenceSystem,
+            sourceFile.RequiresMeshCodeBoundsFilter ? requestedMeshAreas : [],
+            lodFilteringStrategy,
+            selectLod);
+    }
 }
