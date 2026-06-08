@@ -25,6 +25,11 @@ This repository builds a .NET 10 CLI-first import pipeline that maps PLATEAU dat
 - Do not introduce new broad behavior-oriented types such as `Builder`, `Manager`, `Coordinator`, `Helper`, or `Util` unless the user explicitly requests that pattern.
 - Prefer deterministic outputs, explicit command inputs, and reproducible local/CI behavior.
 - Add or update automated tests when behavior changes.
+- For regression fixes, define the expected observable contract and the counterexamples or observation points that could disprove the proposed cause before treating the fix as complete.
+- Under limited information, do not lock onto a single hypothesis. First create observations, tests, or comparisons that can fail that hypothesis, and make only changes that stay valid across plausible interpretations.
+- When multiple execution paths emit the same concept, enforce a shared contract and compare equivalent outputs instead of adding path-specific compensation.
+- If an output cannot be inspected through the normal UI or external target surface, add a boundary-adapter recording, dump, or readback artifact that can inspect the actual emitted payload and use it in the completion criteria.
+- Do not treat green tests, CI, or review approval alone as proof that a regression is fixed. Confirm that the observation artifacts relevant to the failure mode satisfy the expected contract.
 - Do not treat grep-based architecture or naming tests as the canonical boundary guard. Keep naming and ownership rules here, enforce dependency direction with project references, and cover only observable behavior with automated tests.
 - Keep dependency injection flowing through the full stack. Core, application, import, bootstrap, target, and transport code must not hide concrete defaults behind `new`, static factories, or fallback self-wiring.
 - Keep legacy conversions and static projection helpers in adapter-edge code only. Core concepts and neutral contracts must not depend on `ToLegacy`, `FromLegacy`, or target-specific mapper utilities.
