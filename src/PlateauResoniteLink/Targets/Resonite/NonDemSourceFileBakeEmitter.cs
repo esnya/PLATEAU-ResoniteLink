@@ -9,7 +9,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed class NonDemSourceFileBakeEmitter(
     NonDemCityObjectBakeCandidateFactory candidateFactory,
     NonDemCityObjectBakeAssembler assembler,
-    NonDemAtlasBatchFitPolicy batchFitPolicy) : INonDemSourceFileBakeEmitter
+    NonDemAtlasBatchFitPolicy batchFitPolicy)
 {
     private readonly NonDemCityObjectBakeCandidateFactory candidateFactory = candidateFactory
         ?? throw new ArgumentNullException(nameof(candidateFactory));

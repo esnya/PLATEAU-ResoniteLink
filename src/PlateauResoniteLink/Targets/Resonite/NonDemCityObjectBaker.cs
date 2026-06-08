@@ -7,12 +7,12 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemCityObjectBaker(
     NonDemCityObjectBakePolicyResolver bakePolicyResolver,
-    INonDemSourceFileBakeEmitter sourceFileBakeEmitter)
+    NonDemSourceFileBakeEmitter sourceFileBakeEmitter)
 {
     private readonly NonDemSourceFileBakeBuffer sourceFileBuffer = new();
     private readonly NonDemCityObjectBakePolicyResolver bakePolicyResolver = bakePolicyResolver
         ?? throw new ArgumentNullException(nameof(bakePolicyResolver));
-    private readonly INonDemSourceFileBakeEmitter sourceFileBakeEmitter = sourceFileBakeEmitter
+    private readonly NonDemSourceFileBakeEmitter sourceFileBakeEmitter = sourceFileBakeEmitter
         ?? throw new ArgumentNullException(nameof(sourceFileBakeEmitter));
 
     public static string Name => "AtlasBake";
