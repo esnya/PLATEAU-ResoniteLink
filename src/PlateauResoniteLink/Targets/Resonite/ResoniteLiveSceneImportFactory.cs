@@ -19,7 +19,7 @@ internal interface IResoniteLiveSceneImportFactory
 }
 
 internal sealed class ResoniteLiveSceneImportFactory(
-    IResoniteClientSessionFactory clientSessionFactory,
+    Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession> createClientSession,
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
     NonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory,
     ResonitePreparedCityObjectImporter preparedCityObjectImporter) : IResoniteLiveSceneImportFactory
@@ -34,7 +34,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(options.ProgressReporter)
             : ResoniteLinkSendDiagnostics.Disabled;
-        ILiveSendClientSession clientSession = clientSessionFactory.Create(options, diagnostics);
+        ILiveSendClientSession clientSession = createClientSession(options, diagnostics);
         ITerrainTextureAssetGenerator terrainTextureAssetGenerator = new TerrainTextureAssetGenerator(
             terrainTextureAssetHttpClient,
             options.TerrainTileCacheRoot,

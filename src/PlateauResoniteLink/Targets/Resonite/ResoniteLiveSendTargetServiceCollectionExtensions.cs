@@ -24,7 +24,24 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteCommonMaterialSetupPreparer>();
         services.TryAddScoped<ResoniteLiveSendRunSetupPreparer>();
         services.TryAddScoped<ResonitePreparedCityObjectImporter>();
-        services.TryAddScoped<IResoniteClientSessionFactory, ResoniteLinkClientSessionFactory>();
+        services.TryAddScoped<Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession>>(provider =>
+        {
+            Func<Action<string>?, IResoniteLinkClient> baseClientFactory =
+                provider.GetRequiredService<Func<Action<string>?, IResoniteLinkClient>>();
+
+            return (options, diagnostics) =>
+            {
+                ArgumentNullException.ThrowIfNull(options);
+                ArgumentNullException.ThrowIfNull(diagnostics);
+
+                return ResoniteLinkTransportSessionFactory.Create(
+                    options.Endpoint,
+                    options.ConnectionCount,
+                    diagnostics,
+                    options.ProgressReporter,
+                    baseClientFactory);
+            };
+        });
         services.TryAddScoped<IResoniteSceneSetupInterpreter, ResoniteSceneSetupInterpreter>();
         services.TryAddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
 
