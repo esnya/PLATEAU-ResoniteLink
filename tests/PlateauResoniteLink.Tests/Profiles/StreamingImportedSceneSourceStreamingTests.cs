@@ -198,7 +198,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             readResult,
             geometryProjector,
             new StubDemTextureSourcePolicy(),
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         List<ImportedCityObject> yieldedObjects = [];
         Task collectTask = Task.Run(
             async () =>
@@ -323,7 +323,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             readResult,
             geometryProjector ?? new RecordingGeometryProjector(),
             new StubDemTextureSourcePolicy(),
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
     }
 
     private sealed class StubDemTextureSourcePolicy : IDemTextureSourcePolicy

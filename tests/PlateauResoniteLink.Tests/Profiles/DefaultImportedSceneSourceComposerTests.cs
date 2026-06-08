@@ -45,7 +45,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
         IImportedSceneSource source = composer.Compose(
             request,
             readResult,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
@@ -96,7 +96,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
         IImportedSceneSource source = composer.Compose(
             request,
             readResult,
-            new PassthroughImportedObjectUnitOptimizer());
+            PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         IImportedSceneSourcePreflight preflight = Assert.IsAssignableFrom<IImportedSceneSourcePreflight>(source);
         await preflight.ValidateBeforeSinkSetupAsync();

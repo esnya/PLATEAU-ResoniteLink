@@ -22,7 +22,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private readonly SourceFilePipeline[] sourceFiles;
     private readonly GeodeticPoint globalOriginPoint;
     private readonly ICityGmlGeometryProjector geometryProjector;
-    private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
+    private readonly ImportedObjectUnitOptimizer objectUnitOptimizer;
     private readonly ProjectionTerrainOverlayContextResolver terrainOverlayContextResolver;
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
@@ -37,7 +37,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         ImportedSceneSourceSnapshot readResult,
         ICityGmlGeometryProjector geometryProjector,
         IDemTextureSourcePolicy demTextureSourcePolicy,
-        IImportedObjectUnitOptimizer objectUnitOptimizer,
+        ImportedObjectUnitOptimizer objectUnitOptimizer,
         Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(metadata);
@@ -142,7 +142,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
 
         int yieldedCount = 0;
         int yieldedUnitCount = 0;
-        await foreach (ImportedObjectUnit objectUnit in objectUnitOptimizer.OptimizeAsync(
+        await foreach (ImportedObjectUnit objectUnit in objectUnitOptimizer(
                            CreateObjectUnitsAsync(sourceFile, cancellationToken),
                            cancellationToken))
         {

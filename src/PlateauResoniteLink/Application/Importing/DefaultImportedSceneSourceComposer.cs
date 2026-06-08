@@ -17,7 +17,7 @@ internal sealed class DefaultImportedSceneSourceComposer(
     public IImportedSceneSource Compose(
         ResolvedLocalPlateauImportRequest request,
         ImportedSceneSourceSnapshot readResult,
-        IImportedObjectUnitOptimizer objectUnitOptimizer,
+        ImportedObjectUnitOptimizer objectUnitOptimizer,
         Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(request);
