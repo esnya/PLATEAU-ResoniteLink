@@ -28,7 +28,7 @@ public sealed class CliHostFactoryTests
     {
         using IHost host = CliHostFactory.Create([]);
         using IServiceScope scope = host.Services.CreateScope();
-        IResoniteLiveSceneImportFactory factory = scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
+        ResoniteLiveSceneImportFactory factory = scope.ServiceProvider.GetRequiredService<ResoniteLiveSceneImportFactory>();
         using HttpClient terrainTextureAssetHttpClient = new();
         await using ResoniteLiveSceneImportTarget importTarget = factory.CreateTarget(
             new ResoniteLiveSceneImportTargetOptions(
