@@ -47,9 +47,6 @@ internal static class CliServiceCollectionExtensions
         services.AddResoniteLiveSendTargetServices();
 
         services.AddSingleton<DatasetInspectionService>();
-        services.AddSingleton<DefaultImportServiceFactory>();
-        services.AddSingleton<Func<ImportCommandOptions, Action<string>?, PlateauImportService>>(_ =>
-            _.GetRequiredService<DefaultImportServiceFactory>().Create);
         services.AddSingleton<Func<IPlateauDatasetSourceResolver>>(_ =>
             () => new CkanPlateauDatasetSourceResolver(
                 _.GetRequiredService<IHttpClientFactory>().CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName),
@@ -58,6 +55,28 @@ internal static class CliServiceCollectionExtensions
         services.AddSingleton<DefaultSceneSinkFactory>();
         services.AddSingleton<Func<ImportCommandOptions, Action<string>?, ISceneSink>>(_ =>
             _.GetRequiredService<DefaultSceneSinkFactory>().Create);
+        services.AddSingleton<Func<ImportCommandOptions, Action<string>?, PlateauImportService>>(_ =>
+        {
+            Func<IPlateauDatasetSourceResolver> createDatasetSourceResolver =
+                _.GetRequiredService<Func<IPlateauDatasetSourceResolver>>();
+            Func<ImportCommandOptions, Action<string>?, ISceneSink> createSceneSink =
+                _.GetRequiredService<Func<ImportCommandOptions, Action<string>?, ISceneSink>>();
+            IImportedSceneSourceFactory importedSceneSourceFactory =
+                _.GetRequiredService<IImportedSceneSourceFactory>();
+            CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
+                _.GetRequiredService<CommonMaterialCatalog<DefaultCommonMaterialMember>>();
+            IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
+                _.GetRequiredService<IArchiveFileLayoutPolicy>();
+
+            return (options, progressReporter) => CliServiceCollectionExtensions.CreateImportService(
+                createDatasetSourceResolver,
+                createSceneSink,
+                importedSceneSourceFactory,
+                commonMaterials,
+                archiveFileLayoutPolicy,
+                options,
+                progressReporter);
+        });
         services.AddSingleton<CliApplication>(_ => new CliApplication(
             standardOutput,
             standardError,
@@ -66,20 +85,19 @@ internal static class CliServiceCollectionExtensions
 
         return services;
     }
-}
 
-internal sealed class DefaultImportServiceFactory(
-    Func<IPlateauDatasetSourceResolver> createDatasetSourceResolver,
-    Func<ImportCommandOptions, Action<string>?, ISceneSink> createSceneSink,
-    IImportedSceneSourceFactory importedSceneSourceFactory,
-    CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
-    IArchiveFileLayoutPolicy archiveFileLayoutPolicy)
-{
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "PlateauImportService owns the target lifetime and disposes it after each execution.")]
-    public PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter)
+    internal static PlateauImportService CreateImportService(
+        Func<IPlateauDatasetSourceResolver> createDatasetSourceResolver,
+        Func<ImportCommandOptions, Action<string>?, ISceneSink> createSceneSink,
+        IImportedSceneSourceFactory importedSceneSourceFactory,
+        CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
+        IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
+        ImportCommandOptions options,
+        Action<string>? progressReporter)
     {
         ArgumentNullException.ThrowIfNull(options);
 
