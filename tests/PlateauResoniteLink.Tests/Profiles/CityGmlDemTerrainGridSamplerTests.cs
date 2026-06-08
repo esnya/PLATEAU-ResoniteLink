@@ -80,6 +80,78 @@ public sealed class CityGmlDemTerrainGridSamplerTests
     }
 
     [Fact]
+    public void SampleUsesNearbyBoundaryTriangleWhenProjectionDriftLeavesSubMeterGap()
+    {
+        TerrainGridTriangle[] triangles =
+        [
+            new(
+                new Float3(0.0, 10.0, 0.0),
+                new Float3(1.95, 20.0, 0.0),
+                new Float3(0.0, 30.0, 2.0)),
+            new(
+                new Float3(1.95, 20.0, 0.0),
+                new Float3(1.95, 40.0, 2.0),
+                new Float3(0.0, 30.0, 2.0)),
+        ];
+
+        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+            minX: 0.0,
+            maxX: 2.0,
+            minZ: 0.0,
+            maxZ: 2.0,
+            metersPerVertex: 1.0,
+            maxResolution: 3,
+            fallbackHeight: -100.0,
+            triangles);
+
+        Assert.Equal(TerrainGridSampleCoverage.Measured, samples.SampleCoverage[2]);
+        Assert.Equal(TerrainGridSampleCoverage.Measured, samples.SampleCoverage[5]);
+        Assert.Equal(TerrainGridSampleCoverage.Measured, samples.SampleCoverage[8]);
+        Assert.DoesNotContain(samples.LocalHeights, sample => Math.Abs(sample - -100.0) <= 1e-6);
+    }
+
+    [Fact]
+    public void SampleUsesNearbyBoundaryTriangleAcrossSpatialIndexCellBoundary()
+    {
+        List<TerrainGridTriangle> triangles = [];
+        for (int yIndex = 0; yIndex < 10; yIndex++)
+        {
+            for (int xIndex = 0; xIndex < 10; xIndex++)
+            {
+                double minX = xIndex;
+                double minZ = 10.0 + yIndex;
+                triangles.Add(new TerrainGridTriangle(
+                    new Float3(minX, 1.0, minZ),
+                    new Float3(minX + 0.25, 1.0, minZ),
+                    new Float3(minX, 1.0, minZ + 0.25)));
+            }
+        }
+
+        triangles.Add(new TerrainGridTriangle(
+            new Float3(0.0, 20.0, 0.0),
+            new Float3(4.95, 20.0, 0.0),
+            new Float3(0.0, 20.0, 1.0)));
+        triangles.Add(new TerrainGridTriangle(
+            new Float3(4.95, 20.0, 0.0),
+            new Float3(4.95, 20.0, 1.0),
+            new Float3(0.0, 20.0, 1.0)));
+
+        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+            minX: 0.0,
+            maxX: 10.0,
+            minZ: -1.0,
+            maxZ: 1.0,
+            metersPerVertex: 1.0,
+            maxResolution: 11,
+            fallbackHeight: -100.0,
+            triangles);
+
+        int centerBoundarySampleIndex = samples.Width + 5;
+        Assert.Equal(TerrainGridSampleCoverage.Measured, samples.SampleCoverage[centerBoundarySampleIndex]);
+        Assert.Equal(20.0, samples.LocalHeights[centerBoundarySampleIndex], precision: 6);
+    }
+
+    [Fact]
     public void SampleKeepsSurfaceMissingSamplesAtSeaLevelWithCoverage()
     {
         TerrainGridTriangle[] triangles =
@@ -138,6 +210,34 @@ public sealed class CityGmlDemTerrainGridSamplerTests
     }
 
     [Fact]
+    public void SampleUsesFallbackHeightProviderAtEachMissingSample()
+    {
+        TerrainGridTriangle[] triangles =
+        [
+            new(
+                new Float3(0.0, 10.0, 0.0),
+                new Float3(1.0, 20.0, 0.0),
+                new Float3(0.0, 30.0, 1.0)),
+        ];
+
+        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+            minX: 0.0,
+            maxX: 2.0,
+            minZ: 0.0,
+            maxZ: 2.0,
+            metersPerVertex: 1.0,
+            maxResolution: 3,
+            fallbackHeight: -100.0,
+            triangles,
+            fallbackHeightProvider: static (x, z) => 1000.0 + (10.0 * x) + z);
+
+        Assert.Equal(TerrainGridSampleCoverage.Measured, samples.SampleCoverage[0]);
+        Assert.Equal(TerrainGridSampleCoverage.NoSurface, samples.SampleCoverage[8]);
+        Assert.Equal(10.0, samples.LocalHeights[0], precision: 6);
+        Assert.Equal(1022.0, samples.LocalHeights[8], precision: 6);
+    }
+
+    [Fact]
     public void SampleHonorsCancellationAfterSamplingBeforeBoundaryFill()
     {
         using CancellationTokenSource cancellation = new();
@@ -159,7 +259,7 @@ public sealed class CityGmlDemTerrainGridSamplerTests
                 maxResolution: 3,
                 fallbackHeight: -100.0,
                 triangles,
-                cancellation.Token));
+                cancellationToken: cancellation.Token));
     }
 
     private sealed class CancelingTriangleList(

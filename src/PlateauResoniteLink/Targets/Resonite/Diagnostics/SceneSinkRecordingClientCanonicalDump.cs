@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -20,7 +21,9 @@ internal static class SceneSinkRecordingClientCanonicalDump
         WriteIndented = true,
     };
 
-    public static string CreateCanonicalJson(SceneSinkRecordingClient client)
+    public static string CreateCanonicalJson(
+        SceneSinkRecordingClient client,
+        IReadOnlyList<ImportedObjectUnit>? objectUnits = null)
     {
         ArgumentNullException.ThrowIfNull(client);
 
@@ -29,9 +32,421 @@ internal static class SceneSinkRecordingClientCanonicalDump
         {
             ["root"] = CreateSlotNode(context, "Root"),
             ["imports"] = CreateImportNode(client),
+            ["emittedTerrainGrids"] = CreateEmittedTerrainGridNodes(client),
         };
+        JsonArray objectNodes = CreateImportedObjectNode(objectUnits);
+        if (objectNodes.Count > 0)
+        {
+            root["objects"] = objectNodes;
+        }
 
         return root.ToJsonString(JsonOptions).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
+    }
+
+    private static JsonArray CreateImportedObjectNode(IReadOnlyList<ImportedObjectUnit>? objectUnits)
+    {
+        JsonArray objects = [];
+        if (objectUnits is null)
+        {
+            return objects;
+        }
+
+        List<JsonObject> objectNodes = [];
+        foreach (ImportedObjectUnit objectUnit in objectUnits)
+        {
+            foreach (ImportedCityObject cityObject in objectUnit.CityObjects)
+            {
+                JsonObject node = new()
+                {
+                    ["sourceFileRelativePath"] = objectUnit.Descriptor.SourceFileRelativePath,
+                    ["sourceFileRootMeshCode"] = cityObject.SourceFileRootMeshCode,
+                    ["matchedMeshCode"] = objectUnit.Descriptor.MatchedMeshCode,
+                    ["objectKey"] = cityObject.ObjectKey,
+                    ["displayName"] = cityObject.DisplayName,
+                    ["packageName"] = cityObject.PackageName,
+                    ["actualMeshCode"] = cityObject.ActualMeshCode,
+                    ["geometryKind"] = GetGeometryKind(cityObject.Geometry),
+                    ["transformPosition"] = CreateVector3Node(
+                        cityObject.Transform.Position.X,
+                        cityObject.Transform.Position.Y,
+                        cityObject.Transform.Position.Z),
+                };
+                JsonObject? terrainGridSummary = cityObject.Geometry switch
+                {
+                    TerrainGridGeometry terrainGrid => CreateTerrainGridSummaryNode(cityObject.Transform, terrainGrid),
+                    DynamicTerrainGeometry dynamicTerrain => CreateTerrainGridSummaryNode(cityObject.Transform, dynamicTerrain.GridMesh),
+                    _ => null,
+                };
+                if (terrainGridSummary is not null)
+                {
+                    node["terrainGridSummary"] = terrainGridSummary;
+                }
+
+                JsonObject? triangleMeshVertexSummary = cityObject.Geometry switch
+                {
+                    TriangleMeshGeometry triangleMesh => CreateTriangleMeshWorldVertexSummaryNode(cityObject.Transform, triangleMesh.Mesh),
+                    DynamicTerrainGeometry dynamicTerrain => CreateTriangleMeshWorldVertexSummaryNode(cityObject.Transform, dynamicTerrain.StaticMesh.Mesh),
+                    _ => null,
+                };
+                if (triangleMeshVertexSummary is not null)
+                {
+                    node["triangleMeshWorldVertexSummary"] = triangleMeshVertexSummary;
+                }
+
+                JsonObject? terrainGridStaticMeshFootprintSummary = cityObject.Geometry switch
+                {
+                    DynamicTerrainGeometry dynamicTerrain => CreateTerrainGridStaticMeshFootprintSummaryNode(dynamicTerrain),
+                    _ => null,
+                };
+                if (terrainGridStaticMeshFootprintSummary is not null)
+                {
+                    node["terrainGridStaticMeshFootprintSummary"] = terrainGridStaticMeshFootprintSummary;
+                }
+
+                objectNodes.Add(node);
+            }
+        }
+
+        foreach (JsonObject objectNode in objectNodes.OrderBy(static node => CreateImportedObjectSortKey(node), StringComparer.Ordinal))
+        {
+            objects.Add(objectNode);
+        }
+
+        return objects;
+    }
+
+    private static JsonArray CreateEmittedTerrainGridNodes(SceneSinkRecordingClient client)
+    {
+        JsonArray nodes = [];
+        List<JsonObject> gridNodes = [];
+        foreach ((string componentId, Component component) in client.ComponentsById.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+        {
+            if (!string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal)
+                || !TryCreateEmittedTerrainGridNode(client, componentId, component, out JsonObject? node)
+                || node is null)
+            {
+                continue;
+            }
+
+            gridNodes.Add(node);
+        }
+
+        foreach (JsonObject gridNode in gridNodes.OrderBy(static node => (string?)node["slotPath"], StringComparer.Ordinal))
+        {
+            nodes.Add(gridNode);
+        }
+
+        return nodes;
+    }
+
+    private static bool TryCreateEmittedTerrainGridNode(
+        SceneSinkRecordingClient client,
+        string componentId,
+        Component component,
+        out JsonObject? node)
+    {
+        node = null;
+        if (!TryGetGridMeshContainerSlot(client, componentId, out string? slotId)
+            || slotId is null
+            || !TryReadGridMeshMembers(component, out int2 points, out float2 size, out float displacementMagnitude, out floatQ rotation, out string? textureComponentId)
+            || textureComponentId is null
+            || !TryResolveHdrTexturePayload(client, textureComponentId, out RgbaFloat32RawTexturePayload? texture)
+            || texture is null)
+        {
+            return false;
+        }
+
+        ResoniteFloat3 slotWorldPosition = ResolveSlotWorldPosition(client, slotId);
+        WorldVertexSummary summary = new();
+        WorldVertexSummary westEdgeSummary = new();
+        WorldVertexSummary eastEdgeSummary = new();
+        WorldVertexSummary southEdgeSummary = new();
+        WorldVertexSummary northEdgeSummary = new();
+        List<double> westEdgeHeights = [];
+        List<double> eastEdgeHeights = [];
+        List<double> southEdgeHeights = [];
+        List<double> northEdgeHeights = [];
+        int width = Math.Min(points.x, texture.Width);
+        int height = Math.Min(points.y, texture.Height);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                double u = width == 1 ? 0.0 : (double)x / (width - 1);
+                double v = height == 1 ? 0.0 : (double)y / (height - 1);
+                double localX = (-size.x / 2.0) + (size.x * u);
+                double localY = (-size.y / 2.0) + (size.y * v);
+                double sampledDisplacement = ReadGridMeshDisplacement(texture, x, y) * displacementMagnitude;
+                Float3 rotated = Rotate(new Float3(localX, localY, sampledDisplacement), rotation);
+                double worldX = slotWorldPosition.X + rotated.X;
+                double worldY = slotWorldPosition.Y + rotated.Y;
+                double worldZ = slotWorldPosition.Z + rotated.Z;
+                summary.Add(worldX, worldY, worldZ);
+                if (x == 0)
+                {
+                    westEdgeSummary.Add(worldX, worldY, worldZ);
+                    westEdgeHeights.Add(worldY);
+                }
+
+                if (x == width - 1)
+                {
+                    eastEdgeSummary.Add(worldX, worldY, worldZ);
+                    eastEdgeHeights.Add(worldY);
+                }
+
+                if (y == 0)
+                {
+                    southEdgeSummary.Add(worldX, worldY, worldZ);
+                    southEdgeHeights.Add(worldY);
+                }
+
+                if (y == height - 1)
+                {
+                    northEdgeSummary.Add(worldX, worldY, worldZ);
+                    northEdgeHeights.Add(worldY);
+                }
+            }
+        }
+
+        string slotPath = client.SlotPaths.TryGetValue(slotId, out string? resolvedPath) ? resolvedPath : slotId;
+        node = new JsonObject
+        {
+            ["componentId"] = componentId,
+            ["slotPath"] = slotPath,
+            ["slotWorldPosition"] = CreateVector3Node(slotWorldPosition.X, slotWorldPosition.Y, slotWorldPosition.Z),
+            ["points"] = new JsonObject
+            {
+                ["x"] = points.x,
+                ["y"] = points.y,
+            },
+            ["size"] = CreateVector2Node(size.x, size.y),
+            ["displacementMagnitude"] = FormatNumber(displacementMagnitude),
+            ["textureSize"] = new JsonObject
+            {
+                ["width"] = texture.Width,
+                ["height"] = texture.Height,
+            },
+            ["worldVertexSummary"] = summary.CreateNode(),
+            ["edgeWorldVertexSummaries"] = new JsonObject
+            {
+                ["west"] = CreateEmittedTerrainGridEdgeNode(westEdgeSummary, westEdgeHeights),
+                ["east"] = CreateEmittedTerrainGridEdgeNode(eastEdgeSummary, eastEdgeHeights),
+                ["south"] = CreateEmittedTerrainGridEdgeNode(southEdgeSummary, southEdgeHeights),
+                ["north"] = CreateEmittedTerrainGridEdgeNode(northEdgeSummary, northEdgeHeights),
+            },
+        };
+        return true;
+    }
+
+    private static JsonObject CreateEmittedTerrainGridEdgeNode(WorldVertexSummary summary, IReadOnlyList<double> worldHeights)
+    {
+        JsonArray samples = [];
+        StringBuilder heightHashInput = new();
+        foreach (double worldHeight in worldHeights)
+        {
+            string value = FormatNumber(worldHeight);
+            samples.Add(value);
+            heightHashInput
+                .Append(Math.Round(worldHeight, 6, MidpointRounding.AwayFromZero).ToString("F6", CultureInfo.InvariantCulture))
+                .Append('\n');
+        }
+
+        return new JsonObject
+        {
+            ["summary"] = summary.CreateNode(),
+            ["worldHeightSha256"] = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(heightHashInput.ToString()))).ToLowerInvariant(),
+            ["worldHeightSamples"] = samples,
+        };
+    }
+
+    private static string CreateImportedObjectSortKey(JsonObject node)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{(string?)node["sourceFileRelativePath"]}|{(string?)node["packageName"]}|{(string?)node["actualMeshCode"]}|{(string?)node["objectKey"]}");
+    }
+
+    private static string GetGeometryKind(ConstructionGeometry geometry)
+    {
+        return geometry switch
+        {
+            TriangleMeshGeometry => "triangleMesh",
+            TerrainGridGeometry => "terrainGrid",
+            DynamicTerrainGeometry => "dynamicTerrain",
+            _ => geometry.GetType().Name,
+        };
+    }
+
+    private static JsonObject CreateTerrainGridSummaryNode(
+        Transform3D transform,
+        TerrainGridGeometry geometry)
+    {
+        int sampleCount = checked(geometry.Width * geometry.Height);
+        if (geometry.HeightSamples.Count != sampleCount || geometry.SampleCoverage.Count != sampleCount)
+        {
+            return new JsonObject
+            {
+                ["width"] = geometry.Width,
+                ["height"] = geometry.Height,
+                ["sampleCount"] = sampleCount,
+                ["heightSampleCount"] = geometry.HeightSamples.Count,
+                ["coverageSampleCount"] = geometry.SampleCoverage.Count,
+            };
+        }
+
+        TerrainGridCoverageSummary measured = new();
+        TerrainGridCoverageSummary noSurface = new();
+        int edgeSampleCount = 0;
+        int edgeMeasuredSampleCount = 0;
+        int edgeNoSurfaceSampleCount = 0;
+        double baseHeight = transform.Position.Y;
+        WorldVertexSummary gridVertexSummary = new();
+        for (int y = 0; y < geometry.Height; y++)
+        {
+            for (int x = 0; x < geometry.Width; x++)
+            {
+                int sampleIndex = (y * geometry.Width) + x;
+                double worldHeight = baseHeight + geometry.HeightSamples[sampleIndex];
+                double u = geometry.Width == 1 ? 0.0 : (double)x / (geometry.Width - 1);
+                double v = geometry.Height == 1 ? 0.0 : (double)y / (geometry.Height - 1);
+                double worldX = (transform.Position.X - (geometry.Size.X / 2.0)) + (geometry.Size.X * u);
+                double worldZ = (transform.Position.Z - (geometry.Size.Y / 2.0)) + (geometry.Size.Y * v);
+                gridVertexSummary.Add(worldX, worldHeight, worldZ);
+                TerrainGridSampleCoverage coverage = geometry.SampleCoverage[sampleIndex];
+                bool edge = x == 0 || y == 0 || x == geometry.Width - 1 || y == geometry.Height - 1;
+                if (edge)
+                {
+                    edgeSampleCount++;
+                }
+
+                if (coverage == TerrainGridSampleCoverage.Measured)
+                {
+                    measured.Add(worldHeight);
+                    if (edge)
+                    {
+                        edgeMeasuredSampleCount++;
+                    }
+                }
+                else
+                {
+                    noSurface.Add(worldHeight);
+                    if (edge)
+                    {
+                        edgeNoSurfaceSampleCount++;
+                    }
+                }
+            }
+        }
+
+        return new JsonObject
+        {
+            ["width"] = geometry.Width,
+            ["height"] = geometry.Height,
+            ["sampleCount"] = sampleCount,
+            ["minHeight"] = FormatNumber(geometry.MinHeight),
+            ["maxHeight"] = FormatNumber(geometry.MaxHeight),
+            ["verticalOriginWorldHeight"] = FormatNumber(transform.Position.Y),
+            ["displacementMagnitude"] = "-1",
+            ["sampleWorldVertexSummary"] = gridVertexSummary.CreateNode(),
+            ["measured"] = measured.CreateNode(),
+            ["noSurface"] = noSurface.CreateNode(),
+            ["edgeSampleCount"] = edgeSampleCount,
+            ["edgeMeasuredSampleCount"] = edgeMeasuredSampleCount,
+            ["edgeNoSurfaceSampleCount"] = edgeNoSurfaceSampleCount,
+        };
+    }
+
+    private static JsonObject CreateTriangleMeshWorldVertexSummaryNode(
+        Transform3D transform,
+        ImportedMesh mesh)
+    {
+        WorldVertexSummary summary = new();
+        foreach (MeshVertex vertex in mesh.Vertices)
+        {
+            summary.Add(
+                transform.Position.X + vertex.Position.X,
+                transform.Position.Y + vertex.Position.Y,
+                transform.Position.Z + vertex.Position.Z);
+        }
+
+        return summary.CreateNode();
+    }
+
+    private static JsonObject CreateTerrainGridStaticMeshFootprintSummaryNode(DynamicTerrainGeometry geometry)
+    {
+        const double boundaryToleranceMeters = 0.25;
+        TerrainGridGeometry grid = geometry.GridMesh;
+        TerrainGridTriangle[] triangles = CreateTerrainGridTriangles(geometry.StaticMesh.Mesh);
+        int noSurfaceSampleCount = 0;
+        int noSurfaceWithinStaticMeshFootprintSampleCount = 0;
+        int edgeNoSurfaceWithinStaticMeshFootprintSampleCount = 0;
+        TerrainGridSpatialIndex spatialIndex = TerrainGridSpatialIndex.Create(
+            triangles,
+            -grid.Size.X / 2.0,
+            grid.Size.X / 2.0,
+            -grid.Size.Y / 2.0,
+            grid.Size.Y / 2.0,
+            boundaryToleranceMeters);
+
+        for (int y = 0; y < grid.Height; y++)
+        {
+            for (int x = 0; x < grid.Width; x++)
+            {
+                int sampleIndex = (y * grid.Width) + x;
+                if (grid.SampleCoverage[sampleIndex] != TerrainGridSampleCoverage.NoSurface)
+                {
+                    continue;
+                }
+
+                noSurfaceSampleCount++;
+                double u = grid.Width == 1 ? 0.0 : (double)x / (grid.Width - 1);
+                double v = grid.Height == 1 ? 0.0 : (double)y / (grid.Height - 1);
+                double sampleX = (-grid.Size.X / 2.0) + (grid.Size.X * u);
+                double sampleZ = (-grid.Size.Y / 2.0) + (grid.Size.Y * v);
+                if (!CityGmlDemTerrainGridSampler.TrySampleLocalHeight(
+                    sampleX,
+                    sampleZ,
+                    triangles,
+                    spatialIndex,
+                    out _))
+                {
+                    continue;
+                }
+
+                noSurfaceWithinStaticMeshFootprintSampleCount++;
+                if (x == 0 || y == 0 || x == grid.Width - 1 || y == grid.Height - 1)
+                {
+                    edgeNoSurfaceWithinStaticMeshFootprintSampleCount++;
+                }
+            }
+        }
+
+        return new JsonObject
+        {
+            ["boundaryToleranceMeters"] = FormatNumber(boundaryToleranceMeters),
+            ["staticMeshTriangleCount"] = triangles.Length,
+            ["noSurfaceSampleCount"] = noSurfaceSampleCount,
+            ["noSurfaceWithinStaticMeshFootprintSampleCount"] = noSurfaceWithinStaticMeshFootprintSampleCount,
+            ["edgeNoSurfaceWithinStaticMeshFootprintSampleCount"] = edgeNoSurfaceWithinStaticMeshFootprintSampleCount,
+        };
+    }
+
+    private static TerrainGridTriangle[] CreateTerrainGridTriangles(ImportedMesh mesh)
+    {
+        List<TerrainGridTriangle> triangles = [];
+        foreach (MeshSubmesh submesh in mesh.Submeshes)
+        {
+            for (int index = 0; index + 2 < submesh.TriangleVertexIndices.Count; index += 3)
+            {
+                MeshVertex a = mesh.Vertices[submesh.TriangleVertexIndices[index]];
+                MeshVertex b = mesh.Vertices[submesh.TriangleVertexIndices[index + 1]];
+                MeshVertex c = mesh.Vertices[submesh.TriangleVertexIndices[index + 2]];
+                triangles.Add(new TerrainGridTriangle(a.Position, b.Position, c.Position));
+            }
+        }
+
+        return triangles.ToArray();
     }
 
     private static JsonObject CreateSlotNode(CanonicalDumpContext context, string slotId)
@@ -111,6 +526,149 @@ internal static class SceneSinkRecordingClientCanonicalDump
         return node;
     }
 
+    private static bool TryGetGridMeshContainerSlot(
+        SceneSinkRecordingClient client,
+        string componentId,
+        out string? slotId)
+    {
+        foreach ((string candidateSlotId, Slot slot) in client.SlotsById)
+        {
+            if (slot.Components is null)
+            {
+                continue;
+            }
+
+            foreach (Component component in slot.Components)
+            {
+                if (string.Equals(component.ID, componentId, StringComparison.Ordinal))
+                {
+                    slotId = candidateSlotId;
+                    return true;
+                }
+            }
+        }
+
+        slotId = null;
+        return false;
+    }
+
+    private static bool TryReadGridMeshMembers(
+        Component component,
+        out int2 points,
+        out float2 size,
+        out float displacementMagnitude,
+        out floatQ rotation,
+        out string? textureComponentId)
+    {
+        points = default;
+        size = default;
+        displacementMagnitude = 0.0f;
+        rotation = default;
+        textureComponentId = null;
+        if (!component.Members.TryGetValue("Points", out Member? pointsMember)
+            || pointsMember is not Field_int2 pointsField
+            || !component.Members.TryGetValue("Size", out Member? sizeMember)
+            || sizeMember is not Field_float2 sizeField
+            || !component.Members.TryGetValue("DisplacementMagnitude", out Member? displacementMember)
+            || displacementMember is not Field_float displacementField
+            || !component.Members.TryGetValue("Rotation", out Member? rotationMember)
+            || rotationMember is not Field_floatQ rotationField
+            || !component.Members.TryGetValue("DisplacementTexture", out Member? textureMember)
+            || textureMember is not Reference textureReference
+            || string.IsNullOrWhiteSpace(textureReference.TargetID))
+        {
+            return false;
+        }
+
+        points = pointsField.Value;
+        size = sizeField.Value;
+        displacementMagnitude = displacementField.Value;
+        rotation = rotationField.Value;
+        textureComponentId = textureReference.TargetID;
+        return true;
+    }
+
+    private static bool TryResolveHdrTexturePayload(
+        SceneSinkRecordingClient client,
+        string textureComponentId,
+        out RgbaFloat32RawTexturePayload? texture)
+    {
+        texture = null;
+        if (!client.ComponentsById.TryGetValue(textureComponentId, out Component? textureComponent)
+            || !textureComponent.Members.TryGetValue("URL", out Member? urlMember)
+            || urlMember is not Field_Uri url
+            || url.Value is null)
+        {
+            return false;
+        }
+
+        string value = url.Value.ToString();
+        if (!value.StartsWith("resdb:///texture/", StringComparison.Ordinal)
+            || !int.TryParse(value["resdb:///texture/".Length..], NumberStyles.None, CultureInfo.InvariantCulture, out int textureIndex)
+            || textureIndex < 0
+            || textureIndex >= client.ImportedTexturePayloads.Count
+            || client.ImportedTexturePayloads[textureIndex] is not RgbaFloat32RawTexturePayload hdrTexture)
+        {
+            return false;
+        }
+
+        texture = hdrTexture;
+        return true;
+    }
+
+    private static ResoniteFloat3 ResolveSlotWorldPosition(SceneSinkRecordingClient client, string slotId)
+    {
+        double x = 0.0;
+        double y = 0.0;
+        double z = 0.0;
+        HashSet<string> visited = new(StringComparer.Ordinal);
+        string? currentSlotId = slotId;
+        while (!string.IsNullOrWhiteSpace(currentSlotId)
+            && visited.Add(currentSlotId)
+            && client.SlotsById.TryGetValue(currentSlotId, out Slot? slot))
+        {
+            if (slot.Position is Field_float3 position)
+            {
+                x += position.Value.x;
+                y += position.Value.y;
+                z += position.Value.z;
+            }
+
+            currentSlotId = slot.Parent?.TargetID;
+            if (string.Equals(currentSlotId, "Root", StringComparison.Ordinal))
+            {
+                break;
+            }
+        }
+
+        return new ResoniteFloat3(x, y, z);
+    }
+
+    private static double ReadGridMeshDisplacement(RgbaFloat32RawTexturePayload texture, int x, int y)
+    {
+        int pixelIndex = (y * texture.Width) + x;
+        int byteIndex = pixelIndex * 16;
+        float r = BitConverter.ToSingle(texture.Bytes, byteIndex);
+        float g = BitConverter.ToSingle(texture.Bytes, byteIndex + 4);
+        float b = BitConverter.ToSingle(texture.Bytes, byteIndex + 8);
+        return r + g + (b / 3.0f);
+    }
+
+    private static Float3 Rotate(Float3 value, floatQ rotation)
+    {
+        double qx = rotation.x;
+        double qy = rotation.y;
+        double qz = rotation.z;
+        double qw = rotation.w;
+        double tx = 2.0 * ((qy * value.Z) - (qz * value.Y));
+        double ty = 2.0 * ((qz * value.X) - (qx * value.Z));
+        double tz = 2.0 * ((qx * value.Y) - (qy * value.X));
+        return new Float3(
+            value.X + (qw * tx) + ((qy * tz) - (qz * ty)),
+            value.Y + (qw * ty) + ((qz * tx) - (qx * tz)),
+            value.Z + (qw * tz) + ((qx * ty) - (qy * tx)));
+    }
+
     private static JsonObject CreateImportNode(SceneSinkRecordingClient client)
     {
         JsonArray meshes = [];
@@ -126,6 +684,8 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 ["hasTangents"] = mesh.HasTangents,
                 ["hasColors"] = mesh.HasColors,
                 ["submeshCount"] = mesh.Submeshes.Count,
+                ["positionBounds"] = CreateMeshPositionBoundsNode(mesh),
+                ["uvBounds"] = CreateMeshUvBoundsNode(mesh),
                 ["payloadHash"] = HashBytes(mesh.RawBinaryPayload),
             });
         }
@@ -173,6 +733,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 ["uri"] = CreateHdrTextureToken(texture),
                 ["width"] = texture.Width,
                 ["height"] = texture.Height,
+                ["heightMapSummary"] = CreateHdrHeightMapSummaryNode(texture),
                 ["payloadHash"] = HashBytes(texture.Bytes),
             });
         }
@@ -412,6 +973,161 @@ internal static class SceneSinkRecordingClientCanonicalDump
             $"hdr-texture:{texture.Width}x{texture.Height}:{HashBytes(texture.Bytes)}");
     }
 
+    private static JsonObject CreateMeshPositionBoundsNode(ImportMeshRawData mesh)
+    {
+        if (mesh.VertexCount == 0)
+        {
+            return CreateEmptyBoundsNode();
+        }
+
+        double minX = double.PositiveInfinity;
+        double minY = double.PositiveInfinity;
+        double minZ = double.PositiveInfinity;
+        double maxX = double.NegativeInfinity;
+        double maxY = double.NegativeInfinity;
+        double maxZ = double.NegativeInfinity;
+
+        for (int index = 0; index < mesh.VertexCount; index++)
+        {
+            float3 position = mesh.Positions[index];
+            minX = Math.Min(minX, position.x);
+            minY = Math.Min(minY, position.y);
+            minZ = Math.Min(minZ, position.z);
+            maxX = Math.Max(maxX, position.x);
+            maxY = Math.Max(maxY, position.y);
+            maxZ = Math.Max(maxZ, position.z);
+        }
+
+        return new JsonObject
+        {
+            ["min"] = CreateVector3Node(minX, minY, minZ),
+            ["max"] = CreateVector3Node(maxX, maxY, maxZ),
+            ["size"] = CreateVector3Node(maxX - minX, maxY - minY, maxZ - minZ),
+        };
+    }
+
+    private static JsonObject CreateMeshUvBoundsNode(ImportMeshRawData mesh)
+    {
+        if (mesh.VertexCount == 0 || mesh.UV_Channel_Dimensions.Count == 0)
+        {
+            return CreateEmptyBoundsNode();
+        }
+
+        Span<float2> uvChannel = mesh.AccessUV_2D(0);
+        double minX = double.PositiveInfinity;
+        double minY = double.PositiveInfinity;
+        double maxX = double.NegativeInfinity;
+        double maxY = double.NegativeInfinity;
+
+        for (int index = 0; index < mesh.VertexCount; index++)
+        {
+            float2 uv = uvChannel[index];
+            minX = Math.Min(minX, uv.x);
+            minY = Math.Min(minY, uv.y);
+            maxX = Math.Max(maxX, uv.x);
+            maxY = Math.Max(maxY, uv.y);
+        }
+
+        return new JsonObject
+        {
+            ["min"] = CreateVector2Node(minX, minY),
+            ["max"] = CreateVector2Node(maxX, maxY),
+            ["size"] = CreateVector2Node(maxX - minX, maxY - minY),
+        };
+    }
+
+    private static JsonObject CreateHdrHeightMapSummaryNode(RgbaFloat32RawTexturePayload texture)
+    {
+        double minBlue = double.PositiveInfinity;
+        double maxBlue = double.NegativeInfinity;
+        double sumBlue = 0.0;
+        int zeroLikeCount = 0;
+        int maxLikeCount = 0;
+        int edgeZeroLikeCount = 0;
+        int edgeMaxLikeCount = 0;
+        int edgePixelCount = 0;
+        int pixelCount = checked(texture.Width * texture.Height);
+
+        for (int y = 0; y < texture.Height; y++)
+        {
+            for (int x = 0; x < texture.Width; x++)
+            {
+                int pixelIndex = (y * texture.Width) + x;
+                float blue = BitConverter.ToSingle(texture.Bytes, (pixelIndex * 16) + 8);
+                minBlue = Math.Min(minBlue, blue);
+                maxBlue = Math.Max(maxBlue, blue);
+                sumBlue += blue;
+
+                bool isZeroLike = Math.Abs(blue) <= 1e-6f;
+                if (isZeroLike)
+                {
+                    zeroLikeCount++;
+                }
+
+                bool isMaxLike = Math.Abs(blue - 3.0f) <= 1e-6f;
+                if (isMaxLike)
+                {
+                    maxLikeCount++;
+                }
+
+                if (x == 0 || y == 0 || x == texture.Width - 1 || y == texture.Height - 1)
+                {
+                    edgePixelCount++;
+                    if (isZeroLike)
+                    {
+                        edgeZeroLikeCount++;
+                    }
+
+                    if (isMaxLike)
+                    {
+                        edgeMaxLikeCount++;
+                    }
+                }
+            }
+        }
+
+        return new JsonObject
+        {
+            ["blueMin"] = FormatNumber(minBlue),
+            ["blueMax"] = FormatNumber(maxBlue),
+            ["blueAverage"] = FormatNumber(pixelCount == 0 ? 0.0 : sumBlue / pixelCount),
+            ["zeroLikePixelCount"] = zeroLikeCount,
+            ["maxLikePixelCount"] = maxLikeCount,
+            ["edgePixelCount"] = edgePixelCount,
+            ["edgeZeroLikePixelCount"] = edgeZeroLikeCount,
+            ["edgeMaxLikePixelCount"] = edgeMaxLikeCount,
+        };
+    }
+
+    private static JsonObject CreateEmptyBoundsNode()
+    {
+        return new JsonObject
+        {
+            ["min"] = null,
+            ["max"] = null,
+            ["size"] = null,
+        };
+    }
+
+    private static JsonObject CreateVector3Node(double x, double y, double z)
+    {
+        return new JsonObject
+        {
+            ["x"] = FormatNumber(x),
+            ["y"] = FormatNumber(y),
+            ["z"] = FormatNumber(z),
+        };
+    }
+
+    private static JsonObject CreateVector2Node(double x, double y)
+    {
+        return new JsonObject
+        {
+            ["x"] = FormatNumber(x),
+            ["y"] = FormatNumber(y),
+        };
+    }
+
     private static string HashBytes(byte[]? bytes)
     {
         if (bytes is null || bytes.Length == 0)
@@ -579,6 +1295,104 @@ internal static class SceneSinkRecordingClientCanonicalDump
             return canonicalSlotPathsById.GetValueOrDefault(
                 slotId,
                 client.SlotPaths.GetValueOrDefault(slotId, slotId).Replace('\\', '/'));
+        }
+    }
+
+    private sealed class TerrainGridCoverageSummary
+    {
+        private double minWorldHeight = double.PositiveInfinity;
+        private double maxWorldHeight = double.NegativeInfinity;
+        private double sumWorldHeight;
+
+        public int Count { get; private set; }
+
+        public int NearSeaLevelCount { get; private set; }
+
+        public int AboveOneMeterCount { get; private set; }
+
+        public void Add(double worldHeight)
+        {
+            Count++;
+            minWorldHeight = Math.Min(minWorldHeight, worldHeight);
+            maxWorldHeight = Math.Max(maxWorldHeight, worldHeight);
+            sumWorldHeight += worldHeight;
+            if (Math.Abs(worldHeight) <= 0.1)
+            {
+                NearSeaLevelCount++;
+            }
+
+            if (worldHeight > 1.0)
+            {
+                AboveOneMeterCount++;
+            }
+        }
+
+        public JsonObject CreateNode()
+        {
+            return new JsonObject
+            {
+                ["sampleCount"] = Count,
+                ["nearSeaLevelSampleCount"] = NearSeaLevelCount,
+                ["aboveOneMeterSampleCount"] = AboveOneMeterCount,
+                ["worldHeightMin"] = Count == 0 ? null : FormatNumber(minWorldHeight),
+                ["worldHeightMax"] = Count == 0 ? null : FormatNumber(maxWorldHeight),
+                ["worldHeightAverage"] = Count == 0 ? null : FormatNumber(sumWorldHeight / Count),
+            };
+        }
+    }
+
+    private sealed class WorldVertexSummary
+    {
+        private readonly StringBuilder coordinates = new();
+        private double minX = double.PositiveInfinity;
+        private double maxX = double.NegativeInfinity;
+        private double minY = double.PositiveInfinity;
+        private double maxY = double.NegativeInfinity;
+        private double minZ = double.PositiveInfinity;
+        private double maxZ = double.NegativeInfinity;
+
+        public int Count { get; private set; }
+
+        public void Add(double x, double y, double z)
+        {
+            Count++;
+            minX = Math.Min(minX, x);
+            maxX = Math.Max(maxX, x);
+            minY = Math.Min(minY, y);
+            maxY = Math.Max(maxY, y);
+            minZ = Math.Min(minZ, z);
+            maxZ = Math.Max(maxZ, z);
+            coordinates
+                .Append(FormatVertexHashNumber(x))
+                .Append(',')
+                .Append(FormatVertexHashNumber(y))
+                .Append(',')
+                .Append(FormatVertexHashNumber(z))
+                .Append('\n');
+        }
+
+        public JsonObject CreateNode()
+        {
+            return new JsonObject
+            {
+                ["vertexCount"] = Count,
+                ["worldVertexQuantizationMeters"] = "0.000001",
+                ["worldVertexSha256"] = Convert.ToHexString(
+                    SHA256.HashData(Encoding.UTF8.GetBytes(coordinates.ToString()))).ToLowerInvariant(),
+                ["bounds"] = Count == 0
+                    ? null
+                    : new JsonObject
+                    {
+                        ["min"] = CreateVector3Node(minX, minY, minZ),
+                        ["max"] = CreateVector3Node(maxX, maxY, maxZ),
+                    },
+            };
+        }
+
+        private static string FormatVertexHashNumber(double value)
+        {
+            return Math.Round(value, 6, MidpointRounding.AwayFromZero)
+                .ToString("F6", CultureInfo.InvariantCulture);
         }
     }
 }

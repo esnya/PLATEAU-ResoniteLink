@@ -30,9 +30,10 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        IDefaultMaterialResolver materialResolver)
+        IDefaultMaterialResolver materialResolver,
+        GeodeticPoint? objectOriginOverride = null)
     {
-        GeodeticPoint cityObjectOrigin = ResolveCityObjectOrigin(cityObject);
+        GeodeticPoint cityObjectOrigin = objectOriginOverride ?? ResolveCityObjectOrigin(cityObject);
 
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
             ? new LocalCartesian(

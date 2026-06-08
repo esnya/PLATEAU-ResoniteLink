@@ -33,7 +33,8 @@ internal sealed class LiveSendRunStateFactory(
 
         CompositeCityObjectBaker? cityObjectBaker = cityObjectBakerFactory.Create(
             runPlan.MeshBakeEnabled,
-            runPlan.ResourceBudget);
+            runPlan.ResourceBudget,
+            runPlan.RequestLocalOrigin);
         LiveSendRunRuntimeComponents runtimeComponents = runtimeComponentsFactory.Create(
             runPlan.Queue,
             cancellationToken);

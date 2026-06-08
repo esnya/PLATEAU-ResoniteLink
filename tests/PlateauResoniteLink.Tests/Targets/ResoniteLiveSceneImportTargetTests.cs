@@ -1,15 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
@@ -504,9 +507,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 Width: 2,
                 Height: 2,
                 Size: new ResoniteFloat2(10.0, 10.0),
-                MinHeight: 0.0,
-                MaxHeight: 3.0,
-                HeightSamples: [0.0, 1.0, 2.0, 3.0]),
+                MinHeight: -1.0,
+                MaxHeight: 2.0,
+                HeightSamples: [-1.0, 0.0, 1.0, 2.0]),
             Materials:
             [
                 new ResoniteMaterialBinding(
@@ -530,12 +533,17 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Buffer.BlockCopy(importedTexture.Bytes, 0, pixels, 0, importedTexture.Bytes.Length);
         Assert.Equal(0.0f, pixels[0]);
         Assert.Equal(0.0f, pixels[1]);
-        Assert.Equal(3.0f, pixels[2]);
+        Assert.Equal(-3.0f, pixels[2]);
         Assert.Equal(1.0f, pixels[3]);
+        Assert.Equal(6.0f, pixels[14]);
 
         Component gridMesh = Assert.Single(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal));
+        AddComponent gridMeshRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, gridMesh.ID, StringComparison.Ordinal));
+        Slot terrainRootSlot = client.SlotsById[gridMeshRequest.ContainerSlotId];
         Component pointsGradientDriver = Assert.Single(
             client.ComponentsById.Values,
             static component => component.ComponentType.Contains("ValueGradientDriver", StringComparison.Ordinal));
@@ -545,6 +553,34 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Reference displacementTextureReference = Assert.IsType<Reference>(gridMesh.Members["DisplacementTexture"]);
         Component displacementTexture = client.ComponentsById[displacementTextureReference.TargetID];
         Assert.Equal("[FrooxEngine]FrooxEngine.StaticTexture2D", displacementTexture.ComponentType);
+        Assert.Equal("Terrain Grid Terrain", Assert.IsType<Field_string>(terrainRootSlot.Name).Value);
+        Assert.Null(terrainRootSlot.Rotation);
+        Field_float3 gridSlotPosition = Assert.IsType<Field_float3>(terrainRootSlot.Position);
+        Assert.Equal(0.0f, gridSlotPosition.Value.y, 6);
+        Assert.Equal(-1.0f, Assert.IsType<Field_float>(gridMesh.Members["DisplacementMagnitude"]).Value);
+        Assert.DoesNotContain(
+            client.SlotsById.Values,
+            static slot => string.Equals(slot.Name?.Value, "Terrain Grid Terrain GridMesh", StringComparison.Ordinal));
+        string dump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(client);
+        using JsonDocument document = JsonDocument.Parse(dump);
+        JsonElement emittedGrid = document.RootElement.GetProperty("emittedTerrainGrids")[0];
+        JsonElement emittedBounds = emittedGrid.GetProperty("worldVertexSummary").GetProperty("bounds");
+        AssertJsonNumber(-5.0, emittedBounds.GetProperty("min").GetProperty("x"), 6);
+        AssertJsonNumber(-1.0, emittedBounds.GetProperty("min").GetProperty("y"), 5);
+        AssertJsonNumber(-5.0, emittedBounds.GetProperty("min").GetProperty("z"), 6);
+        AssertJsonNumber(5.0, emittedBounds.GetProperty("max").GetProperty("x"), 6);
+        AssertJsonNumber(2.0, emittedBounds.GetProperty("max").GetProperty("y"), 5);
+        AssertJsonNumber(5.0, emittedBounds.GetProperty("max").GetProperty("z"), 6);
+        JsonElement edgeSummaries = emittedGrid.GetProperty("edgeWorldVertexSummaries");
+        Assert.Equal(2, edgeSummaries.GetProperty("west").GetProperty("worldHeightSamples").GetArrayLength());
+        Assert.Equal(2, edgeSummaries.GetProperty("east").GetProperty("worldHeightSamples").GetArrayLength());
+        Assert.Equal(2, edgeSummaries.GetProperty("south").GetProperty("worldHeightSamples").GetArrayLength());
+        Assert.Equal(2, edgeSummaries.GetProperty("north").GetProperty("worldHeightSamples").GetArrayLength());
+        Field_floatQ gridRenderRotation = Assert.IsType<Field_floatQ>(gridMesh.Members["Rotation"]);
+        Assert.Equal(0.70710677f, gridRenderRotation.Value.x, 6);
+        Assert.Equal(0.0f, gridRenderRotation.Value.y, 6);
+        Assert.Equal(0.0f, gridRenderRotation.Value.z, 6);
+        Assert.Equal(0.70710677f, gridRenderRotation.Value.w, 6);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(displacementTexture.Members["WrapModeU"]).Value);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(displacementTexture.Members["WrapModeV"]).Value);
         Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(displacementTexture.Members["FilterMode"]).Value);
@@ -699,6 +735,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Component gridMesh = Assert.Single(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal));
+        AddComponent gridMeshRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, gridMesh.ID, StringComparison.Ordinal));
+        Slot dynamicRootSlot = client.SlotsById[gridMeshRequest.ContainerSlotId];
         Component meshRenderer = Assert.Single(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
@@ -732,6 +772,18 @@ public sealed class ResoniteLiveSceneImportTargetTests
 
         Assert.Equal(2, meshSwitches.Length);
         Assert.Equal(2, boolDrivers.Length);
+        Assert.Equal("Dynamic Terrain", Assert.IsType<Field_string>(dynamicRootSlot.Name).Value);
+        Assert.Null(dynamicRootSlot.Rotation);
+        Field_float3 gridSlotPosition = Assert.IsType<Field_float3>(dynamicRootSlot.Position);
+        Assert.Equal(0.0f, gridSlotPosition.Value.y, 6);
+        Assert.Equal(-1.0f, Assert.IsType<Field_float>(gridMesh.Members["DisplacementMagnitude"]).Value);
+        Assert.DoesNotContain(
+            client.SlotsById.Values,
+            static slot => string.Equals(slot.Name?.Value, "Dynamic Terrain GridMesh", StringComparison.Ordinal));
+        Field_floatQ gridRotation = Assert.IsType<Field_floatQ>(gridMesh.Members["Rotation"]);
+        Assert.Equal(0.70710677f, gridRotation.Value.x, 6);
+        Assert.Equal(dynamicRootSlot.ID, meshRendererRequest.ContainerSlotId);
+        Assert.Equal(dynamicRootSlot.ID, meshColliderRequest.ContainerSlotId);
         Assert.Equal("[FrooxEngine]FrooxEngine.StaticTexture2D", displacementTexture.ComponentType);
         Reference rendererMesh = Assert.IsType<Reference>(meshRendererRequest.Data.Members["Mesh"]);
         Reference colliderMesh = Assert.IsType<Reference>(meshColliderRequest.Data.Members["Mesh"]);
@@ -1799,6 +1851,12 @@ public sealed class ResoniteLiveSceneImportTargetTests
         }
 
         return rounded;
+    }
+
+    private static void AssertJsonNumber(double expected, JsonElement element, int precision)
+    {
+        string value = element.GetString() ?? throw new InvalidOperationException("Expected a JSON string number.");
+        Assert.Equal(expected, double.Parse(value, CultureInfo.InvariantCulture), precision);
     }
 
     private sealed class FakeTerrainTileHandler : HttpMessageHandler
