@@ -373,6 +373,37 @@ internal sealed class CanonicalBatchEntityMap
         return new CreatedComponent(new ResoniteComponentLocator(newEntityId.EntityId), pendingComponent.ComponentType);
     }
 
+    public void ValidateAll(IReadOnlyList<DataModelOperation> operations)
+    {
+        ArgumentNullException.ThrowIfNull(operations);
+        foreach (DataModelOperation operation in operations)
+        {
+            string? messageId = operation switch
+            {
+                AddSlot addSlot => addSlot.MessageID,
+                AddComponent addComponent => addComponent.MessageID,
+                UpdateComponent updateComponent => updateComponent.MessageID,
+                _ => throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'."),
+            };
+            if (string.IsNullOrWhiteSpace(messageId))
+            {
+                continue;
+            }
+
+            _ = ResolveResponse(
+                new ResoniteBatchOperations.BatchTemporaryMessageId(messageId),
+                $"batch operation '{operation.GetType().Name}'");
+        }
+    }
+
+    public void ValidateAllResponses()
+    {
+        foreach (Response response in responsesByMessageId.Values.Concat(responsesWithoutMessageId))
+        {
+            ResoniteLinkClient.EnsureSuccess(response, "batch response");
+        }
+    }
+
     private Response ResolveResponse(ResoniteBatchOperations.BatchTemporaryMessageId messageId)
     {
         return ResolveResponse(messageId, $"resolve batch message '{messageId.Value}'");

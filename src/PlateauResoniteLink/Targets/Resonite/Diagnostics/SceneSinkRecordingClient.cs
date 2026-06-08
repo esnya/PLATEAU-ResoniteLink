@@ -102,7 +102,7 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
         return Task.FromResult(new ResoniteTransportSlotCreationResult(new TransportSlotLocator(createdSlotId)));
     }
 
-    public async Task<BatchResponse> RunDataModelOperationBatchAsync(
+    public virtual async Task<BatchResponse> RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken)
     {

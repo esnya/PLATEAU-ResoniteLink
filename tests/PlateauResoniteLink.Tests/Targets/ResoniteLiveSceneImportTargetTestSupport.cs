@@ -511,7 +511,7 @@ internal sealed class RecordingTerrainTextureAssetGenerator(
     }
 }
 
-internal sealed class SceneSinkRecordingClient : PlateauResoniteLink.Targets.Resonite.Diagnostics.SceneSinkRecordingClient
+internal class SceneSinkRecordingClient : PlateauResoniteLink.Targets.Resonite.Diagnostics.SceneSinkRecordingClient
 {
 }
 
