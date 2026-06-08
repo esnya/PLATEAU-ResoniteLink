@@ -17,10 +17,13 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteQueuedCityObjectPreparation(
-    GenerateTerrainTexture generateTerrainTexture)
+    GenerateTerrainTexture generateTerrainTexture,
+    EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense)
 {
     private readonly GenerateTerrainTexture generateTerrainTexture =
         generateTerrainTexture ?? throw new ArgumentNullException(nameof(generateTerrainTexture));
+    private readonly EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense =
+        ensureGsiFallbackLicense ?? throw new ArgumentNullException(nameof(ensureGsiFallbackLicense));
 
     public async Task<PreparedCityObject> PrepareAsync(
         LiveSendRunState state,
@@ -230,7 +233,7 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
             terrainTexture);
     }
 
-    private static async Task EnsureGsiFallbackLicenseAsync(
+    private async Task EnsureGsiFallbackLicenseAsync(
         LiveSendRunState state,
         IResoniteLinkClient routedClient,
         CancellationToken cancellationToken)
@@ -248,7 +251,7 @@ internal sealed class ResoniteQueuedCityObjectPreparation(
                 return;
             }
 
-            await ResoniteDatasetLicenseWriter.EnsureGsiFallbackLicenseAsync(
+            await ensureGsiFallbackLicense(
                 routedClient,
                 state.Context.DatasetRootSlot,
                 cancellationToken);

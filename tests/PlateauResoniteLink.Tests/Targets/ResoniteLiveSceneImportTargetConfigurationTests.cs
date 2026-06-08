@@ -167,6 +167,26 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         Assert.Same(resolveSceneAnchor, scope.ServiceProvider.GetRequiredService<ResolveResoniteSceneAnchor>());
     }
 
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredGsiFallbackLicenseWriter()
+    {
+        EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense =
+            static (client, datasetRootSlot, cancellationToken) =>
+            {
+                _ = client;
+                _ = datasetRootSlot;
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.CompletedTask;
+            };
+
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped(_ => ensureGsiFallbackLicense)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.Same(ensureGsiFallbackLicense, scope.ServiceProvider.GetRequiredService<EnsureResoniteGsiFallbackLicense>());
+    }
+
     [Fact]
     public async Task CanonicalDumpCreateUsesProvidedLiveSceneImportFactory()
     {

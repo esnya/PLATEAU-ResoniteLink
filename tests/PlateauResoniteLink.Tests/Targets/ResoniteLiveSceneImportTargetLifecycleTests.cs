@@ -721,6 +721,79 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_UsesInjectedGsiFallbackLicenseWriter()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneSinkRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
+            GeographicBounds: CreateThirdMeshBounds(),
+            MaxTextureSize: 512,
+            PrimarySource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel),
+            FallbackSource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => new GeneratedTerrainTexture(
+                CreateRawTextureSource(
+                    2,
+                    2,
+                    ResoniteTextureColorProfiles.Srgb,
+                    new byte[16]),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0),
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel)));
+        int writerCallCount = 0;
+        CreatedSlot? observedDatasetRootSlot = null;
+        EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense = (client, datasetRootSlot, cancellationToken) =>
+        {
+            _ = client;
+            cancellationToken.ThrowIfCancellationRequested();
+            writerCallCount++;
+            observedDatasetRootSlot = datasetRootSlot;
+            return Task.CompletedTask;
+        };
+        await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
+            routedClient,
+            terrainTextureGenerator.EnsureTextureAsync,
+            ensureGsiFallbackLicense: ensureGsiFallbackLicense,
+            session: session);
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            request.Dataset,
+            request.MeshCode,
+            request.CityGmlLocalSourcePath!,
+            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
+            packageNames: ["dem"],
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
+
+        _ = await importTarget.ExecuteAsync(
+            ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
+            CreateImportedObjectUnits(
+                CreateDemCityObject("dem-injected-writer", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
+
+        Assert.Equal(1, writerCallCount);
+        Assert.NotNull(observedDatasetRootSlot);
+        Assert.Equal("PLATEAU tokyo23ku", observedDatasetRootSlot.Value.SlotName);
+        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
+        Component[] licenses = datasetRoot.Components!
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Single(licenses);
+        Assert.DoesNotContain(
+            routedClient.Batches.SelectMany(static operations => operations),
+            static operation => operation is UpdateComponent);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_TracksEveryDemSourceUsedInComposedOverlay()
     {
         using TemporaryDirectory datasetDirectory = new();
