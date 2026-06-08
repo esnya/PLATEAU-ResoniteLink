@@ -11,3 +11,14 @@ internal delegate Task<ResoniteSceneSetupState> SetupResoniteScene(
     ResoniteSceneSetupInfo setupInfo,
     CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
     CancellationToken cancellationToken);
+
+internal delegate Task<CreatedSlot?> ResolveResoniteDatasetRootSlot(
+    IResoniteLinkClient setupClient,
+    string datasetRootName,
+    CancellationToken cancellationToken);
+
+internal delegate Task<SceneAnchor> ResolveResoniteSceneAnchor(
+    IResoniteLinkClient setupClient,
+    ResoniteSlotLocator datasetRootSlot,
+    string completionMeshCode,
+    CancellationToken cancellationToken);

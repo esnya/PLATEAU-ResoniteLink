@@ -131,6 +131,40 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredSetupResolvers()
+    {
+        ResolveResoniteDatasetRootSlot resolveDatasetRootSlot =
+            static (setupClient, datasetRootName, cancellationToken) =>
+            {
+                _ = setupClient;
+                _ = datasetRootName;
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.FromResult<CreatedSlot?>(null);
+            };
+        ResolveResoniteSceneAnchor resolveSceneAnchor =
+            static (setupClient, datasetRootSlot, completionMeshCode, cancellationToken) =>
+            {
+                _ = setupClient;
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.FromResult(new SceneAnchor(
+                    datasetRootSlot,
+                    completionMeshCode,
+                    new ResoniteFloat3(0.0, 0.0, 0.0),
+                    ReferenceSourceFileRoot: null));
+            };
+
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped(_ => resolveDatasetRootSlot)
+            .AddScoped(_ => resolveSceneAnchor)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.Same(resolveDatasetRootSlot, scope.ServiceProvider.GetRequiredService<ResolveResoniteDatasetRootSlot>());
+        Assert.Same(resolveSceneAnchor, scope.ServiceProvider.GetRequiredService<ResolveResoniteSceneAnchor>());
+    }
+
+    [Fact]
     public async Task CanonicalDumpCreateUsesProvidedLiveSceneImportFactory()
     {
         RecordingLiveSceneImportFactory importFactory = new(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()));
