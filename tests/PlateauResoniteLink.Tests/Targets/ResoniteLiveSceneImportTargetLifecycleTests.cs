@@ -126,7 +126,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
-        RecordingQueuedCityObjectWorker queuedCityObjectWorker = new();
+        List<string> progressMessages = [];
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -136,18 +137,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                ProgressReporter: progressMessages.Add),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 session,
                 diagnostics,
-                new ResoniteLiveSendRunStarter(
-                    new ResoniteLiveSendRunSetupPreparer(
-                        new ThrowingSceneSetupInterpreter(),
-                        new ResoniteCommonMaterialSetupPreparer(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()))),
-                    new LiveSendRunStateFactory(
-                        new ResoniteBufferedCityObjectBakerFactory(
-                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
-                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker))));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
+                    materialPlanning,
+                    new ThrowingSceneSetupInterpreter())));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -158,7 +154,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             () => importTarget.ExecuteAsync(
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
                 EmptyImportedObjectUnits()));
-        Assert.Equal(0, queuedCityObjectWorker.CreateProcessingTasksCallCount);
+        Assert.DoesNotContain(
+            progressMessages,
+            static message => message.Contains("Starting routed send workers", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1257,21 +1255,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             _ = commonMaterials;
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromException<ResoniteSceneSetupState>(new InvalidOperationException("setup failed"));
-        }
-    }
-
-    private sealed class RecordingQueuedCityObjectWorker : IResoniteQueuedCityObjectWorker
-    {
-        public int CreateProcessingTasksCallCount { get; private set; }
-
-        public Task[] CreateProcessingTasks(
-            LiveSendRunState state,
-            LiveSendWorkerContext context)
-        {
-            _ = state;
-            _ = context;
-            CreateProcessingTasksCallCount++;
-            return [];
         }
     }
 
