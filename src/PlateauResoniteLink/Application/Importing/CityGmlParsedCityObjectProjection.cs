@@ -19,7 +19,7 @@ internal static class CityGmlParsedCityObjectProjection
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver,
+        ResolveDefaultMaterial materialResolver,
         Func<ParsedCityObject, bool>? predicate = null,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
@@ -72,7 +72,7 @@ internal static class CityGmlParsedCityObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         ProjectionTerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver,
+        ResolveDefaultMaterial materialResolver,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
@@ -175,7 +175,7 @@ internal static class CityGmlParsedCityObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         ProjectionTerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         ArgumentNullException.ThrowIfNull(parsedCityObject);
         ArgumentNullException.ThrowIfNull(globalOriginPoint);
@@ -230,7 +230,7 @@ internal static class CityGmlParsedCityObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         PlateauImportRequest request,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
-        IDefaultMaterialResolver materialResolver,
+        ResolveDefaultMaterial materialResolver,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {

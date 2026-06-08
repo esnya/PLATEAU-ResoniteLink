@@ -32,7 +32,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
                 cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
                 cityObjectCartesian: null,
                 demTerrainTextureOverlay: CreateOverlay("53394525"),
-                materialResolver)
+                materialResolver.ResolveMaterial)
             .FirstOrDefault(static resolvedSurface => resolvedSurface.Surface.UsesGeneratedDemTexture);
 
         Assert.NotNull(representativeSurface);
@@ -80,7 +80,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
             cityObjectCartesian: null,
             demTerrainTextureOverlay: null,
-            materialResolver));
+            materialResolver.ResolveMaterial));
 
         Assert.Equal(ConstructionFaceRole.RoofSlab, resolvedSurface.Role);
         Assert.Equal(BundledDefaultMaterialFamilies.Roof, resolvedSurface.Material.Family);
@@ -99,7 +99,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             cityObjectOrigin: new GeodeticPoint(35.0, 139.0, 0.0),
             cityObjectCartesian: null,
             demTerrainTextureOverlay: null,
-            materialResolver));
+            materialResolver.ResolveMaterial));
 
         Assert.Equal(ConstructionFaceRole.Wall, resolvedSurface.Role);
         Assert.Contains(BundledDefaultMaterialFamilies.BuildingFacadeFamilies, family => family == resolvedSurface.Material.Family);
@@ -180,7 +180,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             MaxTextureSize: 2048);
     }
 
-    private sealed class CountingDefaultMaterialResolver : IDefaultMaterialResolver
+    private sealed class CountingDefaultMaterialResolver
     {
         public int InvocationCount { get; private set; }
 

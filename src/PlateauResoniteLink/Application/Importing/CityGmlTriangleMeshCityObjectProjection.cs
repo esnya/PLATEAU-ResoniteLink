@@ -15,7 +15,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         return ProjectTriangleMesh(
             cityObject,
@@ -30,7 +30,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         GeodeticPoint cityObjectOrigin = ResolveCityObjectOrigin(cityObject);
 

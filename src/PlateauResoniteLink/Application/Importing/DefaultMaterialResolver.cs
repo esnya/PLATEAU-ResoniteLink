@@ -4,7 +4,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
+internal sealed class DefaultMaterialResolver
 {
     private readonly CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials;
 

@@ -21,7 +21,7 @@ internal static class CityGmlSurfaceMaterialResolver
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         return EnumerateSurfaces(
                 cityObject,
@@ -37,7 +37,7 @@ internal static class CityGmlSurfaceMaterialResolver
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         ArgumentNullException.ThrowIfNull(cityObject);
         ArgumentNullException.ThrowIfNull(cityObjectOrigin);
@@ -78,7 +78,7 @@ internal static class CityGmlSurfaceMaterialResolver
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         return ResolveSurfaces(
                 cityObject,
@@ -109,7 +109,7 @@ internal static class CityGmlSurfaceMaterialResolver
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         return ResolveSurfaces(
                 cityObject,
@@ -204,7 +204,7 @@ internal static class CityGmlSurfaceMaterialResolver
         int order,
         double cityObjectMinAltitude,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         ParsedSurface surface = face.Surface;
         if (surface.UsesGeneratedDemTexture)
@@ -298,7 +298,7 @@ internal static class CityGmlSurfaceMaterialResolver
             face,
             cityObjectOrigin,
             cityObjectCartesian);
-        ResolvedMaterial resolvedMaterial = materialResolver.ResolveMaterial(new DefaultMaterialRequest(
+        ResolvedMaterial resolvedMaterial = materialResolver(new DefaultMaterialRequest(
             cityObject.PackageName,
             surface.TexturePayload,
             preferUvProjection,
