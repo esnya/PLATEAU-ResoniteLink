@@ -197,7 +197,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             request,
             readResult,
             geometryProjector.ProjectCityObjects,
-            new StubDemTextureSourcePolicy(),
+            new StubDemTextureSourcePolicy().ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         List<ImportedCityObject> yieldedObjects = [];
         Task collectTask = Task.Run(
@@ -322,11 +322,11 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             request,
             readResult,
             (geometryProjector ?? new RecordingGeometryProjector()).ProjectCityObjects,
-            new StubDemTextureSourcePolicy(),
+            new StubDemTextureSourcePolicy().ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
     }
 
-    private sealed class StubDemTextureSourcePolicy : IDemTextureSourcePolicy
+    private sealed class StubDemTextureSourcePolicy
     {
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
@@ -336,13 +336,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             _ = request;
             _ = overlayRegions;
             return Task.FromResult(new ResolvedDemTextureSources([]));
-        }
-
-        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
-            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
-        {
-            _ = overlayRegions;
-            return [];
         }
     }
 
