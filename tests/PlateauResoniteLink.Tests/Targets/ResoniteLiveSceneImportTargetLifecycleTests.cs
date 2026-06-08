@@ -943,16 +943,15 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             .ReadAsync(
             request,
             cancellationToken: default);
-        ImportedSceneMetadata metadata = new DefaultImportedSceneSourceComposer(
+        ImportedSceneMetadata metadata = StreamingImportedSceneSource.Compose(
+                request,
+                readResult,
                 TestCityGmlGeometryProjector.Create(),
                 new DefaultDemTextureSourcePolicy(
                     (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
                         source,
                         CreateDatasetContentSourceAsync,
-                        cancellationToken)).ResolveAsync)
-            .Compose(
-                request,
-                readResult,
+                        cancellationToken)).ResolveAsync,
                 PassthroughImportedObjectUnitOptimizer.OptimizeAsync)
             .Metadata;
 

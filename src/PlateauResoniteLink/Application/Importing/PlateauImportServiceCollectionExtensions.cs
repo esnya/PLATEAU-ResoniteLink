@@ -85,13 +85,6 @@ internal static class PlateauImportServiceCollectionExtensions
         });
         services.TryAddSingleton<ImportedObjectUnitOptimizer>(
             _ => ImportedDynamicMaterialUvUnitOptimizer.OptimizeAsync);
-        services.TryAddSingleton<ImportedSceneSourceComposer>(provider =>
-        {
-            DefaultImportedSceneSourceComposer composer = new(
-                provider.GetRequiredService<CityGmlGeometryProjector>(),
-                provider.GetRequiredService<ResolveDemTextureSources>());
-            return composer.Compose;
-        });
         services.TryAddSingleton<ReadCityGmlDocument>(provider =>
         {
             LocalCityGmlDocumentReader reader = new(
@@ -102,8 +95,10 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<CreateImportedSceneSource>(provider =>
         {
             ReadCityGmlDocument readCityGmlDocument = provider.GetRequiredService<ReadCityGmlDocument>();
-            ImportedSceneSourceComposer constructionComposer =
-                provider.GetRequiredService<ImportedSceneSourceComposer>();
+            CityGmlGeometryProjector geometryProjector =
+                provider.GetRequiredService<CityGmlGeometryProjector>();
+            ResolveDemTextureSources resolveDemTextureSources =
+                provider.GetRequiredService<ResolveDemTextureSources>();
             ImportedObjectUnitOptimizer objectUnitOptimizer =
                 provider.GetRequiredService<ImportedObjectUnitOptimizer>();
             return async (request, loggerFactory, cancellationToken) =>
@@ -113,7 +108,13 @@ internal static class PlateauImportServiceCollectionExtensions
                     request,
                     loggerFactory?.CreateLogger("PlateauResoniteLink.Import"),
                     cancellationToken);
-                return constructionComposer(request, readResult, objectUnitOptimizer, loggerFactory);
+                return StreamingImportedSceneSource.Compose(
+                    request,
+                    readResult,
+                    geometryProjector,
+                    resolveDemTextureSources,
+                    objectUnitOptimizer,
+                    loggerFactory);
             };
         });
 
