@@ -1064,12 +1064,23 @@ public sealed class NonDemCityObjectBakerTests
         IReadOnlyList<NonDemCityObjectBakePolicy>? bakePolicies = null,
         ResoniteImportBudgetProfile? resourceBudget = null)
     {
-        NonDemSourceFileBakeEmitter sourceFileBakeEmitter = new NonDemSourceFileBakeEmitterFactory(
-            new ResoniteTextureImageLoader()).Create(
-            new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget));
         return new NonDemCityObjectBaker(
             new NonDemCityObjectBakePolicyResolver(bakePolicies ?? NonDemCityObjectBakePolicies.DefaultPolicies),
-            sourceFileBakeEmitter);
+            CreateSourceFileBakeEmitter(new NonDemAtlasBakeBudget(maxAtlasSize, tilePaddingPixels, resourceBudget)));
+    }
+
+    private static NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(NonDemAtlasBakeBudget atlasBudget)
+    {
+        NonDemAtlasLayoutFactory layoutFactory = new(
+            atlasBudget.EffectiveMaxAtlasSize,
+            atlasBudget.TilePaddingPixels);
+        return new NonDemSourceFileBakeEmitter(
+            new NonDemCityObjectBakeCandidateFactory(
+                new NonDemBakeEntryFactory(new ResoniteTextureImageLoader(), atlasBudget.EffectiveMaxAtlasTextureEdge)),
+            new NonDemCityObjectBakeAssembler(
+                layoutFactory,
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels)),
+            new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 
     private static async Task AssertBufferedAsync(NonDemCityObjectBaker baker, ResoniteConstructionCityObject cityObject)
