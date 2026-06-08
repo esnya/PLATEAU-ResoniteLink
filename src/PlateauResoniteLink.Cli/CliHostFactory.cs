@@ -73,8 +73,8 @@ internal static class CliServiceCollectionExtensions
                 _.GetRequiredService<Func<ResolvePlateauDatasetSource>>();
             Func<ImportCommandOptions, Action<string>?, ISceneSink> createSceneSink =
                 _.GetRequiredService<Func<ImportCommandOptions, Action<string>?, ISceneSink>>();
-            IImportedSceneSourceFactory importedSceneSourceFactory =
-                _.GetRequiredService<IImportedSceneSourceFactory>();
+            CreateImportedSceneSource createImportedSceneSource =
+                _.GetRequiredService<CreateImportedSceneSource>();
             CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
                 _.GetRequiredService<CommonMaterialCatalog<DefaultCommonMaterialMember>>();
             IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
@@ -83,7 +83,7 @@ internal static class CliServiceCollectionExtensions
             return (options, progressReporter) => CliServiceCollectionExtensions.CreateImportService(
                 createDatasetSourceResolver,
                 createSceneSink,
-                importedSceneSourceFactory,
+                createImportedSceneSource,
                 commonMaterials,
                 archiveFileLayoutPolicy,
                 options,
@@ -105,7 +105,7 @@ internal static class CliServiceCollectionExtensions
     internal static PlateauImportService CreateImportService(
         Func<ResolvePlateauDatasetSource> createDatasetSourceResolver,
         Func<ImportCommandOptions, Action<string>?, ISceneSink> createSceneSink,
-        IImportedSceneSourceFactory importedSceneSourceFactory,
+        CreateImportedSceneSource createImportedSceneSource,
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
         IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
         ImportCommandOptions options,
@@ -116,7 +116,7 @@ internal static class CliServiceCollectionExtensions
         return new PlateauImportService(
             createSceneSink(options, progressReporter),
             createDatasetSourceResolver(),
-            importedSceneSourceFactory,
+            createImportedSceneSource,
             commonMaterials,
             archiveFileLayoutPolicy,
             progressReporter);
