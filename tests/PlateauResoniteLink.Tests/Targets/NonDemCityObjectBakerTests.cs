@@ -839,7 +839,7 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncBuffersLod1NonDemCityObjectsAndNormalizesDynamicUvTransform()
+    public async Task BufferAsyncBuffersLod1NonDemCityObjectsAndNormalizesDynamicUvTransform()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
         ResoniteConstructionCityObject cityObject = CreateUvScaledLod2Building(
@@ -853,10 +853,9 @@ public sealed class NonDemCityObjectBakerTests
             LodLevel = 1,
         };
 
-        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
+        IReadOnlyList<ResoniteConstructionCityObject> readyCityObjects = await baker.BufferAsync(cityObject);
 
-        Assert.True(result.Buffered);
-        Assert.Empty(result.ReadyCityObjects);
+        Assert.Empty(readyCityObjects);
         ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
         ResoniteMaterialBinding material = Assert.Single(baked.Materials);
         Assert.Null(material.TextureScale);
@@ -866,7 +865,7 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncPreservesTerrainOverlayAlbedoOnlyProviderWithGenericCommonIdentity()
+    public async Task BufferAsyncPreservesTerrainOverlayAlbedoOnlyProviderWithGenericCommonIdentity()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
         TerrainTextureOverlay overlay = CreateThirdMeshOverlay("53394525");
@@ -911,7 +910,7 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncSkipsDemCityObjectsWithoutNormalizingDynamicUvTransform()
+    public async Task BufferAsyncSkipsDemCityObjectsWithoutNormalizingDynamicUvTransform()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
         ResoniteConstructionCityObject demCityObject = CreateUvScaledLod2Building(
@@ -925,10 +924,9 @@ public sealed class NonDemCityObjectBakerTests
             LodLevel = null,
         };
 
-        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(demCityObject);
+        IReadOnlyList<ResoniteConstructionCityObject> readyCityObjects = await baker.BufferAsync(demCityObject);
 
-        Assert.False(result.Buffered);
-        Assert.Empty(result.ReadyCityObjects);
+        Assert.Same(demCityObject, Assert.Single(readyCityObjects));
         Assert.Equal(new ResoniteFloat2(2.0, 0.5), Assert.Single(demCityObject.Materials).TextureScale);
         Assert.Equal(new ResoniteFloat2(0.25, 0.75), Assert.Single(demCityObject.Materials).TextureOffset);
         Assert.Equal(3, demCityObject.Mesh.Vertices.Count);
@@ -936,7 +934,7 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncRejectsDuplicateMaterialBindingsBeforeDynamicUvNormalization()
+    public async Task BufferAsyncPassesThroughDuplicateMaterialBindingsBeforeDynamicUvNormalization()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
         ResoniteConstructionCityObject cityObject = CreateUvScaledLod2Building(
@@ -958,15 +956,14 @@ public sealed class NonDemCityObjectBakerTests
             ],
         };
 
-        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
+        IReadOnlyList<ResoniteConstructionCityObject> readyCityObjects = await baker.BufferAsync(cityObject);
 
-        Assert.False(result.Buffered);
-        Assert.Empty(result.ReadyCityObjects);
+        Assert.Same(cityObject, Assert.Single(readyCityObjects));
         Assert.Empty(await baker.FlushAllAsync());
     }
 
     [Fact]
-    public async Task TryBufferAsyncBuffersLodlessNonDemCityObjects()
+    public async Task BufferAsyncBuffersLodlessNonDemCityObjects()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
         ResoniteConstructionCityObject cityObject = CreateLod2Building(
@@ -979,10 +976,9 @@ public sealed class NonDemCityObjectBakerTests
             LodLevel = null,
         };
 
-        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
+        IReadOnlyList<ResoniteConstructionCityObject> readyCityObjects = await baker.BufferAsync(cityObject);
 
-        Assert.True(result.Buffered);
-        Assert.Empty(result.ReadyCityObjects);
+        Assert.Empty(readyCityObjects);
         ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
         Assert.Null(baked.LodLevel);
         Assert.Equal("frn", baked.PackageName);
@@ -1137,9 +1133,7 @@ public sealed class NonDemCityObjectBakerTests
 
     private static async Task AssertBufferedAsync(NonDemCityObjectBaker baker, ResoniteConstructionCityObject cityObject)
     {
-        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
-        Assert.True(result.Buffered);
-        Assert.Empty(result.ReadyCityObjects);
+        Assert.Empty(await baker.BufferAsync(cityObject));
     }
 
     private static IEnumerable<ResoniteFloat3> EnumerateWorldVertices(IEnumerable<ResoniteConstructionCityObject> cityObjects)
