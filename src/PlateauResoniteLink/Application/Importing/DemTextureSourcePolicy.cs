@@ -85,30 +85,8 @@ internal interface IDemTerrainGeoReferencedRasterCatalog
         CancellationToken cancellationToken);
 }
 
-internal interface IDemTerrainGeoReferencedRasterCatalogFactory
-{
-    Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
-        DatasetLocation? source,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class DefaultDemTerrainGeoReferencedRasterCatalogFactory(
-    IPlateauDatasetContentSourceFactory datasetContentSourceFactory)
-    : IDemTerrainGeoReferencedRasterCatalogFactory
-{
-    public Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
-        DatasetLocation? source,
-        CancellationToken cancellationToken)
-    {
-        return DemTerrainGeoReferencedRasterCatalog.CreateAsync(
-            source,
-            datasetContentSourceFactory,
-            cancellationToken);
-    }
-}
-
 internal sealed class DefaultDemTextureSourcePolicy(
-    IDemTerrainGeoReferencedRasterCatalogFactory rasterCatalogFactory)
+    Func<DatasetLocation?, CancellationToken, Task<IDemTerrainGeoReferencedRasterCatalog?>> createRasterCatalog)
     : IDemTextureSourcePolicy
 {
     public async Task<ResolvedDemTextureSources> ResolveAsync(
@@ -119,7 +97,7 @@ internal sealed class DefaultDemTextureSourcePolicy(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(overlayRegions);
 
-        IDemTerrainGeoReferencedRasterCatalog? rasterCatalog = await rasterCatalogFactory.CreateAsync(
+        IDemTerrainGeoReferencedRasterCatalog? rasterCatalog = await createRasterCatalog(
             request.DemTextureSource,
             cancellationToken);
         if (request.DemTextureSource is not null && rasterCatalog is null)
