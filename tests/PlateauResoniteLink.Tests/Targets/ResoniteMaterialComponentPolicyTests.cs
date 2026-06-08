@@ -298,9 +298,16 @@ public sealed class ResoniteMaterialComponentPolicyTests
 
             Assert.True(resolved);
             Assert.NotNull(textureSet);
-            Assert.True(GetPath(textureSet.Height) is not null && File.Exists(GetPath(textureSet.Height)), $"Missing height companion for facade variant '{variants[variantIndex]}'.");
-            Assert.True(GetPath(textureSet.Metallic) is not null && File.Exists(GetPath(textureSet.Metallic)), $"Missing packed metallic companion for facade variant '{variants[variantIndex]}'.");
-            Assert.True(GetPath(textureSet.Normal) is not null && File.Exists(GetPath(textureSet.Normal)), $"Missing normal companion for facade variant '{variants[variantIndex]}'.");
+            BundledDefaultMaterialAssetStore assetStore = new();
+            Assert.True(
+                textureSet.Height is not null && assetStore.Contains(textureSet.Height),
+                $"Missing height companion for facade variant '{variants[variantIndex]}'.");
+            Assert.True(
+                textureSet.Metallic is not null && assetStore.Contains(textureSet.Metallic),
+                $"Missing packed metallic companion for facade variant '{variants[variantIndex]}'.");
+            Assert.True(
+                textureSet.Normal is not null && assetStore.Contains(textureSet.Normal),
+                $"Missing normal companion for facade variant '{variants[variantIndex]}'.");
         }
     }
 
@@ -336,12 +343,15 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void BundledDefaultMaterialAssetStoreResolvesCityFurnitureAsset()
     {
         string logicalPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.CityFurniture, 0);
+        BundledDefaultMaterialAssetStore assetStore = new();
 
-        bool resolved = new BundledDefaultMaterialAssetStore().TryGetAbsolutePath(logicalPath, out string absolutePath);
+        bool resolved = assetStore.Contains(logicalPath);
 
         Assert.True(resolved);
-        Assert.EndsWith("Plaster002_2K-JPG_Color.jpg", absolutePath, StringComparison.Ordinal);
-        Assert.True(File.Exists(absolutePath));
+        using Stream stream = assetStore.OpenRead(logicalPath);
+        using Image image = Image.Load(stream);
+        Assert.True(image.Width > 0);
+        Assert.True(image.Height > 0);
     }
 
     [Fact]
@@ -371,10 +381,10 @@ public sealed class ResoniteMaterialComponentPolicyTests
         string normalizedHeightPath = GetPath(textureSet.Height)!.Replace('\\', '/');
         string normalizedMetallicPath = GetPath(textureSet.Metallic)!.Replace('\\', '/');
         string normalizedNormalPath = GetPath(textureSet.Normal)!.Replace('\\', '/');
-        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedEmissionPath, StringComparison.Ordinal);
-        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedHeightPath, StringComparison.Ordinal);
-        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedMetallicPath, StringComparison.Ordinal);
-        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedNormalPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/wallskins/wall_res_plaster_low/", normalizedEmissionPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/wallskins/wall_res_plaster_low/", normalizedHeightPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/wallskins/wall_res_plaster_low/", normalizedMetallicPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/wallskins/wall_res_plaster_low/", normalizedNormalPath, StringComparison.Ordinal);
         Assert.EndsWith("emission.png", GetPath(textureSet.Emission), StringComparison.Ordinal);
         Assert.EndsWith("height.png", GetPath(textureSet.Height), StringComparison.Ordinal);
         Assert.EndsWith("metallic_ao_smoothness.png", GetPath(textureSet.Metallic), StringComparison.Ordinal);
@@ -408,10 +418,10 @@ public sealed class ResoniteMaterialComponentPolicyTests
         string normalizedHeightPath = GetPath(textureSet.Height)!.Replace('\\', '/');
         string normalizedMetallicPath = GetPath(textureSet.Metallic)!.Replace('\\', '/');
         string normalizedNormalPath = GetPath(textureSet.Normal)!.Replace('\\', '/');
-        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedEmissionPath, StringComparison.Ordinal);
-        Assert.Contains("/default-materials/wallskins/wall_res_plaster_dark/", normalizedHeightPath, StringComparison.Ordinal);
-        Assert.Contains("/default-materials/wallskins/wall_res_plaster_low/", normalizedMetallicPath, StringComparison.Ordinal);
-        Assert.Contains("/default-materials/wallskins/wall_res_plaster_dark/", normalizedNormalPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/wallskins/wall_res_plaster_low/", normalizedEmissionPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/wallskins/wall_res_plaster_dark/", normalizedHeightPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/wallskins/wall_res_plaster_low/", normalizedMetallicPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/wallskins/wall_res_plaster_dark/", normalizedNormalPath, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -440,19 +450,21 @@ public sealed class ResoniteMaterialComponentPolicyTests
         string normalizedHeightPath = GetPath(textureSet.Height)!.Replace('\\', '/');
         string normalizedMetallicPath = GetPath(textureSet.Metallic)!.Replace('\\', '/');
         string normalizedNormalPath = GetPath(textureSet.Normal)!.Replace('\\', '/');
-        Assert.Contains("/default-materials/ambientcg/facade/Facade002_2K-JPG_Emission.jpg", normalizedEmissionPath, StringComparison.Ordinal);
-        Assert.Contains("/default-materials/ambientcg/facade/Facade001_2K-JPG_Height.jpg", normalizedHeightPath, StringComparison.Ordinal);
-        Assert.Contains("/default-materials/ambientcg/facade/Facade001_2K-JPG_Metallic.png", normalizedMetallicPath, StringComparison.Ordinal);
-        Assert.Contains("/default-materials/ambientcg/facade/Facade001_2K-JPG_NormalGL.jpg", normalizedNormalPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/ambientcg/facade/Facade002_2K-JPG_Emission.jpg", normalizedEmissionPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/ambientcg/facade/Facade001_2K-JPG_Height.jpg", normalizedHeightPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/ambientcg/facade/Facade001_2K-JPG_Metallic.png", normalizedMetallicPath, StringComparison.Ordinal);
+        Assert.Contains("default-materials/ambientcg/facade/Facade001_2K-JPG_NormalGL.jpg", normalizedNormalPath, StringComparison.Ordinal);
     }
 
     [Fact]
     public void BundledDefaultCityFurnitureAlbedoStaysNearNeutralWhite()
     {
         string logicalPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.CityFurniture, 0);
-        Assert.True(new BundledDefaultMaterialAssetStore().TryGetAbsolutePath(logicalPath, out string absolutePath));
+        BundledDefaultMaterialAssetStore assetStore = new();
+        Assert.True(assetStore.Contains(logicalPath));
 
-        using Image<Rgba32> image = Image.Load<Rgba32>(absolutePath);
+        using Stream stream = assetStore.OpenRead(logicalPath);
+        using Image<Rgba32> image = Image.Load<Rgba32>(stream);
         double totalR = 0.0;
         double totalG = 0.0;
         double totalB = 0.0;
@@ -491,11 +503,11 @@ public sealed class ResoniteMaterialComponentPolicyTests
             string stem = Path.GetFileNameWithoutExtension(logicalPath);
             string metallicLogicalPath = $"{directory}/{stem[..^"_Color".Length]}_Metallic.png";
 
-            Assert.True(
-                new BundledDefaultMaterialAssetStore().TryGetAbsolutePath(metallicLogicalPath, out string absolutePath),
-                $"Missing packed metallic map: {metallicLogicalPath}");
+            BundledDefaultMaterialAssetStore assetStore = new();
+            Assert.True(assetStore.Contains(metallicLogicalPath), $"Missing packed metallic map: {metallicLogicalPath}");
 
-            using Image<Rgba32> image = Image.Load<Rgba32>(absolutePath);
+            using Stream stream = assetStore.OpenRead(metallicLogicalPath);
+            using Image<Rgba32> image = Image.Load<Rgba32>(stream);
             for (int y = 0; y < image.Height; y += 32)
             {
                 for (int x = 0; x < image.Width; x += 32)
@@ -527,7 +539,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
     {
         return asset is null
             ? null
-            : new BundledDefaultMaterialAssetStore().GetAbsolutePath(asset);
+            : asset.LogicalPath;
     }
 
     private static IEnumerable<string> EnumerateBundledDefaultMaterialVariants()

@@ -197,36 +197,16 @@ public sealed class BundledDefaultMaterialVariantTests
     }
 
     [Fact]
-    public void BundledDefaultMaterialAssetStoreRepairsTruncatedExtractedFile()
+    public void BundledDefaultMaterialAssetStoreReadsBundledResourceWithoutFileMaterialization()
     {
         string logicalPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.CityFurniture, 0);
-        using TemporaryDirectory extractionRoot = new();
         BundledDefaultMaterialAssetStore assetStore = new();
-        using IDisposable _ = assetStore.PushExtractionRootOverride(extractionRoot.Path);
-        string extractedPath = Path.Combine(
-            extractionRoot.Path,
-            logicalPath.Replace('/', Path.DirectorySeparatorChar));
-        Directory.CreateDirectory(Path.GetDirectoryName(extractedPath)!);
-        File.WriteAllBytes(extractedPath, [1, 2, 3]);
 
-        string repairedPath = assetStore.GetAbsolutePath(logicalPath);
+        using Stream stream = assetStore.OpenRead(logicalPath);
 
-        Assert.Equal(extractedPath, repairedPath);
-        Assert.True(new FileInfo(repairedPath).Length > 3);
-        using Image image = Image.Load(repairedPath);
+        using Image image = Image.Load(stream);
         Assert.True(image.Width > 0);
         Assert.True(image.Height > 0);
-    }
-
-    [Fact]
-    public void BundledDefaultMaterialAssetStoreTreatsMissingCachedFileLengthAsCacheMiss()
-    {
-        string missingPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "missing.png");
-
-        bool resolved = BundledDefaultMaterialAssetStore.TryGetExistingFileLength(missingPath, out long length);
-
-        Assert.False(resolved);
-        Assert.Equal(0, length);
     }
 
     [Theory]
@@ -246,7 +226,7 @@ public sealed class BundledDefaultMaterialVariantTests
     [InlineData("default-materials/wallskins/wall_school_public_dark/emission.png")]
     public void KnownBlackEmissionImagesAreNotBundledSources(string logicalPath)
     {
-        Assert.False(new BundledDefaultMaterialAssetStore().TryGetAbsolutePath(logicalPath, out _));
+        Assert.False(new BundledDefaultMaterialAssetStore().Contains(logicalPath));
     }
 
     [Theory]
@@ -271,7 +251,7 @@ public sealed class BundledDefaultMaterialVariantTests
     [InlineData("default-materials/ambientcg/roof/Asphalt025C_2K-JPG_NormalGL.jpg")]
     public void SharedDuplicateTextureImagesAreNotBundledSources(string logicalPath)
     {
-        Assert.False(new BundledDefaultMaterialAssetStore().TryGetAbsolutePath(logicalPath, out _));
+        Assert.False(new BundledDefaultMaterialAssetStore().Contains(logicalPath));
     }
 
     [Theory]
@@ -282,7 +262,7 @@ public sealed class BundledDefaultMaterialVariantTests
     [InlineData("default-materials/texturecan/facade/Others0029_2K_Height.png")]
     public void FlatWhiteTextureCanHeightMapsAreNotBundledSources(string logicalPath)
     {
-        Assert.False(new BundledDefaultMaterialAssetStore().TryGetAbsolutePath(logicalPath, out _));
+        Assert.False(new BundledDefaultMaterialAssetStore().Contains(logicalPath));
     }
 
     private static bool TryGetWallSkinEmissionPath(string texturePath, out string? emissionPath)
@@ -293,7 +273,7 @@ public sealed class BundledDefaultMaterialVariantTests
         Assert.EndsWith(suffix, texturePath, StringComparison.Ordinal);
         string materialName = texturePath[prefix.Length..^suffix.Length];
         string logicalPath = $"default-materials/wallskins/{materialName}/emission.png";
-        if (!new BundledDefaultMaterialAssetStore().TryGetAbsolutePath(logicalPath, out _))
+        if (!new BundledDefaultMaterialAssetStore().Contains(logicalPath))
         {
             emissionPath = null;
             return false;
