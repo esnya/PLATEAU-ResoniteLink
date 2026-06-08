@@ -18,6 +18,7 @@ internal static class CityGmlParsedCityObjectProjection
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
+        IReadOnlyList<string> selectedMeshCodes,
         PlateauImportRequest request,
         ResolveDefaultMaterial materialResolver,
         Func<ParsedCityObject, bool>? predicate = null,
@@ -27,6 +28,7 @@ internal static class CityGmlParsedCityObjectProjection
         ArgumentNullException.ThrowIfNull(sourceFile);
         ArgumentNullException.ThrowIfNull(referenceSystem);
         ArgumentNullException.ThrowIfNull(globalOriginPoint);
+        ArgumentNullException.ThrowIfNull(selectedMeshCodes);
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(materialResolver);
 
@@ -37,7 +39,8 @@ internal static class CityGmlParsedCityObjectProjection
         ParsedCityObject[] projectedInputCityObjects =
             DemCityObjectAggregation.AggregateBySourceFileAndThirdMesh(
                 sourceFile.SourceFile,
-                sourceFile.CityObjects);
+                sourceFile.CityObjects,
+                selectedMeshCodes);
 
         foreach (ParsedCityObject parsedCityObject in projectedInputCityObjects)
         {

@@ -41,19 +41,19 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
-    public void GeneratedTerrainTextureRequiresTrackedSources()
+    public void GeneratedTerrainTextureAllowsNoTrackedSources()
     {
-        ArgumentException exception = Assert.Throws<ArgumentException>(() =>
-            new GeneratedTerrainTexture(
-                TextureImportSourceTestFactory.CreateRawTextureSource(
-                    1,
-                    1,
-                    ResoniteTextureColorProfiles.Srgb,
-                    [255, 255, 255, 255]),
-                TextureUvRect.Unit,
-                []));
+        GeneratedTerrainTexture texture = new(
+            TextureImportSourceTestFactory.CreateRawTextureSource(
+                1,
+                1,
+                ResoniteTextureColorProfiles.Srgb,
+                [255, 255, 255, 255]),
+            TextureUvRect.Unit,
+            []);
 
-        Assert.Contains("at least one source", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(texture.UsedSources);
+        Assert.Throws<InvalidOperationException>(() => texture.UsedSource);
     }
 
     [Fact]
@@ -110,6 +110,23 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
+    public void TerrainTextureOverlayAllowsNoSources()
+    {
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53395325"),
+            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            MaxTextureSize: 512,
+            Sources: []);
+
+        Assert.Empty(overlay.Sources);
+        Assert.Empty(overlay.EnumerateTileSources());
+        Assert.Empty(overlay.EnumerateGeoReferencedRasterSources());
+        Assert.Equal("<none>", overlay.SourceDescription);
+        Assert.Throws<InvalidOperationException>(() => overlay.PrimarySource);
+    }
+
+    [Fact]
     public void GeneratedTerrainTextureDerivesIdentityFromFirstTrackedSourceAndExposesReadOnlyState()
     {
         TerrainTextureTileSource usedSource = new("https://used.example/{z}/{x}/{y}.png", 17);
@@ -129,6 +146,78 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.Equal(usedSource, texture.UsedSource);
         Assert.Equal([usedSource, otherSource], texture.UsedSources);
         Assert.IsNotType<TerrainTextureSource[]>(texture.UsedSources);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncCreatesDefaultGroundTextureWhenSourcesAreEmpty()
+    {
+        TerrainTextureAssetGenerator generator = new(disablePersistentCache: true);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 0.0,
+                MaxLatitude: WebMercatorTileMath.MaxLatitude,
+                MinLongitude: -180.0,
+                MaxLongitude: 180.0),
+            MaxTextureSize: 4096,
+            Sources: []);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Empty(texture.UsedSources);
+        Assert.True(texture.OccupiedUvRect.IsIdentity);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
+        Assert.Equal(1, image.Width);
+        Assert.Equal(1, image.Height);
+        AssertColor(image[0, 0], 181, 176, 166);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncCreatesDefaultGroundTextureWhenAllTilesAreMissing()
+    {
+        using MissingAllMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Empty(texture.UsedSources);
+        using Image<Rgba32> image = LoadImage(texture.TextureSource);
+        Assert.Equal(1, image.Width);
+        Assert.Equal(1, image.Height);
+        AssertColor(image[0, 0], 181, 176, 166);
+        Assert.True(handler.RequestCount > 0);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncFailsWhenTransientTileSourceNeverRecovers()
+    {
+        using AlwaysTransientMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(
+            () => generator.EnsureTextureAsync(overlay, CancellationToken.None));
+
+        Assert.Contains("transient HTTP 503", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(4, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncFailsWhenTileSourceReturnsInvalidImage()
+    {
+        using InvalidImageMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(
+            () => generator.EnsureTextureAsync(overlay, CancellationToken.None));
+
+        Assert.Contains("invalid image content", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -805,6 +894,47 @@ public sealed class TerrainTextureAssetGeneratorTests
                 (1, 1) => new Rgba32(255, 255, 0, 255),
                 _ => new Rgba32(255, 0, 255, 255),
             };
+        }
+    }
+
+    private sealed class MissingAllMapTileHandler : HttpMessageHandler
+    {
+        private int requestCount;
+
+        public int RequestCount => requestCount;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref requestCount);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class AlwaysTransientMapTileHandler : HttpMessageHandler
+    {
+        private int requestCount;
+
+        public int RequestCount => requestCount;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref requestCount);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        }
+    }
+
+    private sealed class InvalidImageMapTileHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            MemoryStream stream = new([1, 2, 3, 4]);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream),
+            });
         }
     }
 

@@ -144,7 +144,6 @@ internal static class GeneratedLod1RoofSurfaceFactory
             InteriorRings: [],
             footprint.TopSurface.BaseColor,
             TexturePayload: null,
-            UsesGeneratedDemTexture: false,
             footprint.TopSurface.OpticalProperties);
     }
 

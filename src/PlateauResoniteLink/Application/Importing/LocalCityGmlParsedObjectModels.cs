@@ -24,7 +24,6 @@ internal sealed record ParsedSurface(
     ParsedRing[] InteriorRings,
     ColorRgba BaseColor,
     TexturePayload? TexturePayload,
-    bool UsesGeneratedDemTexture = false,
     MaterialOpticalProperties? OpticalProperties = null)
 {
     public IEnumerable<GeodeticPoint> Vertices =>

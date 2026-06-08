@@ -207,7 +207,7 @@ internal static class CityGmlSurfaceMaterialResolver
         ResolveDefaultMaterial materialResolver)
     {
         ParsedSurface surface = face.Surface;
-        if (surface.UsesGeneratedDemTexture)
+        if (IsDemTerrainOverlaySurface(cityObject, surface))
         {
             ConstructionFace resolvedFace = demTerrainTextureOverlay is null
                 ? face with { Surface = surface with { BaseColor = DefaultDemGroundMaterialColor } }
@@ -328,7 +328,7 @@ internal static class CityGmlSurfaceMaterialResolver
         if (demTerrainTextureOverlay is null
             || face.Surface.TexturePayload is not null
             || !PlateauPackageCatalog.IsBuildingPackage(packageName)
-            || !RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(
+            || !CanUseRoofTerrainTextureMaterial(
                 face,
                 cityObjectMinAltitude,
                 cityObjectOrigin,
@@ -346,6 +346,20 @@ internal static class CityGmlSurfaceMaterialResolver
             TextureScale: null,
             ReuseScope: MaterialReuseScope.PerObject,
             TerrainOverlay: demTerrainTextureOverlay);
+    }
+
+    private static bool CanUseRoofTerrainTextureMaterial(
+        ConstructionFace face,
+        double cityObjectMinAltitude,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        return face.MaterialTreatment is SurfaceMaterialTreatment.TerrainOverlayMaterialSource
+            || RoofTerrainTextureSurfacePolicy.IsRoofTerrainTextureSurface(
+                face,
+                cityObjectMinAltitude,
+                cityObjectOrigin,
+                cityObjectCartesian);
     }
 
     private static bool ShouldPreferUvProjection(
@@ -386,6 +400,14 @@ internal static class CityGmlSurfaceMaterialResolver
         }
 
         return CityGmlSurfaceProjectionPolicy.IsFacadeSurface(surface, cityObjectOrigin, cityObjectCartesian);
+    }
+
+    private static bool IsDemTerrainOverlaySurface(
+        ConstructionCityObjectDraft cityObject,
+        ParsedSurface surface)
+    {
+        return string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+            && surface.TexturePayload is null;
     }
 
     private static DefaultMaterialSurfaceRole ToDefaultMaterialSurfaceRole(ConstructionFaceRole role)

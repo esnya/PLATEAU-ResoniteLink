@@ -19,8 +19,8 @@ public sealed class CityGmlSurfaceMaterialResolverTests
             LodLevel: null,
             Surfaces:
             [
-                CreateParsedSurface("generated-dem", usesGeneratedDemTexture: true),
-                CreateParsedSurface("ordinary-dem", usesGeneratedDemTexture: false),
+                CreateParsedSurface("generated-dem"),
+                CreateParsedSurface("ordinary-dem", CreateTexturePayload()),
             ],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
@@ -33,7 +33,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
                 cityObjectCartesian: null,
                 demTerrainTextureOverlay: CreateOverlay("53394525"),
                 materialResolver.ResolveMaterial)
-            .FirstOrDefault(static resolvedSurface => resolvedSurface.Surface.UsesGeneratedDemTexture);
+            .FirstOrDefault(static resolvedSurface => resolvedSurface.Material.TerrainOverlay is not null);
 
         Assert.NotNull(representativeSurface);
         Assert.Equal(0, materialResolver.InvocationCount);
@@ -105,7 +105,7 @@ public sealed class CityGmlSurfaceMaterialResolverTests
         Assert.Contains(BundledDefaultMaterialFamilies.BuildingFacadeFamilies, family => family == resolvedSurface.Material.Family);
     }
 
-    private static ParsedSurface CreateParsedSurface(string polygonId, bool usesGeneratedDemTexture)
+    private static ParsedSurface CreateParsedSurface(string polygonId, TexturePayload? texturePayload = null)
     {
         return new ParsedSurface(
             Semantic: ParsedSurfaceSemantic.Ground,
@@ -117,8 +117,17 @@ public sealed class CityGmlSurfaceMaterialResolverTests
                 UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null,
-            UsesGeneratedDemTexture: usesGeneratedDemTexture);
+            TexturePayload: texturePayload);
+    }
+
+    private static TexturePayload CreateTexturePayload()
+    {
+        return new RawRgba32TexturePayload(
+            width: 1,
+            height: 1,
+            colorProfile: null,
+            binaryPayload: [255, 255, 255, 255],
+            description: "ordinary-dem-texture");
     }
 
     private static ParsedSurface CreateSurface()

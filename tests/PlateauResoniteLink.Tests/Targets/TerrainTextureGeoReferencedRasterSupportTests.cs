@@ -543,7 +543,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     }
 
     [Fact]
-    public async Task EnsureTextureAsyncSkipsUnavailableGeoReferencedRasterSourceBeforeTileFallback()
+    public async Task EnsureTextureAsyncFailsWhenGeoReferencedRasterSourceCannotOpen()
     {
         GeographicRectangle bounds = new(0.0, WebMercatorTileMath.MaxLatitude, -180.0, 180.0);
         TerrainTextureOverlay overlay = new(
@@ -559,15 +559,43 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
                 new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 1),
             ]);
 
-        using TerrainTextureAssetGeneratorTestsProxyMapTileHandler handler = new();
-        using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureAssetGenerator generator = new(disablePersistentCache: true);
 
-        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(
+            async () => await generator.EnsureTextureAsync(overlay, CancellationToken.None));
 
-        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
-        Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
-        Assert.True(handler.RequestCount > 0);
+        Assert.Contains("DEM terrain raster source", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("missing.tif", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncFailsWhenGeoReferencedRasterSourceCannotDecode()
+    {
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "not-a-raster.tif");
+        await File.WriteAllTextAsync(rasterPath, "not a raster");
+
+        GeographicRectangle bounds = new(0.0, WebMercatorTileMath.MaxLatitude, -180.0, 180.0);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            MeshCode: ThirdRegionalMeshCode.Parse("53394525"),
+            GeographicBounds: bounds,
+            MaxTextureSize: 1024,
+            Sources:
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    rasterPath,
+                    new GeoReferencedRasterMetadata(bounds, "EPSG:4326", 1.0, 1.0)),
+                new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 1),
+            ]);
+
+        TerrainTextureAssetGenerator generator = new(disablePersistentCache: true);
+
+        HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(
+            async () => await generator.EnsureTextureAsync(overlay, CancellationToken.None));
+
+        Assert.Contains("DEM terrain raster source", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("could not be read as an image", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

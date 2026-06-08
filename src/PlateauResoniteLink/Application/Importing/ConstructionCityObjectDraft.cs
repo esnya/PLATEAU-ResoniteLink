@@ -19,6 +19,7 @@ internal enum SurfaceMaterialTreatment
 {
     Default = 0,
     RoadMarking,
+    TerrainOverlayMaterialSource,
 }
 
 // Project-stage geometry role for material and tessellation routing. This is not the input CityGML surface type.

@@ -17,11 +17,13 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
     [Fact]
     public void DiscoverOrdersPackagesFromRequestedCenterOutward()
     {
-        string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
-        IEnumerable<string> relativePaths = GetRelativeGmlPaths(datasetRoot);
-
         LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
-            relativePaths,
+            [
+                "udx/tran/53394525/plateau_tokyo23ku_tran_53394525.gml",
+                "udx/luse/53394525/plateau_tokyo23ku_luse_53394525.gml",
+                "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml",
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+            ],
             "53394525",
             packageNames: null).SourceFiles.ToArray();
 

@@ -19,7 +19,11 @@ internal sealed class TerrainTextureTileSourceReader(
 {
     private const int MaxTileDownloadAttempts = 4;
 
-    public async Task<TerrainTextureSourceImage?> TryCreateAsync(
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "The returned read result transfers TerrainTextureSourceImage ownership to TerrainTextureAssetGenerator, which disposes it after composition.")]
+    public async Task<TerrainTextureSourceReadResult> TryCreateAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         TerrainTextureTileSource tileSource,
         CancellationToken cancellationToken)
@@ -34,11 +38,17 @@ internal sealed class TerrainTextureTileSourceReader(
         {
             for (int tileX = tileCrop.MinTileX; tileX <= tileCrop.MaxTileX; tileX++)
             {
-                Image<Rgba32>? tileImage = await TryDownloadTileAsync(
+                TerrainTextureTileReadResult tileResult = await TryDownloadTileAsync(
                     tileSource,
                     tileX,
                     tileY,
                     cancellationToken);
+                if (tileResult.Kind == TerrainTextureTileReadResultKind.SourceFailure)
+                {
+                    return TerrainTextureSourceReadResult.SourceFailure(tileResult.FailureMessage!);
+                }
+
+                Image<Rgba32>? tileImage = tileResult.Image;
                 if (tileImage is null)
                 {
                     continue;
@@ -59,16 +69,17 @@ internal sealed class TerrainTextureTileSourceReader(
 
         if (!anyTileRendered)
         {
-            return null;
+            return TerrainTextureSourceReadResult.CoverageMiss;
         }
 
-        return new TerrainTextureSourceImage(
-            stitchedImage.Clone(context => context.Crop(new Rectangle(
-                tileCrop.CropLeft,
-                tileCrop.CropTop,
-                tileCrop.CropWidth,
-                tileCrop.CropHeight))),
-            tileCrop.OccupiedUvRect);
+        return TerrainTextureSourceReadResult.Rendered(
+            new TerrainTextureSourceImage(
+                stitchedImage.Clone(context => context.Crop(new Rectangle(
+                    tileCrop.CropLeft,
+                    tileCrop.CropTop,
+                    tileCrop.CropWidth,
+                    tileCrop.CropHeight))),
+                tileCrop.OccupiedUvRect));
     }
 
     private static ExpandedTileCrop CreateExpandedTileCrop(
@@ -136,7 +147,7 @@ internal sealed class TerrainTextureTileSourceReader(
             occupiedUvRect);
     }
 
-    private async Task<Image<Rgba32>?> TryDownloadTileAsync(
+    private async Task<TerrainTextureTileReadResult> TryDownloadTileAsync(
         TerrainTextureTileSource tileSource,
         int tileX,
         int tileY,
@@ -155,7 +166,8 @@ internal sealed class TerrainTextureTileSourceReader(
             {
                 try
                 {
-                    return await LoadTileImageAsync(cachedStream, cancellationToken);
+                    return TerrainTextureTileReadResult.Rendered(
+                        await LoadTileImageAsync(cachedStream, cancellationToken));
                 }
                 catch (UnknownImageFormatException)
                 {
@@ -182,35 +194,54 @@ internal sealed class TerrainTextureTileSourceReader(
                         continue;
                     }
 
-                    return null;
+                    return IsTransientStatusCode((int)response.StatusCode)
+                        ? TerrainTextureTileReadResult.SourceFailure(
+                            $"DEM terrain tile source '{tileSource.UrlTemplate}' returned transient HTTP {(int)response.StatusCode} for z={tileSource.ZoomLevel}, x={tileX}, y={tileY} after {MaxTileDownloadAttempts} attempts.")
+                        : TerrainTextureTileReadResult.CoverageMiss;
                 }
 
                 await using Stream responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                if (persistentTileCache is not null)
+                try
                 {
-                    using MemoryStream retainedContent = new();
-                    await responseStream.CopyToAsync(retainedContent, cancellationToken);
-                    retainedContent.Position = 0;
-                    await TryWritePersistentTileAsync(
-                        tileSource.UrlTemplate,
-                        tileSource.ZoomLevel,
-                        tileX,
-                        tileY,
-                        retainedContent,
-                        cancellationToken);
-                    retainedContent.Position = 0;
-                    return await LoadTileImageAsync(retainedContent, cancellationToken);
-                }
+                    if (persistentTileCache is not null)
+                    {
+                        using MemoryStream retainedContent = new();
+                        await responseStream.CopyToAsync(retainedContent, cancellationToken);
+                        retainedContent.Position = 0;
+                        await TryWritePersistentTileAsync(
+                            tileSource.UrlTemplate,
+                            tileSource.ZoomLevel,
+                            tileX,
+                            tileY,
+                            retainedContent,
+                            cancellationToken);
+                        retainedContent.Position = 0;
+                        return TerrainTextureTileReadResult.Rendered(
+                            await LoadTileImageAsync(retainedContent, cancellationToken));
+                    }
 
-                return await LoadTileImageAsync(responseStream, cancellationToken);
+                    return TerrainTextureTileReadResult.Rendered(
+                        await LoadTileImageAsync(responseStream, cancellationToken));
+                }
+                catch (Exception exception) when (exception is UnknownImageFormatException or InvalidImageContentException)
+                {
+                    return TerrainTextureTileReadResult.SourceFailure(
+                        $"DEM terrain tile source '{tileSource.UrlTemplate}' returned invalid image content for z={tileSource.ZoomLevel}, x={tileX}, y={tileY}: {exception.Message}");
+                }
             }
             catch (HttpRequestException) when (attempt < MaxTileDownloadAttempts)
             {
                 await Task.Delay(GetRetryDelay(attempt), cancellationToken);
             }
+            catch (HttpRequestException exception)
+            {
+                return TerrainTextureTileReadResult.SourceFailure(
+                    $"DEM terrain tile source '{tileSource.UrlTemplate}' failed for z={tileSource.ZoomLevel}, x={tileX}, y={tileY}: {exception.Message}");
+            }
         }
 
-        return null;
+        return TerrainTextureTileReadResult.SourceFailure(
+            $"DEM terrain tile source '{tileSource.UrlTemplate}' failed for z={tileSource.ZoomLevel}, x={tileX}, y={tileY} after {MaxTileDownloadAttempts} attempts.");
     }
 
     private async Task TryWritePersistentTileAsync(
@@ -293,4 +324,76 @@ internal sealed class TerrainTextureTileSourceReader(
                 null);
         }
     }
+}
+
+internal sealed record TerrainTextureSourceReadResult(
+    TerrainTextureSourceReadResultKind Kind,
+    TerrainTextureSourceImage? Image,
+    string? FailureMessage)
+{
+    public static TerrainTextureSourceReadResult CoverageMiss { get; } = new(
+        TerrainTextureSourceReadResultKind.CoverageMiss,
+        Image: null,
+        FailureMessage: null);
+
+    public static TerrainTextureSourceReadResult Rendered(TerrainTextureSourceImage image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        return new TerrainTextureSourceReadResult(
+            TerrainTextureSourceReadResultKind.Rendered,
+            image,
+            FailureMessage: null);
+    }
+
+    public static TerrainTextureSourceReadResult SourceFailure(string failureMessage)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureMessage);
+        return new TerrainTextureSourceReadResult(
+            TerrainTextureSourceReadResultKind.SourceFailure,
+            Image: null,
+            failureMessage);
+    }
+}
+
+internal enum TerrainTextureSourceReadResultKind
+{
+    Rendered,
+    CoverageMiss,
+    SourceFailure,
+}
+
+internal sealed record TerrainTextureTileReadResult(
+    TerrainTextureTileReadResultKind Kind,
+    Image<Rgba32>? Image,
+    string? FailureMessage)
+{
+    public static TerrainTextureTileReadResult CoverageMiss { get; } = new(
+        TerrainTextureTileReadResultKind.CoverageMiss,
+        Image: null,
+        FailureMessage: null);
+
+    public static TerrainTextureTileReadResult Rendered(Image<Rgba32> image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        return new TerrainTextureTileReadResult(
+            TerrainTextureTileReadResultKind.Rendered,
+            image,
+            FailureMessage: null);
+    }
+
+    public static TerrainTextureTileReadResult SourceFailure(string failureMessage)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureMessage);
+        return new TerrainTextureTileReadResult(
+            TerrainTextureTileReadResultKind.SourceFailure,
+            Image: null,
+            failureMessage);
+    }
+}
+
+internal enum TerrainTextureTileReadResultKind
+{
+    Rendered,
+    CoverageMiss,
+    SourceFailure,
 }

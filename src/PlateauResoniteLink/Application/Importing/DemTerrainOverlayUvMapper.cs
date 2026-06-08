@@ -33,7 +33,7 @@ internal static class DemTerrainOverlayUvMapper
     {
         if (demTerrainTextureOverlay is null
             || !string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            || !materializedSurface.Surface.UsesGeneratedDemTexture)
+            || materializedSurface.Surface.TexturePayload is not null)
         {
             return null;
         }

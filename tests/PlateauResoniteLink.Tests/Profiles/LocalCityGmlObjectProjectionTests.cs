@@ -111,6 +111,119 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void CoordinateReferenceSystemParseTreatsWgs84IdentifiersAsCompatible()
+    {
+        CoordinateReferenceSystem epsg4326 = CoordinateReferenceSystem.Parse("EPSG:4326");
+        CoordinateReferenceSystem uri4326 = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/4326");
+        CoordinateReferenceSystem epsg4979 = CoordinateReferenceSystem.Parse("EPSG:4979");
+
+        Assert.NotNull(epsg4326.Geocentric);
+        Assert.True(epsg4326.IsCompatibleWith(uri4326));
+        Assert.True(epsg4326.IsCompatibleWith(epsg4979));
+    }
+
+    [Fact]
+    public void CoordinateReferenceSystemParseRejectsUnsupportedGeographicIdentifier()
+    {
+        PlateauImportValidationException exception = Assert.Throws<PlateauImportValidationException>(
+            () => CoordinateReferenceSystem.Parse("EPSG:999999"));
+
+        Assert.Contains("Unsupported CityGML coordinate reference system", exception.Errors.Single());
+    }
+
+    [Fact]
+    public void ProjectCityObjectsValidatesSourceFileReferenceSystemBeforeProjection()
+    {
+        ResolveDefaultMaterial materialResolver =
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial;
+        CoordinateReferenceSystem sourceReferenceSystem = CoordinateReferenceSystem.Parse("EPSG:6697");
+        CachedSourceFileDescriptor sourceFile = new(
+            new SourceFileDescriptor(
+                RelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                PackageName: "bldg",
+                MatchedMeshCode: "53394525",
+                RequiresMeshCodeBoundsFilter: false),
+            [
+                new ParsedCityObject(
+                    SlotKey: "slot",
+                    DisplayName: "display",
+                    PackageName: "bldg",
+                    ActualMeshCode: "53394525",
+                    LodLevel: 1,
+                    Surfaces: [],
+                    ReferenceSystem: sourceReferenceSystem,
+                    SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                    SharedAcrossMeshCodes: false,
+                    BuildingAttributes: BuildingAttributeContext.Empty),
+            ],
+            sourceReferenceSystem);
+
+        PlateauImportValidationException exception = Assert.Throws<PlateauImportValidationException>(
+            () => LocalCityGmlObjectProjection.ProjectCityObjects(
+                    sourceFile,
+                    CoordinateReferenceSystem.Parse("EPSG:6696"),
+                    new GeodeticPoint(35.0, 139.0, 0.0),
+                    globalCartesian: new GeographicLib.LocalCartesian(
+                        35.0,
+                        139.0,
+                        0.0,
+                        new GeographicLib.Geocentric(GeographicLib.Ellipsoid.GRS80)),
+                    demTerrainTextureOverlays: [],
+                    requestedMeshCodeBounds: [],
+                    selectedMeshCodes: ["53394525"],
+                    request: CreatePlateauImportRequest(["bldg"]),
+                    materialResolver)
+                .ToArray());
+
+        Assert.Contains("Mixed CityGML coordinate reference systems are not supported", exception.Errors.Single());
+    }
+
+    [Fact]
+    public void ProjectCityObjectsUsesSelectedMeshCodesForRegexDemParentSourceFile()
+    {
+        ResolveDefaultMaterial materialResolver =
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial;
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("EPSG:4326");
+        string sourceFileRelativePath = "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml";
+        CachedSourceFileDescriptor sourceFile = new(
+            new SourceFileDescriptor(
+                RelativePath: sourceFileRelativePath,
+                PackageName: "dem",
+                MatchedMeshCode: "533945",
+                RequiresMeshCodeBoundsFilter: true),
+            [
+                new ParsedCityObject(
+                    SlotKey: "dem-parent",
+                    DisplayName: "DEM 533945",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: 1,
+                    Surfaces: [CreateDemSurfaceCovering("53394525", "53394526")],
+                    ReferenceSystem: referenceSystem,
+                    SourceFileRelativePath: sourceFileRelativePath,
+                    SharedAcrossMeshCodes: true,
+                    BuildingAttributes: BuildingAttributeContext.Empty),
+            ],
+            referenceSystem);
+        string[] selectedMeshCodes = ["53394525", "53394526"];
+
+        ImportedCityObject[] cityObjects = LocalCityGmlObjectProjection.ProjectCityObjects(
+                sourceFile,
+                referenceSystem,
+                new GeodeticPoint(35.0, 139.0, 0.0),
+                globalCartesian: new GeographicLib.LocalCartesian(35.0, 139.0, 0.0, referenceSystem.Geocentric),
+                demTerrainTextureOverlays: [],
+                requestedMeshCodeBounds: MeshCodeBounds.CreateManyFromSelectedMeshCodes(selectedMeshCodes),
+                selectedMeshCodes: selectedMeshCodes,
+                request: CreatePlateauImportRequest(["dem"], meshCode: "5339452[56]"),
+                materialResolver)
+            .ToArray();
+
+        Assert.Equal(["53394525", "53394526"], cityObjects.Select(static cityObject => cityObject.ActualMeshCode).ToArray());
+        Assert.All(cityObjects, static cityObject => Assert.Equal("dem", cityObject.PackageName));
+    }
+
+    [Fact]
     public void GeneratedFacadeUvProjection_UsesFloorUnitsForBuildingWalls()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
@@ -1098,7 +1211,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null) with
         {
-            UsesGeneratedDemTexture = true,
         };
         ParsedCityObject cityObject = CreateParsedCityObject("dem", [demSurface], referenceSystem) with
         {
@@ -1138,7 +1250,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateMeshRelativeQuadVertices("53394600", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null) with
         {
-            UsesGeneratedDemTexture = true,
         };
         ParsedCityObject cityObject = CreateParsedCityObject("dem", [demSurface], referenceSystem) with
         {
@@ -1361,7 +1472,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 8.0, minRatio: 0.45, maxRatio: 0.55, reverseWinding: true),
             texturePayload: null) with
         {
-            UsesGeneratedDemTexture = true,
         };
         ParsedCityObject cityObject = CreateParsedCityObject("dem", [demSurface], referenceSystem) with
         {
@@ -1410,8 +1520,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             ExteriorRing: new ParsedRing(vertices.ToArray(), UVs: null),
             InteriorRings: [],
             BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            TexturePayload: null,
-            UsesGeneratedDemTexture: true);
+            TexturePayload: null);
         ParsedCityObject cityObject = CreateParsedCityObject("dem", [demSurface], referenceSystem);
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -2370,31 +2479,26 @@ public sealed class LocalCityGmlObjectProjectionTests
             .Where(static cityObject => cityObject.PackageName == "dem")
             .ToArray();
 
-        Assert.Equal(2, demCityObjects.Length);
+        ImportedCityObject demCityObject = Assert.Single(demCityObjects);
+        Assert.Equal("dem", demCityObject.PackageName);
 
-        ImportedCityObject generatedChunk = Assert.Single(
-            demCityObjects,
-            static cityObject => cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
-        ImportedCityObject explicitChunk = Assert.Single(
-            demCityObjects,
-            static cityObject => cityObject.Materials.Any(static material => material.TexturePayload is not null));
-
-        Assert.Equal("dem", generatedChunk.PackageName);
-        Assert.Equal("dem", explicitChunk.PackageName);
-
-        MaterialBinding generatedMaterial = Assert.Single(generatedChunk.Materials);
+        MaterialBinding generatedMaterial = Assert.Single(
+            demCityObject.Materials,
+            static material => material.TerrainOverlay is not null);
         Assert.Equal(TextureSourceKind.Dataset, generatedMaterial.TextureSourceKind);
         Assert.NotNull(generatedMaterial.TerrainOverlay);
         Assert.Null(generatedMaterial.TexturePayload);
-        Assert.Single(generatedChunk.Mesh.Submeshes);
-        Assert.InRange(generatedChunk.Mesh.Vertices.Count, 3, 9);
 
-        MaterialBinding explicitMaterial = Assert.Single(explicitChunk.Materials);
+        MaterialBinding explicitMaterial = Assert.Single(
+            demCityObject.Materials,
+            static material => material.TexturePayload is not null);
         Assert.NotNull(explicitMaterial.TexturePayload);
         Assert.Contains(
             "udx/dem/53394525/appearance/mixed_surface.png",
             explicitMaterial.TexturePayload!.Source.Description,
             StringComparison.Ordinal);
+        Assert.Equal(2, demCityObject.Mesh.Submeshes.Count);
+        Assert.InRange(demCityObject.Mesh.Vertices.Count, 6, 18);
     }
 
     [Fact]
@@ -2449,7 +2553,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ParsedSurfaceSemantic.Ground,
                 CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 1.0, minRatio: 0.1, maxRatio: 0.9, reverseWinding: false)) with
         {
-            UsesGeneratedDemTexture = true,
         });
         ParsedCityObject cityObject = CreateParsedCityObject("dem", [generatedSurface], referenceSystem);
         GeodeticPoint origin = CreateMeshCenterPoint("53394525", 0.0);
@@ -2488,7 +2591,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ParsedSurfaceSemantic.Ground,
                 CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 1.0, minRatio: 0.1, maxRatio: 0.9, reverseWinding: false)) with
         {
-            UsesGeneratedDemTexture = true,
         });
         ParsedCityObject cityObject = CreateParsedCityObject("dem", [generatedSurface], referenceSystem);
         GeodeticPoint origin = CreateMeshCenterPoint("53394525", 0.0);
@@ -2519,7 +2621,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void DemTerrainStaticModePreservesCoveredGeneratedDemOverlayPartitions()
+    public void DemTerrainStaticModeKeepsSingleThirdMeshOverlayMaterialAcrossGeneratedDemSurfaces()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         ParsedSurface coveredSurface = (CreateParsedSurface(
@@ -2527,14 +2629,12 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ParsedSurfaceSemantic.Ground,
                 CreateMeshRelativeQuadVertices("53394525", altitudeMeters: 1.0, minRatio: 0.1, maxRatio: 0.2, reverseWinding: false)) with
         {
-            UsesGeneratedDemTexture = true,
         });
         ParsedSurface uncoveredSurface = (CreateParsedSurface(
                 "dem-uncovered",
                 ParsedSurfaceSemantic.Ground,
                 CreateMeshRelativeQuadVertices("53394526", altitudeMeters: 1.0, minRatio: 0.1, maxRatio: 0.2, reverseWinding: false)) with
         {
-            UsesGeneratedDemTexture = true,
         });
         ParsedCityObject cityObject = CreateParsedCityObject("dem", [coveredSurface, uncoveredSurface], referenceSystem);
         GeodeticPoint origin = CreateMeshCenterPoint("53394525", 0.0);
@@ -2555,19 +2655,14 @@ public sealed class LocalCityGmlObjectProjectionTests
             request,
             new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
-        Assert.Equal(2, projected.Length);
-        Assert.Contains(projected, static cityObject => cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
-        ImportedCityObject uncoveredCityObject = Assert.Single(
-            projected,
-            static cityObject => cityObject.Materials.All(static material => material.TerrainOverlay is null));
-        MaterialBinding uncoveredMaterial = Assert.Single(uncoveredCityObject.Materials);
-        Assert.Equal(181.0 / 255.0, uncoveredMaterial.BaseColor.R, precision: 6);
-        Assert.Equal(176.0 / 255.0, uncoveredMaterial.BaseColor.G, precision: 6);
-        Assert.Equal(166.0 / 255.0, uncoveredMaterial.BaseColor.B, precision: 6);
+        ImportedCityObject projectedCityObject = Assert.Single(projected);
+        MaterialBinding terrainMaterial = Assert.Single(projectedCityObject.Materials);
+        Assert.Same(coveredOverlay, terrainMaterial.TerrainOverlay);
+        Assert.Equal("53394525", terrainMaterial.TerrainMeshCode);
     }
 
     [Fact]
-    public void DemTerrainStaticModeKeepsUncoveredPartOfPartiallyCoveredGeneratedDemSurface()
+    public void DemTerrainStaticModeKeepsPartialSurfaceInSingleThirdMeshOverlayMaterial()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         (double south, double north, double west, double east) = GetMeshBounds("53394525");
@@ -2583,7 +2678,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                     new(south + ((north - south) * 0.1), west + ((east - west) * 0.25), 1.0),
                 ]) with
         {
-            UsesGeneratedDemTexture = true,
         });
         ParsedCityObject cityObject = CreateParsedCityObject("dem", [generatedSurface], referenceSystem);
         GeodeticPoint origin = CreateMeshCenterPoint("53394525", 0.0);
@@ -2604,20 +2698,15 @@ public sealed class LocalCityGmlObjectProjectionTests
             request,
             new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
-        Assert.Equal(2, projected.Length);
-        Assert.Contains(projected, static cityObject => cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
-        ImportedCityObject uncoveredCityObject = Assert.Single(
-            projected,
-            static cityObject => cityObject.Materials.All(static material => material.TerrainOverlay is null));
-        MaterialBinding uncoveredMaterial = Assert.Single(uncoveredCityObject.Materials);
-        Assert.Equal(181.0 / 255.0, uncoveredMaterial.BaseColor.R, precision: 6);
-        Assert.Equal(176.0 / 255.0, uncoveredMaterial.BaseColor.G, precision: 6);
-        Assert.Equal(166.0 / 255.0, uncoveredMaterial.BaseColor.B, precision: 6);
-        Assert.All(projected, static cityObject => Assert.NotEmpty(((TriangleMeshGeometry)cityObject.Geometry).Mesh.Vertices));
+        ImportedCityObject projectedCityObject = Assert.Single(projected);
+        MaterialBinding terrainMaterial = Assert.Single(projectedCityObject.Materials);
+        Assert.Same(coveredOverlay, terrainMaterial.TerrainOverlay);
+        Assert.Equal("53394525", terrainMaterial.TerrainMeshCode);
+        Assert.NotEmpty(((TriangleMeshGeometry)projectedCityObject.Geometry).Mesh.Vertices);
     }
 
     [Fact]
-    public async Task DemTerrainGridModeKeepsSurfaceCoveredBoundarySamplesMeasured()
+    public async Task DemTerrainGridModeKeepsMeasuredCoverageOnEachBoundaryEdge()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
@@ -2641,18 +2730,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 && cityObject.Geometry is TerrainGridGeometry);
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(demCityObject.Geometry);
 
-        double[] topEdge = Enumerable.Range(0, geometry.Width)
-            .Select(index => geometry.HeightSamples[index])
-            .ToArray();
-        double[] bottomEdge = Enumerable.Range(0, geometry.Width)
-            .Select(index => geometry.HeightSamples[((geometry.Height - 1) * geometry.Width) + index])
-            .ToArray();
-        double[] leftEdge = Enumerable.Range(0, geometry.Height)
-            .Select(index => geometry.HeightSamples[index * geometry.Width])
-            .ToArray();
-        double[] rightEdge = Enumerable.Range(0, geometry.Height)
-            .Select(index => geometry.HeightSamples[(index * geometry.Width) + (geometry.Width - 1)])
-            .ToArray();
         TerrainGridSampleCoverage[] topCoverage = Enumerable.Range(0, geometry.Width)
             .Select(index => geometry.SampleCoverage![index])
             .ToArray();
@@ -2666,9 +2743,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             .Select(index => geometry.SampleCoverage![(index * geometry.Width) + (geometry.Width - 1)])
             .ToArray();
 
-        double[] boundarySamples = [.. topEdge, .. bottomEdge, .. leftEdge, .. rightEdge];
         Assert.True(geometry.HeightSamples.Max() > 0.0, "Measured DEM surface heights were unexpectedly lost.");
-        Assert.True(boundarySamples.Min() > -1.0, $"Surface-covered boundary dropped to sea-level fallback: min={boundarySamples.Min():F6}");
         Assert.NotNull(geometry.SampleCoverage);
         Assert.Equal(geometry.Width * geometry.Height, geometry.SampleCoverage.Count);
         Assert.Contains(geometry.SampleCoverage, static coverage => coverage == TerrainGridSampleCoverage.Measured);
@@ -2851,7 +2926,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public async Task DemExactMeshRequestFiltersPartitionedParentMeshPiecesAfterOverlayPartition()
+    public async Task DemExactMeshRequestFiltersParentMeshPiecesByActualThirdMesh()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeParentMeshDemFixture(datasetRoot.Path, "53394525", "53394526");
@@ -3715,6 +3790,38 @@ public sealed class LocalCityGmlObjectProjectionTests
             InteriorRings: [],
             BaseColor: baseColor ?? new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: texturePayload);
+    }
+
+    private static ParsedSurface CreateDemSurfaceCovering(string firstMeshCode, string secondMeshCode)
+    {
+        MeshCodeBounds firstBounds = MeshCodeBounds.Parse(firstMeshCode);
+        MeshCodeBounds secondBounds = MeshCodeBounds.Parse(secondMeshCode);
+        double southLatitude = Math.Min(firstBounds.SouthLatitude, secondBounds.SouthLatitude);
+        double northLatitude = Math.Max(firstBounds.NorthLatitude, secondBounds.NorthLatitude);
+        double westLongitude = Math.Min(firstBounds.WestLongitude, secondBounds.WestLongitude);
+        double eastLongitude = Math.Max(firstBounds.EastLongitude, secondBounds.EastLongitude);
+
+        return CreateParsedSurface(
+            "dem-parent-surface",
+            ParsedSurfaceSemantic.Ground,
+            [
+                new GeodeticPoint(southLatitude, westLongitude, 0.0),
+                new GeodeticPoint(southLatitude, eastLongitude, 0.0),
+                new GeodeticPoint(northLatitude, eastLongitude, 1.0),
+                new GeodeticPoint(northLatitude, westLongitude, 1.0),
+                new GeodeticPoint(southLatitude, westLongitude, 0.0),
+            ]);
+    }
+
+    private static PlateauImportRequest CreatePlateauImportRequest(
+        IReadOnlyList<string> packageNames,
+        string meshCode = "53394525")
+    {
+        return new PlateauImportRequest(
+            Dataset: "tokyo23ku",
+            MeshCode: meshCode,
+            CityGmlSource: DatasetLocation.Local("C:\\fixture"),
+            PackageNames: packageNames);
     }
 
     private static bool ApproximatelyEqualFloat2(Float2 left, Float2 right, double tolerance)
