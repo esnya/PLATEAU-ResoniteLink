@@ -4,16 +4,20 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteQueuedCityObjectWorker(
-    ResoniteQueuedCityObjectSender queuedCityObjectSender)
+    ResoniteQueuedCityObjectPreparation cityObjectPreparation,
+    ResonitePreparedCityObjectImporter preparedCityObjectImporter)
 {
-    private readonly ResoniteQueuedCityObjectSender queuedCityObjectSender =
-        queuedCityObjectSender ?? throw new ArgumentNullException(nameof(queuedCityObjectSender));
+    private readonly ResoniteQueuedCityObjectPreparation cityObjectPreparation =
+        cityObjectPreparation ?? throw new ArgumentNullException(nameof(cityObjectPreparation));
+    private readonly ResonitePreparedCityObjectImporter preparedCityObjectImporter =
+        preparedCityObjectImporter ?? throw new ArgumentNullException(nameof(preparedCityObjectImporter));
 
     public Task[] CreateProcessingTasks(
         LiveSendRunState state,
@@ -71,7 +75,7 @@ internal sealed class ResoniteQueuedCityObjectWorker(
                             + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey})."));
                 }
 
-                await queuedCityObjectSender.SendAsync(
+                await SendQueuedCityObjectAsync(
                     state,
                     context.GetRoutedClient(),
                     queuedCityObject,
@@ -144,9 +148,93 @@ internal sealed class ResoniteQueuedCityObjectWorker(
         await ProcessQueuedCityObjectsAsync(state, context, reader, laneIndex, cancellationToken);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "Live send should log and skip individual city object send failures while keeping the lane alive.")]
+    private async Task SendQueuedCityObjectAsync(
+        LiveSendRunState state,
+        IResoniteLinkClient routedClient,
+        LiveSendQueuedCityObject queuedCityObject,
+        ResoniteLinkSendDiagnostics diagnostics,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref state.Progress.AttemptedCityObjectCount);
+        try
+        {
+            PreparedCityObject preparedCityObject = await cityObjectPreparation.PrepareAsync(
+                state,
+                routedClient,
+                queuedCityObject.CityObject,
+                diagnostics,
+                progressReporter,
+                cancellationToken);
+            await preparedCityObjectImporter.ImportAsync(
+                state,
+                routedClient,
+                queuedCityObject,
+                preparedCityObject,
+                diagnostics,
+                progressReporter,
+                cancellationToken);
+
+            int processedCount = Interlocked.Increment(ref state.Progress.ProcessedCityObjectCount);
+            progressReporter?.Invoke(
+                PlateauLog.Info(
+                    "live",
+                    $"Sent city object {processedCount}: "
+                    + $"{preparedCityObject.CityObject.DisplayName} "
+                    + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})"));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (!IsRecoverableCityObjectSendFailure(exception))
+            {
+                throw;
+            }
+
+            int failedCount = Interlocked.Increment(ref state.Progress.FailedCityObjectCount);
+            progressReporter?.Invoke(
+                PlateauLog.Warning(
+                    "live",
+                    $"Skipping city object after send failure {failedCount}: "
+                    + $"{queuedCityObject.CityObject.DisplayName} "
+                    + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey}). "
+                    + $"Reason: {exception.Message}"));
+        }
+        finally
+        {
+            await queuedCityObject.MemoryLease.DisposeAsync();
+        }
+    }
+
     private static void ReportProgress(LiveSendWorkerContext context, string message)
     {
         context.ProgressReporter?.Invoke(message);
+    }
+
+    private static bool IsRecoverableCityObjectSendFailure(Exception exception)
+    {
+        return exception is ContinuableImportException
+            || FindResoniteLinkOperationException(exception) is { OperationName: "ImportMesh" or "ImportTexture" or "GetSlot" or "GetComponent" };
+    }
+
+    private static ResoniteLinkOperationException? FindResoniteLinkOperationException(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is ResoniteLinkOperationException operationException)
+            {
+                return operationException;
+            }
+        }
+
+        return null;
     }
 
     private static void TryMarkProcessingFailure(LiveSendRunState state, Exception exception)
