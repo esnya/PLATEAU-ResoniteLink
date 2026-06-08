@@ -7,7 +7,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class DefaultImportedSceneSourceComposer(
     ICityGmlGeometryProjector geometryProjector,
-    IDemTextureSourcePolicy demTextureSourcePolicy) : IImportedSceneSourceComposer
+    IDemTextureSourcePolicy demTextureSourcePolicy)
 {
     private readonly ICityGmlGeometryProjector geometryProjector = geometryProjector;
     private readonly IDemTextureSourcePolicy demTextureSourcePolicy = demTextureSourcePolicy;
