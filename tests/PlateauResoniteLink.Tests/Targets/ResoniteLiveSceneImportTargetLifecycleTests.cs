@@ -938,7 +938,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
                         source,
                         CreateDatasetContentSourceAsync,
-                        cancellationToken)))
+                        cancellationToken)).ResolveAsync)
             .Compose(
                 request,
                 readResult,

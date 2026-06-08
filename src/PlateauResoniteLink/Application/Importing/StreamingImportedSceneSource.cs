@@ -35,7 +35,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         PlateauImportRequest request,
         ImportedSceneSourceSnapshot readResult,
         CityGmlGeometryProjector geometryProjector,
-        IDemTextureSourcePolicy demTextureSourcePolicy,
+        ResolveDemTextureSources resolveDemTextureSources,
         ImportedObjectUnitOptimizer objectUnitOptimizer,
         Action<string>? progressReporter = null)
     {
@@ -60,7 +60,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             documentSet.SelectedMeshCodes,
             requestedMeshCodeBounds,
             documentSet.PackageNames.Contains("dem", StringComparer.OrdinalIgnoreCase),
-            demTextureSourcePolicy);
+            resolveDemTextureSources);
     }
 
     public ImportedSceneMetadata Metadata { get; }

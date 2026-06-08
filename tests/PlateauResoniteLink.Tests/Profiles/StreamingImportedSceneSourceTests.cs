@@ -29,7 +29,7 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(sourceFileCount),
             new TrackingGeometryProjector().ProjectCityObjects,
-            new StubDemTextureSourcePolicy(),
+            new StubDemTextureSourcePolicy().ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         List<ImportedCityObject> cityObjects = [];
@@ -76,7 +76,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ],
                 [overlay]),
             geometryProjector.ProjectCityObjects,
-            new StubDemTextureSourcePolicy(),
+            new StubDemTextureSourcePolicy().ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         List<ImportedCityObject> cityObjects = [];
@@ -137,7 +137,7 @@ public sealed class StreamingImportedSceneSourceTests
                 [discoveryOverlay],
                 selectedMeshCodes: ["53394525"]),
             geometryProjector.ProjectCityObjects,
-            demTextureSourcePolicy,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ValidateBeforeSinkSetupAsync();
@@ -186,7 +186,7 @@ public sealed class StreamingImportedSceneSourceTests
                 [staleDiscoveryOverlay],
                 selectedMeshCodes: ["53394525"]),
             geometryProjector.ProjectCityObjects,
-            demTextureSourcePolicy,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ReadCityObjectsAsync().ToListAsync();
@@ -245,7 +245,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ],
                 selectedMeshCodes: ["53394525"]),
             geometryProjector.ProjectCityObjects,
-            demTextureSourcePolicy,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         List<ImportedCityObject> cityObjects = [];
@@ -291,7 +291,7 @@ public sealed class StreamingImportedSceneSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshCodeBoundsFilter: false),
                 ]),
             geometryProjector.ProjectCityObjects,
-            demTextureSourcePolicy,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         List<ImportedCityObject> cityObjects = [];
@@ -361,7 +361,7 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(pipelines),
             new TrackingGeometryProjector().ProjectCityObjects,
-            demTextureSourcePolicy,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ReadCityObjectsAsync().ToListAsync();
@@ -435,7 +435,7 @@ public sealed class StreamingImportedSceneSourceTests
                         streamFactory: cancellationToken => StreamParsedCityObjects(secondSourceFile, referenceSystem, cancellationToken)),
                 ]),
             new TrackingGeometryProjector().ProjectCityObjects,
-            demTextureSourcePolicy,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ReadCityObjectsAsync().ToListAsync();
@@ -491,7 +491,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ],
                 selectedMeshCodes: ["53394525"]),
             geometryProjector.ProjectCityObjects,
-            demTextureSourcePolicy,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ValidateBeforeSinkSetupAsync();
@@ -556,7 +556,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ],
                 selectedMeshCodes: ["533945"]),
             new OverlayRecordingGeometryProjector().ProjectCityObjects,
-            demTextureSourcePolicy,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         await source.ValidateBeforeSinkSetupAsync();
@@ -601,7 +601,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ],
                 selectedMeshCodes: ["53394525"]),
             geometryProjector.ProjectCityObjects,
-            demTextureSourcePolicy,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         List<ImportedCityObject> cityObjects = [];
@@ -635,7 +635,7 @@ public sealed class StreamingImportedSceneSourceTests
                 ],
                 selectedMeshCodes: ["53394525"]),
             new TrackingGeometryProjector().ProjectCityObjects,
-            new ThrowingDemTextureSourcePolicy(expectedException),
+            new ThrowingDemTextureSourcePolicy(expectedException).ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         PlateauImportValidationException actualException = await Assert.ThrowsAsync<PlateauImportValidationException>(
@@ -673,7 +673,7 @@ public sealed class StreamingImportedSceneSourceTests
                             TimeSpan.Zero))),
                 ]),
             new TrackingGeometryProjector().ProjectCityObjects,
-            demTextureSourcePolicy,
+            demTextureSourcePolicy.ResolveAsync,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
 
         using CancellationTokenSource cancellationTokenSource = new();
@@ -1020,7 +1020,7 @@ public sealed class StreamingImportedSceneSourceTests
         }
     }
 
-    private sealed class StubDemTextureSourcePolicy : IDemTextureSourcePolicy
+    private sealed class StubDemTextureSourcePolicy
     {
         private readonly TerrainTextureOverlay[] fallbackOverlays;
         private readonly Task? delayOverlayResolutionUntil;
@@ -1059,14 +1059,6 @@ public sealed class StreamingImportedSceneSourceTests
             return ResolveOverlayRegionsCoreAsync(cancellationToken);
         }
 
-        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
-            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
-        {
-            LastOverlayRegionIdentities = overlayRegions.Select(static region => region.MeshCode.Value).ToArray();
-            OverlayRegionIdentityCalls.Enqueue(LastOverlayRegionIdentities);
-            return fallbackOverlays;
-        }
-
         private async Task<ResolvedDemTextureSources> ResolveOverlayRegionsCoreAsync(
             CancellationToken cancellationToken)
         {
@@ -1079,7 +1071,7 @@ public sealed class StreamingImportedSceneSourceTests
         }
     }
 
-    private sealed class ThrowingDemTextureSourcePolicy(PlateauImportValidationException exception) : IDemTextureSourcePolicy
+    private sealed class ThrowingDemTextureSourcePolicy(PlateauImportValidationException exception)
     {
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
@@ -1092,12 +1084,6 @@ public sealed class StreamingImportedSceneSourceTests
             throw exception;
         }
 
-        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
-            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
-        {
-            _ = overlayRegions;
-            throw exception;
-        }
     }
 
     private sealed class EmptyDatasetContentSource : IPlateauDatasetContentSource
