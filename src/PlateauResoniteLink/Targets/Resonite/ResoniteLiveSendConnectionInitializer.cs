@@ -7,6 +7,12 @@ using PlateauResoniteLink.Application.Logging;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
+internal delegate Task EnsureResoniteLiveSendConnected(
+    LiveSendRunStartRequest request,
+    LiveSendRunPlan runPlan,
+    LiveSendRunStartContext context,
+    CancellationToken cancellationToken);
+
 internal static class ResoniteLiveSendConnectionInitializer
 {
     public static async Task EnsureConnectedAsync(
