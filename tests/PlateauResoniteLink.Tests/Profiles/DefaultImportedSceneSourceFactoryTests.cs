@@ -20,14 +20,14 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         ImportedObjectUnitOptimizer optimizer = PassthroughImportedObjectUnitOptimizer.OptimizeAsync;
 
         Assert.Throws<ArgumentNullException>(
-            "documentReader",
+            "readCityGmlDocument",
             () => new DefaultImportedSceneSourceFactory(null!, composer.Compose, optimizer));
         Assert.Throws<ArgumentNullException>(
             "constructionComposer",
-            () => new DefaultImportedSceneSourceFactory(reader, null!, optimizer));
+            () => new DefaultImportedSceneSourceFactory(reader.ReadAsync, null!, optimizer));
         Assert.Throws<ArgumentNullException>(
             "objectUnitOptimizer",
-            () => new DefaultImportedSceneSourceFactory(reader, composer.Compose, null!));
+            () => new DefaultImportedSceneSourceFactory(reader.ReadAsync, composer.Compose, null!));
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         RecordingDocumentReader reader = new();
         RecordingComposer composer = new(expectedSource);
         DefaultImportedSceneSourceFactory factory = new(
-            reader,
+            reader.ReadAsync,
             composer.Compose,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         Action<string> progressReporter = _ => { };
@@ -70,7 +70,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubImportedSceneSource());
         DefaultImportedSceneSourceFactory factory = new(
-            reader,
+            reader.ReadAsync,
             composer.Compose,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
@@ -112,7 +112,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubImportedSceneSource());
         DefaultImportedSceneSourceFactory factory = new(
-            reader,
+            reader.ReadAsync,
             composer.Compose,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         ResolvedLocalPlateauImportRequest request = ResolvedLocalPlateauImportRequestTestFactory.Create(
@@ -125,7 +125,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         Assert.Same(reader.ReadResult, composer.LastReadResult);
     }
 
-    private sealed class RecordingDocumentReader : ICityGmlDocumentReader
+    private sealed class RecordingDocumentReader
     {
         public RecordingDocumentReader(ImportedSceneSourceSnapshot? readResult = null)
         {

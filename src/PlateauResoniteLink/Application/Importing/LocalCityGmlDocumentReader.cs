@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
+internal sealed class LocalCityGmlDocumentReader
 {
     private readonly Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource;
     private readonly Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore;
