@@ -41,7 +41,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             importedSceneSourceFactory: new DefaultImportedSceneSourceFactory(
                 documentReader,
                 new DefaultImportedSceneSourceComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ProjectCityObjects,
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ProjectCityObjects,
                     CreateDemTextureSourcePolicy()).Compose,
                 PassthroughImportedObjectUnitOptimizer.OptimizeAsync),
             commonMaterials: CommonMaterialCatalog.Create(),
@@ -72,7 +72,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         DefaultImportedSceneSourceFactory factory = new(
             documentReader,
                 new DefaultImportedSceneSourceComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ProjectCityObjects,
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ProjectCityObjects,
                     CreateDemTextureSourcePolicy()).Compose,
             PassthroughImportedObjectUnitOptimizer.OptimizeAsync);
         IImportedSceneSource source = await factory.CreateAsync(request);
@@ -221,7 +221,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         double minV = projected.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
         double maxV = projected.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
@@ -257,7 +257,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         double minV = projected.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
         double maxV = projected.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
@@ -293,7 +293,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         double minV = projected.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
         double maxV = projected.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
@@ -340,7 +340,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
@@ -393,7 +393,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: CreateThirdMeshOverlay("53394525"),
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
@@ -431,7 +431,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
@@ -473,7 +473,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         Assert.Contains(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
         Assert.Contains(projected.Materials, IsBuildingFacadeMaterial);
@@ -514,7 +514,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         Assert.Contains(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
         Assert.DoesNotContain(projected.Materials, static material => material.Family == BundledDefaultMaterialFamilies.Roof);
@@ -559,7 +559,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding roofMaterial = Assert.Single(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
         Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) < 8.25);
@@ -618,7 +618,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) > 8.25);
         Assert.Contains(projected.Materials, IsBuildingFacadeMaterial);
@@ -657,7 +657,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingFacadeMaterial);
         Assert.Contains(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
@@ -703,7 +703,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingFacadeMaterial);
         MeshSubmesh facadeSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == facadeMaterial.SubmeshIndices.Single());
@@ -744,7 +744,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding facadeMaterial = Assert.Single(projected.Materials, IsBuildingFacadeMaterial);
         MeshSubmesh facadeSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == facadeMaterial.SubmeshIndices.Single());
@@ -783,7 +783,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding roofMaterial = Assert.Single(projected.Materials, material => ReferenceEquals(overlay, material.TerrainOverlay));
         MeshSubmesh roofSubmesh = Assert.Single(projected.Mesh.Submeshes, submesh => submesh.Index == roofMaterial.SubmeshIndices.Single());
@@ -818,7 +818,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         Assert.True(projected.Mesh.Vertices.Max(static vertex => vertex.Position.Y) < 8.25);
     }
@@ -855,7 +855,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, referenceSystem.Geocentric),
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(overlay, material.TerrainOverlay);
@@ -902,7 +902,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         Assert.Contains(projected, cityObject => cityObject.Materials.Any(material => ReferenceEquals(overlay, material.TerrainOverlay)));
         Assert.DoesNotContain(projected.SelectMany(static cityObject => cityObject.Materials), static material => material.Family == BundledDefaultMaterialFamilies.Roof);
@@ -948,7 +948,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         ImportedCityObject facadeObject = Assert.Single(projected, static cityObject =>
             cityObject.Materials.Any(IsBuildingFacadeMaterial));
@@ -983,7 +983,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(overlay, material.TerrainOverlay);
@@ -1020,7 +1020,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("533945")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(expectedOverlay, material.TerrainOverlay);
@@ -1061,7 +1061,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("533945")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         Assert.Equal(2, projected.Length);
         Assert.Collection(
@@ -1113,7 +1113,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(selectedAdjacentOverlay, material.TerrainOverlay);
@@ -1152,7 +1152,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394600")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(selectedOverlay, material.TerrainOverlay);
@@ -1189,7 +1189,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(selectedRequestOverlay, material.TerrainOverlay);
@@ -1227,7 +1227,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(sourceOverlay, material.TerrainOverlay);
@@ -1264,7 +1264,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("533945")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         Assert.DoesNotContain(projected.Materials, static material => material.TerrainOverlay is not null);
     }
@@ -1299,7 +1299,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
                 terrainHeightSampler: null,
                 request,
-                new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+                new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         ImportedCityObject projectedCityObject = Assert.Single(cityObjects);
         Assert.All(projectedCityObject.Materials, static material => Assert.Null(material.TerrainOverlayMaterial));
@@ -1338,7 +1338,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("533945")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         Assert.Empty(materialBindings);
     }
@@ -1374,7 +1374,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         Assert.Empty(materialBindings);
     }
@@ -1418,7 +1418,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
                 terrainHeightSampler: null,
                 request,
-                new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+                new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(overlay, material.TerrainOverlay);
@@ -1463,7 +1463,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
                 terrainHeightSampler: null,
                 request,
-                new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+                new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(overlay, material.TerrainOverlay);
@@ -1496,7 +1496,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(new ColorRgba(1.0, 1.0, 1.0, 1.0), material.BaseColor);
@@ -1525,7 +1525,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: mismatchedOverlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Same(mismatchedOverlay, material.TerrainOverlay);
@@ -1557,7 +1557,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
@@ -1591,7 +1591,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
@@ -1625,7 +1625,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         Assert.DoesNotContain(projected.Materials, static material => material.TerrainOverlay is not null);
     }
@@ -1657,7 +1657,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding roofMaterial = Assert.Single(
             projected.Materials,
@@ -1696,7 +1696,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
@@ -1744,7 +1744,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("54372778")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         MaterialBinding material = Assert.Single(
             projected.SelectMany(static cityObject => cityObject.Materials),
@@ -1776,7 +1776,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         MaterialBinding material = Assert.Single(projected.Materials);
         Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
@@ -1803,7 +1803,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: overlay,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         Assert.Contains(projected.Mesh.Vertices, static vertex => vertex.UV0.X < 0.0);
         Assert.Contains(projected.Mesh.Vertices, static vertex => vertex.UV0.X > 1.0);
@@ -1836,7 +1836,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())));
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial));
 
         Assert.Contains(projected.Mesh.Vertices, static vertex => vertex.UV0.X < 0.0);
         Assert.Contains(projected.Mesh.Vertices, static vertex => vertex.UV0.X > 1.0);
@@ -2079,7 +2079,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         Assert.Equal(3, projected.Materials.Count);
         Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Description == "ground");
@@ -2119,7 +2119,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         Assert.Single(projected.Materials);
         Assert.Equal("tran-ground", projected.Materials[0].TexturePayload?.Source.Description);
@@ -2177,7 +2177,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         Assert.Equal(2, projected.Materials.Count);
         Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Source.Description == "lod1-bottom");
@@ -2252,7 +2252,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             globalCartesian: cartesian,
             demTerrainTextureOverlay: null,
-            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            materialResolver: new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
 
         Assert.Single(projected.Materials);
         Assert.Contains(projected.Materials, static material => material.TexturePayload?.Source.Description == "only-surface");
@@ -2456,7 +2456,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         ImportedCityObject result = Assert.Single(projected);
         Assert.IsType<TriangleMeshGeometry>(result.Geometry);
@@ -2494,7 +2494,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         ImportedCityObject result = Assert.Single(projected);
         Assert.IsType<TerrainGridGeometry>(result.Geometry);
@@ -2538,7 +2538,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         ImportedCityObject projectedCityObject = Assert.Single(projected);
         MaterialBinding terrainMaterial = Assert.Single(projectedCityObject.Materials);
@@ -2581,7 +2581,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             requestedMeshCodeBounds: [MeshCodeBounds.TryParse("53394525")!, MeshCodeBounds.TryParse("53394526")!],
             terrainHeightSampler: null,
             request,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ToArray();
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ToArray();
 
         ImportedCityObject projectedCityObject = Assert.Single(projected);
         MaterialBinding terrainMaterial = Assert.Single(projectedCityObject.Materials);
@@ -4631,7 +4631,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             cityObjectOrigin,
             cartesian,
             demTerrainTextureOverlay: null,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create()));
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial);
     }
 
     private static bool IsBuildingFacadeMaterial(MaterialBinding material)
@@ -4658,7 +4658,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: null,
             request,
             requestedMeshCodeBounds,
-            new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
+            new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial,
             logger: NullLogger.Instance,
             CancellationToken.None);
     }

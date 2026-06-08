@@ -940,7 +940,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             request,
             cancellationToken: default);
         ImportedSceneMetadata metadata = new DefaultImportedSceneSourceComposer(
-                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())).ProjectCityObjects,
+                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create()).ResolveMaterial).ProjectCityObjects,
                 new DefaultDemTextureSourcePolicy(
                     (source, cancellationToken) => DemTerrainGeoReferencedRasterCatalog.CreateAsync(
                         source,

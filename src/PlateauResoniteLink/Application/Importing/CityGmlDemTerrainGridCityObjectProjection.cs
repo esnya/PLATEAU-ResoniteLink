@@ -23,7 +23,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         PlateauImportRequest request,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
-        IDefaultMaterialResolver materialResolver,
+        ResolveDefaultMaterial materialResolver,
         ILogger? logger,
         CancellationToken cancellationToken,
         out bool outsideSamplingBounds,
@@ -197,7 +197,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         LocalCartesian? cityObjectCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         GeographicRectangle terrainGridGeographicBounds,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         if (demTerrainTextureOverlay is null)
         {

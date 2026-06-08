@@ -1,0 +1,3 @@
+namespace PlateauResoniteLink.Application.Importing;
+
+internal delegate ResolvedMaterial ResolveDefaultMaterial(DefaultMaterialRequest request);

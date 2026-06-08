@@ -42,7 +42,7 @@ internal static class LocalCityGmlObjectProjection
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         ParsedCityObject heightResolvedCityObject = cityObject.GeometryHeightMeters.HasValue
             ? cityObject
@@ -68,7 +68,7 @@ internal static class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         IReadOnlyList<string> selectedMeshCodes,
         PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver,
+        ResolveDefaultMaterial materialResolver,
         Func<global::PlateauResoniteLink.Application.Importing.ParsedCityObject, bool>? predicate = null,
         ILogger? logger = null,
         CancellationToken cancellationToken = default)
@@ -96,7 +96,7 @@ internal static class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         ProjectionTerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver,
+        ResolveDefaultMaterial materialResolver,
         ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
@@ -121,7 +121,7 @@ internal static class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         ProjectionTerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver)
+        ResolveDefaultMaterial materialResolver)
     {
         return CityGmlParsedCityObjectProjection.EnumerateCommonMaterials(
             parsedCityObject,
