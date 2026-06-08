@@ -22,18 +22,18 @@ public sealed class CliApplication
 
     private readonly TextWriter standardError;
     private readonly TextWriter standardOutput;
-    private readonly IImportServiceFactory importServiceFactory;
+    private readonly Func<ImportCommandOptions, Action<string>?, PlateauImportService> createImportService;
     private readonly DatasetInspectionService datasetInspectionService;
 
     internal CliApplication(
         TextWriter standardOutput,
         TextWriter standardError,
-        IImportServiceFactory importServiceFactory,
+        Func<ImportCommandOptions, Action<string>?, PlateauImportService> createImportService,
         DatasetInspectionService datasetInspectionService)
     {
         this.standardOutput = standardOutput;
         this.standardError = standardError;
-        this.importServiceFactory = importServiceFactory;
+        this.createImportService = createImportService;
         this.datasetInspectionService = datasetInspectionService;
     }
 
@@ -66,7 +66,7 @@ public sealed class CliApplication
                 case ImportCommandOptions options:
                     {
                         Action<string> reporter = CreateReporter(options.VerboseLogging);
-                        PlateauImportService effectiveImportService = importServiceFactory.Create(options, reporter);
+                        PlateauImportService effectiveImportService = createImportService(options, reporter);
 
                         ImportExecutionResult result = await effectiveImportService.ExecuteAsync(
                             options.Request,
