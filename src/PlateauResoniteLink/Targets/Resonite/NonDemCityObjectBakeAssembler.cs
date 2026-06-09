@@ -55,13 +55,13 @@ internal sealed class NonDemCityObjectBakeAssembler(
             : sourceFileKey.SourceFileRelativePath;
 
         NonDemBakedGeometry geometry = NonDemBakedGeometryComposer.Compose(
-            sourceFileKey,
-            candidates,
-            requestLocalOrigin,
-            batchIndex,
-            layout,
-            atlasImage,
-            cancellationToken);
+            sourceFileKey: sourceFileKey,
+            candidates: candidates,
+            requestLocalOrigin: requestLocalOrigin,
+            batchIndex: batchIndex,
+            layout: layout,
+            atlasImage: atlasImage,
+            cancellationToken: cancellationToken);
 
         ResoniteConstructionCityObject bakedCityObject = new(
             SlotKey: slotKey,
