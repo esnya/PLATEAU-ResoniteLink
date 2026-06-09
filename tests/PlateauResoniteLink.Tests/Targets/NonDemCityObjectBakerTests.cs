@@ -767,6 +767,28 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncPreservesSourceFileRootMeshCodeInBakedBatch()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building("building-one", CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4), 0, "unit-a") with
+            {
+                SourceFileRootMeshCode = "53394526",
+            });
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building("building-two", CreatePayload("textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4), 2, "unit-a") with
+            {
+                SourceFileRootMeshCode = "53394526",
+            });
+
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+
+        Assert.Equal("53394526", baked.SourceFileRootMeshCode);
+    }
+
+    [Fact]
     public async Task FlushAllAsyncKeepsSameSourceFileInSingleAtlasBatchAcrossDifferentSourceUnits()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);

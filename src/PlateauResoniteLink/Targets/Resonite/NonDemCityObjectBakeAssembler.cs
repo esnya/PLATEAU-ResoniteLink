@@ -73,7 +73,8 @@ internal sealed class NonDemCityObjectBakeAssembler(
             Mesh: geometry.Mesh,
             Materials: geometry.Materials,
             CollisionEnabled: candidates.Any(static candidate => candidate.CityObject.CollisionEnabled),
-            SourceFileRelativePath: sourceFileRelativePath);
+            SourceFileRelativePath: sourceFileRelativePath,
+            SourceFileRootMeshCode: firstCityObject.SourceFileRootMeshCode);
         return Task.FromResult(bakedCityObject);
     }
 }
