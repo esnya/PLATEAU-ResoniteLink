@@ -45,7 +45,6 @@ internal static class CityGmlParsedCityObjectProjection
         if (string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
             && request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic)
         {
-            List<ImportedCityObject> sourceFileProjectedCityObjects = [];
             ConstructionCityObjectDraft? sourceFileTerrainGridSamplingDraft = CreateDemSourceFileTerrainGridSamplingDraft(sourceFile);
             foreach (ParsedCityObject parsedCityObject in projectedInputCityObjects)
             {
@@ -55,24 +54,22 @@ internal static class CityGmlParsedCityObjectProjection
                     continue;
                 }
 
-                sourceFileProjectedCityObjects.AddRange(Project(
-                    parsedCityObject,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    requestedMeshCodeBounds,
-                    terrainHeightSampler: null,
-                    request,
-                    materialResolver,
-                    progressReporter,
-                    sourceFileTerrainGridSamplingDraft,
-                    cancellationToken));
-            }
-
-            foreach (ImportedCityObject cityObject in sourceFileProjectedCityObjects)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return AttachSourceFileRoot(cityObject, sourceFile.SourceFile);
+                foreach (ImportedCityObject cityObject in Project(
+                             parsedCityObject,
+                             globalOriginPoint,
+                             globalCartesian,
+                             demTerrainTextureOverlays,
+                             requestedMeshCodeBounds,
+                             terrainHeightSampler: null,
+                             request,
+                             materialResolver,
+                             progressReporter,
+                             sourceFileTerrainGridSamplingDraft,
+                             cancellationToken))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    yield return AttachSourceFileRoot(cityObject, sourceFile.SourceFile);
+                }
             }
 
             yield break;
