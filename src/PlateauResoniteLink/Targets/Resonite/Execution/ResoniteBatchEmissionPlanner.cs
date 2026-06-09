@@ -243,7 +243,6 @@ internal static class ResoniteBatchEmissionPlanner
                 .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
         componentEmissions.Add(heightTextureComponent);
 
-        double displacementMagnitude = Math.Max(geometry.MaxHeight - geometry.MinHeight, 0.0);
         PlannedFieldReference pointsField = new();
         Field_int2 points = new()
         {
@@ -263,7 +262,7 @@ internal static class ResoniteBatchEmissionPlanner
         };
         Field_float displacement = new()
         {
-            Value = (float)displacementMagnitude,
+            Value = (float)geometry.HeightRange,
         };
         Field_float2? plannedUvScale = uvScale is null
             ? null

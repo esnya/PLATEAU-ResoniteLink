@@ -37,15 +37,7 @@ internal static class SceneImportContractMapper
                 cityObject.ActualMeshCode,
                 cityObject.LodLevel,
                 ToInternal(cityObject.Transform),
-                new ResoniteTerrainGridGeometry(
-                    heightMap.Width,
-                    heightMap.Height,
-                    ToInternal(heightMap.Size),
-                    heightMap.MinHeight,
-                    heightMap.MaxHeight,
-                    heightMap.HeightSamples,
-                    heightMap.UvScale is null ? null : ToInternal(heightMap.UvScale),
-                    heightMap.UvOffset is null ? null : ToInternal(heightMap.UvOffset)),
+                ToInternal(heightMap),
                 cityObject.Materials.Select(ToInternal).ToArray(),
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath,
@@ -59,15 +51,7 @@ internal static class SceneImportContractMapper
                 ToInternal(cityObject.Transform),
                 new ResoniteDynamicTerrainGeometry(
                     new ResoniteTriangleMeshGeometry(ToInternal(dynamicTerrain.StaticMesh.Mesh)),
-                    new ResoniteTerrainGridGeometry(
-                        dynamicTerrain.GridMesh.Width,
-                        dynamicTerrain.GridMesh.Height,
-                        ToInternal(dynamicTerrain.GridMesh.Size),
-                        dynamicTerrain.GridMesh.MinHeight,
-                        dynamicTerrain.GridMesh.MaxHeight,
-                        dynamicTerrain.GridMesh.HeightSamples,
-                        dynamicTerrain.GridMesh.UvScale is null ? null : ToInternal(dynamicTerrain.GridMesh.UvScale),
-                        dynamicTerrain.GridMesh.UvOffset is null ? null : ToInternal(dynamicTerrain.GridMesh.UvOffset))),
+                    ToInternal(dynamicTerrain.GridMesh)),
                 cityObject.Materials.Select(ToInternal).ToArray(),
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath,
@@ -81,6 +65,19 @@ internal static class SceneImportContractMapper
         return new ResoniteTransform(
             ToInternal(transform.Position),
             transform.Rotation is null ? null : ToInternal(transform.Rotation));
+    }
+
+    private static ResoniteTerrainGridGeometry ToInternal(TerrainGridGeometry geometry)
+    {
+        return new ResoniteTerrainGridGeometry(
+            geometry.Width,
+            geometry.Height,
+            ToInternal(geometry.Size),
+            geometry.MinHeight,
+            geometry.MaxHeight,
+            geometry.HeightSamples,
+            geometry.UvScale is null ? null : ToInternal(geometry.UvScale),
+            geometry.UvOffset is null ? null : ToInternal(geometry.UvOffset));
     }
 
     private static ResoniteFloat2 ToInternal(Float2 value) => new(value.X, value.Y);

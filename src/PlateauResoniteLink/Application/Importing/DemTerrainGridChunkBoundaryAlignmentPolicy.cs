@@ -128,12 +128,19 @@ internal static class DemTerrainGridChunkBoundaryAlignmentPolicy
             Geometry = geometry;
             HeightSamples = heightSamples;
             SampleCoverage = geometry.SampleCoverage.ToArray();
-            if (SampleCoverage.Length != heightSamples.Length)
+            if (heightSamples.Length != geometry.SampleCount)
             {
                 throw new InvalidOperationException(
-                    $"Terrain grid sample coverage count {SampleCoverage.Length} does not match height sample count {heightSamples.Length}.");
+                    $"Terrain grid height sample count {heightSamples.Length} does not match sample count {geometry.SampleCount}.");
             }
-            BaseHeight = cityObject.Transform.Position.Y - geometry.MaxHeight;
+
+            if (SampleCoverage.Length != geometry.SampleCount)
+            {
+                throw new InvalidOperationException(
+                    $"Terrain grid sample coverage count {SampleCoverage.Length} does not match sample count {geometry.SampleCount}.");
+            }
+
+            BaseHeight = geometry.GetWorldBaseHeight(cityObject.Transform);
         }
 
         public ImportedCityObject CityObject { get; }

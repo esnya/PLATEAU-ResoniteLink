@@ -218,13 +218,12 @@ internal static class ResoniteCityObjectPreparation
             },
             $"terrain-grid-height:{geometry.Width}x{geometry.Height}",
             colorProfile: null,
-            estimatedByteLength: checked((long)geometry.Width * geometry.Height * 4L * sizeof(float)));
+            estimatedByteLength: checked((long)geometry.SampleCount * 4L * sizeof(float)));
     }
 
     private static RgbaFloat32RawTexturePayload CreateTerrainGridDisplacementPayload(ResoniteTerrainGridGeometry geometry)
     {
-        float[] rawPixels = new float[geometry.Width * geometry.Height * 4];
-        double heightRange = Math.Max(geometry.MaxHeight - geometry.MinHeight, 0.0);
+        float[] rawPixels = new float[geometry.SampleCount * 4];
 
         for (int y = 0; y < geometry.Height; y++)
         {
@@ -233,9 +232,9 @@ internal static class ResoniteCityObjectPreparation
                 // FrooxEngine.GridMesh uses `color.r + color.g + color.b / 3` for displacement.
                 // Encode the inverted height into blue only (scaled by 3) so the effective sampled height stays 1x.
                 double heightSample = geometry.HeightSamples[(y * geometry.Width) + x];
-                double normalizedHeight = heightRange <= 1e-9
+                double normalizedHeight = geometry.HeightRange <= 1e-9
                     ? 0.0
-                    : Math.Clamp((heightSample - geometry.MinHeight) / heightRange, 0.0, 1.0);
+                    : Math.Clamp((heightSample - geometry.MinHeight) / geometry.HeightRange, 0.0, 1.0);
                 float heightValue = (float)(1.0 - normalizedHeight);
                 int pixelIndex = (y * geometry.Width * 4) + (x * 4);
                 rawPixels[pixelIndex] = 0.0f;
