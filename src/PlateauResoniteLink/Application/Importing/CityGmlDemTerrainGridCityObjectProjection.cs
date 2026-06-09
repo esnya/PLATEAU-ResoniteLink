@@ -122,14 +122,8 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         height = heightSamples.Height;
         double[] sourceLocalHeights = heightSamples.LocalHeights;
         TerrainGridSampleCoverage[] sampleCoverage = heightSamples.SampleCoverage;
-        double sourceMinHeight = sourceLocalHeights.Min();
-        double sourceMaxHeight = sourceLocalHeights.Max();
-        double verticalOriginLocalHeight = (sourceMinHeight + sourceMaxHeight) / 2.0;
-        double[] localHeights = sourceLocalHeights
-            .Select(height => height - verticalOriginLocalHeight)
-            .ToArray();
-        double minHeight = localHeights.Min();
-        double maxHeight = localHeights.Max();
+        double minHeight = sourceLocalHeights.Min();
+        double maxHeight = sourceLocalHeights.Max();
 
         MaterialBinding[] materials = CityGmlSurfaceMaterialResolver.CreateDemTerrainGridMaterials(
             cityObject,
@@ -159,7 +153,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         Float3 adjustedSlotPosition = slotPosition with
         {
             X = slotPosition.X + centerX,
-            Y = slotPosition.Y + verticalOriginLocalHeight,
+            Y = slotPosition.Y + maxHeight,
             Z = slotPosition.Z + centerZ,
         };
 
@@ -169,7 +163,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             Size: new Float2(extentX, extentZ),
             MinHeight: minHeight,
             MaxHeight: maxHeight,
-            HeightSamples: localHeights,
+            HeightSamples: sourceLocalHeights,
             SampleCoverage: sampleCoverage,
             UvScale: heightMapUvScale,
             UvOffset: heightMapUvOffset);

@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +14,8 @@ using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
+
+using ResoniteLink;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
@@ -503,6 +506,37 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         Assert.NotNull(importTarget.ClientSession);
     }
 
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredTransportFactory()
+    {
+        RecordingResoniteLinkTransport transport = new();
+        try
+        {
+            int createTransportCallCount = 0;
+            using ServiceProvider provider = new ServiceCollection()
+                .AddScoped<Func<IResoniteLinkTransport>>(_ => () =>
+                {
+                    createTransportCallCount++;
+                    return transport;
+                })
+                .AddResoniteLiveSendTargetServices()
+                .BuildServiceProvider();
+            using IServiceScope scope = provider.CreateScope();
+            Func<Action<string>?, IResoniteLinkClient> createClient =
+                scope.ServiceProvider.GetRequiredService<Func<Action<string>?, IResoniteLinkClient>>();
+
+            IResoniteLinkClient client = createClient(null);
+            client.Dispose();
+
+            Assert.Equal(1, createTransportCallCount);
+            Assert.Equal(1, transport.DisposeCallCount);
+        }
+        finally
+        {
+            transport.Dispose();
+        }
+    }
+
     [Theory]
     [InlineData(ResoniteImportMemoryProfile.Small)]
     [InlineData(ResoniteImportMemoryProfile.Large)]
@@ -727,6 +761,74 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             cancellationToken.ThrowIfCancellationRequested();
             ExecuteCallCount++;
             return Task.FromResult(Result);
+        }
+    }
+
+    private sealed class RecordingResoniteLinkTransport : IResoniteLinkTransport
+    {
+        private bool disposed;
+
+        public int DisposeCallCount { get; private set; }
+
+        public void Dispose()
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+            DisposeCallCount++;
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<NewEntityId> AddComponentAsync(AddComponent request)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<NewEntityId> AddSlotAsync(AddSlot request)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(List<DataModelOperation> operations)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ComponentData> GetComponentDataAsync(GetComponent request)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<SlotData> GetSlotDataAsync(GetSlot request)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<AssetData> ImportMeshAsync(ImportMeshRawData request)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<AssetData> ImportTextureRawAsync(ImportTexture2DRawData request)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<AssetData> ImportTextureRawHdrAsync(ImportTexture2DRawDataHDR request)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<Response> UpdateComponentAsync(UpdateComponent request)
+        {
+            throw new NotSupportedException();
         }
     }
 }

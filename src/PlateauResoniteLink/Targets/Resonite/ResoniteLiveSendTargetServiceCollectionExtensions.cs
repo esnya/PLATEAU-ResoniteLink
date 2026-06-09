@@ -6,6 +6,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
+using ResoniteLink;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 public static class ResoniteLiveSendTargetServiceCollectionExtensions
@@ -14,8 +16,17 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddScoped<Func<IResoniteLinkTransport>>(
+            _ => static () => new LinkInterfaceResoniteLinkTransport(new LinkInterface()));
         services.TryAddScoped<Func<Action<string>?, IResoniteLinkClient>>(
-            _ => static progressReporter => new ResoniteLinkClient(progressReporter));
+            provider =>
+            {
+                Func<IResoniteLinkTransport> createTransport =
+                    provider.GetRequiredService<Func<IResoniteLinkTransport>>();
+                return progressReporter => new ResoniteLinkClient(
+                    createTransport(),
+                    progressReporter);
+            });
         services.TryAddScoped<BundledDefaultMaterialAssetStore>();
         services.TryAddScoped<ResoniteTextureImageLoader>();
         services.TryAddScoped<ResoniteMaterialPlanning>();

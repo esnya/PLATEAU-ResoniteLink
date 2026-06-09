@@ -52,11 +52,6 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private int disposed;
 
-    public ResoniteLinkClient(Action<string>? reporter = null)
-        : this(new LinkInterfaceResoniteLinkTransport(new LinkInterface()), reporter)
-    {
-    }
-
     internal ResoniteLinkClient(
         IResoniteLinkTransport link,
         Action<string>? reporter = null,

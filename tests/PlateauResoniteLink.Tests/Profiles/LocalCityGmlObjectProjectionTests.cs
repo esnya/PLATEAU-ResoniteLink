@@ -2745,6 +2745,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             .ToArray();
 
         Assert.True(geometry.HeightSamples.Max() > 0.0, "Measured DEM surface heights were unexpectedly lost.");
+        Assert.True(geometry.HeightSamples.Min() > 0.0, "Measured DEM surface heights were unexpectedly rebased away from the terrain frame.");
         Assert.NotNull(geometry.SampleCoverage);
         Assert.Equal(geometry.Width * geometry.Height, geometry.SampleCoverage.Count);
         Assert.Contains(geometry.SampleCoverage, static coverage => coverage == TerrainGridSampleCoverage.Measured);
