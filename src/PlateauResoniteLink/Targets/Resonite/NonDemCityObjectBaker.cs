@@ -92,11 +92,13 @@ internal sealed class NonDemCityObjectBaker(
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
-        if (!sourceFileBuffer.TryTake(sourceFileKey, out NonDemSourceFileBakeBufferEntry bufferEntry))
+        NonDemSourceFileBakeBufferTakeResult takeResult = sourceFileBuffer.Take(sourceFileKey);
+        if (!takeResult.Found)
         {
             return;
         }
 
+        NonDemSourceFileBakeBufferEntry bufferEntry = takeResult.Entry;
         int emittedCount = 0;
         try
         {

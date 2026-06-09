@@ -30,21 +30,19 @@ internal sealed class NonDemSourceFileBakeBuffer
             .ToArray();
     }
 
-    public bool TryTake(
-        NonDemSourceFileBatchKey sourceFileKey,
-        out NonDemSourceFileBakeBufferEntry entry)
+    public NonDemSourceFileBakeBufferTakeResult Take(NonDemSourceFileBatchKey sourceFileKey)
     {
         if (!bufferedCityObjectsBySourceFile.Remove(sourceFileKey, out List<NonDemBufferedCityObject>? cityObjects))
         {
-            entry = default;
-            return false;
+            return NonDemSourceFileBakeBufferTakeResult.NotFound;
         }
 
-        entry = new NonDemSourceFileBakeBufferEntry(
-            sourceFileKey,
-            cityObjects,
-            nextBatchIndexBySourceFile.GetValueOrDefault(sourceFileKey));
-        return true;
+        return new NonDemSourceFileBakeBufferTakeResult(
+            Found: true,
+            new NonDemSourceFileBakeBufferEntry(
+                sourceFileKey,
+                cityObjects,
+                nextBatchIndexBySourceFile.GetValueOrDefault(sourceFileKey)));
     }
 
     public void Complete(
@@ -60,3 +58,10 @@ internal readonly record struct NonDemSourceFileBakeBufferEntry(
     NonDemSourceFileBatchKey SourceFileKey,
     List<NonDemBufferedCityObject> CityObjects,
     int BatchStartIndex);
+
+internal readonly record struct NonDemSourceFileBakeBufferTakeResult(
+    bool Found,
+    NonDemSourceFileBakeBufferEntry Entry)
+{
+    public static NonDemSourceFileBakeBufferTakeResult NotFound => new(Found: false, default);
+}
