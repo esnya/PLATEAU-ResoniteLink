@@ -26,6 +26,11 @@
 - ユーザーが明示的に求めない限り、`Builder`、`Manager`、`Coordinator`、`Helper`、`Util` のような広すぎる振る舞い志向の型を新設しない。
 - 決定的な出力、明示的なコマンド入力、再現可能なローカル/CI の挙動を優先する。
 - 振る舞いを変更したら、自動テストを追加または更新する。
+- 回帰修正では、修正完了とみなす前に、期待する observable contract と、提案した原因を反証できる反例または観測点を定義する。
+- 限定情報下では、単一仮説に固定しないこと。まずその仮説を失敗させられる観測、テスト、比較を作り、あり得る解釈の範囲で破綻しない変更だけを行う。
+- 複数の実行経路が同じ概念を出力する場合は、経路別の補正を追加するのではなく、共有契約を強制し、同等の出力同士を比較する。
+- 通常の UI や外部ターゲットの surface から出力を検査できない場合は、実際に emit される payload を検査できる boundary adapter 付近の記録、dump、readback artifact を用意し、それを完了判定に使う。
+- green test、CI、review approval だけで回帰が修正された証明として扱わない。failure mode に対応する観測 artifact が期待する契約を満たすことを確認する。
 - grep ベースの architecture test や naming test を、境界規範の正本として扱わないこと。命名規則と ownership はこのファイルで管理し、依存方向は project reference で縛り、テストでは observable behavior だけを守る。
 - 依存性注入は stack の中腹まで貫通させること。core、application、import、bootstrap、target、transport のコードは、`new`、static factory、fallback self-wiring で concrete default を隠さない。
 - legacy 変換と static projection helper は adapter edge にだけ置くこと。core concept と neutral contract は、`ToLegacy`、`FromLegacy`、target 固有 mapper utility に依存しない。
