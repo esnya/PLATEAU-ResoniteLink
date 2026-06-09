@@ -554,10 +554,32 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Component displacementTexture = client.ComponentsById[displacementTextureReference.TargetID];
         Assert.Equal("[FrooxEngine]FrooxEngine.StaticTexture2D", displacementTexture.ComponentType);
         Assert.Equal("Terrain Grid Terrain", Assert.IsType<Field_string>(terrainRootSlot.Name).Value);
+        Assert.Equal(53394525, Assert.IsType<Field_long>(terrainRootSlot.OrderOffset).Value);
         Assert.Null(terrainRootSlot.Rotation);
         Field_float3 gridSlotPosition = Assert.IsType<Field_float3>(terrainRootSlot.Position);
         Assert.Equal(0.0f, gridSlotPosition.Value.y, 6);
         Assert.Equal(-1.0f, Assert.IsType<Field_float>(gridMesh.Members["DisplacementMagnitude"]).Value);
+        Assert.True(Assert.IsType<Field_bool>(gridMesh.Members["OverrideBoundingBox"]).Value);
+        Field_BoundingBox gridBounds = Assert.IsType<Field_BoundingBox>(gridMesh.Members["OverridenBoundingBox"]);
+        Assert.Equal(-5.0f, gridBounds.Value.min.x, 6);
+        Assert.Equal(-2.0f, gridBounds.Value.min.y, 6);
+        Assert.Equal(-5.0f, gridBounds.Value.min.z, 6);
+        Assert.Equal(5.0f, gridBounds.Value.max.x, 6);
+        Assert.Equal(1.0f, gridBounds.Value.max.y, 6);
+        Assert.Equal(5.0f, gridBounds.Value.max.z, 6);
+        Slot[] demSourceFileRootSlots = client.SlotsById.Values
+            .Where(slot => string.Equals(
+                slot.Name?.Value,
+                $"<color=mid.orange>🟫</color> plateau_{DatasetName}_dem_533945",
+                StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, demSourceFileRootSlots.Length);
+        Assert.All(demSourceFileRootSlots, slot => Assert.Equal(533945, Assert.IsType<Field_long>(slot.OrderOffset).Value));
+        Slot[] terrainObjectSlots = client.SlotsById.Values
+            .Where(slot => string.Equals(slot.Name?.Value, "Terrain Grid Terrain", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, terrainObjectSlots.Length);
+        Assert.All(terrainObjectSlots, slot => Assert.Equal(53394525, Assert.IsType<Field_long>(slot.OrderOffset).Value));
         Assert.DoesNotContain(
             client.SlotsById.Values,
             static slot => string.Equals(slot.Name?.Value, "Terrain Grid Terrain GridMesh", StringComparison.Ordinal));
@@ -1163,7 +1185,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.NotEmpty(directChildNames);
         Assert.Contains(
             client.SlotPaths.Values,
-            path => path.EndsWith($"/{Path.GetFileNameWithoutExtension(sourceFile)}", StringComparison.Ordinal));
+            path => path.EndsWith(
+                $"/<color=hero.cyan>🏢</color> {Path.GetFileNameWithoutExtension(sourceFile)}",
+                StringComparison.Ordinal));
     }
 
     [Fact]

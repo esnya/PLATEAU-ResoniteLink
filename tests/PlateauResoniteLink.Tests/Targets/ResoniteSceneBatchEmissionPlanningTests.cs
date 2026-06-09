@@ -156,6 +156,14 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(ToMember(heightTexture.Members["WrapModeV"])).Value);
         Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(ToMember(heightTexture.Members["FilterMode"])).Value);
         Assert.False(Assert.IsType<Field_bool>(ToMember(heightTexture.Members["MipMaps"])).Value);
+        Assert.True(Assert.IsType<Field_bool>(ToMember(gridMesh.Members["OverrideBoundingBox"])).Value);
+        BoundingBox gridBounds = Assert.IsType<Field_BoundingBox>(ToMember(gridMesh.Members["OverridenBoundingBox"])).Value;
+        Assert.Equal(-5.0f, gridBounds.min.x, 6);
+        Assert.Equal(-6.0f, gridBounds.min.y, 6);
+        Assert.Equal(-10.0f, gridBounds.min.z, 6);
+        Assert.Equal(5.0f, gridBounds.max.x, 6);
+        Assert.Equal(-0.0f, gridBounds.max.y, 6);
+        Assert.Equal(10.0f, gridBounds.max.z, 6);
         Reference displacementTexture = Assert.IsType<Reference>(ToMember(gridMesh.Members["DisplacementTexture"]));
         Assert.Equal(ToPlannedTargetId(heightTexture), displacementTexture.TargetID);
         PlannedAddressableFieldMember gridPointsMember = Assert.IsType<PlannedAddressableFieldMember.Int2>(gridMesh.Members["Points"]);
@@ -177,6 +185,48 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal(1.0f, Assert.IsType<Field_float>(ToMember(pointsProgressDriver.Members["DefaultValue"])).Value);
         Assert.Equal(ToPlannedTargetId(gridMesh), Assert.IsType<Reference>(ToMember(meshRenderer.Members["Mesh"])).TargetID);
         Assert.Equal(ToPlannedTargetId(gridMesh), Assert.IsType<Reference>(ToMember(meshCollider.Members["Mesh"])).TargetID);
+    }
+
+    [Fact]
+    public void CreatePlannedBatchEmission_CarriesCityObjectOrderOffsetToMeshAndPresentationSlots()
+    {
+        ResoniteObjectSlotHierarchy objectSlots = new(
+            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
+            new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
+            "Terrain Grid Object",
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
+            null,
+            CityObjectOrderOffset: 53394525);
+        PlannedSceneObjectEmission emissionPlan = new(
+            new PlannedTerrainGridGeometryAsset(
+                "Terrain Grid Object",
+                "Terrain Grid Object_terrain-grid",
+                new ResoniteTerrainGridGeometry(
+                    Width: 2,
+                    Height: 2,
+                    Size: new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
+                    MinHeight: -1.0,
+                    MaxHeight: 3.0,
+                    HeightSamples: [-1.0, 0.0, 1.0, 3.0]),
+                new Uri("resdb:///texture/height")),
+            [],
+            new PlannedRenderer([]),
+            new PlannedCollider(false));
+
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+
+        Assert.Equal(
+            53394525,
+            Assert.Single(
+                batchPlan.SlotEmissions,
+                static slot => slot.SlotName == "Terrain Grid Object"
+                    && slot.ParentTarget is PlannedSlotTargetReference.CanonicalSlotTarget { Locator: { Value: "asset-lod-slot" } }).OrderOffset);
+        Assert.Equal(
+            53394525,
+            Assert.Single(
+                batchPlan.SlotEmissions,
+                static slot => slot.SlotName == "Terrain Grid Object"
+                    && slot.ParentTarget is PlannedSlotTargetReference.CanonicalSlotTarget { Locator: { Value: "lod-slot" } }).OrderOffset);
     }
 
     [Fact]

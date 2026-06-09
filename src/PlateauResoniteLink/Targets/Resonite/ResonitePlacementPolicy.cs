@@ -12,7 +12,8 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal static class ResonitePlacementPolicy
 {
     public static IReadOnlyDictionary<string, string> CreateSourceFileSlotNamesByRelativePath(
-        IReadOnlyList<string> relativeSourceFiles)
+        IReadOnlyList<string> relativeSourceFiles,
+        IReadOnlyDictionary<string, string> packageNamesByRelativePath)
     {
         Dictionary<string, string> slotNamesByPath = new(StringComparer.Ordinal);
         Dictionary<string, List<string>> pathsByStem = new(StringComparer.Ordinal);
@@ -44,13 +45,17 @@ internal static class ResonitePlacementPolicy
             paths.Sort(StringComparer.Ordinal);
             if (paths.Count == 1)
             {
-                slotNamesByPath[paths[0]] = fileStem;
+                slotNamesByPath[paths[0]] = AddSourceFileRootSlotPrefix(
+                    ResolvePackageName(paths[0], packageNamesByRelativePath),
+                    fileStem);
                 continue;
             }
 
             foreach (string path in paths)
             {
-                slotNamesByPath[path] = $"{fileStem}_{ComputeStableHashSuffix(path)}";
+                slotNamesByPath[path] = AddSourceFileRootSlotPrefix(
+                    ResolvePackageName(path, packageNamesByRelativePath),
+                    $"{fileStem}_{ComputeStableHashSuffix(path)}");
             }
         }
 
@@ -129,6 +134,58 @@ internal static class ResonitePlacementPolicy
         return lodLevel.HasValue
             ? string.Create(CultureInfo.InvariantCulture, $"LOD{lodLevel.Value}")
             : "LOD0";
+    }
+
+    public static string AddSourceFileRootSlotPrefix(string? packageName, string slotName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(slotName);
+
+        return TryCreateSourceFileRootSlotPrefix(packageName, out string? prefix)
+            ? $"{prefix} {slotName}"
+            : slotName;
+    }
+
+    private static string? ResolvePackageName(
+        string relativeSourceFile,
+        IReadOnlyDictionary<string, string> packageNamesByRelativePath)
+    {
+        return packageNamesByRelativePath.TryGetValue(relativeSourceFile, out string? packageName)
+            ? packageName
+            : null;
+    }
+
+    private static bool TryCreateSourceFileRootSlotPrefix(string? packageName, out string? prefix)
+    {
+        prefix = packageName?.ToLowerInvariant() switch
+        {
+            "area" => "<color=hero.purple>🗺️</color>",
+            "bldg" => "<color=hero.cyan>🏢</color>",
+            "brid" => "<color=hero.blue>🌉</color>",
+            "cons" => "<color=hero.orange>🏗️</color>",
+            "dem" => "<color=mid.orange>🟫</color>",
+            "fld" => "<color=mid.cyan>🌊</color>",
+            "frn" => "<color=hero.orange>🚧</color>",
+            "gen" => "<color=hero.purple>📦</color>",
+            "htd" => "<color=hero.red>🔥</color>",
+            "ifld" => "<color=hero.cyan>🌧️</color>",
+            "lsld" => "<color=mid.orange>⛰️</color>",
+            "luse" => "<color=hero.green>🏷️</color>",
+            "rfld" => "<color=hero.blue>🌊</color>",
+            "rwy" => "<color=hero.yellow>🛫</color>",
+            "squr" => "<color=hero.green>🟩</color>",
+            "tnm" => "<color=hero.purple>🗻</color>",
+            "tran" => "<color=hero.yellow>🛣️</color>",
+            "trk" => "<color=hero.orange>🚉</color>",
+            "tun" => "<color=hero.purple>🚇</color>",
+            "ubld" => "<color=mid.cyan>🏬</color>",
+            "unf" => "<color=hero.green>🏞️</color>",
+            "urf" => "<color=hero.purple>🏙️</color>",
+            "veg" => "<color=hero.green>🌿</color>",
+            "wtr" => "<color=mid.cyan>💧</color>",
+            "wwy" => "<color=hero.cyan>⛴️</color>",
+            _ => null,
+        };
+        return prefix is not null;
     }
 
     public static ResoniteFloat3 ResolveCityObjectLocalPosition(

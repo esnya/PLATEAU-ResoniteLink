@@ -55,6 +55,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
         Assert.Equal(documentSet.PackageNames, source.Metadata.SourceDataset.PackageNames);
         Assert.Equal(documentSet.RelativeSourceFiles, source.Metadata.SourceDataset.SourceFiles);
         Assert.Equal(documentSet.SelectedMeshCodes, source.Metadata.SourceDataset.SelectedMeshCodes);
+        Assert.Equal("bldg", source.Metadata.SourceDataset.SourceFilePackageNamesByRelativePath?["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
         Assert.Equal(35.0, source.Metadata.GeodeticOrigin.Latitude);
         Assert.Equal(139.0, source.Metadata.GeodeticOrigin.Longitude);
         Assert.Equal(12.5, source.Metadata.GeodeticOrigin.Altitude);

@@ -97,7 +97,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             SourceDataset: new PlateauSourceDataset(
                 PackageNames: packageNames ?? ["bldg"],
                 SourceFiles: sourceFiles ?? [],
-                SelectedMeshCodes: requestedMeshCodes),
+                SelectedMeshCodes: requestedMeshCodes,
+                SourceFilePackageNamesByRelativePath: PlateauSourceFilePackageIndex.CreateByRelativePath(sourceFiles ?? [])),
             Attribution: new Attribution(
                 DatasetLicense: new LicenseMetadata(
                     RequireCredit: true,
@@ -257,7 +258,41 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return Assert.Single(
             client.SlotsById.Values,
             slot => client.SlotPaths.TryGetValue(slot.ID, out string? path)
-                && path.EndsWith(suffix, StringComparison.Ordinal));
+                && PathEndsWithSourceFileRootAwareSuffix(path, suffix));
+    }
+
+    private static bool PathEndsWithSourceFileRootAwareSuffix(string path, string suffix)
+    {
+        if (path.EndsWith(suffix, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        int finalSeparatorIndex = suffix.LastIndexOf('/');
+        if (finalSeparatorIndex < 0)
+        {
+            return false;
+        }
+
+        string parentSuffix = suffix[..(finalSeparatorIndex + 1)];
+        string sourceRootName = suffix[(finalSeparatorIndex + 1)..];
+        foreach (string packageName in PlateauPackageCatalog.SupportedPackageNames)
+        {
+            if (sourceRootName.IndexOf($"_{packageName}_", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                continue;
+            }
+
+            string prefixedName = ResonitePlacementPolicy.AddSourceFileRootSlotPrefix(
+                packageName,
+                sourceRootName);
+            if (path.EndsWith($"{parentSuffix}{prefixedName}", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static Slot FindUniqueSlotByNameOutsideAssets(SceneSinkRecordingClient client, string name)

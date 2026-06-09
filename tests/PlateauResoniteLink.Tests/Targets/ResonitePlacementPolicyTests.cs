@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
@@ -7,6 +8,34 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class ResonitePlacementPolicyTests
 {
     private static readonly string[] DuplicateStemPaths = ["udx/bldg/a/sample.gml", "udx/dem/b/sample.gml"];
+    private static readonly string[] SourceFilePrefixPackages =
+    [
+        "area",
+        "bldg",
+        "brid",
+        "cons",
+        "dem",
+        "fld",
+        "frn",
+        "gen",
+        "htd",
+        "ifld",
+        "lsld",
+        "luse",
+        "rfld",
+        "rwy",
+        "squr",
+        "tnm",
+        "tran",
+        "trk",
+        "tun",
+        "ubld",
+        "unf",
+        "urf",
+        "veg",
+        "wtr",
+        "wwy",
+    ];
 
     [Fact]
     public void ResolveRequiredSourceFileRootMeshCode_PrefersConcreteMeshCodeFromSourceFileSlot()
@@ -157,11 +186,76 @@ public sealed class ResonitePlacementPolicyTests
     public void CreateSourceFileSlotNamesByRelativePath_AddsStableHashForDuplicateFileStem()
     {
         IReadOnlyDictionary<string, string> slotNames =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(DuplicateStemPaths);
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(
+                DuplicateStemPaths,
+                PlateauResoniteLink.Application.Importing.PlateauSourceFilePackageIndex.CreateByRelativePath(DuplicateStemPaths));
 
         Assert.Equal(2, slotNames.Count);
-        Assert.All(slotNames.Values, static value => Assert.StartsWith("sample_", value, StringComparison.Ordinal));
+        Assert.All(slotNames.Values, static value => Assert.Contains(" sample_", value, StringComparison.Ordinal));
         Assert.NotEqual(slotNames["udx/bldg/a/sample.gml"], slotNames["udx/dem/b/sample.gml"]);
+    }
+
+    [Theory]
+    [InlineData("area", "<color=hero.purple>🗺️</color> sample")]
+    [InlineData("bldg", "<color=hero.cyan>🏢</color> sample")]
+    [InlineData("brid", "<color=hero.blue>🌉</color> sample")]
+    [InlineData("cons", "<color=hero.orange>🏗️</color> sample")]
+    [InlineData("dem", "<color=mid.orange>🟫</color> sample")]
+    [InlineData("fld", "<color=mid.cyan>🌊</color> sample")]
+    [InlineData("frn", "<color=hero.orange>🚧</color> sample")]
+    [InlineData("gen", "<color=hero.purple>📦</color> sample")]
+    [InlineData("htd", "<color=hero.red>🔥</color> sample")]
+    [InlineData("ifld", "<color=hero.cyan>🌧️</color> sample")]
+    [InlineData("lsld", "<color=mid.orange>⛰️</color> sample")]
+    [InlineData("luse", "<color=hero.green>🏷️</color> sample")]
+    [InlineData("rfld", "<color=hero.blue>🌊</color> sample")]
+    [InlineData("rwy", "<color=hero.yellow>🛫</color> sample")]
+    [InlineData("squr", "<color=hero.green>🟩</color> sample")]
+    [InlineData("tnm", "<color=hero.purple>🗻</color> sample")]
+    [InlineData("tran", "<color=hero.yellow>🛣️</color> sample")]
+    [InlineData("trk", "<color=hero.orange>🚉</color> sample")]
+    [InlineData("tun", "<color=hero.purple>🚇</color> sample")]
+    [InlineData("ubld", "<color=mid.cyan>🏬</color> sample")]
+    [InlineData("unf", "<color=hero.green>🏞️</color> sample")]
+    [InlineData("urf", "<color=hero.purple>🏙️</color> sample")]
+    [InlineData("veg", "<color=hero.green>🌿</color> sample")]
+    [InlineData("wtr", "<color=mid.cyan>💧</color> sample")]
+    [InlineData("wwy", "<color=hero.cyan>⛴️</color> sample")]
+    public void CreateSourceFileSlotNamesByRelativePath_PrefixesSupportedPlateauPackageRoots(
+        string packageName,
+        string expectedSlotName)
+    {
+        string relativePath = $"udx/{packageName}/53394525/sample.gml";
+        IReadOnlyDictionary<string, string> slotNames =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(
+                [relativePath],
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    [relativePath] = packageName,
+                });
+
+        Assert.Equal(expectedSlotName, slotNames[relativePath]);
+    }
+
+    [Fact]
+    public void CreateSourceFileSlotNamesByRelativePath_DoesNotInferUnsupportedPackageFromPath()
+    {
+        const string relativePath = "udx/trn/53394525/sample.gml";
+
+        IReadOnlyDictionary<string, string> slotNames =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(
+                [relativePath],
+                PlateauResoniteLink.Application.Importing.PlateauSourceFilePackageIndex.CreateByRelativePath([relativePath]));
+
+        Assert.Equal("sample", slotNames[relativePath]);
+    }
+
+    [Fact]
+    public void SourceFileRootPrefixPackagesCoverSupportedPlateauPackages()
+    {
+        Assert.Equal(
+            PlateauResoniteLink.Domain.Importing.PlateauPackageCatalog.SupportedPackageNames.Order(StringComparer.Ordinal),
+            SourceFilePrefixPackages.Order(StringComparer.Ordinal));
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -93,6 +94,7 @@ public sealed class LiveSendRunContractTests
             "53394525",
             Array.Empty<string>(),
             Array.Empty<string>(),
+            new Dictionary<string, string>(StringComparer.Ordinal),
             new ResoniteLicenseAttributionMetadata(
                 RequireCredit: false,
                 CreditText: null,

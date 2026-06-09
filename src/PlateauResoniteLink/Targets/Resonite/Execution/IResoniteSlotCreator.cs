@@ -15,6 +15,7 @@ internal interface IResoniteSlotCreator
         string slotName,
         ResoniteFloat3? position,
         ResoniteFloatQ? rotation,
+        long? orderOffset,
         CancellationToken cancellationToken);
 }
 
@@ -26,6 +27,7 @@ internal sealed class ResoniteSlotCreator : IResoniteSlotCreator
         string slotName,
         ResoniteFloat3? position,
         ResoniteFloatQ? rotation,
+        long? orderOffset,
         CancellationToken cancellationToken)
     {
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
@@ -33,7 +35,8 @@ internal sealed class ResoniteSlotCreator : IResoniteSlotCreator
             parent.Value,
             slotName,
             position,
-            rotation);
+            rotation,
+            orderOffset);
         BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
         return CanonicalBatchEntityMap.Create(response).ResolveSlot(pendingSlot);
     }

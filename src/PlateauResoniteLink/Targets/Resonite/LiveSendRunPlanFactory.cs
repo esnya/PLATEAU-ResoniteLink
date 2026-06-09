@@ -37,7 +37,9 @@ internal sealed class LiveSendRunPlanFactory : ILiveSendRunPlanFactory
             setupInfo,
             Path.GetFullPath(workRoot),
             requestLocalOrigin,
-            ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(setupInfo.SourceFiles),
+            ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(
+                setupInfo.SourceFiles,
+                setupInfo.SourceFilePackageNamesByRelativePath),
             resourceBudget,
             new LiveSendQueuePlan(
                 connectionCount,
