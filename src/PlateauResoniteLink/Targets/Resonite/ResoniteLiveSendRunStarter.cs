@@ -88,7 +88,7 @@ internal sealed record LiveSendRunStartContext
 internal sealed class ResoniteLiveSendRunStarter(
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
     EnsureResoniteLiveSendConnected ensureConnected,
-    ResoniteTextureImageLoader textureImageLoader,
+    CreateNonDemCityObjectBaker createCityObjectBaker,
     ResoniteQueuedCityObjectWorker queuedCityObjectWorker)
 {
     private const int MaxQueuedCityObjects = 4;
@@ -158,7 +158,7 @@ internal sealed class ResoniteLiveSendRunStarter(
         ResoniteSharedSlotIndex placement,
         CancellationToken cancellationToken)
     {
-        NonDemCityObjectBaker? cityObjectBaker = CreateCityObjectBaker(
+        NonDemCityObjectBaker? cityObjectBaker = createCityObjectBaker(
             runPlan.MeshBakeEnabled,
             runPlan.ResourceBudget,
             runPlan.RequestLocalOrigin);
@@ -180,43 +180,6 @@ internal sealed class ResoniteLiveSendRunStarter(
             GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
             DemSourceUseCounts = new ConcurrentDictionary<TerrainTextureSource, int>(),
         };
-    }
-
-    private NonDemCityObjectBaker? CreateCityObjectBaker(
-        bool enableMeshBake,
-        ResoniteImportBudgetProfile resourceBudget,
-        ResoniteLocalOrigin requestLocalOrigin)
-    {
-        _ = resourceBudget.Name switch
-        {
-            ResoniteImportMemoryProfile.Small or ResoniteImportMemoryProfile.Large => true,
-            _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
-        };
-
-        return enableMeshBake
-            ? new NonDemCityObjectBaker(
-                bakePolicies: NonDemCityObjectBakePolicies.DefaultPolicies,
-                sourceFileBakeEmitter: CreateSourceFileBakeEmitter(
-                    new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget),
-                    requestLocalOrigin))
-            : null;
-    }
-
-    private NonDemSourceFileBakeEmitter CreateSourceFileBakeEmitter(
-        NonDemAtlasBakeBudget atlasBudget,
-        ResoniteLocalOrigin requestLocalOrigin)
-    {
-        NonDemAtlasLayoutFactory layoutFactory = new(
-            atlasBudget.EffectiveMaxAtlasSize,
-            atlasBudget.TilePaddingPixels);
-        return new NonDemSourceFileBakeEmitter(
-            new NonDemCityObjectBakeCandidateFactory(
-                new NonDemBakeEntryFactory(textureImageLoader, atlasBudget.EffectiveMaxAtlasTextureEdge)),
-            new NonDemCityObjectBakeAssembler(
-                layoutFactory,
-                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
-                requestLocalOrigin),
-            new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 
     private void LaunchWorkers(

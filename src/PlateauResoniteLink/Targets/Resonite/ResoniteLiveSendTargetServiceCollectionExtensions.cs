@@ -20,6 +20,27 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteTextureImageLoader>();
         services.TryAddScoped<ResoniteMaterialPlanning>();
         services.TryAddScoped<ResoniteCommonMaterialSetupPreparer>();
+        services.TryAddScoped<CreateResoniteSlot>(_ => ResoniteSlotCreator.CreateAsync);
+        services.TryAddScoped<CreateTerrainTextureGenerator>(
+            _ => static (httpClient, cacheRootPath, disablePersistentCache) =>
+            {
+                TerrainTextureAssetGenerator terrainTextureAssetGenerator = new(
+                    httpClient,
+                    cacheRootPath,
+                    disablePersistentCache);
+                return terrainTextureAssetGenerator.EnsureTextureAsync;
+            });
+        services.TryAddScoped<CreateNonDemCityObjectBaker>(provider =>
+        {
+            ResoniteTextureImageLoader textureImageLoader = provider.GetRequiredService<ResoniteTextureImageLoader>();
+            return (enableMeshBake, resourceBudget, requestLocalOrigin) => CreateDefaultCityObjectBaker(
+                enableMeshBake,
+                resourceBudget,
+                requestLocalOrigin,
+                textureImageLoader);
+        });
+        services.TryAddScoped<CreateResoniteLiveSendRunExecutor>(
+            _ => static runStarter => new ResoniteLiveSendRunExecutor(runStarter));
         services.TryAddScoped<ResoniteLiveSendRunSetupPreparer>();
         services.TryAddScoped<EnsureResoniteLiveSendConnected>(_ => ResoniteLiveSendConnectionInitializer.EnsureConnectedAsync);
         services.TryAddScoped<EnsureResoniteGsiFallbackLicense>(_ => ResoniteDatasetLicenseWriter.EnsureGsiFallbackLicenseAsync);
@@ -59,5 +80,45 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteLiveSceneImportFactory>();
 
         return services;
+    }
+
+    private static NonDemCityObjectBaker? CreateDefaultCityObjectBaker(
+        bool enableMeshBake,
+        ResoniteImportBudgetProfile resourceBudget,
+        ResoniteLocalOrigin requestLocalOrigin,
+        ResoniteTextureImageLoader textureImageLoader)
+    {
+        _ = resourceBudget.Name switch
+        {
+            ResoniteImportMemoryProfile.Small or ResoniteImportMemoryProfile.Large => true,
+            _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
+        };
+
+        return enableMeshBake
+            ? new NonDemCityObjectBaker(
+                bakePolicies: NonDemCityObjectBakePolicies.DefaultPolicies,
+                sourceFileBakeEmitter: CreateDefaultSourceFileBakeEmitter(
+                    new NonDemAtlasBakeBudget(ResourceBudget: resourceBudget),
+                    requestLocalOrigin,
+                    textureImageLoader))
+            : null;
+    }
+
+    private static NonDemSourceFileBakeEmitter CreateDefaultSourceFileBakeEmitter(
+        NonDemAtlasBakeBudget atlasBudget,
+        ResoniteLocalOrigin requestLocalOrigin,
+        ResoniteTextureImageLoader textureImageLoader)
+    {
+        NonDemAtlasLayoutFactory layoutFactory = new(
+            atlasBudget.EffectiveMaxAtlasSize,
+            atlasBudget.TilePaddingPixels);
+        return new NonDemSourceFileBakeEmitter(
+            new NonDemCityObjectBakeCandidateFactory(
+                new NonDemBakeEntryFactory(textureImageLoader, atlasBudget.EffectiveMaxAtlasTextureEdge)),
+            new NonDemCityObjectBakeAssembler(
+                layoutFactory,
+                new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                requestLocalOrigin),
+            new NonDemAtlasBatchFitPolicy(layoutFactory));
     }
 }

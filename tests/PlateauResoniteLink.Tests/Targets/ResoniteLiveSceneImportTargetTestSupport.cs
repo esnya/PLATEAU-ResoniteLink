@@ -339,10 +339,37 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return new ResoniteLiveSendRunStarter(
             new ResoniteLiveSendRunSetupPreparer(
                 setupResoniteScene ?? CreateDefaultSetupResoniteScene(),
-                new ResoniteCommonMaterialSetupPreparer(materialPlanning)),
+                new ResoniteCommonMaterialSetupPreparer(materialPlanning),
+                ResoniteSlotCreator.CreateAsync),
             ensureConnected ?? ResoniteLiveSendConnectionInitializer.EnsureConnectedAsync,
-            new ResoniteTextureImageLoader(),
+            CreateDefaultCityObjectBaker,
             CreateQueuedCityObjectWorker(materialPlanning, generateTerrainTexture, ensureGsiFallbackLicense));
+    }
+
+    private static NonDemCityObjectBaker? CreateDefaultCityObjectBaker(
+        bool enableMeshBake,
+        ResoniteImportBudgetProfile resourceBudget,
+        ResoniteLocalOrigin requestLocalOrigin)
+    {
+        if (!enableMeshBake)
+        {
+            return null;
+        }
+
+        NonDemAtlasBakeBudget atlasBudget = new(ResourceBudget: resourceBudget);
+        NonDemAtlasLayoutFactory layoutFactory = new(
+            atlasBudget.EffectiveMaxAtlasSize,
+            atlasBudget.TilePaddingPixels);
+        return new NonDemCityObjectBaker(
+            NonDemCityObjectBakePolicies.DefaultPolicies,
+            new NonDemSourceFileBakeEmitter(
+                new NonDemCityObjectBakeCandidateFactory(
+                    new NonDemBakeEntryFactory(new ResoniteTextureImageLoader(), atlasBudget.EffectiveMaxAtlasTextureEdge)),
+                new NonDemCityObjectBakeAssembler(
+                    layoutFactory,
+                    new NonDemAtlasImageRenderer(atlasBudget.TilePaddingPixels),
+                    requestLocalOrigin),
+                new NonDemAtlasBatchFitPolicy(layoutFactory)));
     }
 
     private static SetupResoniteScene CreateDefaultSetupResoniteScene()

@@ -19,7 +19,8 @@ internal sealed record LiveSendPreparedRunSetup(
 
 internal sealed class ResoniteLiveSendRunSetupPreparer(
     SetupResoniteScene setupResoniteScene,
-    ResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer)
+    ResoniteCommonMaterialSetupPreparer commonMaterialSetupPreparer,
+    CreateResoniteSlot createSlot)
 {
     public async Task<LiveSendPreparedRunSetup> PrepareAsync(
         LiveSendRunPlan runPlan,
@@ -87,7 +88,7 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
         return preparedSetup;
     }
 
-    private static LiveSendPreparedRunSetup CreatePreparedRunSetup(
+    private LiveSendPreparedRunSetup CreatePreparedRunSetup(
         LiveSendRunPlan runPlan,
         ResoniteSceneSetupState setupState)
     {
@@ -99,7 +100,7 @@ internal sealed class ResoniteLiveSendRunSetupPreparer(
             runPlan.RequestLocalOrigin,
             runPlan.SourceFileSlotNamesByRelativePath,
             setupState.SceneAnchor,
-            ResoniteSlotCreator.CreateAsync);
+            createSlot);
         placement.IndexSetupHierarchy(setupState);
 
         return new LiveSendPreparedRunSetup(

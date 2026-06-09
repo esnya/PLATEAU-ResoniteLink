@@ -20,6 +20,11 @@ internal delegate Task<GeneratedTerrainTexture> GenerateTerrainTexture(
     TerrainTextureOverlay terrainTextureOverlay,
     CancellationToken cancellationToken);
 
+internal delegate GenerateTerrainTexture CreateTerrainTextureGenerator(
+    HttpClient httpClient,
+    string? cacheRootPath,
+    bool disablePersistentCache);
+
 internal sealed record GeneratedTerrainTexture
 {
     public GeneratedTerrainTexture(

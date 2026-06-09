@@ -8,6 +8,18 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
+internal interface IResoniteLiveSendRunExecutor
+{
+    Task<SceneImportExecutionResult> ExecuteAsync(
+        LiveSendRunStartRequest request,
+        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
+        LiveSendRunExecutionContext context,
+        CancellationToken cancellationToken);
+}
+
+internal delegate IResoniteLiveSendRunExecutor CreateResoniteLiveSendRunExecutor(
+    ResoniteLiveSendRunStarter runStarter);
+
 internal sealed record LiveSendRunExecutionContext
 {
     public LiveSendRunExecutionContext(
@@ -42,6 +54,7 @@ internal sealed record LiveSendRunExecutionContext
 
 internal sealed class ResoniteLiveSendRunExecutor(
     ResoniteLiveSendRunStarter runStarter)
+    : IResoniteLiveSendRunExecutor
 {
     private readonly ResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));

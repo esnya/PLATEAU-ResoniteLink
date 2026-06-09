@@ -7,6 +7,14 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
+internal delegate Task<CreatedSlot> CreateResoniteSlot(
+    IResoniteLinkClient client,
+    ResoniteSlotLocator parent,
+    string slotName,
+    ResoniteFloat3? position,
+    ResoniteFloatQ? rotation,
+    CancellationToken cancellationToken);
+
 internal static class ResoniteSlotCreator
 {
     public static async Task<CreatedSlot> CreateAsync(

@@ -8,10 +8,12 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteLiveSceneImportFactory(
     Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession> createClientSession,
+    CreateTerrainTextureGenerator createTerrainTextureGenerator,
+    CreateResoniteLiveSendRunExecutor createRunExecutor,
     ResoniteLiveSendRunSetupPreparer runSetupPreparer,
     EnsureResoniteLiveSendConnected ensureConnected,
     EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense,
-    ResoniteTextureImageLoader textureImageLoader,
+    CreateNonDemCityObjectBaker createCityObjectBaker,
     ResonitePreparedCityObjectImporter preparedCityObjectImporter)
 {
     public ResoniteLiveSceneImportTarget CreateTarget(
@@ -25,11 +27,11 @@ internal sealed class ResoniteLiveSceneImportFactory(
             ? ResoniteLinkSendDiagnostics.CreateEnabled(options.ProgressReporter)
             : ResoniteLinkSendDiagnostics.Disabled;
         ILiveSendClientSession clientSession = createClientSession(options, diagnostics);
-        TerrainTextureAssetGenerator terrainTextureAssetGenerator = new(
+        GenerateTerrainTexture generateTerrainTexture = createTerrainTextureGenerator(
             terrainTextureAssetHttpClient,
             options.TerrainTileCacheRoot,
             options.DisableTerrainTileCache);
-        ResoniteLiveSendRunStarter runStarter = CreateRunStarter(terrainTextureAssetGenerator.EnsureTextureAsync);
+        ResoniteLiveSendRunStarter runStarter = CreateRunStarter(generateTerrainTexture);
         return CreateTarget(options, clientSession, diagnostics, runStarter);
     }
 
@@ -55,7 +57,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
         return new ResoniteLiveSendRunStarter(
             runSetupPreparer,
             ensureConnected,
-            textureImageLoader,
+            createCityObjectBaker,
             CreateQueuedCityObjectWorker(generateTerrainTexture));
     }
 
@@ -70,7 +72,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
             preparedCityObjectImporter);
     }
 
-    private static ResoniteLiveSceneImportTarget CreateTarget(
+    private ResoniteLiveSceneImportTarget CreateTarget(
         ResoniteLiveSceneImportTargetOptions options,
         ILiveSendClientSession clientSession,
         ResoniteLinkSendDiagnostics diagnostics,
@@ -85,6 +87,6 @@ internal sealed class ResoniteLiveSceneImportFactory(
             options,
             clientSession,
             diagnostics,
-            new ResoniteLiveSendRunExecutor(runStarter));
+            createRunExecutor(runStarter));
     }
 }

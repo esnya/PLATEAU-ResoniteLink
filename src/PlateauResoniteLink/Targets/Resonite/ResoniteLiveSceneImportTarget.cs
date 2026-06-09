@@ -12,7 +12,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 {
     private readonly Uri endpoint;
     private readonly int connectionCount;
-    private readonly ResoniteLiveSendRunExecutor runExecutor;
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
@@ -24,7 +23,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ResoniteLiveSceneImportTargetOptions options,
         ILiveSendClientSession clientSession,
         ResoniteLinkSendDiagnostics diagnostics,
-        ResoniteLiveSendRunExecutor runExecutor)
+        IResoniteLiveSendRunExecutor runExecutor)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clientSession);
@@ -37,7 +36,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Diagnostics = diagnostics;
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
-        this.runExecutor = runExecutor;
+        RunExecutor = runExecutor;
         ClientSessionInternal = clientSession;
     }
 
@@ -48,6 +47,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     internal ILiveSendClientSession ClientSession => ClientSessionInternal;
 
     internal ResoniteImportMemoryProfile MemoryProfile { get; }
+
+    internal IResoniteLiveSendRunExecutor RunExecutor { get; }
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
@@ -62,7 +63,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         }
         try
         {
-            return await runExecutor.ExecuteAsync(
+            return await RunExecutor.ExecuteAsync(
                 CreateStartRequest(plan),
                 objectUnits,
                 new LiveSendRunExecutionContext(
