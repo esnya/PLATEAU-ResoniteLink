@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -55,6 +56,7 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
             MeshCode: "5339452[56]",
             SourceFiles: sourceFiles,
             SelectedMeshCodes: selectedMeshCodes ?? ["53394525", "53394526"],
+            SourceFilePackageNamesByRelativePath: PlateauSourceFilePackageIndex.CreateByRelativePath(sourceFiles),
             DatasetLicense: new ResoniteLicenseAttributionMetadata(true, "credit", "name", "url"));
     }
 }

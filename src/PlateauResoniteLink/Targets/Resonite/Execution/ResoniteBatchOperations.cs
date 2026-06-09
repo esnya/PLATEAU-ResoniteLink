@@ -78,7 +78,8 @@ internal static class ResoniteBatchOperations
             string parentId,
             string slotName,
             ResoniteFloat3? position,
-            ResoniteFloatQ? rotation)
+            ResoniteFloatQ? rotation,
+            long? orderOffset = null)
         {
             return AddSlot(
                 AllocateSlotId("local_slot"),
@@ -86,7 +87,8 @@ internal static class ResoniteBatchOperations
                 parentId,
                 slotName,
                 position,
-                rotation);
+                rotation,
+                orderOffset);
         }
 
         public PendingBatchSlot AddSlot(
@@ -95,9 +97,10 @@ internal static class ResoniteBatchOperations
             string parentId,
             string slotName,
             ResoniteFloat3? position,
-            ResoniteFloatQ? rotation)
+            ResoniteFloatQ? rotation,
+            long? orderOffset = null)
         {
-            Actions.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, localId, messageId));
+            Actions.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, localId, messageId, orderOffset));
             PendingActions.Add(new PendingBatchOperation(messageId, $"slot '{slotName}'"));
             return new PendingBatchSlot(localId, messageId, slotName);
         }
@@ -198,7 +201,8 @@ internal static class ResoniteBatchOperations
         string slotName,
         ResoniteFloat3? position,
         ResoniteFloatQ? rotation,
-        PendingBatchSlot pendingSlot)
+        PendingBatchSlot pendingSlot,
+        long? orderOffset = null)
     {
         return CreateAddSlotOperation(
             parentId,
@@ -206,7 +210,8 @@ internal static class ResoniteBatchOperations
             position,
             rotation,
             pendingSlot.LocalId,
-            pendingSlot.MessageId);
+            pendingSlot.MessageId,
+            orderOffset);
     }
 
     public static AddSlot CreateAddSlotOperation(
@@ -215,7 +220,8 @@ internal static class ResoniteBatchOperations
         ResoniteFloat3? position,
         ResoniteFloatQ? rotation,
         BatchTemporarySlotId requestedSlotId,
-        BatchTemporaryMessageId messageId)
+        BatchTemporaryMessageId messageId,
+        long? orderOffset = null)
     {
         return CreateAddSlotOperation(
             parentId,
@@ -223,7 +229,8 @@ internal static class ResoniteBatchOperations
             position,
             rotation,
             requestedSlotId.Value,
-            messageId.Value);
+            messageId.Value,
+            orderOffset);
     }
 
     public static AddSlot CreateAddSlotOperation(
@@ -232,7 +239,8 @@ internal static class ResoniteBatchOperations
         ResoniteFloat3? position,
         ResoniteFloatQ? rotation,
         string? requestedSlotId = null,
-        string? messageId = null)
+        string? messageId = null,
+        long? orderOffset = null)
     {
         return new AddSlot
         {
@@ -248,6 +256,9 @@ internal static class ResoniteBatchOperations
                 {
                     Value = slotName,
                 },
+                OrderOffset = orderOffset.HasValue
+                    ? new Field_long { Value = orderOffset.Value }
+                    : null,
                 Position = position is null ? null : CreateFloat3(position),
                 Rotation = rotation is null ? null : CreateFloatQ(rotation),
             },

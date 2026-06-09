@@ -91,6 +91,8 @@ internal sealed record PlannedTerrainGridMeshBundle(
     Field_int2 Points,
     Field_float2 Size,
     Field_float DisplacementMagnitude,
+    Field_float MinBoundsY,
+    Field_float MaxBoundsY,
     PlannedWorldElementReference DisplacementTexture,
     Field_float2? UvScale,
     Field_float2? UvOffset);
@@ -463,7 +465,8 @@ internal sealed record PlannedBatchSlotEmission(
     PlannedSlotTargetReference ParentTarget,
     string SlotName,
     ResoniteFloat3? Position,
-    ResoniteFloatQ? Rotation);
+    ResoniteFloatQ? Rotation,
+    long? OrderOffset = null);
 
 internal sealed record PlannedBatchComponentEmission(
     PlannedSlotTargetReference ContainerTarget,

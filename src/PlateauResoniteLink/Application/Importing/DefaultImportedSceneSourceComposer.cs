@@ -37,7 +37,8 @@ internal sealed class DefaultImportedSceneSourceComposer(
             SourceDataset: new PlateauSourceDataset(
                 PackageNames: documentSet.PackageNames.ToArray(),
                 SourceFiles: documentSet.RelativeSourceFiles.ToArray(),
-                SelectedMeshCodes: documentSet.SelectedMeshCodes),
+                SelectedMeshCodes: documentSet.SelectedMeshCodes,
+                SourceFilePackageNamesByRelativePath: PlateauSourceFilePackageIndex.CreateByRelativePath(documentSet.RelativeSourceFiles)),
             Attribution: CreateAttribution(importRequest),
             GeodeticOrigin: new GeodeticOrigin(
                 Latitude: discoveryContext.GlobalOriginPoint.Latitude,

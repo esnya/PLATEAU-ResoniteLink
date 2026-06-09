@@ -58,7 +58,8 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
                 ResolveSlotTargetId(slotEmission.ParentTarget, pendingSlotsByPlanId),
                 slotEmission.SlotName,
                 slotEmission.Position,
-                slotEmission.Rotation);
+                slotEmission.Rotation,
+                slotEmission.OrderOffset);
             pendingSlotsByPlanId[slotEmission] = pendingSlot;
         }
 

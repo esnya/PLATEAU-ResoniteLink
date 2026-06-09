@@ -54,7 +54,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
             emissionPlan.GeometryAsset.MeshAssetSlotName,
             null,
-            null);
+            null,
+            objectSlots.CityObjectOrderOffset);
         slotEmissions.Add(meshAssetSlot);
         slotResolutionTargets.Add(meshAssetSlot);
 
@@ -145,7 +146,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             PlannedSlotTargetReference.CanonicalSlot(objectSlots.LodSlot.Locator),
             objectSlots.CityObjectSlotName,
             objectSlots.CityObjectLocalPosition,
-            objectSlots.CityObjectRotation);
+            objectSlots.CityObjectRotation,
+            objectSlots.CityObjectOrderOffset);
         slotEmissions.Add(presentationSlot);
         slotResolutionTargets.Add(presentationSlot);
 
@@ -288,6 +290,16 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         {
             Value = -1.0f,
         };
+        float firstBoundsY = (float)(geometry.MinHeight * displacement.Value);
+        float secondBoundsY = (float)(geometry.MaxHeight * displacement.Value);
+        Field_float minBoundsY = new()
+        {
+            Value = Math.Min(firstBoundsY, secondBoundsY),
+        };
+        Field_float maxBoundsY = new()
+        {
+            Value = Math.Max(firstBoundsY, secondBoundsY),
+        };
         Field_float2? plannedUvScale = uvScale is null
             ? null
             : new Field_float2
@@ -315,6 +327,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             points,
             size,
             displacement,
+            minBoundsY,
+            maxBoundsY,
             PlannedWorldElementReference.Planned(heightTextureComponent),
             plannedUvScale,
             plannedUvOffset);
@@ -325,6 +339,11 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
     {
         Dictionary<string, PlannedMember> members = new(StringComparer.Ordinal)
         {
+            ["OverrideBoundingBox"] = PlannedMembers.Literal(new Field_bool
+            {
+                Value = true,
+            }),
+            ["OverridenBoundingBox"] = PlannedMembers.Literal(CreateTerrainGridBoundingBox(terrainGridMesh)),
             ["Points"] = PlannedMembers.AddressableField(terrainGridMesh.PointsField, terrainGridMesh.Points),
             ["Size"] = PlannedMembers.Literal(terrainGridMesh.Size),
             ["Rotation"] = PlannedMembers.Literal(TerrainGridRotation),
@@ -342,6 +361,30 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         }
 
         return members;
+    }
+
+    private static Field_BoundingBox CreateTerrainGridBoundingBox(PlannedTerrainGridMeshBundle terrainGridMesh)
+    {
+        float halfWidth = Math.Abs(terrainGridMesh.Size.Value.x) / 2.0f;
+        float halfDepth = Math.Abs(terrainGridMesh.Size.Value.y) / 2.0f;
+        return new Field_BoundingBox
+        {
+            Value = new BoundingBox
+            {
+                min = new float3
+                {
+                    x = -halfWidth,
+                    y = terrainGridMesh.MinBoundsY.Value,
+                    z = -halfDepth,
+                },
+                max = new float3
+                {
+                    x = halfWidth,
+                    y = terrainGridMesh.MaxBoundsY.Value,
+                    z = halfDepth,
+                },
+            },
+        };
     }
 
     private static void AddDynamicMeshSwitchComponents(

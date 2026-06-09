@@ -13,4 +13,5 @@ internal sealed record ResoniteSceneSetupInfo(
     string MeshCode,
     IReadOnlyList<string> SourceFiles,
     IReadOnlyList<string> SelectedMeshCodes,
+    IReadOnlyDictionary<string, string> SourceFilePackageNamesByRelativePath,
     ResoniteLicenseAttributionMetadata DatasetLicense);

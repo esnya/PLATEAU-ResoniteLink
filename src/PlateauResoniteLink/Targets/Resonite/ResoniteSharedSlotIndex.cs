@@ -14,7 +14,7 @@ internal sealed class ResoniteSharedSlotIndex(
     ResoniteLocalOrigin requestLocalOrigin,
     IReadOnlyDictionary<string, string> sourceFileSlotNamesByRelativePath,
     SceneAnchor? initialSceneAnchor,
-    Func<IResoniteLinkClient, ResoniteSlotLocator, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> createSlotAsync)
+    Func<IResoniteLinkClient, ResoniteSlotLocator, string, ResoniteFloat3?, ResoniteFloatQ?, long?, CancellationToken, Task<CreatedSlot>> createSlotAsync)
 {
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> sharedSlotCache = new();
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> runScopedSourceFileRootCache = new();
@@ -86,7 +86,10 @@ internal sealed class ResoniteSharedSlotIndex(
                 rootMeshCode,
                 sourceRootPlacement.LocalPositionReferenceRoot,
                 cityObject.Transform.Position),
-            cityObject.Transform.Rotation);
+            cityObject.Transform.Rotation,
+            ResonitePackageSemantics.IsDemPackage(cityObject.PackageName)
+                ? TryCreateThirdRegionalMeshOrderOffset(cityObject.ActualMeshCode)
+                : null);
     }
 
     private async Task<CanonicalParentScope> CreateCanonicalParentScopeAsync(
@@ -98,17 +101,20 @@ internal sealed class ResoniteSharedSlotIndex(
         CancellationToken cancellationToken)
     {
         string lodSlotName = ResonitePlacementPolicy.FormatLodSlotName(lodLevel);
+        long? sourceFileRootOrderOffset = TryCreateRegionalMeshOrderOffset(rootMeshCode);
         CreatedSlot sourceFileSlot = await GetOrCreateRunScopedSourceFileRootAsync(
             client,
             datasetRootSlot.Locator,
             sourceFileSlotName,
             rootPosition,
+            sourceFileRootOrderOffset,
             cancellationToken);
         CreatedSlot assetSourceFileSlot = await GetOrCreateRunScopedSourceFileRootAsync(
             client,
             datasetAssetsRootSlot.Locator,
             sourceFileSlotName,
             null,
+            sourceFileRootOrderOffset,
             cancellationToken);
         CreatedSlot lodSlot = await GetOrCreateSharedChildSlotByIdAsync(
             client,
@@ -164,13 +170,14 @@ internal sealed class ResoniteSharedSlotIndex(
         ResoniteSlotLocator parent,
         string slotName,
         ResoniteFloat3? position,
+        long? orderOffset,
         CancellationToken cancellationToken)
     {
         return await runScopedSourceFileRootCache.GetOrCreateAsync(
             new SharedSlotIndexKey(parent.Value, slotName),
             async ct =>
             {
-                CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, null, ct);
+                CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, null, orderOffset, ct);
                 slotSnapshotIndex.MarkCreated(createdSlot);
                 return slotSnapshotIndex.IndexCreatedSharedSlot(parent, createdSlot, position);
             },
@@ -192,9 +199,25 @@ internal sealed class ResoniteSharedSlotIndex(
             return indexedSlot.Value;
         }
 
-        CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, rotation, cancellationToken);
+        CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, rotation, null, cancellationToken);
         slotSnapshotIndex.MarkCreated(createdSlot);
         return slotSnapshotIndex.IndexCreatedSharedSlot(parent, createdSlot, position);
+    }
+
+    private static long? TryCreateRegionalMeshOrderOffset(string meshCode)
+    {
+        return (meshCode.Length == 6 || meshCode.Length == 8)
+            && long.TryParse(meshCode, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long orderOffset)
+            ? orderOffset
+            : null;
+    }
+
+    private static long? TryCreateThirdRegionalMeshOrderOffset(string meshCode)
+    {
+        return meshCode.Length == 8
+            && long.TryParse(meshCode, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long orderOffset)
+            ? orderOffset
+            : null;
     }
 
     private CreatedSlot? TryGetIndexedSharedChildSlot(ResoniteSlotLocator parent, string slotName)

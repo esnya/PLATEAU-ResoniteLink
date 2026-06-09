@@ -1094,7 +1094,12 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         Assert.Single(
             client.SlotsById.Values,
-            slot => string.Equals(slot.Name?.Value, Path.GetFileNameWithoutExtension(SecondarySourceFile), StringComparison.Ordinal)
+            slot => string.Equals(
+                    slot.Name?.Value,
+                    ResonitePlacementPolicy.AddSourceFileRootSlotPrefix(
+                        "bldg",
+                        Path.GetFileNameWithoutExtension(SecondarySourceFile)),
+                    StringComparison.Ordinal)
                 && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, firstObjectSlot.ID, slot.ID)
                 && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, secondObjectSlot.ID, slot.ID));
     }

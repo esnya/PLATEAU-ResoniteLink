@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -46,6 +47,7 @@ internal sealed class ResoniteLiveSendStartRequestFactory : IResoniteLiveSendSta
             request.Metadata.Request.MeshCode,
             request.Metadata.SourceDataset.SourceFiles,
             request.Metadata.SourceDataset.SelectedMeshCodes ?? [],
+            request.Metadata.SourceDataset.SourceFilePackageNamesByRelativePath ?? new Dictionary<string, string>(StringComparer.Ordinal),
             new ResoniteLicenseAttributionMetadata(
                 request.Metadata.Attribution.DatasetLicense.RequireCredit,
                 request.Metadata.Attribution.DatasetLicense.CreditText,
