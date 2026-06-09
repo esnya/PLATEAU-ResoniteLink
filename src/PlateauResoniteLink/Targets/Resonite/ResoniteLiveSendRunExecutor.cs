@@ -20,6 +20,23 @@ internal interface IResoniteLiveSendRunExecutor
 internal delegate IResoniteLiveSendRunExecutor CreateResoniteLiveSendRunExecutor(
     ResoniteLiveSendRunStarter runStarter);
 
+internal delegate Task QueueLiveSendUnit(
+    LiveSendRunState state,
+    ImportedObjectUnit objectUnit,
+    LiveSendEnqueueContext context,
+    CancellationToken cancellationToken);
+
+internal delegate Task<SceneImportExecutionResult> CompleteLiveSendQueue(
+    LiveSendRunState state,
+    LiveSendFinalizationContext context,
+    CancellationToken cancellationToken);
+
+internal delegate ValueTask ReleaseLiveSendRunResources(
+    LiveSendRunState? state,
+    ILiveSendClientSession clientSession,
+    bool disposeClients,
+    bool resetClients);
+
 internal sealed record LiveSendRunExecutionContext
 {
     public LiveSendRunExecutionContext(
@@ -53,11 +70,20 @@ internal sealed record LiveSendRunExecutionContext
 }
 
 internal sealed class ResoniteLiveSendRunExecutor(
-    ResoniteLiveSendRunStarter runStarter)
+    ResoniteLiveSendRunStarter runStarter,
+    QueueLiveSendUnit queueUnit,
+    CompleteLiveSendQueue completeQueue,
+    ReleaseLiveSendRunResources releaseResources)
     : IResoniteLiveSendRunExecutor
 {
     private readonly ResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));
+    private readonly QueueLiveSendUnit queueUnit =
+        queueUnit ?? throw new ArgumentNullException(nameof(queueUnit));
+    private readonly CompleteLiveSendQueue completeQueue =
+        completeQueue ?? throw new ArgumentNullException(nameof(completeQueue));
+    private readonly ReleaseLiveSendRunResources releaseResources =
+        releaseResources ?? throw new ArgumentNullException(nameof(releaseResources));
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         LiveSendRunStartRequest request,
@@ -89,14 +115,14 @@ internal sealed class ResoniteLiveSendRunExecutor(
                 context.ProgressReporter);
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
-                await ResoniteLiveSendQueue.QueueUnitAsync(
+                await queueUnit(
                     state,
                     objectUnit,
                     enqueueContext,
                     cancellationToken);
             }
 
-            SceneImportExecutionResult result = await ResoniteLiveSendQueue.CompleteAsync(
+            SceneImportExecutionResult result = await completeQueue(
                 state,
                 new LiveSendFinalizationContext(
                     context.Endpoint,
@@ -109,7 +135,7 @@ internal sealed class ResoniteLiveSendRunExecutor(
         }
         finally
         {
-            await ResoniteLiveSendRunResourceReleaser.ReleaseAsync(
+            await releaseResources(
                 state,
                 context.ClientSession,
                 disposeClients: false,

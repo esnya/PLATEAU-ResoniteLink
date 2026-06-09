@@ -39,12 +39,41 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
                 requestLocalOrigin,
                 textureImageLoader);
         });
-        services.TryAddScoped<CreateResoniteLiveSendRunExecutor>(
-            _ => static runStarter => new ResoniteLiveSendRunExecutor(runStarter));
+        services.TryAddScoped<QueueLiveSendUnit>(_ => ResoniteLiveSendQueue.QueueUnitAsync);
+        services.TryAddScoped<CompleteLiveSendQueue>(_ => ResoniteLiveSendQueue.CompleteAsync);
+        services.TryAddScoped<ReleaseLiveSendRunResources>(_ => ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
         services.TryAddScoped<ResoniteLiveSendRunSetupPreparer>();
         services.TryAddScoped<EnsureResoniteLiveSendConnected>(_ => ResoniteLiveSendConnectionInitializer.EnsureConnectedAsync);
         services.TryAddScoped<EnsureResoniteGsiFallbackLicense>(_ => ResoniteDatasetLicenseWriter.EnsureGsiFallbackLicenseAsync);
         services.TryAddScoped<ResonitePreparedCityObjectImporter>();
+        services.TryAddScoped<CreateResoniteLiveSendRunStarter>(provider =>
+        {
+            ResoniteLiveSendRunSetupPreparer runSetupPreparer = provider.GetRequiredService<ResoniteLiveSendRunSetupPreparer>();
+            EnsureResoniteLiveSendConnected ensureConnected = provider.GetRequiredService<EnsureResoniteLiveSendConnected>();
+            EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense = provider.GetRequiredService<EnsureResoniteGsiFallbackLicense>();
+            CreateNonDemCityObjectBaker createCityObjectBaker = provider.GetRequiredService<CreateNonDemCityObjectBaker>();
+            ResonitePreparedCityObjectImporter preparedCityObjectImporter = provider.GetRequiredService<ResonitePreparedCityObjectImporter>();
+            return generateTerrainTexture => new ResoniteLiveSendRunStarter(
+                runSetupPreparer,
+                ensureConnected,
+                createCityObjectBaker,
+                new ResoniteQueuedCityObjectWorker(
+                    new ResoniteQueuedCityObjectPreparation(
+                        generateTerrainTexture,
+                        ensureGsiFallbackLicense),
+                    preparedCityObjectImporter));
+        });
+        services.TryAddScoped<CreateResoniteLiveSendRunExecutor>(provider =>
+        {
+            QueueLiveSendUnit queueUnit = provider.GetRequiredService<QueueLiveSendUnit>();
+            CompleteLiveSendQueue completeQueue = provider.GetRequiredService<CompleteLiveSendQueue>();
+            ReleaseLiveSendRunResources releaseResources = provider.GetRequiredService<ReleaseLiveSendRunResources>();
+            return runStarter => new ResoniteLiveSendRunExecutor(
+                runStarter,
+                queueUnit,
+                completeQueue,
+                releaseResources);
+        });
         services.TryAddScoped<Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession>>(provider =>
         {
             Func<Action<string>?, IResoniteLinkClient> baseClientFactory =

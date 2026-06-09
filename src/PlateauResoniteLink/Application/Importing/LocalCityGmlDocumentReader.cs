@@ -7,17 +7,17 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed class LocalCityGmlDocumentReader
 {
     private readonly Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource;
-    private readonly Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore;
+    private readonly Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore;
     private readonly SelectCityGmlLod selectLod;
 
     internal LocalCityGmlDocumentReader(
         Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource,
-        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
-        SelectCityGmlLod? selectLod = null)
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        SelectCityGmlLod selectLod)
     {
         this.createDatasetContentSource = createDatasetContentSource;
         this.createAppearanceStore = createAppearanceStore;
-        this.selectLod = selectLod ?? CityGmlLodSelector.SelectPreferredSurfaceElements;
+        this.selectLod = selectLod;
     }
 
     public async Task<ImportedSceneSourceSnapshot> ReadAsync(

@@ -62,7 +62,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new DelegatingClientSession(),
             diagnostics,
             ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
 
         Assert.Same(diagnostics, importTarget.Diagnostics);
     }
@@ -295,6 +296,119 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
     [Fact]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredRunStarterFactory()
+    {
+        GenerateTerrainTexture? recordedGenerateTerrainTexture = null;
+        ResoniteLiveSendRunStarter runStarter = ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
+            new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()));
+        CreateResoniteLiveSendRunStarter createRunStarter = generateTerrainTexture =>
+        {
+            recordedGenerateTerrainTexture = generateTerrainTexture;
+            return runStarter;
+        };
+
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped(_ => createRunStarter)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(
+            scope.ServiceProvider
+                .GetRequiredService<ResoniteLiveSceneImportFactory>()
+                .CreateTarget(
+                    new ResoniteLiveSceneImportTargetOptions(
+                        new Uri("ws://localhost:12345/"),
+                        1,
+                        EnableSendMetrics: false,
+                        MemoryProfile: ResoniteImportMemoryProfile.Large,
+                        EnableMeshBake: true,
+                        TerrainTileCacheRoot: null,
+                        DisableTerrainTileCache: false,
+                        ProgressReporter: null),
+                    terrainTextureAssetHttpClient));
+
+        Assert.NotNull(recordedGenerateTerrainTexture);
+    }
+
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredQueueBoundaries()
+    {
+        QueueLiveSendUnit queueUnit = static (state, objectUnit, context, cancellationToken) =>
+        {
+            _ = state;
+            _ = objectUnit;
+            _ = context;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        };
+        CompleteLiveSendQueue completeQueue = static (state, context, cancellationToken) =>
+        {
+            _ = state;
+            _ = context;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new SceneImportExecutionResult(["stub://complete"], 0));
+        };
+        ReleaseLiveSendRunResources releaseResources = static (state, clientSession, disposeClients, resetClients) =>
+        {
+            _ = state;
+            _ = clientSession;
+            _ = disposeClients;
+            _ = resetClients;
+            return ValueTask.CompletedTask;
+        };
+
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped(_ => queueUnit)
+            .AddScoped(_ => completeQueue)
+            .AddScoped(_ => releaseResources)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.Same(queueUnit, scope.ServiceProvider.GetRequiredService<QueueLiveSendUnit>());
+        Assert.Same(completeQueue, scope.ServiceProvider.GetRequiredService<CompleteLiveSendQueue>());
+        Assert.Same(releaseResources, scope.ServiceProvider.GetRequiredService<ReleaseLiveSendRunResources>());
+    }
+
+    [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The target is disposed explicitly by the test.")]
+    public async Task ImportTargetDisposeUsesInjectedReleaseResources()
+    {
+        int releaseCallCount = 0;
+        ReleaseLiveSendRunResources releaseResources = (state, clientSession, disposeClients, resetClients) =>
+        {
+            Assert.Null(state);
+            Assert.True(disposeClients);
+            Assert.False(resetClients);
+            Assert.NotNull(clientSession);
+            releaseCallCount++;
+            return ValueTask.CompletedTask;
+        };
+        ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
+        ResoniteLiveSceneImportTarget importTarget = new(
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                ResoniteImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
+            new DelegatingClientSession(),
+            ResoniteLinkSendDiagnostics.Disabled,
+            ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)),
+            releaseResources);
+
+        await importTarget.DisposeAsync();
+
+        Assert.Equal(1, releaseCallCount);
+    }
+
+    [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
     public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredRunExecutorFactory()
     {
         RecordingRunExecutor runExecutor = new();
@@ -319,8 +433,21 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                         DisableTerrainTileCache: false,
                         ProgressReporter: null),
                     terrainTextureAssetHttpClient));
+        using TemporaryDirectory workDirectory = new();
+        SceneImportExecutionPlan plan = ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
+            ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+                "dataset",
+                "53394525",
+                workDirectory.Path,
+                new ResoniteLocalOrigin(35.0, 139.0, 0.0)),
+            workDirectory.Path);
 
-        Assert.Same(runExecutor, importTarget.RunExecutor);
+        SceneImportExecutionResult result = await importTarget.ExecuteAsync(
+            plan,
+            ResoniteLiveSceneImportTargetTestSupport.CreateImportedObjectUnitsForTestsAsync([]));
+
+        Assert.Equal(1, runExecutor.ExecuteCallCount);
+        Assert.Same(result, runExecutor.Result);
     }
 
     [Fact]
@@ -459,7 +586,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             new DelegatingClientSession(),
             diagnostics,
             ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
     }
 
     private sealed class RecordingLiveSceneImportFactory(
@@ -490,7 +618,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                     ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                         materialPlanning,
-                        generateTerrainTexture: generateTerrainTexture)));
+                        generateTerrainTexture: generateTerrainTexture)),
+                ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
         }
     }
 
@@ -582,6 +711,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
     private sealed class RecordingRunExecutor : IResoniteLiveSendRunExecutor
     {
+        public SceneImportExecutionResult Result { get; } = new(["stub://executor"], 0);
+
+        public int ExecuteCallCount { get; private set; }
+
         public Task<SceneImportExecutionResult> ExecuteAsync(
             LiveSendRunStartRequest request,
             IAsyncEnumerable<ImportedObjectUnit> objectUnits,
@@ -592,7 +725,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             _ = objectUnits;
             _ = context;
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(new SceneImportExecutionResult([], 0));
+            ExecuteCallCount++;
+            return Task.FromResult(Result);
         }
     }
 }

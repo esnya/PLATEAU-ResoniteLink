@@ -59,7 +59,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             session,
             diagnostics,
             ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
 
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
@@ -112,7 +113,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             session,
             diagnostics,
             ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -162,7 +164,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                     materialPlanning,
-                    ensureConnected: ensureConnected)));
+                    ensureConnected: ensureConnected)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -208,7 +211,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                     materialPlanning,
-                    new ThrowingSceneSetupInterpreter().SetupAsync)));
+                    new ThrowingSceneSetupInterpreter().SetupAsync)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -255,7 +259,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             session,
             diagnostics,
             ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -333,7 +338,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                     materialPlanning,
-                    new MissingCommonMaterialSetupInterpreter().SetupAsync)));
+                    new MissingCommonMaterialSetupInterpreter().SetupAsync)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -374,7 +380,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
                 ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
                     materialPlanning,
-                    new MissingCommonMaterialSetupInterpreter().SetupAsync)));
+                    new MissingCommonMaterialSetupInterpreter().SetupAsync)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -435,7 +442,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             session,
             ResoniteLinkSendDiagnostics.Disabled,
             ResoniteLiveSceneImportTargetTestSupport.CreateRunExecutor(
-                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning, progressReporter: progressMessages.Add)));
+                ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(materialPlanning, progressReporter: progressMessages.Add)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
             request,
@@ -1055,7 +1063,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             packageNames: ["dem"]);
         ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
             CreateDatasetContentSourceAsync,
-            CityGmlAppearanceStore.Create)
+            CityGmlAppearanceStore.Create,
+            CityGmlLodSelector.SelectPreferredSurfaceElements)
             .ReadAsync(
             request,
             cancellationToken: default);

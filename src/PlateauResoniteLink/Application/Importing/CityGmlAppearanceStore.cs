@@ -6,7 +6,18 @@ using System.Xml.Linq;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class CityGmlAppearanceStore
+internal interface ICityGmlAppearanceStore
+{
+    void LoadFromDocument(XDocument document);
+
+    void ApplyAppearanceElement(XElement appearanceElement);
+
+    CityGmlResolvedAppearance Resolve(string polygonId);
+
+    IReadOnlyList<Float2>? ResolveRingUvs(string polygonId, string ringId, int vertexCount);
+}
+
+internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
 {
     private static readonly ColorRgba DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
     private static readonly XNamespace App = "http://www.opengis.net/citygml/appearance/2.0";

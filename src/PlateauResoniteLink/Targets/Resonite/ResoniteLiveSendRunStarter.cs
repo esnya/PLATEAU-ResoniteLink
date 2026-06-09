@@ -13,6 +13,9 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
+internal delegate ResoniteLiveSendRunStarter CreateResoniteLiveSendRunStarter(
+    GenerateTerrainTexture generateTerrainTexture);
+
 internal sealed record LiveSendRunStartRequest
 {
     public LiveSendRunStartRequest(

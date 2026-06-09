@@ -53,7 +53,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         globalOriginPoint = DiscoveryContext.GlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.objectUnitOptimizer = objectUnitOptimizer;
-        this.progressReporter = progressReporter;
+        this.progressReporter = CreateSerializedProgressReporter(progressReporter);
         selectedMeshCodes = Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode];
         requestedMeshCodeBounds = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
             selectedMeshCodes);
@@ -177,7 +177,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        progressReporter?.Invoke(
+        ReportProgress(
             PlateauLog.Info(
                 "import",
                 $"City object producer processing source file "
@@ -194,7 +194,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
             await writer.WriteAsync(objectUnit, cancellationToken);
         }
 
-        progressReporter?.Invoke(
+        ReportProgress(
             PlateauLog.Info(
                 "import",
                 $"City object producer finished source file "
@@ -284,7 +284,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
                          selectedMeshCodes,
                          request,
                          predicate: null,
-                         progressReporter,
+                         ReportProgress,
                          cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -308,7 +308,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
                          selectedMeshCodes,
                          request,
                          predicate: null,
-                         progressReporter,
+                         ReportProgress,
                          cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -318,8 +318,8 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         }
 
         fileStopwatch.Stop();
-        fileWarningStatistics.ReportFile(sourceFile.SourceFile.RelativePath, progressReporter);
-        progressReporter?.Invoke(
+        fileWarningStatistics.ReportFile(sourceFile.SourceFile.RelativePath, ReportProgress);
+        ReportProgress(
             PlateauLog.Info(
                 "import",
                 $"City object producer projected '{sourceFile.SourceFile.RelativePath}' "
@@ -387,6 +387,23 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
     private void ReportProgress(string message)
     {
         progressReporter?.Invoke(message);
+    }
+
+    private static Action<string>? CreateSerializedProgressReporter(Action<string>? progressReporter)
+    {
+        if (progressReporter is null)
+        {
+            return null;
+        }
+
+        object gate = new();
+        return message =>
+        {
+            lock (gate)
+            {
+                progressReporter(message);
+            }
+        };
     }
 
     private static Attribution CreateAttribution(PlateauImportRequest request)

@@ -27,11 +27,10 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
-        CancellationToken cancellationToken,
-        SelectCityGmlLod? selectLod = null)
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        SelectCityGmlLod selectLod,
+        CancellationToken cancellationToken)
     {
-        selectLod ??= CityGmlLodSelector.SelectPreferredSurfaceElements;
         return Task.FromResult(
             sourceFiles
                 .Select(sourceFile =>
@@ -44,8 +43,8 @@ internal static class LocalCityGmlSourceFileParser
                             progressReporter,
                             lodFilteringStrategy,
                             createAppearanceStore,
-                            cancellationToken,
-                            selectLod),
+                            selectLod,
+                            cancellationToken),
                         streamFactory: cancellationToken => StreamParsedCityObjectsCoreAsync(
                             sourceFile,
                             datasetSource,
@@ -63,11 +62,10 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
-        CancellationToken cancellationToken,
-        SelectCityGmlLod? selectLod = null)
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        SelectCityGmlLod selectLod,
+        CancellationToken cancellationToken)
     {
-        selectLod ??= CityGmlLodSelector.SelectPreferredSurfaceElements;
         cancellationToken.ThrowIfCancellationRequested();
 
         Stopwatch fileStopwatch = Stopwatch.StartNew();
@@ -119,7 +117,7 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         SelectCityGmlLod selectLod,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -142,13 +140,12 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
-        SelectCityGmlLod? selectLod = null,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
+        SelectCityGmlLod selectLod,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
-        selectLod ??= CityGmlLodSelector.SelectPreferredSurfaceElements;
         if (await CityGmlAppearanceStreamingProbe.MayContainAppearanceMembersAsync(datasetSource, sourceFile.RelativePath, cancellationToken)
             && await CityGmlAppearanceStreamingProbe.HasLateAppearanceMembersAfterCityObjectAsync(datasetSource, sourceFile.RelativePath, cancellationToken))
         {
@@ -190,13 +187,13 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         SelectCityGmlLod selectLod,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
-        CityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
+        ICityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
         CoordinateReferenceSystem coordinateReferenceSystem =
             CoordinateReferenceSystem.Parse((string?)null);
 
@@ -284,7 +281,7 @@ internal static class LocalCityGmlSourceFileParser
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         SelectCityGmlLod selectLod,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
@@ -295,7 +292,7 @@ internal static class LocalCityGmlSourceFileParser
         CoordinateReferenceSystem coordinateReferenceSystem =
             CoordinateReferenceSystem.Parse(cityModel);
         parsedReferenceSystem?.Invoke(coordinateReferenceSystem);
-        CityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
+        ICityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
         appearanceStore.LoadFromDocument(cityModel);
 
         if (cityModel.Root is null)

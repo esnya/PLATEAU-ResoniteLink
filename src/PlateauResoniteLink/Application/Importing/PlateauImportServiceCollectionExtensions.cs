@@ -46,7 +46,7 @@ internal static class PlateauImportServiceCollectionExtensions
                 provider.GetRequiredService<Func<DatasetLocation?, CancellationToken, Task<DemTerrainGeoReferencedRasterResolver?>>>());
             return policy.ResolveAsync;
         });
-        services.TryAddSingleton<Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore>>(
+        services.TryAddSingleton<Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore>>(
             _ => CityGmlAppearanceStore.Create);
         services.TryAddSingleton<SelectCityGmlLod>(_ => CityGmlLodSelector.SelectPreferredSurfaceElements);
         services.TryAddSingleton<ResolveDefaultMaterial>(provider =>
@@ -89,7 +89,7 @@ internal static class PlateauImportServiceCollectionExtensions
         {
             LocalCityGmlDocumentReader reader = new(
                 provider.GetRequiredService<Func<string, CancellationToken, Task<IPlateauDatasetContentSource>>>(),
-                provider.GetRequiredService<Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore>>(),
+                provider.GetRequiredService<Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore>>(),
                 provider.GetRequiredService<SelectCityGmlLod>());
             return reader.ReadAsync;
         });

@@ -320,12 +320,17 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 materialPlanning,
                 generateTerrainTexture: generateTerrainTexture,
                 ensureGsiFallbackLicense: ensureGsiFallbackLicense,
-                progressReporter: progressReporter)));
+                progressReporter: progressReporter)),
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
     }
 
     public static ResoniteLiveSendRunExecutor CreateRunExecutor(ResoniteLiveSendRunStarter runStarter)
     {
-        return new ResoniteLiveSendRunExecutor(runStarter);
+        return new ResoniteLiveSendRunExecutor(
+            runStarter,
+            ResoniteLiveSendQueue.QueueUnitAsync,
+            ResoniteLiveSendQueue.CompleteAsync,
+            ResoniteLiveSendRunResourceReleaser.ReleaseAsync);
     }
 
     public static ResoniteLiveSendRunStarter CreateRunStarter(

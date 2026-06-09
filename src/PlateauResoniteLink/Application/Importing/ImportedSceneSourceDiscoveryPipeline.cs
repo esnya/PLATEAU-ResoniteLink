@@ -15,7 +15,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
     internal static async Task<ImportedSceneSourceSnapshot> ReadDocumentSetCoreAsync(
         ResolvedLocalPlateauImportRequest request,
         Func<string, CancellationToken, Task<IPlateauDatasetContentSource>> createDatasetContentSource,
-        Func<string, IPlateauDatasetContentSource, CityGmlAppearanceStore> createAppearanceStore,
+        Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         SelectCityGmlLod selectLod,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
@@ -71,8 +71,8 @@ internal static class ImportedSceneSourceDiscoveryPipeline
                 progressReporter,
                 lodFilteringStrategy,
                 createAppearanceStore,
-                cancellationToken,
-                selectLod);
+                selectLod,
+                cancellationToken);
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();

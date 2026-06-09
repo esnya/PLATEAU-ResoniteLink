@@ -50,7 +50,8 @@ public sealed class CliApplicationTests
     {
         return new LocalCityGmlDocumentReader(
             CreateDatasetContentSourceAsync,
-            CityGmlAppearanceStore.Create);
+            CityGmlAppearanceStore.Create,
+            CityGmlLodSelector.SelectPreferredSurfaceElements);
     }
 
     private static CreateImportedSceneSource CreateImportedSceneSource(LocalCityGmlDocumentReader documentReader)

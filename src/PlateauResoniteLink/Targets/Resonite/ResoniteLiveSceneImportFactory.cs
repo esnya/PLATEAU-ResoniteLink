@@ -1,7 +1,6 @@
 using System;
 using System.Net.Http;
 
-using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -9,12 +8,9 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed class ResoniteLiveSceneImportFactory(
     Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession> createClientSession,
     CreateTerrainTextureGenerator createTerrainTextureGenerator,
+    CreateResoniteLiveSendRunStarter createRunStarter,
     CreateResoniteLiveSendRunExecutor createRunExecutor,
-    ResoniteLiveSendRunSetupPreparer runSetupPreparer,
-    EnsureResoniteLiveSendConnected ensureConnected,
-    EnsureResoniteGsiFallbackLicense ensureGsiFallbackLicense,
-    CreateNonDemCityObjectBaker createCityObjectBaker,
-    ResonitePreparedCityObjectImporter preparedCityObjectImporter)
+    ReleaseLiveSendRunResources releaseResources)
 {
     public ResoniteLiveSceneImportTarget CreateTarget(
         ResoniteLiveSceneImportTargetOptions options,
@@ -31,7 +27,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
             terrainTextureAssetHttpClient,
             options.TerrainTileCacheRoot,
             options.DisableTerrainTileCache);
-        ResoniteLiveSendRunStarter runStarter = CreateRunStarter(generateTerrainTexture);
+        ResoniteLiveSendRunStarter runStarter = createRunStarter(generateTerrainTexture);
         return CreateTarget(options, clientSession, diagnostics, runStarter);
     }
 
@@ -46,30 +42,8 @@ internal sealed class ResoniteLiveSceneImportFactory(
         ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentNullException.ThrowIfNull(generateTerrainTexture);
 
-        ResoniteLiveSendRunStarter runStarter = CreateRunStarter(generateTerrainTexture);
+        ResoniteLiveSendRunStarter runStarter = createRunStarter(generateTerrainTexture);
         return CreateTarget(options, clientSession, diagnostics, runStarter);
-    }
-
-    private ResoniteLiveSendRunStarter CreateRunStarter(GenerateTerrainTexture generateTerrainTexture)
-    {
-        ArgumentNullException.ThrowIfNull(generateTerrainTexture);
-
-        return new ResoniteLiveSendRunStarter(
-            runSetupPreparer,
-            ensureConnected,
-            createCityObjectBaker,
-            CreateQueuedCityObjectWorker(generateTerrainTexture));
-    }
-
-    private ResoniteQueuedCityObjectWorker CreateQueuedCityObjectWorker(
-        GenerateTerrainTexture generateTerrainTexture)
-    {
-        ResoniteQueuedCityObjectPreparation cityObjectPreparation = new(
-            generateTerrainTexture,
-            ensureGsiFallbackLicense);
-        return new ResoniteQueuedCityObjectWorker(
-            cityObjectPreparation,
-            preparedCityObjectImporter);
     }
 
     private ResoniteLiveSceneImportTarget CreateTarget(
@@ -87,6 +61,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
             options,
             clientSession,
             diagnostics,
-            createRunExecutor(runStarter));
+            createRunExecutor(runStarter),
+            releaseResources);
     }
 }

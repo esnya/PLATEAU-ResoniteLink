@@ -18,7 +18,7 @@ internal static class CityGmlParsedCityObjectReader
         string relativeSourceFile,
         string actualMeshCode,
         bool sharedAcrossMeshCodes,
-        CityGmlAppearanceStore appearanceStore,
+        ICityGmlAppearanceStore appearanceStore,
         CoordinateReferenceSystem coordinateReferenceSystem,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         LodFilteringStrategy lodFilteringStrategy,
@@ -104,7 +104,7 @@ internal static class CityGmlParsedCityObjectReader
     private static ParsedSurface[] ParseSurfaces(
         IEnumerable<XElement> surfaceElements,
         string packageName,
-        CityGmlAppearanceStore appearanceStore)
+        ICityGmlAppearanceStore appearanceStore)
     {
         List<ParsedSurface> surfaces = [];
         foreach (XElement surfaceElement in surfaceElements)
