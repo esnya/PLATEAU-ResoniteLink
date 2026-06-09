@@ -18,14 +18,14 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
 
         services.TryAddScoped<Func<IResoniteLinkTransport>>(
             _ => static () => new LinkInterfaceResoniteLinkTransport(new LinkInterface()));
-        services.TryAddScoped<Func<Action<string>?, IResoniteLinkClient>>(
+        services.TryAddScoped<CreateResoniteLinkClient>(
             provider =>
             {
                 Func<IResoniteLinkTransport> createTransport =
                     provider.GetRequiredService<Func<IResoniteLinkTransport>>();
-                return progressReporter => new ResoniteLinkClient(
+                return context => new ResoniteLinkClient(
                     createTransport(),
-                    progressReporter);
+                    context.ProgressReporter);
             });
         services.TryAddScoped<BundledDefaultMaterialAssetStore>();
         services.TryAddScoped<ResoniteTextureImageLoader>();
@@ -87,8 +87,8 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         });
         services.TryAddScoped<Func<ResoniteLiveSceneImportTargetOptions, ResoniteLinkSendDiagnostics, ILiveSendClientSession>>(provider =>
         {
-            Func<Action<string>?, IResoniteLinkClient> baseClientFactory =
-                provider.GetRequiredService<Func<Action<string>?, IResoniteLinkClient>>();
+            CreateResoniteLinkClient createBaseClient =
+                provider.GetRequiredService<CreateResoniteLinkClient>();
 
             return (options, diagnostics) =>
             {
@@ -100,7 +100,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
                     options.ConnectionCount,
                     diagnostics,
                     options.ProgressReporter,
-                    baseClientFactory);
+                    createBaseClient);
             };
         });
         services.TryAddScoped<ResolveResoniteDatasetRootSlot>(_ => ResoniteSceneSlotLocator.TryGetDatasetRootAsync);

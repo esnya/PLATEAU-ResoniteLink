@@ -22,12 +22,13 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
     {
         RecordingClientFactory clientFactory = new();
         List<string> messages = [];
-        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.CreateEnabled(messages.Add);
+        Action<string> progressReporter = messages.Add;
+        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.CreateEnabled(progressReporter);
         ILiveSendClientSession session = ResoniteLinkTransportSessionFactory.Create(
             new Uri("ws://localhost:12345/"),
             connectionCount: 1,
             diagnostics,
-            progressReporter: null,
+            progressReporter,
             clientFactory.Create);
 
         try
@@ -55,6 +56,8 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
 
             Assert.Equal(new TransportSlotLocator("slot-1"), slot.Slot);
             Assert.Single(clientFactory.CreatedClients);
+            Assert.Single(clientFactory.CreationContexts);
+            Assert.Same(progressReporter, clientFactory.CreationContexts[0].ProgressReporter);
             Assert.Equal(1, clientFactory.CreatedClients[0].ConnectCallCount);
             Assert.Equal(1, clientFactory.CreatedClients[0].AddSlotCallCount);
             Assert.Contains(messages, static message => message.Contains("rpc_breakdown", StringComparison.Ordinal));
@@ -80,9 +83,13 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
     {
         public List<RecordingResoniteLinkClient> CreatedClients { get; } = [];
 
-        public RecordingResoniteLinkClient Create(Action<string>? progressReporter)
+        public List<ResoniteLinkClientCreationContext> CreationContexts { get; } = [];
+
+        public RecordingResoniteLinkClient Create(ResoniteLinkClientCreationContext context)
         {
+            ArgumentNullException.ThrowIfNull(context);
             RecordingResoniteLinkClient client = new();
+            CreationContexts.Add(context);
             CreatedClients.Add(client);
             return client;
         }
@@ -151,4 +158,3 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
         }
     }
 }
-

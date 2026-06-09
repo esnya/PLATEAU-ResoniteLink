@@ -522,10 +522,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 .AddResoniteLiveSendTargetServices()
                 .BuildServiceProvider();
             using IServiceScope scope = provider.CreateScope();
-            Func<Action<string>?, IResoniteLinkClient> createClient =
-                scope.ServiceProvider.GetRequiredService<Func<Action<string>?, IResoniteLinkClient>>();
+            CreateResoniteLinkClient createClient =
+                scope.ServiceProvider.GetRequiredService<CreateResoniteLinkClient>();
 
-            IResoniteLinkClient client = createClient(null);
+            IResoniteLinkClient client = createClient(new ResoniteLinkClientCreationContext(null));
             client.Dispose();
 
             Assert.Equal(1, createTransportCallCount);
@@ -535,6 +535,35 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         {
             transport.Dispose();
         }
+    }
+
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredBaseClientFactory()
+    {
+        ResoniteLinkClientCreationContext? recordedContext = null;
+        CreateResoniteLinkClient createClient = context =>
+        {
+            recordedContext = context;
+            return new ResoniteLinkClient(
+                new RecordingResoniteLinkTransport(),
+                context.ProgressReporter);
+        };
+        using ServiceProvider provider = new ServiceCollection()
+            .AddScoped(_ => createClient)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        CreateResoniteLinkClient resolvedCreateClient =
+            scope.ServiceProvider.GetRequiredService<CreateResoniteLinkClient>();
+        Action<string> progressReporter = static _ => { };
+
+        using IResoniteLinkClient client =
+            resolvedCreateClient(new ResoniteLinkClientCreationContext(progressReporter));
+
+        Assert.Same(createClient, resolvedCreateClient);
+        Assert.NotNull(client);
+        Assert.NotNull(recordedContext);
+        Assert.Same(progressReporter, recordedContext.ProgressReporter);
     }
 
     [Theory]
