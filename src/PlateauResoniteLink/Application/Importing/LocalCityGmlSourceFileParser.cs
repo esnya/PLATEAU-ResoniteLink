@@ -116,7 +116,7 @@ internal static class LocalCityGmlSourceFileParser
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        LodFilteringStrategy? lodFilteringStrategy,
+        LodFilteringStrategy lodFilteringStrategy,
         Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         SelectCityGmlLod selectLod,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -139,13 +139,12 @@ internal static class LocalCityGmlSourceFileParser
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        LodFilteringStrategy? lodFilteringStrategy,
+        LodFilteringStrategy lodFilteringStrategy,
         Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         SelectCityGmlLod selectLod,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        lodFilteringStrategy ??= new LodFilteringStrategy();
         if (await CityGmlAppearanceStreamingProbe.MayContainAppearanceMembersAsync(datasetSource, sourceFile.RelativePath, cancellationToken)
             && await CityGmlAppearanceStreamingProbe.HasLateAppearanceMembersAfterCityObjectAsync(datasetSource, sourceFile.RelativePath, cancellationToken))
         {
@@ -186,13 +185,12 @@ internal static class LocalCityGmlSourceFileParser
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        LodFilteringStrategy? lodFilteringStrategy,
+        LodFilteringStrategy lodFilteringStrategy,
         Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         SelectCityGmlLod selectLod,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        lodFilteringStrategy ??= new LodFilteringStrategy();
         ICityGmlAppearanceStore appearanceStore = createAppearanceStore(sourceFile.RelativePath, datasetSource);
         CoordinateReferenceSystem coordinateReferenceSystem =
             CoordinateReferenceSystem.Parse((string?)null);
@@ -280,13 +278,12 @@ internal static class LocalCityGmlSourceFileParser
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        LodFilteringStrategy? lodFilteringStrategy,
+        LodFilteringStrategy lodFilteringStrategy,
         Func<string, IPlateauDatasetContentSource, ICityGmlAppearanceStore> createAppearanceStore,
         SelectCityGmlLod selectLod,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        lodFilteringStrategy ??= new LodFilteringStrategy();
         await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
         XDocument cityModel = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
         CoordinateReferenceSystem coordinateReferenceSystem =
