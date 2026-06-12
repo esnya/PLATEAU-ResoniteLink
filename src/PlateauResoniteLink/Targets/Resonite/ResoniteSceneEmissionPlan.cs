@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using ResoniteLink;
 
@@ -76,7 +77,167 @@ internal sealed record PlannedTerrainGridMeshBundle(
     Field_float MaxBoundsY,
     PlannedWorldElementReference DisplacementTexture,
     Field_float2? UvScale,
-    Field_float2? UvOffset);
+    Field_float2? UvOffset)
+{
+    public static PlannedTerrainGridMeshBundle Create(
+        ResoniteTerrainGridGeometry geometry,
+        PlannedWorldElementReference displacementTexture,
+        ResoniteFloat2? uvScale,
+        ResoniteFloat2? uvOffset)
+    {
+        ArgumentNullException.ThrowIfNull(geometry);
+        ArgumentNullException.ThrowIfNull(displacementTexture);
+
+        Field_float displacement = new()
+        {
+            Value = -1.0f,
+        };
+        float firstBoundsY = (float)(geometry.MinHeight * displacement.Value);
+        float secondBoundsY = (float)(geometry.MaxHeight * displacement.Value);
+        return new PlannedTerrainGridMeshBundle(
+            new PlannedFieldReference(),
+            new Field_int2
+            {
+                Value = new int2
+                {
+                    x = geometry.Width,
+                    y = geometry.Height,
+                },
+            },
+            new Field_float2
+            {
+                Value = new float2
+                {
+                    x = (float)geometry.Size.X,
+                    y = (float)geometry.Size.Y,
+                },
+            },
+            displacement,
+            new Field_float
+            {
+                Value = Math.Min(firstBoundsY, secondBoundsY),
+            },
+            new Field_float
+            {
+                Value = Math.Max(firstBoundsY, secondBoundsY),
+            },
+            displacementTexture,
+            ToField(uvScale),
+            ToField(uvOffset));
+    }
+
+    public Field_BoundingBox CreateOverriddenBoundingBox()
+    {
+        float halfWidth = Math.Abs(Size.Value.x) / 2.0f;
+        float halfDepth = Math.Abs(Size.Value.y) / 2.0f;
+        return new Field_BoundingBox
+        {
+            Value = new BoundingBox
+            {
+                min = new float3
+                {
+                    x = -halfWidth,
+                    y = MinBoundsY.Value,
+                    z = -halfDepth,
+                },
+                max = new float3
+                {
+                    x = halfWidth,
+                    y = MaxBoundsY.Value,
+                    z = halfDepth,
+                },
+            },
+        };
+    }
+
+    private static Field_float2? ToField(ResoniteFloat2? value)
+    {
+        return value is null
+            ? null
+            : new Field_float2
+            {
+                Value = new float2
+                {
+                    x = (float)value.X,
+                    y = (float)value.Y,
+                },
+            };
+    }
+}
+
+internal sealed record PlannedMainTexturePropertyBlockOverride(
+    PlannedMember PropertyBlock,
+    PlannedBatchComponentEmission? TextureComponent,
+    PlannedBatchComponentEmission? PropertyBlockComponent)
+{
+    public static PlannedMainTexturePropertyBlockOverride Create(
+        PlannedSlotTargetReference textureContainerTarget,
+        PlannedSlotTargetReference propertyBlockContainerTarget,
+        PlannedMainTextureOverrideRendererMaterialBinding binding)
+    {
+        ArgumentNullException.ThrowIfNull(textureContainerTarget);
+        ArgumentNullException.ThrowIfNull(propertyBlockContainerTarget);
+        ArgumentNullException.ThrowIfNull(binding);
+
+        if (binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
+            {
+                SharedMainTexturePropertyBlockComponent: { } sharedMainTexturePropertyBlockComponent,
+            })
+        {
+            return new PlannedMainTexturePropertyBlockOverride(
+                PlannedMembers.Reference(PlannedWorldElementReference.Canonical(sharedMainTexturePropertyBlockComponent)),
+                null,
+                null);
+        }
+
+        PlannedWorldElementReference? sharedTextureTarget = binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
+        {
+            SharedMainTextureComponent: { } sharedMainTextureComponent,
+        }
+            ? PlannedWorldElementReference.Canonical(sharedMainTextureComponent)
+            : null;
+        ResoniteSceneMaterialConventions.TextureMemberRole textureRole = binding switch
+        {
+            PlannedAlbedoMainTextureOverrideRendererMaterialBinding =>
+                ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
+            PlannedTerrainMainTextureOverrideRendererMaterialBinding =>
+                ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride,
+            _ => throw new InvalidOperationException(
+                $"Unsupported planned main texture override binding type '{binding.GetType().Name}'."),
+        };
+        PlannedBatchComponentEmission? textureComponent = sharedTextureTarget is null
+            ? CreateTextureComponent(
+                textureContainerTarget,
+                binding.MainTexture.AssetUri,
+                textureRole)
+            : null;
+        PlannedWorldElementReference textureTarget = sharedTextureTarget
+            ?? PlannedWorldElementReference.Planned(textureComponent ?? throw new InvalidOperationException("Main texture property block did not create a texture component."));
+        PlannedBatchComponentEmission propertyBlockComponent = new(
+            propertyBlockContainerTarget,
+            "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
+            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+            {
+                ["Texture"] = PlannedMembers.Reference(textureTarget),
+            });
+        return new PlannedMainTexturePropertyBlockOverride(
+            PlannedMembers.Reference(PlannedWorldElementReference.Planned(propertyBlockComponent)),
+            textureComponent,
+            propertyBlockComponent);
+    }
+
+    private static PlannedBatchComponentEmission CreateTextureComponent(
+        PlannedSlotTargetReference containerTarget,
+        Uri textureUri,
+        ResoniteSceneMaterialConventions.TextureMemberRole textureRole)
+    {
+        return new PlannedBatchComponentEmission(
+            containerTarget,
+            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+            ResoniteSceneMaterialConventions.CreateTextureMembers(textureUri, textureRole)
+                .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
+    }
+}
 
 internal sealed class PlannedFieldReference;
 
@@ -304,7 +465,22 @@ internal sealed record PlannedBatchSlotEmission(
     string SlotName,
     ResoniteFloat3? Position,
     ResoniteFloatQ? Rotation,
-    long? OrderOffset = null);
+    long? OrderOffset = null)
+{
+    public static PlannedBatchSlotEmission Presentation(
+        ResoniteObjectSlotHierarchy objectSlots)
+    {
+        ArgumentNullException.ThrowIfNull(objectSlots);
+
+        return new PlannedBatchSlotEmission(
+            PlannedSlotTargetReference.CanonicalSlot(objectSlots.LodSlot.Locator),
+            objectSlots.CityObjectSlotName,
+            objectSlots.CityObjectLocalPosition,
+            objectSlots.CityObjectRotation,
+            objectSlots.CityObjectOrderOffset);
+    }
+
+}
 
 internal sealed record PlannedBatchComponentEmission(
     PlannedSlotTargetReference ContainerTarget,
