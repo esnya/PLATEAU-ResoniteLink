@@ -4,7 +4,7 @@
 
 PlateauResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGML データセットを [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink) 経由で Resonite に逐次送信する .NET 10 CLI です。インポート挙動と用語は [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/) に揃えています。changelog の正本は GitHub Releases で、各 `vX.Y.Z` release は framework-dependent な CLI asset `PlateauResoniteLink-cli-vX.Y.Z.zip` を公開します。
 
-この README は、現在の `beta` branch における、人間向け current scope の正本です。`requirements` のような別文書は復活させず、shipped と intentionally regressed はここ と tests に揃えます。
+この README は、現在の `beta` ブランチについて、人間が読むスコープ説明の正本です。別の要件文書を復活させたり、過去の要件をここに保存したりせず、現在のコードと、残る動的契約を守るテストに揃えます。
 
 ## Scope
 
@@ -18,7 +18,7 @@ Shipped:
 - DEM terrain imagery tile は既定で local cache に永続化し、再実行時に PLATEAU Ortho や fallback の GSI tile を再利用できるようにする。
 
 Intentionally regressed:
-- standalone の requirements 文書は release-truth surface としては維持しません。product scope は `README.md` と tests に置き、live-send の実行手順は `.agents/skills/resonite-live-send-debug/` 配下の Coding Agent skill に置きます。
+- 単独の要件文書は、リリース上の正本としては維持しません。現在の製品範囲はコードを第一にし、残る動的契約をテストで守り、人間向けの範囲説明をこの README で表現します。live-send の実行手順は `.agents/skills/resonite-live-send-debug/` 配下の Coding Agent 向け skill に置きます。
 
 ## Runtime And Prerequisites
 

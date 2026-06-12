@@ -9,10 +9,9 @@ Before opening a PR:
 - If you use a coding agent for this repository, make sure it reads [AGENTS.md](AGENTS.md).
 - Keep runtime and SDK assumptions on .NET 10 unless the change clearly requires otherwise.
 - Update the matching `.ja.md` file when you change an English Markdown document.
-- Add or update tests when behavior changes.
-- Keep namespace declarations aligned with folder ownership boundaries and avoid partial renames that leave namespace or path mismatches.
+- When behavior changes, first express correctness in static code where feasible: types, APIs, project dependencies, ownership boundaries, and build-time checks should make invalid code fail to compile. Add or update tests only for remaining dynamic behavior that needs contract locking or regression detection.
 - Keep auxiliary git worktrees in the repository root `.worktree/` directory (for example `.../<repo>/.worktree/<name>`), and avoid leaving worktrees in sibling directories or `/tmp`.
-- Do not add grep-based architecture or naming tests to enforce concept ownership. Prefer project-reference boundaries, review checklist enforcement, and behavior-oriented tests.
+- Do not add tests that make static ownership, naming, or architecture the canonical contract. Prefer code first, then centralized analyzer, style, or build policy for mechanically checkable constraints that code alone cannot express.
 
 GitHub Releases are the canonical changelog. Create release tags as `vX.Y.Z`; each tag publishes a framework-dependent CLI zip asset and generates release notes from merged pull requests.
 
@@ -49,17 +48,15 @@ For quick non-slow iteration between low-conflict changes, use:
 dotnet test PlateauResoniteLink.sln --configuration Release --no-restore --verbosity minimal -m:1 --disable-build-servers -p:UseSharedCompilation=false --filter "Category!=Slow"
 ```
 
-If you need to keep a large repository-improvement plan around temporarily, keep it under `.tmp/plans/` and leave it untracked. Do not treat that area as canonical documentation, do not link it from active docs as current operating guidance, and reflect only adopted conclusions in tracked documentation and code review artifacts.
-
 In the PR description, explain what changed, why, and any remaining limitations or follow-up work.
 
 Reviewers should also check:
 
-- concept names, directory placement, and namespace placement match ownership without leaving compatibility aliases behind
-- project references still enforce the intended dependency direction
-- no global using directives remain in the final-state source tree
-- internal contracts stay target-neutral, with target-specific conversions isolated at adapter edges
-- behavior changes are covered by behavior-oriented tests rather than grep-based naming or boundary checks
-- agent guidance and reviewer guidance are updated when naming or boundary rules change
+- the PR states the current contract or correctness criterion it changes
+- static correctness is expressed in code or build-time checks where feasible, not only in tests, docs, or review guidance
+- mechanically checkable static rules that code alone cannot express are captured by root analyzer, style, or build policy rather than tests
+- remaining dynamic behavior has focused tests when code alone cannot lock the contract or catch regressions
+- external output contracts have observation, dump, or readback evidence when the normal UI or target surface cannot show the actual emitted payload
+- agent guidance and reviewer guidance are updated when current correctness criteria or workflow constraints change
 
 When a commit fully resolves a GitHub issue and is safe to auto-close on merge, use a commit message footer such as `Fixes #81` or `Closes #85`. For intermediate cuts, partial migrations, or follow-up-only commits, use `Refs #81` instead.
