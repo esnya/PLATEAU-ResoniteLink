@@ -13,33 +13,27 @@
 - Codex や同種の sandbox 制約つき WSL 環境では、検証フローの代わりに `dotnet format <sln|csproj>` の solution / project モードを使わないこと。MSBuild workspace を開く段階で `System.Net.Sockets.SocketException (13): Permission denied /tmp/<guid>` で失敗することがある。`CONTRIBUTING.md` に記した repository の検証コマンド列を使い、その中の whitespace 検証には `dotnet format whitespace . --folder --verify-no-changes` を使う。
 - push や pull request 更新の前には、`CONTRIBUTING.md` に記した検証コマンド列を必ず実行すること。`CONTRIBUTING.ja.md` はその翻訳である。
 - その検証コマンド列は直列で実行すること。同じ output tree に対して `dotnet build`、`dotnet test` などを並行実行すると、compiler / testhost の競合で `artifacts/build/windows/obj/.../*.dll` がロックされ、結果が汚染される。
-- `docs/` には、要件、アーキテクチャ意図、参照メモ、運用制約など、コードやテストだけでは表現しにくい内容だけを書く。
-- 一時的に保持したい大きな改善計画は `.tmp/plans/` 配下に置き、untracked のまま維持すること。`docs/` 配下には置かず、active documentation から現行運用の根拠としてリンクや引用をせず、採用した current outcome だけを tracked な docs / code / tests へ昇格させること。
-- 補助的な git worktree は `<repo>/.worktree/` 配下で管理し、同階層の sibling ディレクトリや `/tmp` に worktree を置かないこと。これにより一時的な worktree が既定の主ワークツリー外に散逸することを防ぐ。
-- データセット、タイル、アダプターの概念を設計するときは、`PLATEAU-SDK-for-UNITY` の用語とインポート意味論に揃える。
-- CLI のオーケストレーション、アプリケーションロジック、ドメインモデルをテスト可能でホスト非依存に保つため、Resonite 固有の I/O は抽象の背後に置く。
-- plan、state、snapshot、policy、input、output、result には、可能な限り immutable な value type を優先する。
-- 正規化、検証、ID 導出、命名、グルーピング、順序付け、予算化、plan 構築には pure transform を優先する。
-- value-based な実行契約で表現できるなら、共有 mutable object に対する ordered lifecycle API は避ける。
-- mutable state は transport、filesystem、network、cache、logging/progress、cancellation のような狭い boundary adapter に局所化する。
-- transport と target integration は immutable-by-default とし、read-once / create-only を優先し、不可避な update は専用 adapter layer に隔離する。
-- ユーザーが明示的に求めない限り、`Builder`、`Manager`、`Coordinator`、`Helper`、`Util` のような広すぎる振る舞い志向の型を新設しない。
+
+### 現在の正本の置き場所
+- コードを、現在の挙動、境界、所有、命名、既定値、依存方向の第一の正本として扱う。
+- 正しさはまず静的に守る。型、API、プロジェクト依存、所有境界、ビルド時チェックにより、不正な状態、依存、呼び出しが可能な限りコンパイル不可能になる形を優先する。
+- テストは、コードだけでは固定しきれない現在の動的挙動と、その回帰やバグの検出に限って使う。
+- テスト数を増やすより、まず動的挙動を減らすことを優先する。動的な挙動が少なければ、必要なテストも少なくなるべきである。
+- ドキュメントには、テストでは十分に表現できない現在の意図、設計理由、作業手順上の制約、参照メモ、運用文脈だけを書く。
+- 過去の判断、移行履歴、削除済み挙動、歴史的経緯は、Git 履歴、プルリクエスト、Issue、リリースに置く。古い現状説明、古いテスト、互換層を残すことで歴史を保存しない。
+- 静的な所有、命名、アーキテクチャをテストで監視しない。それらの規則はコードで表現し、コードだけでは表現しきれないものはリポジトリルートのアナライザー、スタイル設定、ビルド設定に置く。
+
+- PLATEAU の用語とインポート意味論は、`PLATEAU-SDK-for-UNITY` に揃える。
+- ResoniteLink と live target 連携は外部契約として扱う。正しさは特定の内部実装形ではなく、実際に送出された payload、読み戻し、または観測可能なターゲット状態が現在の契約を満たすことで判定する。
 - 決定的な出力、明示的なコマンド入力、再現可能なローカル/CI の挙動を優先する。
-- 振る舞いを変更したら、自動テストを追加または更新する。
-- 回帰修正では、修正完了とみなす前に、期待する observable contract と、提案した原因を反証できる反例または観測点を定義する。
+- 挙動を変更するときは、まずその動的挙動を減らせるか、またはコードで直接表現できるかを判断する。残る動的挙動のうち、仕様固定や回帰検出が必要なものに限って自動テストを追加または更新する。
+- 回帰修正では、修正完了とみなす前に、期待する観測可能な契約と、提案した原因を反証できる反例または観測点を定義する。
 - 限定情報下では、単一仮説に固定しないこと。まずその仮説を失敗させられる観測、テスト、比較を作り、あり得る解釈の範囲で破綻しない変更だけを行う。
 - 複数の実行経路が同じ概念を出力する場合は、経路別の補正を追加するのではなく、共有契約を強制し、同等の出力同士を比較する。
-- 通常の UI や外部ターゲットの surface から出力を検査できない場合は、実際に emit される payload を検査できる boundary adapter 付近の記録、dump、readback artifact を用意し、それを完了判定に使う。
-- green test、CI、review approval だけで回帰が修正された証明として扱わない。failure mode に対応する観測 artifact が期待する契約を満たすことを確認する。
-- grep ベースの architecture test や naming test を、境界規範の正本として扱わないこと。命名規則と ownership はこのファイルで管理し、依存方向は project reference で縛り、テストでは observable behavior だけを守る。
-- 依存性注入は stack の中腹まで貫通させること。core、application、import、bootstrap、target、transport のコードは、`new`、static factory、fallback self-wiring で concrete default を隠さない。
-- legacy 変換と static projection helper は adapter edge にだけ置くこと。core concept と neutral contract は、`ToLegacy`、`FromLegacy`、target 固有 mapper utility に依存しない。
-- result model は純粋に保つこと。document/read result に bootstrap 専用・discovery 専用・connection 専用・layout 専用の state を持ち込まず、必要なら別の context / snapshot に分離する。
-- 概念名を rename するときは、directory、filename、namespace、project 名、resource、docs を同じ cut で揃え、互換 alias を残さない。
-- namespace は directory ownership と一致させる。ownership boundary を変える場合は、namespace とディレクトリ構成を同一切りで更新し、パスと namespace の対応関係を一貫性のある境界シグナルとして保つ。
-- 最終状態のアーキテクチャでは global using を残さない。dependency は各ファイルで明示し、cross-boundary usage が機械的に読める状態を保つ。
-- internal contract は target-neutral に保つ。internal model に Resonite 固有の vector semantics を持ち込まず、target 固有変換は adapter edge の converter に閉じる。
-- diagnostics を進化させるときは custom logging pipeline より `ILogger<T>` と framework 統合 observability を優先し、metrics は `System.Diagnostics.Metrics` を第一級の instrumentation として扱う。
+- 通常の UI や外部ターゲットの表示面から出力を検査できない場合は、実際に送出される payload を検査できる記録、ダンプ、読み戻し成果物を用意し、それを完了判定に使う。
+- テスト成功、CI 通過、レビュー承認だけで回帰が修正された証明として扱わない。失敗モードに対応する観測結果が期待する契約を満たすことを確認する。
+
+- 補助的な git worktree は `<repo>/.worktree/` 配下で管理し、同階層の sibling ディレクトリや `/tmp` に worktree を置かないこと。これにより一時的な worktree が既定の主ワークツリー外に散逸することを防ぐ。
 
 ## Live Send 手順
 - Coding Agent が live test を行うときは [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md) に従うこと。

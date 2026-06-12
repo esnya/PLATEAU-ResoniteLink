@@ -4,7 +4,7 @@
 
 PlateauResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.go.jp/plateau/) CityGML datasets into Resonite through [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink). Import behavior and terminology stay aligned with [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/). GitHub Releases are the canonical changelog, and each `vX.Y.Z` release publishes a framework-dependent CLI asset named `PlateauResoniteLink-cli-vX.Y.Z.zip`.
 
-This README is the canonical human-readable scope statement for the current `beta` branch. Keep shipped and intentionally regressed behavior aligned here and in tests instead of reviving a separate requirements document.
+This README is the canonical human-readable scope statement for the current `beta` branch. Keep it aligned with current code and executable tests for remaining dynamic contracts instead of reviving a separate requirements document or preserving historical requirements here.
 
 ## Scope
 
@@ -18,7 +18,7 @@ Shipped:
 - Persist terrain imagery tiles under a local cache by default so repeated DEM imports can reuse already downloaded PLATEAU Ortho or fallback GSI tiles.
 
 Intentionally regressed:
-- A standalone requirements document is not maintained as a release-truth surface. Product scope lives in `README.md` and tests, while live-send execution guidance is kept in the Coding Agent skill under `.agents/skills/resonite-live-send-debug/`.
+- A standalone requirements document is not maintained as a release-truth surface. Current product scope is expressed by code first, executable tests for remaining dynamic contracts, and this README for human-readable scope; live-send execution guidance is kept in the Coding Agent skill under `.agents/skills/resonite-live-send-debug/`.
 
 ## Runtime And Prerequisites
 
