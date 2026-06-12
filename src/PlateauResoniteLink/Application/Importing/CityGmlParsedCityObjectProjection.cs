@@ -51,26 +51,23 @@ internal static class CityGmlParsedCityObjectProjection
             foreach (ParsedCityObject parsedCityObject in projectedInputCityObjects)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (predicate is not null && !predicate(parsedCityObject))
-                {
-                    continue;
-                }
-
-                foreach (ImportedCityObject cityObject in Project(
-                             parsedCityObject,
+                foreach (ImportedCityObject cityObject in ProjectObject(
+                             new CityObjectProjectionInput(sourceFile.SourceFile, parsedCityObject, sourceFile.ReferenceSystem),
+                             referenceSystem,
                              globalOriginPoint,
                              globalCartesian,
                              demTerrainTextureOverlays,
                              requestedMeshCodeBounds,
-                             terrainHeightSampler: null,
+                             selectedMeshCodes,
                              request,
                              materialResolver,
+                             new DemSourceFileTerrainGridSamplingDraft(sourceFile.SourceFile, sourceFileTerrainGridSamplingDraft),
+                             predicate,
                              logger,
-                             demTerrainGridSamplingSourceOverride: sourceFileTerrainGridSamplingDraft,
                              cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    yield return AttachSourceFileRoot(cityObject, sourceFile.SourceFile);
+                    yield return cityObject;
                 }
             }
 
@@ -80,25 +77,79 @@ internal static class CityGmlParsedCityObjectProjection
         foreach (ParsedCityObject parsedCityObject in projectedInputCityObjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (predicate is not null && !predicate(parsedCityObject))
-            {
-                continue;
-            }
-
-            foreach (ImportedCityObject cityObject in Project(
-                         parsedCityObject,
+            foreach (ImportedCityObject cityObject in ProjectObject(
+                         new CityObjectProjectionInput(sourceFile.SourceFile, parsedCityObject, sourceFile.ReferenceSystem),
+                         referenceSystem,
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
                          requestedMeshCodeBounds,
-                         terrainHeightSampler: null,
+                         selectedMeshCodes,
                          request,
                          materialResolver,
-                         logger,
+                         demTerrainGridSamplingDraft: null,
+                         predicate: predicate,
+                         logger: logger,
                          cancellationToken: cancellationToken))
             {
-                yield return AttachSourceFileRoot(cityObject, sourceFile.SourceFile);
+                yield return cityObject;
             }
+        }
+    }
+
+    internal static IEnumerable<ImportedCityObject> ProjectObject(
+        CityObjectProjectionInput input,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
+        IReadOnlyList<string> selectedMeshCodes,
+        PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver,
+        DemSourceFileTerrainGridSamplingDraft? demTerrainGridSamplingDraft = null,
+        Func<ParsedCityObject, bool>? predicate = null,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(referenceSystem);
+        ArgumentNullException.ThrowIfNull(globalOriginPoint);
+        ArgumentNullException.ThrowIfNull(selectedMeshCodes);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(materialResolver);
+
+        LocalCityGmlObjectProjection.ValidateCompatibleReferenceSystem(
+            referenceSystem,
+            input.ReferenceSystem);
+
+        ParsedCityObject parsedCityObject = input.CityObject;
+        if (predicate is not null && !predicate(parsedCityObject))
+        {
+            yield break;
+        }
+
+        ConstructionCityObjectDraft? terrainGridSamplingDraft =
+            string.Equals(input.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+            && request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic
+                ? demTerrainGridSamplingDraft?.Draft
+                : null;
+
+        foreach (ImportedCityObject cityObject in Project(
+                     parsedCityObject,
+                     globalOriginPoint,
+                     globalCartesian,
+                     demTerrainTextureOverlays,
+                     requestedMeshCodeBounds,
+                     terrainHeightSampler: null,
+                     request,
+                     materialResolver,
+                     logger,
+                     demTerrainGridSamplingSourceOverride: terrainGridSamplingDraft,
+                     cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return AttachSourceFileRoot(cityObject, input.SourceFile);
         }
     }
 
@@ -212,7 +263,7 @@ internal static class CityGmlParsedCityObjectProjection
         }
     }
 
-    private static ConstructionCityObjectDraft? CreateDemSourceFileTerrainGridSamplingDraft(CachedSourceFileDescriptor sourceFile)
+    internal static ConstructionCityObjectDraft? CreateDemSourceFileTerrainGridSamplingDraft(CachedSourceFileDescriptor sourceFile)
     {
         ParsedCityObject[] sourceObjects = sourceFile.CityObjects;
         if (sourceObjects.Length == 0)

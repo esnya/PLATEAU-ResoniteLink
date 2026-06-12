@@ -12,6 +12,34 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal interface ICityGmlGeometryProjector
 {
+    IEnumerable<ImportedCityObject> ProjectCityObject(
+        CityObjectProjectionInput input,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
+        IReadOnlyList<string> selectedMeshCodes,
+        PlateauImportRequest request,
+        DemSourceFileTerrainGridSamplingDraft? demTerrainGridSamplingDraft = null,
+        Func<ParsedCityObject, bool>? predicate = null,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default)
+    {
+        return ProjectCityObjects(
+            new CachedSourceFileDescriptor(input.SourceFile, [input.CityObject], input.ReferenceSystem),
+            referenceSystem,
+            globalOriginPoint,
+            globalCartesian,
+            demTerrainTextureOverlays,
+            requestedMeshCodeBounds,
+            selectedMeshCodes,
+            request,
+            predicate,
+            logger,
+            cancellationToken);
+    }
+
     IEnumerable<ImportedCityObject> ProjectCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
@@ -23,5 +51,27 @@ internal interface ICityGmlGeometryProjector
         PlateauImportRequest request,
         Func<ParsedCityObject, bool>? predicate = null,
         ILogger? logger = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default)
+    {
+        foreach (ParsedCityObject cityObject in sourceFile.CityObjects)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (ImportedCityObject projectedCityObject in ProjectCityObject(
+                         new CityObjectProjectionInput(sourceFile.SourceFile, cityObject, sourceFile.ReferenceSystem),
+                         referenceSystem,
+                         globalOriginPoint,
+                         globalCartesian,
+                         demTerrainTextureOverlays,
+                         requestedMeshCodeBounds,
+                         selectedMeshCodes,
+                         request,
+                         demTerrainGridSamplingDraft: null,
+                         predicate,
+                         logger,
+                         cancellationToken))
+            {
+                yield return projectedCityObject;
+            }
+        }
+    }
 }

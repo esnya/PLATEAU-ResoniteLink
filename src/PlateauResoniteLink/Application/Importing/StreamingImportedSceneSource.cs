@@ -269,18 +269,18 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                 continue;
             }
 
-            foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
-                         new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject], parsedReferenceSystem),
-                         resolvedReferenceSystem,
-                         globalOriginPoint,
-                         globalCartesian,
-                         projectionTerrainOverlayContext.Overlays,
-                         requestedMeshCodeBounds,
-                         selectedMeshCodes,
-                         request,
+            foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObject(
+                         input: new CityObjectProjectionInput(sourceFile.SourceFile, parsedCityObject, parsedReferenceSystem),
+                         referenceSystem: resolvedReferenceSystem,
+                         globalOriginPoint: globalOriginPoint,
+                         globalCartesian: globalCartesian,
+                         demTerrainTextureOverlays: projectionTerrainOverlayContext.Overlays,
+                         requestedMeshCodeBounds: requestedMeshCodeBounds,
+                         selectedMeshCodes: selectedMeshCodes,
+                         request: request,
                          predicate: null,
-                         logger,
-                         cancellationToken))
+                         logger: logger,
+                         cancellationToken: cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yieldedCount++;
@@ -295,25 +295,39 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                     demProjectionSource.SourceFile,
                     demProjectionSource.CityObjects,
                     selectedMeshCodes);
-            foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
-                         new CachedSourceFileDescriptor(
-                             demProjectionSource.SourceFile,
-                             aggregatedDemCityObjects,
-                             demProjectionSource.ReferenceSystem),
-                         demProjectionSource.ReferenceSystem,
-                         globalOriginPoint,
-                         globalCartesian,
-                         projectionTerrainOverlayContext.Overlays,
-                         requestedMeshCodeBounds,
-                         selectedMeshCodes,
-                         request,
-                         predicate: null,
-                         logger,
-                         cancellationToken))
+            DemSourceFileTerrainGridSamplingDraft? samplingDraft =
+                request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic
+                    ? new DemSourceFileTerrainGridSamplingDraft(
+                        demProjectionSource.SourceFile,
+                        CityGmlParsedCityObjectProjection.CreateDemSourceFileTerrainGridSamplingDraft(
+                            new CachedSourceFileDescriptor(
+                                demProjectionSource.SourceFile,
+                                demProjectionSource.CityObjects.ToArray(),
+                                demProjectionSource.ReferenceSystem)))
+                    : null;
+            foreach (ParsedCityObject aggregatedDemCityObject in aggregatedDemCityObjects)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                yieldedCount++;
-                yield return cityObject;
+                foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObject(
+                             input: new CityObjectProjectionInput(
+                                 demProjectionSource.SourceFile,
+                                 aggregatedDemCityObject,
+                                 demProjectionSource.ReferenceSystem),
+                             referenceSystem: demProjectionSource.ReferenceSystem,
+                             globalOriginPoint: globalOriginPoint,
+                             globalCartesian: globalCartesian,
+                             demTerrainTextureOverlays: projectionTerrainOverlayContext.Overlays,
+                             requestedMeshCodeBounds: requestedMeshCodeBounds,
+                             selectedMeshCodes: selectedMeshCodes,
+                             request: request,
+                             demTerrainGridSamplingDraft: samplingDraft,
+                             predicate: null,
+                             logger: logger,
+                             cancellationToken: cancellationToken))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    yieldedCount++;
+                    yield return cityObject;
+                }
             }
         }
 

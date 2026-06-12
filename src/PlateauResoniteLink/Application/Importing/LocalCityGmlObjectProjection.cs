@@ -59,6 +59,37 @@ internal static class LocalCityGmlObjectProjection
             materialResolver);
     }
 
+    internal static IEnumerable<ImportedCityObject> ProjectCityObject(
+        global::PlateauResoniteLink.Application.Importing.CityObjectProjectionInput input,
+        global::PlateauResoniteLink.Application.Importing.CoordinateReferenceSystem referenceSystem,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
+        IReadOnlyList<string> selectedMeshCodes,
+        PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver,
+        DemSourceFileTerrainGridSamplingDraft? demTerrainGridSamplingDraft = null,
+        Func<global::PlateauResoniteLink.Application.Importing.ParsedCityObject, bool>? predicate = null,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default)
+    {
+        return CityGmlParsedCityObjectProjection.ProjectObject(
+            input,
+            referenceSystem,
+            globalOriginPoint,
+            globalCartesian,
+            demTerrainTextureOverlays,
+            requestedMeshCodeBounds,
+            selectedMeshCodes,
+            request,
+            materialResolver,
+            demTerrainGridSamplingDraft,
+            predicate,
+            logger,
+            cancellationToken);
+    }
+
     internal static IEnumerable<ImportedCityObject> ProjectCityObjects(
         global::PlateauResoniteLink.Application.Importing.CachedSourceFileDescriptor sourceFile,
         global::PlateauResoniteLink.Application.Importing.CoordinateReferenceSystem referenceSystem,

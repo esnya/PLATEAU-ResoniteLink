@@ -392,8 +392,8 @@ public sealed class StreamingImportedSceneSourceStreamingTests
 
         public IReadOnlyCollection<ReferenceSystemCallRecord> CallRecords => callRecords.ToArray();
 
-        public IEnumerable<ImportedCityObject> ProjectCityObjects(
-            CachedSourceFileDescriptor sourceFile,
+        public IEnumerable<ImportedCityObject> ProjectCityObject(
+            CityObjectProjectionInput input,
             CoordinateReferenceSystem referenceSystem,
             GeodeticPoint globalOriginPoint,
             LocalCartesian? globalCartesian,
@@ -401,6 +401,7 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
             IReadOnlyList<string> selectedMeshCodes,
             PlateauImportRequest request,
+            DemSourceFileTerrainGridSamplingDraft? demTerrainGridSamplingDraft = null,
             Func<ParsedCityObject, bool>? predicate = null,
             ILogger? logger = null,
             CancellationToken cancellationToken = default)
@@ -414,35 +415,33 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             _ = request;
             _ = logger;
             _ = cancellationToken;
-            foreach (ParsedCityObject cityObject in sourceFile.CityObjects)
+            ParsedCityObject cityObject = input.CityObject;
+            if (predicate is not null && !predicate(cityObject))
             {
-                if (predicate is not null && !predicate(cityObject))
-                {
-                    continue;
-                }
-
-                calls.Enqueue(cityObject.PackageName);
-                callRecords.Enqueue(new ReferenceSystemCallRecord(
-                    sourceFile.ReferenceSystem,
-                    cityObject.ReferenceSystem));
-                yield return new ImportedCityObject(
-                    cityObject.SlotKey,
-                    cityObject.DisplayName,
-                    cityObject.PackageName,
-                    cityObject.ActualMeshCode,
-                    cityObject.LodLevel,
-                    new Transform3D(new Float3(0.0, 0.0, 0.0)),
-                    new TriangleMeshGeometry(
-                        new ImportedMesh(
-                            [
-                                new MeshVertex(new Float3(0.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 0.0)),
-                                new MeshVertex(new Float3(1.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(1.0, 0.0)),
-                                new MeshVertex(new Float3(0.0, 0.0, 1.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 1.0)),
-                            ],
-                            [new MeshSubmesh(0, [0, 1, 2])])),
-                    [],
-                    SourceFileRelativePath: sourceFile.RelativePath);
+                yield break;
             }
+
+            calls.Enqueue(cityObject.PackageName);
+            callRecords.Enqueue(new ReferenceSystemCallRecord(
+                input.ReferenceSystem,
+                cityObject.ReferenceSystem));
+            yield return new ImportedCityObject(
+                cityObject.SlotKey,
+                cityObject.DisplayName,
+                cityObject.PackageName,
+                cityObject.ActualMeshCode,
+                cityObject.LodLevel,
+                new Transform3D(new Float3(0.0, 0.0, 0.0)),
+                new TriangleMeshGeometry(
+                    new ImportedMesh(
+                        [
+                            new MeshVertex(new Float3(0.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 0.0)),
+                            new MeshVertex(new Float3(1.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(1.0, 0.0)),
+                            new MeshVertex(new Float3(0.0, 0.0, 1.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 1.0)),
+                        ],
+                        [new MeshSubmesh(0, [0, 1, 2])])),
+                [],
+                SourceFileRelativePath: input.RelativePath);
         }
     }
 

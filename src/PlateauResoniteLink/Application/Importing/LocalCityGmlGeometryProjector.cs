@@ -15,6 +15,36 @@ internal sealed class LocalCityGmlGeometryProjector(
 {
     private readonly IDefaultMaterialResolver materialResolver = materialResolver;
 
+    public IEnumerable<ImportedCityObject> ProjectCityObject(
+        CityObjectProjectionInput input,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
+        IReadOnlyList<string> selectedMeshCodes,
+        PlateauImportRequest request,
+        DemSourceFileTerrainGridSamplingDraft? demTerrainGridSamplingDraft = null,
+        Func<ParsedCityObject, bool>? predicate = null,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default)
+    {
+        return LocalCityGmlObjectProjection.ProjectCityObject(
+            input,
+            referenceSystem,
+            globalOriginPoint,
+            globalCartesian,
+            demTerrainTextureOverlays,
+            requestedMeshCodeBounds,
+            selectedMeshCodes,
+            request,
+            materialResolver,
+            demTerrainGridSamplingDraft,
+            predicate,
+            logger,
+            cancellationToken);
+    }
+
     public IEnumerable<ImportedCityObject> ProjectCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
