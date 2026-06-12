@@ -162,7 +162,8 @@ internal sealed class DefaultSceneSinkFactory(
                 options.EnableMeshBake,
                 options.TerrainTileCacheRoot,
                 options.DisableTerrainTileCache,
-                loggerFactory);
+                loggerFactory,
+                options.EnableDistanceCulling);
             IResoniteLiveSceneImportFactory targetFactory =
                 scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
             ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
@@ -194,7 +195,8 @@ internal sealed class DefaultSceneSinkFactory(
             options.EnableMeshBake,
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: true,
-            loggerFactory);
+            loggerFactory,
+            options.EnableDistanceCulling);
     }
 }
 

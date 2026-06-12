@@ -98,7 +98,9 @@ internal sealed class ResonitePreparedCityObjectImporter(
             plannedGeometryAsset,
             plannedMaterials.MaterialAssets,
             plannedMaterials.RendererMaterialBindings,
-            cityObject.CollisionEnabled);
+            cityObject.CollisionEnabled,
+            cityObject,
+            state.Context.Plan.DistanceCullingEnabled);
 
         ReportImportStep(logger, cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();

@@ -21,7 +21,8 @@ internal sealed record LiveSendRunStartRequest
         ResoniteLocalOrigin RequestLocalOrigin,
         ResoniteImportMemoryProfile MemoryProfile,
         int ConnectionCount,
-        bool MeshBakeEnabled)
+        bool MeshBakeEnabled,
+        bool DistanceCullingEnabled = false)
     {
         ArgumentNullException.ThrowIfNull(SetupInfo);
         ArgumentException.ThrowIfNullOrWhiteSpace(WorkRoot);
@@ -37,6 +38,7 @@ internal sealed record LiveSendRunStartRequest
         this.MemoryProfile = MemoryProfile;
         this.ConnectionCount = ConnectionCount;
         this.MeshBakeEnabled = MeshBakeEnabled;
+        this.DistanceCullingEnabled = DistanceCullingEnabled;
     }
 
     public ResoniteSceneSetupInfo SetupInfo { get; }
@@ -54,6 +56,8 @@ internal sealed record LiveSendRunStartRequest
     public int ConnectionCount { get; }
 
     public bool MeshBakeEnabled { get; }
+
+    public bool DistanceCullingEnabled { get; }
 }
 
 internal sealed record LiveSendRunStartContext
@@ -102,7 +106,8 @@ internal sealed class ResoniteLiveSendRunStarter(
             request.RequestLocalOrigin,
             request.MemoryProfile,
             request.ConnectionCount,
-            request.MeshBakeEnabled);
+            request.MeshBakeEnabled,
+            request.DistanceCullingEnabled);
         await EnsureConnectedAsync(request, runPlan, context, cancellationToken);
         LiveSendPreparedRunSetup preparedSetup = await runSetupPreparer.PrepareAsync(
             runPlan,

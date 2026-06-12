@@ -79,7 +79,8 @@ internal sealed record LiveSendRunPlan
         IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath,
         ResoniteImportBudgetProfile ResourceBudget,
         LiveSendQueuePlan Queue,
-        bool MeshBakeEnabled)
+        bool MeshBakeEnabled,
+        bool DistanceCullingEnabled = false)
     {
         ArgumentNullException.ThrowIfNull(SetupInfo);
         ArgumentException.ThrowIfNullOrWhiteSpace(ResolvedWorkRoot);
@@ -94,6 +95,7 @@ internal sealed record LiveSendRunPlan
         this.ResourceBudget = ResourceBudget;
         this.Queue = Queue;
         this.MeshBakeEnabled = MeshBakeEnabled;
+        this.DistanceCullingEnabled = DistanceCullingEnabled;
     }
 
     public ResoniteSceneSetupInfo SetupInfo { get; }
@@ -109,6 +111,8 @@ internal sealed record LiveSendRunPlan
     public LiveSendQueuePlan Queue { get; }
 
     public bool MeshBakeEnabled { get; }
+
+    public bool DistanceCullingEnabled { get; }
 }
 
 internal sealed record LiveSendQueuePlan

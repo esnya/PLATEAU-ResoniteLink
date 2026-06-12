@@ -5,4 +5,5 @@ internal sealed record ResoniteObjectSlotHierarchy(
     string CityObjectSlotName,
     ResoniteFloat3 CityObjectLocalPosition,
     ResoniteFloatQ? CityObjectRotation,
-    long? CityObjectOrderOffset = null);
+    long? CityObjectOrderOffset = null,
+    CreatedSlot? SourceFileSlot = null);

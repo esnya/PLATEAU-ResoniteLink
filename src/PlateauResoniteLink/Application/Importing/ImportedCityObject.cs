@@ -14,7 +14,8 @@ public sealed record ImportedCityObject(
     IReadOnlyList<MaterialBinding> Materials,
     bool CollisionEnabled = true,
     string? SourceFileRelativePath = null,
-    string? SourceFileRootMeshCode = null)
+    string? SourceFileRootMeshCode = null,
+    bool Landmark = false)
 {
     public ImportedCityObject(
         string ObjectKey,
@@ -27,7 +28,8 @@ public sealed record ImportedCityObject(
         IReadOnlyList<MaterialBinding> Materials,
         bool CollisionEnabled = true,
         string? SourceFileRelativePath = null,
-        string? SourceFileRootMeshCode = null)
+        string? SourceFileRootMeshCode = null,
+        bool Landmark = false)
         : this(
             ObjectKey,
             DisplayName,
@@ -39,7 +41,8 @@ public sealed record ImportedCityObject(
             Materials,
             CollisionEnabled,
             SourceFileRelativePath,
-            SourceFileRootMeshCode)
+            SourceFileRootMeshCode,
+            Landmark)
     {
     }
 

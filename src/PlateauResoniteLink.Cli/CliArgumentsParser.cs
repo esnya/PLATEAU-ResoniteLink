@@ -60,6 +60,7 @@ public static class CliArgumentsParser
           --memory-profile <small|large>
                                 Optional. Texture/import memory budget profile. Default: large.
           --no-mesh-bake         Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
+          --distance-culling     Optional. Enable opt-in live runtime distance culling components.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
           --verbose              Optional. Include debug-level progress logs.
 
@@ -106,6 +107,7 @@ public static class CliArgumentsParser
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
         PlateauImportMemoryProfile memoryProfile = CliDefaultOptions.MemoryProfile;
         bool enableMeshBake = true;
+        bool enableDistanceCulling = false;
         bool enableSendMetrics = false;
         bool verboseLogging = false;
         IReadOnlyList<string> packageNames = DefaultPackageNames;
@@ -241,6 +243,9 @@ public static class CliArgumentsParser
                         }
                     case "--no-mesh-bake":
                         enableMeshBake = false;
+                        break;
+                    case "--distance-culling":
+                        enableDistanceCulling = true;
                         break;
                     case "--send-metrics":
                         enableSendMetrics = true;
@@ -432,7 +437,8 @@ public static class CliArgumentsParser
                 terrainTileCacheRoot,
                 disableTerrainTileCache,
                 enableSendMetrics,
-                verboseLogging));
+                verboseLogging,
+                enableDistanceCulling));
     }
 
     private static CliParseResult ParseSearch(string[] args)

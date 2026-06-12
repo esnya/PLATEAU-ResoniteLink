@@ -12,4 +12,5 @@ internal sealed record ResoniteLiveSceneImportTargetOptions(
     bool EnableMeshBake,
     string? TerrainTileCacheRoot,
     bool DisableTerrainTileCache,
-    ILoggerFactory LoggerFactory);
+    ILoggerFactory LoggerFactory,
+    bool EnableDistanceCulling = false);

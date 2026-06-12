@@ -15,7 +15,8 @@ internal static class LiveSendRunPlanFactory
         ResoniteLocalOrigin requestLocalOrigin,
         ResoniteImportMemoryProfile memoryProfile,
         int connectionCount,
-        bool meshBakeEnabled)
+        bool meshBakeEnabled,
+        bool distanceCullingEnabled)
     {
         ArgumentNullException.ThrowIfNull(setupInfo);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
@@ -38,6 +39,7 @@ internal static class LiveSendRunPlanFactory
                     Math.Max(
                         MaxInFlightCityObjectWorkingSetBytesFloor,
                         connectionCount * MaxInFlightCityObjectWorkingSetBytesPerLane))),
-            meshBakeEnabled);
+            meshBakeEnabled,
+            distanceCullingEnabled);
     }
 }

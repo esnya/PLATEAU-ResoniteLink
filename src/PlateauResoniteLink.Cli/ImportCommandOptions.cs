@@ -13,7 +13,8 @@ public sealed record ImportCommandOptions(
     string? TerrainTileCacheRoot,
     bool DisableTerrainTileCache,
     bool EnableSendMetrics,
-    bool VerboseLogging) : CliCommandOptions;
+    bool VerboseLogging,
+    bool EnableDistanceCulling = false) : CliCommandOptions;
 
 public abstract record ImportTargetMode;
 

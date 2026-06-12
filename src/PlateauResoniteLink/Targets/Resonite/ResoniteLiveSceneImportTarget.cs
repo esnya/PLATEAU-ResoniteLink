@@ -35,12 +35,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         MemoryProfile = options.MemoryProfile;
         Diagnostics = dependencies.Diagnostics;
         MeshBakeEnabled = options.EnableMeshBake;
+        DistanceCullingEnabled = options.EnableDistanceCulling;
         logger = options.LoggerFactory.CreateLogger("PlateauResoniteLink.LiveSend");
         RunExecutor = dependencies.RunExecutor;
         ClientSessionInternal = dependencies.ClientSession;
     }
 
     internal bool MeshBakeEnabled { get; }
+
+    internal bool DistanceCullingEnabled { get; }
 
     internal ResoniteLinkSendDiagnostics Diagnostics { get; }
 
@@ -68,7 +71,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     plan,
                     MemoryProfile,
                     connectionCount,
-                    MeshBakeEnabled),
+                    MeshBakeEnabled,
+                    DistanceCullingEnabled),
                 objectUnits,
                 new LiveSendRunExecutionContext(
                     endpoint,
