@@ -61,15 +61,14 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 cancellationToken);
         }
 
-        List<PlannedTextureAsset> textures = await PlanBundledCompanionTexturesAsync(
+        List<TargetMaterialTextureProvider> textures = await PlanBundledCompanionTexturesAsync(
             importClient,
             material,
             albedoTextureTask,
             bundledTextureImportTasks,
             cancellationToken);
         return new PlannedDedicatedMaterialAsset(
-            material,
-            textures);
+            new TargetMaterialAssetPlan(new MaterialIdentity(material), textures));
     }
 
     public async Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
@@ -96,19 +95,18 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             ? ImportBundledAlbedoTextureAsync(importClient, material, cancellationToken)
             : Task.FromResult<Uri?>(null);
 
-        List<PlannedTextureAsset> textures = await PlanBundledCompanionTexturesAsync(
+        List<TargetMaterialTextureProvider> textures = await PlanBundledCompanionTexturesAsync(
             importClient,
             material,
             albedoTextureTask,
             bundledTextureImportTasks: null,
             cancellationToken);
         return new PlannedDedicatedMaterialAsset(
-            material,
-            textures);
+            new TargetMaterialAssetPlan(new MaterialIdentity(material), textures));
     }
 
     public static Uri? TryGetPlannedTextureUri(
-        IEnumerable<PlannedTextureAsset> textures,
+        IEnumerable<TextureProvider> textures,
         ResoniteSceneMaterialConventions.PlannedTextureRole role)
     {
         ArgumentNullException.ThrowIfNull(textures);
@@ -116,7 +114,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return textures.FirstOrDefault(texture => texture.Role == role)?.AssetUri;
     }
 
-    public static PlannedTextureAsset? PlanMainTextureOverride(
+    public static LocalRendererOverrideTextureProvider? PlanMainTextureOverride(
         ResoniteMaterialBinding material,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay)
@@ -137,7 +135,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             return null;
         }
 
-        return new PlannedTextureAsset(
+        return new LocalRendererOverrideTextureProvider(
             ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
             textureUri);
     }
@@ -321,7 +319,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         };
     }
 
-    private async Task<List<PlannedTextureAsset>> PlanBundledCompanionTexturesAsync(
+    private async Task<List<TargetMaterialTextureProvider>> PlanBundledCompanionTexturesAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
         Task<Uri?> albedoTextureTask,
@@ -388,24 +386,24 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             metallicTextureTask,
             emissionTextureTask);
 
-        List<PlannedTextureAsset> textures = [];
-        AddPlannedTextureAsset(
+        List<TargetMaterialTextureProvider> textures = [];
+        AddTargetMaterialTextureProvider(
             textures,
             ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
             await albedoTextureTask);
-        AddPlannedTextureAsset(
+        AddTargetMaterialTextureProvider(
             textures,
             ResoniteSceneMaterialConventions.PlannedTextureRole.Normal,
             await normalTextureTask);
-        AddPlannedTextureAsset(
+        AddTargetMaterialTextureProvider(
             textures,
             ResoniteSceneMaterialConventions.PlannedTextureRole.Height,
             await heightTextureTask);
-        AddPlannedTextureAsset(
+        AddTargetMaterialTextureProvider(
             textures,
             ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic,
             await metallicTextureTask);
-        AddPlannedTextureAsset(
+        AddTargetMaterialTextureProvider(
             textures,
             ResoniteSceneMaterialConventions.PlannedTextureRole.Emission,
             await emissionTextureTask);
@@ -476,8 +474,8 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return variant.TextureSources?.Albedo ?? variant.Albedo;
     }
 
-    private static void AddPlannedTextureAsset(
-        List<PlannedTextureAsset> textures,
+    private static void AddTargetMaterialTextureProvider(
+        List<TargetMaterialTextureProvider> textures,
         ResoniteSceneMaterialConventions.PlannedTextureRole role,
         Uri? assetUri)
     {
@@ -486,7 +484,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             return;
         }
 
-        textures.Add(new PlannedTextureAsset(
+        textures.Add(new TargetMaterialTextureProvider(
             role,
             assetUri));
     }
