@@ -64,7 +64,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             demTerrainTextureOverlay,
             requestedMeshCodeBounds,
             sourceFileFrame.LocalPositions,
-            out DemTerrainGridBounds? heightMapBounds)
+            out DemTerrainGridProjectionBounds? heightMapBounds)
             || heightMapBounds is null)
         {
             outsideSamplingBounds = true;
@@ -249,7 +249,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         IReadOnlyList<Float3> positions,
-        out DemTerrainGridBounds? bounds)
+        out DemTerrainGridProjectionBounds? bounds)
     {
         bounds = null;
         double rawMinX = positions.Min(static position => position.X);
@@ -298,11 +298,11 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
                 return false;
             }
 
-            bounds = new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ, clampedGeographicBounds);
+            bounds = new DemTerrainGridProjectionBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ, clampedGeographicBounds);
             return true;
         }
 
-        bounds = new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ, clampedGeographicBounds);
+        bounds = new DemTerrainGridProjectionBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ, clampedGeographicBounds);
         return true;
     }
 
@@ -486,13 +486,6 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
     private static Float3 ToContractFloat3(Float3 value) => new(value.X, value.Y, value.Z);
 
-    private sealed record DemTerrainGridBounds(
-        double MinX,
-        double MaxX,
-        double MinZ,
-        double MaxZ,
-        GeographicRectangle GeographicBounds);
-
     private sealed record DemTerrainThirdMeshOutputFrame(
         GeodeticPoint Origin,
         LocalCartesian Cartesian)
@@ -518,11 +511,9 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         double ExtentX,
         double ExtentZ)
     {
-        public static bool TryCreate(DemTerrainGridBounds bounds, out DemTerrainGridOutputFrame frame)
+        public static bool TryCreate(DemTerrainGridProjectionBounds bounds, out DemTerrainGridOutputFrame frame)
         {
-            double extentX = bounds.MaxX - bounds.MinX;
-            double extentZ = bounds.MaxZ - bounds.MinZ;
-            if (extentX <= 1e-6 || extentZ <= 1e-6)
+            if (!bounds.HasUsableExtent)
             {
                 frame = default!;
                 return false;
@@ -530,10 +521,10 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
             frame = new DemTerrainGridOutputFrame(
                 new TerrainGridSamplingBounds(bounds.MinX, bounds.MaxX, bounds.MinZ, bounds.MaxZ),
-                CenterX: (bounds.MinX + bounds.MaxX) / 2.0,
-                CenterZ: (bounds.MinZ + bounds.MaxZ) / 2.0,
-                extentX,
-                extentZ);
+                bounds.CenterX,
+                bounds.CenterZ,
+                bounds.ExtentX,
+                bounds.ExtentZ);
             return true;
         }
     }
