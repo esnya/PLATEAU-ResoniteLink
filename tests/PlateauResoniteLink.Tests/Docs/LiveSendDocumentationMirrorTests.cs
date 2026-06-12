@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace PlateauResoniteLink.Tests.Docs;
 
-public sealed class LiveSendDocumentationContractTests
+public sealed class LiveSendDocumentationMirrorTests
 {
     private static readonly Regex HeadingRegex = new(
         "^## .+$",
