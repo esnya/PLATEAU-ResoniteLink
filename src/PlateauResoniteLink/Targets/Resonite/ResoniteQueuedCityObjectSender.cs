@@ -11,24 +11,13 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteQueuedCityObjectSender
-{
-    Task SendAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient routedClient,
-        LiveSendQueuedCityObject queuedCityObject,
-        ResoniteLinkSendDiagnostics diagnostics,
-        ILogger logger,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class ResoniteQueuedCityObjectSender(
-    IResoniteQueuedCityObjectPreparation cityObjectPreparation,
-    IResonitePreparedCityObjectImporter preparedCityObjectImporter) : IResoniteQueuedCityObjectSender
+    ResoniteQueuedCityObjectPreparation cityObjectPreparation,
+    ResonitePreparedCityObjectImporter preparedCityObjectImporter)
 {
-    private readonly IResoniteQueuedCityObjectPreparation cityObjectPreparation =
+    private readonly ResoniteQueuedCityObjectPreparation cityObjectPreparation =
         cityObjectPreparation ?? throw new ArgumentNullException(nameof(cityObjectPreparation));
-    private readonly IResonitePreparedCityObjectImporter preparedCityObjectImporter =
+    private readonly ResonitePreparedCityObjectImporter preparedCityObjectImporter =
         preparedCityObjectImporter ?? throw new ArgumentNullException(nameof(preparedCityObjectImporter));
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(

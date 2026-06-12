@@ -14,7 +14,20 @@ namespace PlateauResoniteLink.Tests.Targets;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class ResoniteSceneBatchEmissionPlanningTests
 {
-    private static readonly IResoniteBatchEmissionPlanner Planner = new ResoniteBatchEmissionPlanner();
+    private static PlannedBatchEmission CreateBatchPlan(
+        ResoniteObjectSlotHierarchy objectSlots,
+        PlannedGeometryAsset geometryAsset,
+        IReadOnlyList<PlannedMaterialAsset> materialAssets,
+        IReadOnlyList<PlannedRendererMaterialBinding> rendererMaterialBindings,
+        bool collisionEnabled)
+    {
+        return ResoniteBatchEmissionPlanner.Create(
+            objectSlots,
+            geometryAsset,
+            materialAssets,
+            rendererMaterialBindings,
+            collisionEnabled);
+    }
 
     [Fact]
     public void PlannedDriverTargetBundle_CreatePairsFieldTargetAndDefaultValue()
@@ -51,8 +64,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                     child,
                     parent,
                 ],
-                [],
-                [child, parent],
                 []));
 
         Assert.Equal("Planned slot parent target must reference an earlier planned slot.", error.Message);
@@ -86,9 +97,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 [
                     source,
                     target,
-                ],
-                [container],
-                [source, target]));
+                ]));
 
         Assert.Equal("Planned world element target must reference an earlier planned component.", error.Message);
     }
@@ -102,7 +111,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             "Terrain Grid Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedTerrainGridGeometryAsset(
                 "Terrain Grid Object",
                 "Terrain Grid Object_terrain-grid",
@@ -115,12 +125,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                     HeightSamples: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
                 new Uri("resdb:///texture/height")),
             [],
-            new PlannedRenderer(
-                []),
-            new PlannedCollider(
-                true));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [],
+            true);
 
         PlannedBatchComponentEmission heightTexture = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -197,7 +203,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null,
             CityObjectOrderOffset: 53394525);
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedTerrainGridGeometryAsset(
                 "Terrain Grid Object",
                 "Terrain Grid Object_terrain-grid",
@@ -210,10 +217,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                     HeightSamples: [-1.0, 0.0, 1.0, 3.0]),
                 new Uri("resdb:///texture/height")),
             [],
-            new PlannedRenderer([]),
-            new PlannedCollider(false));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [],
+            true);
 
         Assert.Equal(
             53394525,
@@ -238,7 +243,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             "Dynamic Terrain Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedDynamicTerrainGeometryAsset(
                 "Dynamic Terrain Object",
                 new Uri("resdb:///mesh/static"),
@@ -252,12 +258,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                     HeightSamples: Enumerable.Range(0, 20).Select(static value => (double)value).ToArray()),
                 new Uri("resdb:///texture/height")),
             [],
-            new PlannedRenderer(
-                []),
-            new PlannedCollider(
-                true));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [],
+            true);
 
         PlannedBatchComponentEmission staticMesh = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -326,7 +328,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             "Terrain Grid Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedTerrainGridGeometryAsset(
                 "Terrain Grid Object",
                 "Terrain Grid Object_terrain-grid",
@@ -341,12 +344,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(0.4, 0.25),
                 new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(0.2, 0.125)),
             [],
-            new PlannedRenderer(
-                []),
-            new PlannedCollider(
-                true));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [],
+            true);
 
         PlannedBatchComponentEmission gridMesh = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -383,7 +382,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             PreserveDedicatedMaterialSlot: true,
             DedicatedMaterialSlotName: "material-000-pbs-uv-uv");
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("existing-material-id"));
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedTriangleMeshGeometryAsset(
                 "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
@@ -391,15 +391,11 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 reusableMaterial,
                 dedicatedMaterial,
             ],
-            new PlannedRenderer(
-                [
-                    new PlannedDirectRendererMaterialBinding(reusableMaterial),
-                    new PlannedDirectRendererMaterialBinding(dedicatedMaterial),
-                ]),
-            new PlannedCollider(
-                false));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [
+                new PlannedDirectRendererMaterialBinding(reusableMaterial),
+                new PlannedDirectRendererMaterialBinding(dedicatedMaterial),
+            ],
+            false);
 
         PlannedBatchComponentEmission meshRenderer = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -447,17 +443,14 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Emission, new Uri("resdb:///texture/emission")),
             ],
             PreserveDedicatedMaterialSlot: false);
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedTriangleMeshGeometryAsset(
                 "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [dedicatedMaterial],
-            new PlannedRenderer(
-                [new PlannedDirectRendererMaterialBinding(dedicatedMaterial)]),
-            new PlannedCollider(
-                true));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [new PlannedDirectRendererMaterialBinding(dedicatedMaterial)],
+            true);
 
         PlannedBatchComponentEmission materialComponent = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -473,6 +466,15 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             .Where(component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
             .ToArray();
         Assert.Equal(5, materialTextures.Length);
+        Assert.Equal(
+            [
+                "resdb:///texture/albedo",
+                "resdb:///texture/normal",
+                "resdb:///texture/height",
+                "resdb:///texture/metallic",
+                "resdb:///texture/emission",
+            ],
+            materialTextures.Select(static texture => Assert.IsType<Field_Uri>(ToMember(texture.Members["URL"])).Value.ToString()).ToArray());
 
         IReadOnlyDictionary<string, PlannedBatchComponentEmission> texturesByUri = materialTextures.ToDictionary(
             static texture => Assert.IsType<PlannedLiteralMember>(texture.Members["URL"]).Value is Field_Uri uri
@@ -487,6 +489,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/metallic"]), Assert.IsType<Reference>(ToMember(materialComponent.Members["MetallicMap"])).TargetID);
         Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/metallic"]), Assert.IsType<Reference>(ToMember(materialComponent.Members["OcclusionMap"])).TargetID);
         Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/emission"]), Assert.IsType<Reference>(ToMember(materialComponent.Members["EmissiveMap"])).TargetID);
+        Assert.Equal(1.0f, Assert.IsType<Field_float>(ToMember(materialComponent.Members["NormalScale"])).Value);
+        Assert.Equal(0.002f, Assert.IsType<Field_float>(ToMember(materialComponent.Members["HeightScale"])).Value);
+        Field_colorX emissiveColor = Assert.IsType<Field_colorX>(ToMember(materialComponent.Members["EmissiveColor"]));
+        Assert.Equal(1.0f, emissiveColor.Value.r);
+        Assert.Equal(1.0f, emissiveColor.Value.g);
+        Assert.Equal(1.0f, emissiveColor.Value.b);
+        Assert.Equal(1.0f, emissiveColor.Value.a);
         Assert.DoesNotContain("PreferredProfile", texturesByUri["resdb:///texture/albedo"].Members.Keys);
         Assert.Equal("Linear", Assert.IsType<Field_Nullable_Enum>(ToMember(texturesByUri["resdb:///texture/normal"].Members["PreferredProfile"])).Value);
         Assert.Equal("Linear", Assert.IsType<Field_Nullable_Enum>(ToMember(texturesByUri["resdb:///texture/height"].Members["PreferredProfile"])).Value);
@@ -504,21 +513,18 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedTriangleMeshGeometryAsset(
                 "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [reusableMaterial],
-            new PlannedRenderer(
-                [
-                    new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
-                        reusableMaterial,
-                        new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override"))),
-                ]),
-            new PlannedCollider(
-                false));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [
+                new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
+                    reusableMaterial,
+                    new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override"))),
+            ],
+            false);
 
         PlannedBatchComponentEmission meshRenderer = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -553,21 +559,18 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedTriangleMeshGeometryAsset(
                 "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [reusableMaterial],
-            new PlannedRenderer(
-                [
-                    new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
-                        reusableMaterial,
-                        new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override"))),
-                ]),
-            new PlannedCollider(
-                false));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [
+                new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
+                    reusableMaterial,
+                    new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override"))),
+            ],
+            false);
 
         PlannedBatchComponentEmission overrideTexture = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -588,23 +591,20 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedTriangleMeshGeometryAsset(
                 "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [reusableMaterial],
-            new PlannedRenderer(
-                [
-                    new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
-                        reusableMaterial,
-                        new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override")),
-                        SharedMainTextureComponent: new ResoniteComponentLocator("shared-terrain-texture-id"),
-                        SharedMainTexturePropertyBlockComponent: new ResoniteComponentLocator("shared-terrain-property-block-id")),
-                ]),
-            new PlannedCollider(
-                false));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [
+                new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
+                    reusableMaterial,
+                    new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override")),
+                    SharedMainTextureComponent: new ResoniteComponentLocator("shared-terrain-texture-id"),
+                    SharedMainTexturePropertyBlockComponent: new ResoniteComponentLocator("shared-terrain-property-block-id")),
+            ],
+            false);
 
         PlannedBatchComponentEmission meshRenderer = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -631,24 +631,21 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedTriangleMeshGeometryAsset(
                 "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [reusableMaterial],
-            new PlannedRenderer(
-                [
-                    new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
-                        reusableMaterial,
-                        new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override-a"))),
-                    new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
-                        reusableMaterial,
-                        new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override-b"))),
-                ]),
-            new PlannedCollider(
-                false));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [
+                new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
+                    reusableMaterial,
+                    new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override-a"))),
+                new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
+                    reusableMaterial,
+                    new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override-b"))),
+            ],
+            false);
 
         PlannedBatchComponentEmission[] propertyBlocks = batchPlan.ComponentEmissions
             .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))
@@ -690,32 +687,38 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
 
     private static Member ToMember(PlannedMember member)
     {
-        return member.Match(
-            literal: static literal => literal,
-            reference: reference => new Reference
+        return member switch
+        {
+            PlannedLiteralMember literal => literal.Value,
+            PlannedElementReferenceMember reference => new Reference
             {
-                TargetID = ResolveTargetId(reference),
+                TargetID = ResolveTargetId(reference.Target),
             },
-            addressableField: static field => field.Value,
-            addressableReference: (field, target) => new Reference
+            PlannedAddressableFieldMember field => field.Value,
+            PlannedAddressableReferenceMember addressableReference => new Reference
             {
-                ID = ToPlannedTargetId(field),
-                TargetID = ResolveTargetId(target),
+                ID = ToPlannedTargetId(addressableReference.Field),
+                TargetID = ResolveTargetId(addressableReference.Target),
             },
-            list: elements => new SyncList
+            PlannedSyncListMember list => new SyncList
             {
-                Elements = elements.Select(ToMember).ToList(),
-            });
+                Elements = list.Elements.Select(ToMember).ToList(),
+            },
+            _ => throw new InvalidOperationException($"Unsupported planned member '{member.GetType().Name}'."),
+        };
     }
 
     private static string? ResolveTargetId(PlannedWorldElementReference target)
     {
-        return target.Match(
-            static canonicalSlot => canonicalSlot.Value,
-            static canonicalComponent => canonicalComponent.Value,
-            static plannedSlot => ToPlannedTargetId(plannedSlot),
-            static plannedComponent => ToPlannedTargetId(plannedComponent),
-            static plannedField => ToPlannedTargetId(plannedField));
+        return target switch
+        {
+            PlannedWorldElementReference.CanonicalSlotElement canonicalSlot => canonicalSlot.Locator.Value,
+            PlannedWorldElementReference.CanonicalComponentElement canonicalComponent => canonicalComponent.Locator.Value,
+            PlannedWorldElementReference.BatchSlotElement plannedSlot => ToPlannedTargetId(plannedSlot.Slot),
+            PlannedWorldElementReference.BatchComponentElement plannedComponent => ToPlannedTargetId(plannedComponent.Component),
+            PlannedWorldElementReference.BatchFieldElement plannedField => ToPlannedTargetId(plannedField.Field),
+            _ => throw new InvalidOperationException($"Unsupported planned world element target '{target.GetType().Name}'."),
+        };
     }
 
     private static string ToPlannedTargetId(object reference)

@@ -6,14 +6,7 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
-internal interface IResoniteBatchEmissionPlanner
-{
-    PlannedBatchEmission Create(
-        ResoniteObjectSlotHierarchy objectSlots,
-        PlannedSceneObjectEmission emissionPlan);
-}
-
-internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlanner
+internal static class ResoniteBatchEmissionPlanner
 {
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
@@ -38,32 +31,34 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         },
     };
 
-    public PlannedBatchEmission Create(
+    public static PlannedBatchEmission Create(
         ResoniteObjectSlotHierarchy objectSlots,
-        PlannedSceneObjectEmission emissionPlan)
+        PlannedGeometryAsset geometryAsset,
+        IReadOnlyList<PlannedMaterialAsset> materialAssets,
+        IReadOnlyList<PlannedRendererMaterialBinding> rendererMaterialBindings,
+        bool collisionEnabled)
     {
         ArgumentNullException.ThrowIfNull(objectSlots);
-        ArgumentNullException.ThrowIfNull(emissionPlan);
+        ArgumentNullException.ThrowIfNull(geometryAsset);
+        ArgumentNullException.ThrowIfNull(materialAssets);
+        ArgumentNullException.ThrowIfNull(rendererMaterialBindings);
 
         List<PlannedBatchSlotEmission> slotEmissions = [];
         List<PlannedBatchComponentEmission> componentEmissions = [];
-        List<PlannedBatchSlotEmission> slotResolutionTargets = [];
-        List<PlannedBatchComponentEmission> componentResolutionTargets = [];
 
         PlannedBatchSlotEmission meshAssetSlot = new(
             PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
-            emissionPlan.GeometryAsset.MeshAssetSlotName,
+            geometryAsset.MeshAssetSlotName,
             null,
             null,
             objectSlots.CityObjectOrderOffset);
         slotEmissions.Add(meshAssetSlot);
-        slotResolutionTargets.Add(meshAssetSlot);
 
         PlannedBatchComponentEmission? rendererGeometryComponent = null;
         PlannedTerrainGridMeshBundle? terrainGridMesh = null;
         PlannedDynamicTerrainMeshBundle? dynamicTerrainMesh = null;
         PlannedWorldElementReference? dynamicStaticMeshTarget = null;
-        switch (emissionPlan.GeometryAsset)
+        switch (geometryAsset)
         {
             case PlannedTriangleMeshGeometryAsset triangleMesh:
                 rendererGeometryComponent = new PlannedBatchComponentEmission(
@@ -82,7 +77,6 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 terrainGridMesh = AddPlannedTerrainGridTextureAndCreateGridBundle(
                     slotEmissions,
                     componentEmissions,
-                    slotResolutionTargets,
                     objectSlots,
                     heightMap.TerrainGridAssetSlotName,
                     heightMap.Geometry,
@@ -106,7 +100,6 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 terrainGridMesh = AddPlannedTerrainGridTextureAndCreateGridBundle(
                     slotEmissions,
                     componentEmissions,
-                    slotResolutionTargets,
                     objectSlots,
                     dynamicTerrain.TerrainGridAssetSlotName,
                     dynamicTerrain.GridGeometry,
@@ -116,12 +109,12 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 break;
             default:
                 throw new InvalidOperationException(
-                    $"Unsupported planned geometry asset type '{emissionPlan.GeometryAsset.GetType().Name}'.");
+                    $"Unsupported planned geometry asset type '{geometryAsset.GetType().Name}'.");
         }
 
         Dictionary<PlannedMaterialAsset, PlannedWorldElementReference> emittedMaterialTargets =
             new(ReferenceEqualityComparer.Instance);
-        foreach (PlannedMaterialAsset materialAsset in emissionPlan.MaterialAssets)
+        foreach (PlannedMaterialAsset materialAsset in materialAssets)
         {
             switch (materialAsset)
             {
@@ -149,7 +142,6 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             objectSlots.CityObjectRotation,
             objectSlots.CityObjectOrderOffset);
         slotEmissions.Add(presentationSlot);
-        slotResolutionTargets.Add(presentationSlot);
 
         if (terrainGridMesh is not null)
         {
@@ -176,8 +168,6 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             throw new InvalidOperationException("Planned scene object emission did not produce a renderer geometry component.");
         }
 
-        componentResolutionTargets.Add(rendererGeometryComponent);
-
         PlannedFieldReference rendererMeshField = new();
         componentEmissions.Add(new PlannedBatchComponentEmission(
             PlannedSlotTargetReference.PlannedSlot(presentationSlot),
@@ -187,12 +177,12 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 ["Mesh"] = PlannedMembers.AddressableReference(
                     rendererMeshField,
                     ResolveInitialMeshTarget(dynamicTerrainMesh, rendererGeometryComponent)),
-                ["Materials"] = CreateRendererMaterials(emissionPlan.Renderer.MaterialBindings, emittedMaterialTargets),
+                ["Materials"] = CreateRendererMaterials(rendererMaterialBindings, emittedMaterialTargets),
                 ["MaterialPropertyBlocks"] = CreateRendererMaterialPropertyBlocks(
                     componentEmissions,
                     meshAssetSlot,
                     presentationSlot,
-                    emissionPlan.Renderer.MaterialBindings),
+                    rendererMaterialBindings),
             }));
         if (dynamicTerrainMesh is not null)
         {
@@ -211,11 +201,11 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             {
                 ["Type"] = PlannedMembers.Literal(new Field_Enum
                 {
-                    Value = emissionPlan.Collider.CollisionEnabled ? "Static" : "NoCollision",
+                    Value = collisionEnabled ? "Static" : "NoCollision",
                 }),
                 ["CharacterCollider"] = PlannedMembers.Literal(new Field_bool
                 {
-                    Value = emissionPlan.Collider.CollisionEnabled,
+                    Value = collisionEnabled,
                 }),
                 ["Mesh"] = PlannedMembers.AddressableReference(
                     colliderMeshField,
@@ -232,9 +222,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
 
         return PlannedBatchEmission.Create(
             slotEmissions,
-            componentEmissions,
-            slotResolutionTargets,
-            componentResolutionTargets);
+            componentEmissions);
     }
 
     private static PlannedWorldElementReference ResolveInitialMeshTarget(
@@ -247,7 +235,6 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
     private static PlannedTerrainGridMeshBundle AddPlannedTerrainGridTextureAndCreateGridBundle(
         List<PlannedBatchSlotEmission> slotEmissions,
         List<PlannedBatchComponentEmission> componentEmissions,
-        List<PlannedBatchSlotEmission> slotResolutionTargets,
         ResoniteObjectSlotHierarchy objectSlots,
         string terrainGridAssetSlotName,
         ResoniteTerrainGridGeometry geometry,
@@ -261,7 +248,6 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             null,
             null);
         slotEmissions.Add(heightMapAssetSlot);
-        slotResolutionTargets.Add(heightMapAssetSlot);
         PlannedBatchComponentEmission heightTextureComponent = new(
             PlannedSlotTargetReference.PlannedSlot(heightMapAssetSlot),
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
@@ -508,93 +494,62 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         Dictionary<string, PlannedMember> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(material)
             .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal);
 
-        Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo);
-        if (albedoTextureUri is not null)
-        {
-            PlannedBatchComponentEmission albedoTexture = new(
-                materialContainerTarget,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    albedoTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo)
-                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
-            componentEmissions.Add(albedoTexture);
-            materialMembers["AlbedoTexture"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(albedoTexture));
-        }
+        _ = AddPlannedTextureComponentReference(
+            componentEmissions,
+            materialContainerTarget,
+            plannedMaterial,
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
+            "AlbedoTexture",
+            materialMembers);
 
-        Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Normal);
-        if (normalTextureUri is not null)
+        if (AddPlannedTextureComponentReference(
+            componentEmissions,
+            materialContainerTarget,
+            plannedMaterial,
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Normal,
+            "NormalMap",
+            materialMembers) is not null)
         {
-            PlannedBatchComponentEmission normalTexture = new(
-                materialContainerTarget,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    normalTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Normal)
-                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
-            componentEmissions.Add(normalTexture);
-            materialMembers["NormalMap"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(normalTexture));
             materialMembers["NormalScale"] = PlannedMembers.Literal(new Field_float
             {
                 Value = DefaultNormalScale,
             });
         }
 
-        Uri? heightTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Height);
-        if (heightTextureUri is not null)
+        if (AddPlannedTextureComponentReference(
+            componentEmissions,
+            materialContainerTarget,
+            plannedMaterial,
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Height,
+            "HeightMap",
+            materialMembers) is not null)
         {
-            PlannedBatchComponentEmission heightTexture = new(
-                materialContainerTarget,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    heightTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Height)
-                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
-            componentEmissions.Add(heightTexture);
-            materialMembers["HeightMap"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(heightTexture));
             materialMembers["HeightScale"] = PlannedMembers.Literal(new Field_float
             {
                 Value = DefaultBundledHeightScale,
             });
         }
 
-        Uri? metallicTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic);
-        if (metallicTextureUri is not null)
+        PlannedBatchComponentEmission? metallicTexture = AddPlannedTextureComponentReference(
+            componentEmissions,
+            materialContainerTarget,
+            plannedMaterial,
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic,
+            "MetallicMap",
+            materialMembers);
+        if (metallicTexture is not null)
         {
-            PlannedBatchComponentEmission metallicTexture = new(
-                materialContainerTarget,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    metallicTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic)
-                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
-            componentEmissions.Add(metallicTexture);
-            materialMembers["MetallicMap"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(metallicTexture));
             materialMembers["OcclusionMap"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(metallicTexture));
         }
 
-        Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(
-            plannedMaterial.Textures,
-            ResoniteSceneMaterialConventions.PlannedTextureRole.Emission);
-        if (emissionTextureUri is not null)
+        if (AddPlannedTextureComponentReference(
+            componentEmissions,
+            materialContainerTarget,
+            plannedMaterial,
+            ResoniteSceneMaterialConventions.PlannedTextureRole.Emission,
+            "EmissiveMap",
+            materialMembers) is not null)
         {
-            PlannedBatchComponentEmission emissionTexture = new(
-                materialContainerTarget,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    emissionTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Emission)
-                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
-            componentEmissions.Add(emissionTexture);
-            materialMembers["EmissiveMap"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(emissionTexture));
             materialMembers["EmissiveColor"] = PlannedMembers.Literal(
                 ResoniteMaterialComponentPolicy.CreateColorMember(new ResoniteColor(1.0, 1.0, 1.0, 1.0)));
         }
@@ -605,6 +560,32 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             materialMembers);
         componentEmissions.Add(materialComponent);
         return PlannedWorldElementReference.Planned(materialComponent);
+    }
+
+    private static PlannedBatchComponentEmission? AddPlannedTextureComponentReference(
+        List<PlannedBatchComponentEmission> componentEmissions,
+        PlannedSlotTargetReference materialContainerTarget,
+        PlannedDedicatedMaterialAsset plannedMaterial,
+        ResoniteSceneMaterialConventions.PlannedTextureRole textureRole,
+        string materialMemberName,
+        Dictionary<string, PlannedMember> materialMembers)
+    {
+        Uri? textureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, textureRole);
+        if (textureUri is null)
+        {
+            return null;
+        }
+
+        PlannedBatchComponentEmission textureComponent = new(
+            materialContainerTarget,
+            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+            ResoniteSceneMaterialConventions.CreateTextureMembers(
+                textureUri,
+                ResoniteSceneMaterialConventions.ToTextureMemberRole(textureRole))
+                .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
+        componentEmissions.Add(textureComponent);
+        materialMembers[materialMemberName] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(textureComponent));
+        return textureComponent;
     }
 
     private static PlannedSyncListMember CreateRendererMaterials(

@@ -1,7 +1,5 @@
 using System;
 
-using PlateauResoniteLink.Targets.Resonite.Execution;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface IResoniteLiveSendWorkerPipelineFactory
@@ -10,16 +8,14 @@ internal interface IResoniteLiveSendWorkerPipelineFactory
 }
 
 internal sealed class ResoniteLiveSendWorkerPipelineFactory(
-    IResoniteDatasetLicenseWriter datasetLicenseWriter,
-    IResonitePreparedCityObjectImporter preparedCityObjectImporter) : IResoniteLiveSendWorkerPipelineFactory
+    ResonitePreparedCityObjectImporter preparedCityObjectImporter) : IResoniteLiveSendWorkerPipelineFactory
 {
     public IResoniteQueuedCityObjectWorker Create(ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
     {
         ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
 
         ResoniteQueuedTexturePreparer texturePreparer = new(
-            terrainTextureAssetGenerator,
-            datasetLicenseWriter);
+            terrainTextureAssetGenerator);
         ResoniteQueuedCityObjectPreparation cityObjectPreparation = new(texturePreparer);
         ResoniteQueuedCityObjectSender queuedCityObjectSender = new(
             cityObjectPreparation,

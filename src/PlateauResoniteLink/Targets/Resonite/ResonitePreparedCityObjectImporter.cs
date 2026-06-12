@@ -15,24 +15,8 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResonitePreparedCityObjectImporter
-{
-    Task ImportAsync(
-        LiveSendRunState state,
-        IResoniteLinkClient routedClient,
-        LiveSendQueuedCityObject queuedCityObject,
-        PreparedCityObject preparedCityObject,
-        ResoniteLinkSendDiagnostics diagnostics,
-        ILogger logger,
-        CancellationToken cancellationToken);
-}
-
 internal sealed class ResonitePreparedCityObjectImporter(
-    IResoniteGeometryAssetPlanner geometryAssetPlanner,
-    IResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer,
-    IResoniteBatchEmissionPlanner batchEmissionPlanner,
-    IResoniteSceneBatchEmitter batchEmitter,
-    IResoniteImportStepTaskCleanup importStepTaskCleanup) : IResonitePreparedCityObjectImporter
+    ResoniteSceneMaterialPlanComposer sceneMaterialPlanComposer)
 {
     public async Task ImportAsync(
         LiveSendRunState state,
@@ -67,7 +51,7 @@ internal sealed class ResonitePreparedCityObjectImporter(
             preparedCityObject,
             importStepCancellation.Token);
         Stopwatch geometryStopwatch = Stopwatch.StartNew();
-        Task<PlannedGeometryAsset> geometryPlanningTask = geometryAssetPlanner.PlanAsync(
+        Task<PlannedGeometryAsset> geometryPlanningTask = ResoniteGeometryAssetPlanner.PlanAsync(
             routedClient,
             cityObject,
             preparedCityObject,
@@ -103,24 +87,22 @@ internal sealed class ResonitePreparedCityObjectImporter(
             IEnumerable<Task> tasksToObserve = materialPlanningTask is null
                 ? [uploadedTextureAssetsTask, geometryPlanningTask]
                 : [uploadedTextureAssetsTask, materialPlanningTask, geometryPlanningTask];
-            await importStepTaskCleanup.CancelAndObserveFailuresAsync(
+            await ResoniteImportStepTaskCleanup.CancelAndObserveFailuresAsync(
                 importStepCancellation,
                 tasksToObserve);
             throw;
         }
 
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchEmission = ResoniteBatchEmissionPlanner.Create(
+            objectSlots,
             plannedGeometryAsset,
             plannedMaterials.MaterialAssets,
-            new PlannedRenderer(
-                plannedMaterials.RendererMaterialBindings),
-            new PlannedCollider(
-                cityObject.CollisionEnabled));
-        PlannedBatchEmission batchEmission = batchEmissionPlanner.Create(objectSlots, emissionPlan);
+            plannedMaterials.RendererMaterialBindings,
+            cityObject.CollisionEnabled);
 
         ReportImportStep(logger, cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
-        await batchEmitter.ExecuteAsync(
+        await PlannedBatchEmissionInterpreter.ExecuteAsync(
             routedClient,
             cityObject,
             batchEmission,

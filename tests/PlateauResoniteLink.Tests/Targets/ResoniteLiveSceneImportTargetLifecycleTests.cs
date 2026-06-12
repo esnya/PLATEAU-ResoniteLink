@@ -135,7 +135,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using SceneSinkRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
-        RecordingWorkerLauncher workerLauncher = new();
+        RecordingQueuedCityObjectWorker queuedCityObjectWorker = new();
         await using ResoniteLiveSceneImportTarget importTarget = new(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -150,14 +150,14 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new ResoniteLiveSendRunStarter(
-                    new LiveSendRunPlanFactory(),
-                    new ResoniteLiveSendConnectionInitializer(),
-                    new ThrowingRunSetupPreparer(),
+                    new ResoniteLiveSendRunSetupPreparer(
+                        new ThrowingSceneSetupInterpreter(),
+                        new ResoniteCommonMaterialSetupPreparer(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore())),
+                        new ResonitePreparedRunSetupComposer(new ResoniteSlotCreator())),
                     new LiveSendRunStateFactory(
                         new ResoniteBufferedCityObjectBakerFactory(
-                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader())),
-                        new LiveSendRunRuntimeComponentsFactory()),
-                    workerLauncher)));
+                            new NonDemSourceFileBakeEmitterFactory(new ResoniteTextureImageLoader()))),
+                    new ResoniteLiveSendWorkerLauncher(queuedCityObjectWorker))));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ImportedSceneMetadata metadata = CreateMetadata(
@@ -168,7 +168,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             () => importTarget.ExecuteAsync(
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
                 EmptyImportedObjectUnits()));
-        Assert.Equal(0, workerLauncher.LaunchCallCount);
+        Assert.Equal(0, queuedCityObjectWorker.CreateProcessingTasksCallCount);
     }
 
     [Fact]
@@ -1255,33 +1255,34 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             ]);
     }
 
-    private sealed class ThrowingRunSetupPreparer : IResoniteLiveSendRunSetupPreparer
+    private sealed class ThrowingSceneSetupInterpreter : IResoniteSceneSetupInterpreter
     {
-        public Task<LiveSendPreparedRunSetup> PrepareAsync(
-            LiveSendRunPlan runPlan,
-            LiveSendRunStartRequest request,
-            LiveSendRunStartContext context,
+        public Task<ResoniteSceneSetupState> SetupAsync(
+            IResoniteLinkClient setupClient,
+            ResoniteSceneSetupInfo setupInfo,
+            CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
             CancellationToken cancellationToken)
         {
-            _ = runPlan;
-            _ = request;
-            _ = context;
+            _ = setupClient;
+            _ = setupInfo;
+            _ = commonMaterials;
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromException<LiveSendPreparedRunSetup>(new InvalidOperationException("setup failed"));
+            return Task.FromException<ResoniteSceneSetupState>(new InvalidOperationException("setup failed"));
         }
     }
 
-    private sealed class RecordingWorkerLauncher : IResoniteLiveSendWorkerLauncher
+    private sealed class RecordingQueuedCityObjectWorker : IResoniteQueuedCityObjectWorker
     {
-        public int LaunchCallCount { get; private set; }
+        public int CreateProcessingTasksCallCount { get; private set; }
 
-        public void Launch(
-            LiveSendWorkerLaunchRequest request,
-            LiveSendRunStartContext context)
+        public Task[] CreateProcessingTasks(
+            LiveSendRunState state,
+            LiveSendWorkerContext context)
         {
-            _ = request;
+            _ = state;
             _ = context;
-            LaunchCallCount++;
+            CreateProcessingTasksCallCount++;
+            return [];
         }
     }
 

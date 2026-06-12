@@ -20,33 +20,19 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<BundledDefaultMaterialAssetStore>();
         services.TryAddScoped<ResoniteTextureImageLoader>();
         services.TryAddScoped<INonDemSourceFileBakeEmitterFactory, NonDemSourceFileBakeEmitterFactory>();
-        services.TryAddScoped<IResoniteBatchEmissionPlanner, ResoniteBatchEmissionPlanner>();
-        services.TryAddScoped<IResoniteBufferedCityObjectBakerFactory, ResoniteBufferedCityObjectBakerFactory>();
-        services.TryAddScoped<IResoniteGeometryAssetAssembler, ResoniteGeometryAssetAssembler>();
-        services.TryAddScoped<IResoniteGeometryAssetPlanner, ResoniteGeometryAssetPlanner>();
+        services.TryAddScoped<ResoniteBufferedCityObjectBakerFactory>();
         services.TryAddScoped<IResoniteMaterialPlanning, ResoniteMaterialPlanning>();
-        services.TryAddScoped<IResoniteSceneMaterialPlanComposer, ResoniteSceneMaterialPlanComposer>();
-        services.TryAddScoped<IResoniteCommonMaterialSetupPreparer, ResoniteCommonMaterialSetupPreparer>();
-        services.TryAddScoped<ILiveSendRunPlanFactory, LiveSendRunPlanFactory>();
-        services.TryAddScoped<IResoniteLiveSendConnectionInitializer, ResoniteLiveSendConnectionInitializer>();
-        services.TryAddScoped<IResonitePreparedRunSetupComposer, ResonitePreparedRunSetupComposer>();
+        services.TryAddScoped<ResoniteSceneMaterialPlanComposer>();
+        services.TryAddScoped<ResoniteCommonMaterialSetupPreparer>();
+        services.TryAddScoped<ResonitePreparedRunSetupComposer>();
         services.TryAddScoped<IResoniteLiveSendRunSetupPreparer, ResoniteLiveSendRunSetupPreparer>();
-        services.TryAddScoped<ILiveSendRunRuntimeComponentsFactory, LiveSendRunRuntimeComponentsFactory>();
-        services.TryAddScoped<ILiveSendRunStateFactory, LiveSendRunStateFactory>();
-        services.TryAddScoped<IResoniteLiveSendRunStarterFactory, ResoniteLiveSendRunStarterFactory>();
-        services.TryAddScoped<IResoniteLiveSendWorkerPipelineFactory, ResoniteLiveSendWorkerPipelineFactory>();
-        services.TryAddScoped<IResoniteLiveSendWorkerLauncherFactory, ResoniteLiveSendWorkerLauncherFactory>();
-        services.TryAddScoped<IResoniteLiveSendStartRequestFactory, ResoniteLiveSendStartRequestFactory>();
-        services.TryAddScoped<IResoniteImportStepTaskCleanup, ResoniteImportStepTaskCleanup>();
-        services.TryAddScoped<IResonitePreparedCityObjectImporter, ResonitePreparedCityObjectImporter>();
-        services.TryAddScoped<IResoniteQueuedCityObjectEnqueuer, ResoniteQueuedCityObjectEnqueuer>();
-        services.TryAddScoped<IResoniteLiveSendFinalizer, ResoniteLiveSendFinalizer>();
-        services.TryAddScoped<IResoniteLiveSendQueue, ResoniteLiveSendQueue>();
-        services.TryAddScoped<IResoniteLiveSendRunResourceReleaser, ResoniteLiveSendRunResourceReleaser>();
-        services.TryAddScoped<IResoniteLiveSendPhaseContextFactory, ResoniteLiveSendPhaseContextFactory>();
+        services.TryAddScoped<LiveSendRunStateFactory>();
+        services.TryAddScoped<ResoniteLiveSendRunStarterFactory>();
         services.TryAddScoped<IResoniteLiveSendRunExecutorFactory, ResoniteLiveSendRunExecutorFactory>();
+        services.TryAddScoped<IResoniteLiveSendWorkerPipelineFactory, ResoniteLiveSendWorkerPipelineFactory>();
+        services.TryAddScoped<ResoniteLiveSendWorkerLauncherFactory>();
+        services.TryAddScoped<ResonitePreparedCityObjectImporter>();
         services.TryAddScoped<IResoniteCanonicalSceneDumpSinkFactory, ResoniteCanonicalSceneDumpSinkFactory>();
-        services.TryAddScoped<IResoniteSceneBatchEmitter, PlannedBatchEmissionInterpreter>();
         services.TryAddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
         services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
         services.TryAddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
@@ -56,8 +42,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
             static serviceProvider => new ResoniteSceneSetupInterpreter(
                 serviceProvider.GetRequiredService<IResoniteSceneSlotLocator>(),
                 serviceProvider.GetRequiredService<IResoniteSceneAnchorResolver>()));
-        services.TryAddScoped<IResoniteDatasetLicenseWriter, ResoniteDatasetLicenseWriter>();
-        services.TryAddScoped<IResoniteLiveSceneImportDependencyFactory, ResoniteLiveSceneImportDependencyFactory>();
+        services.TryAddScoped<ResoniteLiveSceneImportDependencyFactory>();
         services.TryAddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
 
         return services;

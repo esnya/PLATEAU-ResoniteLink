@@ -6,16 +6,9 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteImportStepTaskCleanup
+internal static class ResoniteImportStepTaskCleanup
 {
-    Task CancelAndObserveFailuresAsync(
-        CancellationTokenSource cancellation,
-        IEnumerable<Task> tasksToObserve);
-}
-
-internal sealed class ResoniteImportStepTaskCleanup : IResoniteImportStepTaskCleanup
-{
-    public async Task CancelAndObserveFailuresAsync(
+    public static async Task CancelAndObserveFailuresAsync(
         CancellationTokenSource cancellation,
         IEnumerable<Task> tasksToObserve)
     {

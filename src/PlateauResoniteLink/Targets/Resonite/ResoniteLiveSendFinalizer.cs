@@ -14,21 +14,9 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteLiveSendFinalizer
+internal static class ResoniteLiveSendFinalizer
 {
-    Task<SceneImportExecutionResult> CompleteAsync(
-        LiveSendRunState state,
-        LiveSendFinalizationContext context,
-        CancellationToken cancellationToken);
-}
-
-internal sealed class ResoniteLiveSendFinalizer(
-    IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer) : IResoniteLiveSendFinalizer
-{
-    private readonly IResoniteQueuedCityObjectEnqueuer queuedCityObjectEnqueuer =
-        queuedCityObjectEnqueuer ?? throw new ArgumentNullException(nameof(queuedCityObjectEnqueuer));
-
-    public async Task<SceneImportExecutionResult> CompleteAsync(
+    public static async Task<SceneImportExecutionResult> CompleteAsync(
         LiveSendRunState state,
         LiveSendFinalizationContext context,
         CancellationToken cancellationToken)
@@ -86,7 +74,7 @@ internal sealed class ResoniteLiveSendFinalizer(
             CreateDataSourceUsages(state));
     }
 
-    private async Task FlushBufferedCityObjectsAsync(
+    private static async Task FlushBufferedCityObjectsAsync(
         LiveSendRunState state,
         CompositeCityObjectBaker cityObjectBaker,
         LiveSendFinalizationContext context,
@@ -107,7 +95,7 @@ internal sealed class ResoniteLiveSendFinalizer(
         }
 
         Stopwatch bakeFlushStopwatch = Stopwatch.StartNew();
-        int bakedCityObjectCount = await queuedCityObjectEnqueuer.FlushBufferedAsync(
+        int bakedCityObjectCount = await ResoniteQueuedCityObjectEnqueuer.FlushBufferedAsync(
             state,
             cityObjectBaker,
             context.EnqueueContext,

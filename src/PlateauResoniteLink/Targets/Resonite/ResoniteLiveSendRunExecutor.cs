@@ -43,6 +43,21 @@ internal sealed record LiveSendRunExecutionContext
     public ILogger Logger { get; }
 }
 
+internal interface IResoniteLiveSendRunExecutorFactory
+{
+    IResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter);
+}
+
+internal sealed class ResoniteLiveSendRunExecutorFactory : IResoniteLiveSendRunExecutorFactory
+{
+    public IResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter)
+    {
+        ArgumentNullException.ThrowIfNull(runStarter);
+
+        return new ResoniteLiveSendRunExecutor(runStarter);
+    }
+}
+
 internal interface IResoniteLiveSendRunExecutor
 {
     Task<SceneImportExecutionResult> ExecuteAsync(
@@ -52,42 +67,11 @@ internal interface IResoniteLiveSendRunExecutor
         CancellationToken cancellationToken);
 }
 
-internal interface IResoniteLiveSendRunExecutorFactory
-{
-    IResoniteLiveSendRunExecutor Create(IResoniteLiveSendRunStarter runStarter);
-}
-
-internal sealed class ResoniteLiveSendRunExecutorFactory(
-    IResoniteLiveSendQueue queue,
-    IResoniteLiveSendRunResourceReleaser resourceReleaser,
-    IResoniteLiveSendPhaseContextFactory phaseContextFactory) : IResoniteLiveSendRunExecutorFactory
-{
-    public IResoniteLiveSendRunExecutor Create(IResoniteLiveSendRunStarter runStarter)
-    {
-        ArgumentNullException.ThrowIfNull(runStarter);
-
-        return new ResoniteLiveSendRunExecutor(
-            runStarter,
-            queue,
-            resourceReleaser,
-            phaseContextFactory);
-    }
-}
-
 internal sealed class ResoniteLiveSendRunExecutor(
-    IResoniteLiveSendRunStarter runStarter,
-    IResoniteLiveSendQueue queue,
-    IResoniteLiveSendRunResourceReleaser resourceReleaser,
-    IResoniteLiveSendPhaseContextFactory phaseContextFactory) : IResoniteLiveSendRunExecutor
+    ResoniteLiveSendRunStarter runStarter) : IResoniteLiveSendRunExecutor
 {
-    private readonly IResoniteLiveSendRunStarter runStarter =
+    private readonly ResoniteLiveSendRunStarter runStarter =
         runStarter ?? throw new ArgumentNullException(nameof(runStarter));
-    private readonly IResoniteLiveSendQueue queue =
-        queue ?? throw new ArgumentNullException(nameof(queue));
-    private readonly IResoniteLiveSendRunResourceReleaser resourceReleaser =
-        resourceReleaser ?? throw new ArgumentNullException(nameof(resourceReleaser));
-    private readonly IResoniteLiveSendPhaseContextFactory phaseContextFactory =
-        phaseContextFactory ?? throw new ArgumentNullException(nameof(phaseContextFactory));
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         LiveSendRunStartRequest request,
@@ -106,17 +90,17 @@ internal sealed class ResoniteLiveSendRunExecutor(
         {
             state = await runStarter.StartAsync(
                 request,
-                phaseContextFactory.CreateRunStartContext(context),
+                ResoniteLiveSendPhaseContextFactory.CreateRunStartContext(context),
                 cancellationToken);
 
-            LiveSendEnqueueContext enqueueContext = phaseContextFactory.CreateEnqueueContext(context);
+            LiveSendEnqueueContext enqueueContext = ResoniteLiveSendPhaseContextFactory.CreateEnqueueContext(context);
             await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
                 int sourceUnitsSeen = Interlocked.Increment(ref state.Progress.SourceObjectUnitCount);
                 int sourceCityObjectsSeen = Interlocked.Add(
                     ref state.Progress.SourceCityObjectCount,
                     objectUnit.CityObjects.Count);
-                await queue.QueueUnitAsync(
+                await ResoniteLiveSendQueue.QueueUnitAsync(
                     state,
                     objectUnit,
                     enqueueContext,
@@ -134,16 +118,16 @@ internal sealed class ResoniteLiveSendRunExecutor(
                 }
             }
 
-            SceneImportExecutionResult result = await queue.CompleteAsync(
+            SceneImportExecutionResult result = await ResoniteLiveSendQueue.CompleteAsync(
                 state,
-                phaseContextFactory.CreateFinalizationContext(context, enqueueContext),
+                ResoniteLiveSendPhaseContextFactory.CreateFinalizationContext(context, enqueueContext),
                 cancellationToken);
             completedSuccessfully = true;
             return result;
         }
         finally
         {
-            await resourceReleaser.ReleaseAsync(
+            await ResoniteLiveSendRunResourceReleaser.ReleaseAsync(
                 state,
                 context.ClientSession,
                 disposeClients: false,

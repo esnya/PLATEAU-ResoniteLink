@@ -3,24 +3,13 @@ using System.IO;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface ILiveSendRunPlanFactory
-{
-    LiveSendRunPlan Create(
-        ResoniteSceneSetupInfo setupInfo,
-        string workRoot,
-        ResoniteLocalOrigin requestLocalOrigin,
-        ResoniteImportMemoryProfile memoryProfile,
-        int connectionCount,
-        bool meshBakeEnabled);
-}
-
-internal sealed class LiveSendRunPlanFactory : ILiveSendRunPlanFactory
+internal static class LiveSendRunPlanFactory
 {
     private const int MaxQueuedCityObjects = 4;
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
     private const long MaxInFlightCityObjectWorkingSetBytesFloor = 512L * 1024L * 1024L;
 
-    public LiveSendRunPlan Create(
+    public static LiveSendRunPlan Create(
         ResoniteSceneSetupInfo setupInfo,
         string workRoot,
         ResoniteLocalOrigin requestLocalOrigin,

@@ -100,78 +100,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
-    public void AddResoniteLiveSendTargetServicesRegistersRunSetupPreparer()
-    {
-        using ServiceProvider provider = new ServiceCollection()
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-
-        Assert.IsType<ResoniteLiveSendRunSetupPreparer>(
-            scope.ServiceProvider.GetRequiredService<IResoniteLiveSendRunSetupPreparer>());
-    }
-
-    [Fact]
-    public void AddResoniteLiveSendTargetServicesRegistersConnectionInitializer()
-    {
-        using ServiceProvider provider = new ServiceCollection()
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-
-        Assert.IsType<ResoniteLiveSendConnectionInitializer>(
-            scope.ServiceProvider.GetRequiredService<IResoniteLiveSendConnectionInitializer>());
-    }
-
-    [Fact]
-    public void AddResoniteLiveSendTargetServicesRegistersPreparedRunSetupComposer()
-    {
-        using ServiceProvider provider = new ServiceCollection()
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-
-        Assert.IsType<ResonitePreparedRunSetupComposer>(
-            scope.ServiceProvider.GetRequiredService<IResonitePreparedRunSetupComposer>());
-    }
-
-    [Fact]
-    public void AddResoniteLiveSendTargetServicesRegistersRunRuntimeComponentsFactory()
-    {
-        using ServiceProvider provider = new ServiceCollection()
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-
-        Assert.IsType<LiveSendRunRuntimeComponentsFactory>(
-            scope.ServiceProvider.GetRequiredService<ILiveSendRunRuntimeComponentsFactory>());
-    }
-
-    [Fact]
-    public void AddResoniteLiveSendTargetServicesRegistersPhaseContextFactory()
-    {
-        using ServiceProvider provider = new ServiceCollection()
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-
-        Assert.IsType<ResoniteLiveSendPhaseContextFactory>(
-            scope.ServiceProvider.GetRequiredService<IResoniteLiveSendPhaseContextFactory>());
-    }
-
-    [Fact]
-    public void AddResoniteLiveSendTargetServicesRegistersImportStepTaskCleanup()
-    {
-        using ServiceProvider provider = new ServiceCollection()
-            .AddResoniteLiveSendTargetServices()
-            .BuildServiceProvider();
-        using IServiceScope scope = provider.CreateScope();
-
-        Assert.IsType<ResoniteImportStepTaskCleanup>(
-            scope.ServiceProvider.GetRequiredService<IResoniteImportStepTaskCleanup>());
-    }
-
-    [Fact]
     public void AddResoniteLiveSendTargetServicesRegistersWorkerPipelineFactory()
     {
         using ServiceProvider provider = new ServiceCollection()
@@ -313,6 +241,66 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredRunSetupPreparer()
+    {
+        RecordingRunSetupPreparer runSetupPreparer = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteLiveSendRunSetupPreparer>(_ => runSetupPreparer)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        ISceneSink target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false,
+                    LoggerFactory: NullLoggerFactory.Instance),
+                terrainTextureAssetHttpClient);
+        await using ResoniteLiveSceneImportTarget _ = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+
+        Assert.Same(runSetupPreparer, scope.ServiceProvider.GetRequiredService<IResoniteLiveSendRunSetupPreparer>());
+    }
+
+    [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredRunExecutorFactory()
+    {
+        RecordingRunExecutorFactory runExecutorFactory = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteLiveSendRunExecutorFactory>(_ => runExecutorFactory)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        ISceneSink target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false,
+                    LoggerFactory: NullLoggerFactory.Instance),
+                terrainTextureAssetHttpClient);
+        await using ResoniteLiveSceneImportTarget importTarget = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+
+        Assert.Equal(1, runExecutorFactory.CreateCallCount);
+        Assert.NotNull(runExecutorFactory.LastRunStarter);
+        Assert.Same(runExecutorFactory.Executor, importTarget.RunExecutor);
+    }
+
+    [Fact]
     public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredNonDemSourceFileBakeEmitterFactory()
     {
         RecordingNonDemSourceFileBakeEmitterFactory sourceFileBakeEmitterFactory = new();
@@ -323,7 +311,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         using IServiceScope scope = provider.CreateScope();
 
         CompositeCityObjectBaker? baker = scope.ServiceProvider
-            .GetRequiredService<IResoniteBufferedCityObjectBakerFactory>()
+            .GetRequiredService<ResoniteBufferedCityObjectBakerFactory>()
             .Create(
                 enableMeshBake: true,
                 ResoniteImportBudgetProfiles.ForProfile(ResoniteImportMemoryProfile.Small),
@@ -587,6 +575,54 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             _ = state;
             _ = context;
             return [];
+        }
+    }
+
+    private sealed class RecordingRunExecutorFactory : IResoniteLiveSendRunExecutorFactory
+    {
+        public int CreateCallCount { get; private set; }
+
+        public ResoniteLiveSendRunStarter? LastRunStarter { get; private set; }
+
+        public IResoniteLiveSendRunExecutor Executor { get; } = new ThrowingRunExecutor();
+
+        public IResoniteLiveSendRunExecutor Create(ResoniteLiveSendRunStarter runStarter)
+        {
+            CreateCallCount++;
+            LastRunStarter = runStarter;
+            return Executor;
+        }
+    }
+
+    private sealed class ThrowingRunExecutor : IResoniteLiveSendRunExecutor
+    {
+        public Task<SceneImportExecutionResult> ExecuteAsync(
+            LiveSendRunStartRequest request,
+            IAsyncEnumerable<ImportedObjectUnit> objectUnits,
+            LiveSendRunExecutionContext context,
+            CancellationToken cancellationToken)
+        {
+            _ = request;
+            _ = objectUnits;
+            _ = context;
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
+        }
+    }
+
+    private sealed class RecordingRunSetupPreparer : IResoniteLiveSendRunSetupPreparer
+    {
+        public Task<LiveSendPreparedRunSetup> PrepareAsync(
+            LiveSendRunPlan runPlan,
+            LiveSendRunStartRequest request,
+            LiveSendRunStartContext context,
+            CancellationToken cancellationToken)
+        {
+            _ = runPlan;
+            _ = request;
+            _ = context;
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
         }
     }
 
