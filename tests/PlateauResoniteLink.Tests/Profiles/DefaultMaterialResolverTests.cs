@@ -224,25 +224,6 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialCanReachTextureCanGenericOtherVariant()
-    {
-        ResolvedMaterial? textureCanMaterial = null;
-        for (int attempt = 0; attempt < 512 && textureCanMaterial is null; attempt++)
-        {
-            ResolvedMaterial material = resolver.ResolveMaterial(CreateFallbackRequest("brid", $"brid:tri:{attempt}"));
-            string texturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value);
-            if (texturePath.StartsWith("default-materials/texturecan/", System.StringComparison.Ordinal))
-            {
-                textureCanMaterial = material;
-            }
-        }
-
-        Assert.NotNull(textureCanMaterial);
-        Assert.Equal(BundledDefaultMaterialFamilies.Other, textureCanMaterial!.Family);
-        Assert.Equal(MaterialReuseScope.Shared, textureCanMaterial.ReuseScope);
-    }
-
-    [Fact]
     public void ResolveMaterialUsesStableBundledVariantSelection()
     {
         ResolvedMaterial first = resolver.ResolveMaterial(

@@ -53,8 +53,7 @@ internal static class ResoniteMaterialAssetBindingTestFactory
                 4 => commonMaterials.Other.Plaster003,
                 5 => commonMaterials.Other.Plaster004,
                 6 => commonMaterials.Other.Plaster005,
-                7 => commonMaterials.Other.Plaster006,
-                _ => commonMaterials.Other.TextureCanFacade0022,
+                _ => commonMaterials.Other.Plaster006,
             },
             BundledDefaultMaterialFamilies.RoadTriplanar => variantIndex switch
             {

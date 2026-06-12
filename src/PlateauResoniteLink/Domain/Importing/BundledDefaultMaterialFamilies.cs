@@ -32,7 +32,6 @@ public static class BundledDefaultMaterialFamilies
     private static readonly BundledDefaultMaterialProfile Plaster002TextureSet = new(CreateTilesPerMeterValue(2.5, 2.5));
     private static readonly BundledDefaultMaterialProfile Ground054TextureSet = new(CreateTilesPerMeterValue(3.5, 3.5));
     private static readonly BundledDefaultMaterialProfile RoadDefaultTextureSet = new(BundledDefaultMaterialTiling.DefaultTilesPerMeterValue);
-    private static readonly BundledDefaultMaterialProfile TextureCanFacadeTextureSet = new(CreateTilesPerMeterValue(6.0, 6.0));
 
     public static readonly IReadOnlyList<BundledDefaultMaterialVariant> FacadeVariants =
     [
@@ -495,12 +494,6 @@ public static class BundledDefaultMaterialFamilies
                 Height: BundledDefaultTextureAssets.Wall.Plaster006.Height,
                 Metallic: BundledDefaultTextureAssets.Wall.Plaster006.Metallic,
                 Normal: BundledDefaultTextureAssets.Wall.Plaster006.Normal)),
-        new(
-            BundledDefaultTextureAssets.TextureCanFacade.Others0022.Albedo,
-            TextureCanFacadeTextureSet,
-            TextureSources: new(
-                Metallic: BundledDefaultTextureAssets.TextureCanFacade.Others0022.Metallic,
-                Normal: BundledDefaultTextureAssets.TextureCanFacade.Others0022.Normal)),
     ];
 
     private static readonly Dictionary<string, BundledDefaultMaterialVariant> VariantsByTexturePath = CreateVariantsByTexturePath();
