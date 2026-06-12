@@ -65,7 +65,9 @@ dotnet run --project src/PlateauResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` または `--resonitelink-url` は必須です。`--citygml-source` には extracted dataset directory、local の `.zip` / `.7z` archive、または direct な `.zip` / `.7z` CityGML archive URL を指定できます。`--geotiff-source` には local の `.tif` / `.tiff` file、local の `.zip` / `.7z` archive、または direct な `.tif` / `.tiff` / `.zip` / `.7z` URL を指定できます。remote URL に対する built-in dataset search は行いません。
+live import では、`--resonitelink-port` または `--resonitelink-url` が必須です。`--citygml-source` には extracted dataset directory、local の `.zip` / `.7z` archive、または direct な `.zip` / `.7z` CityGML archive URL を指定できます。`--geotiff-source` には local の `.tif` / `.tiff` file、local の `.zip` / `.7z` archive、または direct な `.tif` / `.tiff` / `.zip` / `.7z` URL を指定できます。remote URL に対する built-in dataset search は行いません。
+
+決定的な semantic verification artifact が必要な場合は、ResoniteLink endpoint の代わりに `--canonical-scene-dump <path>` を使います。この mode は fake ResoniteLink sink に対して import を実行し、live Resonite session へ接続せず、regression observation 用の canonical final scene JSON を書き出します。
 
 ローカル inspection の例:
 

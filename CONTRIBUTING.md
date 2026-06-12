@@ -53,6 +53,7 @@ In the PR description, explain what changed, why, and any remaining limitations 
 Reviewers should also check:
 
 - the PR states the current contract or correctness criterion it changes
+- contract tests are named and scoped by the surface they protect, such as parser behavior, mapper behavior, dump output, or documentation mirrors, instead of preserving generic or obsolete architecture contracts
 - static correctness is expressed in code or build-time checks where feasible, not only in tests, docs, or review guidance
 - mechanically checkable static rules that code alone cannot express are captured by root analyzer, style, or build policy rather than tests
 - remaining dynamic behavior has focused tests when code alone cannot lock the contract or catch regressions

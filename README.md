@@ -65,7 +65,9 @@ dotnet run --project src/PlateauResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. `--citygml-source` accepts an extracted dataset directory, a local `.zip` / `.7z` archive, or a direct `.zip` / `.7z` CityGML archive URL. `--geotiff-source` accepts a local `.tif` / `.tiff` file, a local `.zip` / `.7z` archive, or a direct `.tif` / `.tiff` / `.zip` / `.7z` URL. Built-in dataset search is not performed for remote URLs.
+For live imports, `--resonitelink-port` or `--resonitelink-url` is required. `--citygml-source` accepts an extracted dataset directory, a local `.zip` / `.7z` archive, or a direct `.zip` / `.7z` CityGML archive URL. `--geotiff-source` accepts a local `.tif` / `.tiff` file, a local `.zip` / `.7z` archive, or a direct `.tif` / `.tiff` / `.zip` / `.7z` URL. Built-in dataset search is not performed for remote URLs.
+
+Use `--canonical-scene-dump <path>` instead of a ResoniteLink endpoint when you need a deterministic semantic verification artifact. This mode runs the import against a fake ResoniteLink sink and writes the canonical final scene JSON for regression observation without connecting to a live Resonite session.
 
 Local inspection examples:
 
