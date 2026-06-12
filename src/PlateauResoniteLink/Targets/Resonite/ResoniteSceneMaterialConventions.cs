@@ -45,17 +45,6 @@ internal static class ResoniteSceneMaterialConventions
         return CreateCommonMaterialSlotName(normalizedMaterial);
     }
 
-    public static string CreateDedicatedMaterialSlotName(ResoniteMaterialBinding material, int materialIndex)
-    {
-        ArgumentNullException.ThrowIfNull(material);
-        ArgumentOutOfRangeException.ThrowIfNegative(materialIndex);
-        ResoniteMaterialBinding normalizedMaterial = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
-
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"material-{materialIndex:000}-{MaterialComponentToken(normalizedMaterial)}-{ProjectionToken(normalizedMaterial.Projection)}");
-    }
-
     public static IReadOnlyList<string> CreateCommonMaterialSlotLookupNames(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
@@ -218,13 +207,6 @@ internal static class ResoniteSceneMaterialConventions
             || BundledDefaultMaterialFamilies.BuildingFacadeFamilies.Contains(family, StringComparer.Ordinal);
     }
 
-    private static string CreateCompactColorSuffix(ResoniteColor color)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{color.R:0.###}-{color.G:0.###}-{color.B:0.###}-{color.A:0.###}");
-    }
-
     private static string CreateCommonMaterialSlotName(ResoniteMaterialBinding material)
     {
         string projectionName = ProjectionToken(material.Projection);
@@ -253,22 +235,6 @@ internal static class ResoniteSceneMaterialConventions
             ResoniteMaterialProjection.Uv => "uv",
             ResoniteMaterialProjection.Triplanar => "triplanar",
             _ => projection.ToString().ToLowerInvariant(),
-        };
-    }
-
-    private static string MaterialComponentToken(ResoniteMaterialBinding material)
-    {
-        return material.MaterialType switch
-        {
-            ResoniteMaterialType.Standard => material.Projection switch
-            {
-                ResoniteMaterialProjection.Uv => "pbs-uv",
-                ResoniteMaterialProjection.Triplanar => "pbs-triplanar",
-                _ => "material",
-            },
-            ResoniteMaterialType.VertexColor => "vertex-color",
-            ResoniteMaterialType.Wireframe => "wireframe",
-            _ => "material",
         };
     }
 

@@ -19,7 +19,6 @@ internal sealed class ResonitePreparedRunSetupComposer(
         CommonMaterialAssetCache materials = CreateMaterialCache(setupState);
         ResoniteSharedSlotIndex placement = new(
             setupState.DatasetRootSlot,
-            setupState.DatasetAssetsRootSlot,
             runPlan.RequestLocalOrigin,
             runPlan.SourceFileSlotNamesByRelativePath,
             setupState.SceneAnchor,

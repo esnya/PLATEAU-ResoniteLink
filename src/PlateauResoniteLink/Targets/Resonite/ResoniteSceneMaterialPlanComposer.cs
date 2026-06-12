@@ -56,11 +56,9 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             materialPlanTasks[materialIndex] = PlanDedicatedRendererMaterialAsync(
                 importClient,
                 material,
-                materialIndex,
                 preparedTextureUrisByPayload,
                 preparedTerrainTextureUrisByOverlay,
                 preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-                preserveDedicatedMaterialSlot: string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase),
                 cancellationToken);
         }
 
@@ -111,11 +109,9 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
     private async Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)> PlanDedicatedRendererMaterialAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding sourceMaterial,
-        int materialIndex,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
         IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> preparedTerrainTexturePropertyBlockComponentsByMeshCode,
-        bool preserveDedicatedMaterialSlot,
         CancellationToken cancellationToken)
     {
         ResoniteMaterialBinding materialComponentSource = sourceMaterial.TerrainOverlay is null
@@ -129,10 +125,8 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
         PlannedDedicatedMaterialAsset plannedMaterial = await materialPlanning.PlanDedicatedMaterialAssetAsync(
             client,
             materialComponentSource,
-            materialIndex,
             preparedTextureUrisByPayload,
             preparedTerrainTextureUrisByOverlay,
-            preserveDedicatedMaterialSlot,
             cancellationToken);
         if (sourceMaterial.TerrainOverlay is not null)
         {

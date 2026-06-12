@@ -46,13 +46,14 @@ internal static class ResoniteBatchEmissionPlanner
         List<PlannedBatchSlotEmission> slotEmissions = [];
         List<PlannedBatchComponentEmission> componentEmissions = [];
 
-        PlannedBatchSlotEmission meshAssetSlot = new(
-            PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
-            geometryAsset.MeshAssetSlotName,
-            null,
-            null,
+        PlannedBatchSlotEmission presentationSlot = new(
+            PlannedSlotTargetReference.CanonicalSlot(objectSlots.LodSlot.Locator),
+            objectSlots.CityObjectSlotName,
+            objectSlots.CityObjectLocalPosition,
+            objectSlots.CityObjectRotation,
             objectSlots.CityObjectOrderOffset);
-        slotEmissions.Add(meshAssetSlot);
+        slotEmissions.Add(presentationSlot);
+        PlannedSlotTargetReference presentationSlotTarget = PlannedSlotTargetReference.PlannedSlot(presentationSlot);
 
         PlannedBatchComponentEmission? rendererGeometryComponent = null;
         PlannedTerrainGridMeshBundle? terrainGridMesh = null;
@@ -62,7 +63,7 @@ internal static class ResoniteBatchEmissionPlanner
         {
             case PlannedTriangleMeshGeometryAsset triangleMesh:
                 rendererGeometryComponent = new PlannedBatchComponentEmission(
-                    PlannedSlotTargetReference.PlannedSlot(meshAssetSlot),
+                    presentationSlotTarget,
                     "[FrooxEngine]FrooxEngine.StaticMesh",
                     new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
                     {
@@ -75,10 +76,8 @@ internal static class ResoniteBatchEmissionPlanner
                 break;
             case PlannedTerrainGridGeometryAsset heightMap:
                 terrainGridMesh = AddPlannedTerrainGridTextureAndCreateGridBundle(
-                    slotEmissions,
                     componentEmissions,
-                    objectSlots,
-                    heightMap.TerrainGridAssetSlotName,
+                    presentationSlotTarget,
                     heightMap.Geometry,
                     heightMap.HeightTextureUri,
                     heightMap.UvScale,
@@ -86,7 +85,7 @@ internal static class ResoniteBatchEmissionPlanner
                 break;
             case PlannedDynamicTerrainGeometryAsset dynamicTerrain:
                 rendererGeometryComponent = new PlannedBatchComponentEmission(
-                    PlannedSlotTargetReference.PlannedSlot(meshAssetSlot),
+                    presentationSlotTarget,
                     "[FrooxEngine]FrooxEngine.StaticMesh",
                     new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
                     {
@@ -98,10 +97,8 @@ internal static class ResoniteBatchEmissionPlanner
                 componentEmissions.Add(rendererGeometryComponent);
                 dynamicStaticMeshTarget = PlannedWorldElementReference.Planned(rendererGeometryComponent);
                 terrainGridMesh = AddPlannedTerrainGridTextureAndCreateGridBundle(
-                    slotEmissions,
                     componentEmissions,
-                    objectSlots,
-                    dynamicTerrain.TerrainGridAssetSlotName,
+                    presentationSlotTarget,
                     dynamicTerrain.GridGeometry,
                     dynamicTerrain.HeightTextureUri,
                     dynamicTerrain.UvScale,
@@ -123,9 +120,8 @@ internal static class ResoniteBatchEmissionPlanner
                     break;
                 case PlannedDedicatedMaterialAsset dedicatedMaterial:
                     PlannedWorldElementReference emittedMaterialTarget = AddPlannedDedicatedMaterialEmissions(
-                        slotEmissions,
                         componentEmissions,
-                        PlannedSlotTargetReference.PlannedSlot(meshAssetSlot),
+                        presentationSlotTarget,
                         dedicatedMaterial);
                     emittedMaterialTargets[dedicatedMaterial] = emittedMaterialTarget;
                     break;
@@ -135,18 +131,10 @@ internal static class ResoniteBatchEmissionPlanner
             }
         }
 
-        PlannedBatchSlotEmission presentationSlot = new(
-            PlannedSlotTargetReference.CanonicalSlot(objectSlots.LodSlot.Locator),
-            objectSlots.CityObjectSlotName,
-            objectSlots.CityObjectLocalPosition,
-            objectSlots.CityObjectRotation,
-            objectSlots.CityObjectOrderOffset);
-        slotEmissions.Add(presentationSlot);
-
         if (terrainGridMesh is not null)
         {
             rendererGeometryComponent = new PlannedBatchComponentEmission(
-                PlannedSlotTargetReference.PlannedSlot(presentationSlot),
+                presentationSlotTarget,
                 "[FrooxEngine]FrooxEngine.GridMesh",
                 CreateTerrainGridMeshMembers(terrainGridMesh));
             componentEmissions.Add(rendererGeometryComponent);
@@ -170,7 +158,7 @@ internal static class ResoniteBatchEmissionPlanner
 
         PlannedFieldReference rendererMeshField = new();
         componentEmissions.Add(new PlannedBatchComponentEmission(
-            PlannedSlotTargetReference.PlannedSlot(presentationSlot),
+            presentationSlotTarget,
             "[FrooxEngine]FrooxEngine.MeshRenderer",
             new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
             {
@@ -180,7 +168,6 @@ internal static class ResoniteBatchEmissionPlanner
                 ["Materials"] = CreateRendererMaterials(rendererMaterialBindings, emittedMaterialTargets),
                 ["MaterialPropertyBlocks"] = CreateRendererMaterialPropertyBlocks(
                     componentEmissions,
-                    meshAssetSlot,
                     presentationSlot,
                     rendererMaterialBindings),
             }));
@@ -195,7 +182,7 @@ internal static class ResoniteBatchEmissionPlanner
 
         PlannedFieldReference colliderMeshField = new();
         componentEmissions.Add(new PlannedBatchComponentEmission(
-            PlannedSlotTargetReference.PlannedSlot(presentationSlot),
+            presentationSlotTarget,
             "[FrooxEngine]FrooxEngine.MeshCollider",
             new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
             {
@@ -233,23 +220,15 @@ internal static class ResoniteBatchEmissionPlanner
     }
 
     private static PlannedTerrainGridMeshBundle AddPlannedTerrainGridTextureAndCreateGridBundle(
-        List<PlannedBatchSlotEmission> slotEmissions,
         List<PlannedBatchComponentEmission> componentEmissions,
-        ResoniteObjectSlotHierarchy objectSlots,
-        string terrainGridAssetSlotName,
+        PlannedSlotTargetReference presentationSlotTarget,
         ResoniteTerrainGridGeometry geometry,
         Uri heightTextureUri,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset)
     {
-        PlannedBatchSlotEmission heightMapAssetSlot = new(
-            PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
-            terrainGridAssetSlotName,
-            null,
-            null);
-        slotEmissions.Add(heightMapAssetSlot);
         PlannedBatchComponentEmission heightTextureComponent = new(
-            PlannedSlotTargetReference.PlannedSlot(heightMapAssetSlot),
+            presentationSlotTarget,
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
             ResoniteGeometryAssetAssembler.CreateTerrainGridTextureMembers(heightTextureUri)
                 .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
@@ -471,26 +450,11 @@ internal static class ResoniteBatchEmissionPlanner
     }
 
     private static PlannedWorldElementReference AddPlannedDedicatedMaterialEmissions(
-        List<PlannedBatchSlotEmission> slotEmissions,
         List<PlannedBatchComponentEmission> componentEmissions,
-        PlannedSlotTargetReference meshAssetSlotTarget,
+        PlannedSlotTargetReference materialContainerTarget,
         PlannedDedicatedMaterialAsset plannedMaterial)
     {
         ResoniteMaterialBinding material = plannedMaterial.Material;
-        PlannedSlotTargetReference materialContainerTarget = meshAssetSlotTarget;
-        if (plannedMaterial.PreserveDedicatedMaterialSlot)
-        {
-            string materialSlotName = plannedMaterial.DedicatedMaterialSlotName
-                ?? throw new InvalidOperationException("Dedicated material slot preservation requires a planned material-index slot name.");
-            PlannedBatchSlotEmission materialSlot = new(
-                meshAssetSlotTarget,
-                materialSlotName,
-                null,
-                null);
-            slotEmissions.Add(materialSlot);
-            materialContainerTarget = PlannedSlotTargetReference.PlannedSlot(materialSlot);
-        }
-
         Dictionary<string, PlannedMember> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(material)
             .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal);
 
@@ -600,7 +564,6 @@ internal static class ResoniteBatchEmissionPlanner
 
     private static PlannedSyncListMember CreateRendererMaterialPropertyBlocks(
         List<PlannedBatchComponentEmission> componentEmissions,
-        PlannedBatchSlotEmission assetSlot,
         PlannedBatchSlotEmission presentationSlot,
         IReadOnlyList<PlannedRendererMaterialBinding> materialBindings)
     {
@@ -615,7 +578,6 @@ internal static class ResoniteBatchEmissionPlanner
                 propertyBlocks.Add(
                     CreateMainTexturePropertyBlockReference(
                         componentEmissions,
-                        assetSlot,
                         presentationSlot,
                         mainTextureOverrideBinding));
                 continue;
@@ -631,7 +593,6 @@ internal static class ResoniteBatchEmissionPlanner
 
     private static PlannedMember CreateMainTexturePropertyBlockReference(
         List<PlannedBatchComponentEmission> componentEmissions,
-        PlannedBatchSlotEmission assetSlot,
         PlannedBatchSlotEmission presentationSlot,
         PlannedMainTextureOverrideRendererMaterialBinding binding)
     {
@@ -662,7 +623,7 @@ internal static class ResoniteBatchEmissionPlanner
         if (sharedTextureTarget is null)
         {
             textureComponent = new PlannedBatchComponentEmission(
-                PlannedSlotTargetReference.PlannedSlot(assetSlot),
+                PlannedSlotTargetReference.PlannedSlot(presentationSlot),
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     binding.MainTexture.AssetUri,

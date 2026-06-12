@@ -10,7 +10,6 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteSharedSlotIndex(
     CreatedSlot datasetRootSlot,
-    CreatedSlot datasetAssetsRootSlot,
     ResoniteLocalOrigin requestLocalOrigin,
     IReadOnlyDictionary<string, string> sourceFileSlotNamesByRelativePath,
     SceneAnchor? initialSceneAnchor,
@@ -78,7 +77,6 @@ internal sealed class ResoniteSharedSlotIndex(
             ct => CreateCanonicalParentScopeAsync(client, sourceFileSlotName, rootMeshCode, cityObject.LodLevel, sourceRootPlacement.RootPosition, ct),
             cancellationToken);
         return new ResoniteObjectSlotHierarchy(
-            parentScope.AssetLodSlot,
             parentScope.LodSlot,
             cityObject.DisplayName,
             ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
@@ -109,23 +107,9 @@ internal sealed class ResoniteSharedSlotIndex(
             rootPosition,
             sourceFileRootOrderOffset,
             cancellationToken);
-        CreatedSlot assetSourceFileSlot = await GetOrCreateRunScopedSourceFileRootAsync(
-            client,
-            datasetAssetsRootSlot.Locator,
-            sourceFileSlotName,
-            null,
-            sourceFileRootOrderOffset,
-            cancellationToken);
         CreatedSlot lodSlot = await GetOrCreateSharedChildSlotByIdAsync(
             client,
             sourceFileSlot.Locator,
-            lodSlotName,
-            null,
-            null,
-            cancellationToken);
-        CreatedSlot assetLodSlot = await GetOrCreateSharedChildSlotByIdAsync(
-            client,
-            assetSourceFileSlot.Locator,
             lodSlotName,
             null,
             null,
@@ -144,11 +128,7 @@ internal sealed class ResoniteSharedSlotIndex(
             };
         }
 
-        return new CanonicalParentScope(
-            sourceFileSlot,
-            assetSourceFileSlot,
-            lodSlot,
-            assetLodSlot);
+        return new CanonicalParentScope(lodSlot);
     }
 
     private async Task<CreatedSlot> GetOrCreateSharedChildSlotByIdAsync(
@@ -237,10 +217,7 @@ internal sealed class ResoniteSharedSlotIndex(
     }
 
     private sealed record CanonicalParentScope(
-        CreatedSlot SourceFileSlot,
-        CreatedSlot AssetSourceFileSlot,
-        CreatedSlot LodSlot,
-        CreatedSlot AssetLodSlot);
+        CreatedSlot LodSlot);
 
     private readonly record struct CanonicalParentSourceFile(
         string SourceFileRelativePath,

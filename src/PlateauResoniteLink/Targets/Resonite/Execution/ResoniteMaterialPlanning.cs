@@ -23,10 +23,8 @@ internal interface IResoniteMaterialPlanning
     Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
-        int materialIndex,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        bool preserveDedicatedMaterialSlot,
         CancellationToken cancellationToken);
 }
 
@@ -71,17 +69,14 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             cancellationToken);
         return new PlannedDedicatedMaterialAsset(
             material,
-            textures,
-            PreserveDedicatedMaterialSlot: false);
+            textures);
     }
 
     public async Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
-        int materialIndex,
         IReadOnlyDictionary<ResoniteTexturePayload, Uri> preparedTextureUrisByPayload,
         IReadOnlyDictionary<TerrainTextureOverlay, Uri> preparedTerrainTextureUrisByOverlay,
-        bool preserveDedicatedMaterialSlot,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(importClient);
@@ -109,11 +104,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             cancellationToken);
         return new PlannedDedicatedMaterialAsset(
             material,
-            textures,
-            preserveDedicatedMaterialSlot,
-            DedicatedMaterialSlotName: preserveDedicatedMaterialSlot
-                ? ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex)
-                : null);
+            textures);
     }
 
     public static Uri? TryGetPlannedTextureUri(

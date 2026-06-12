@@ -573,12 +573,12 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 $"<color=mid.orange>🟫</color> plateau_{DatasetName}_dem_533945",
                 StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(2, demSourceFileRootSlots.Length);
+        Assert.Single(demSourceFileRootSlots);
         Assert.All(demSourceFileRootSlots, slot => Assert.Equal(533945, Assert.IsType<Field_long>(slot.OrderOffset).Value));
         Slot[] terrainObjectSlots = client.SlotsById.Values
             .Where(slot => string.Equals(slot.Name?.Value, "Terrain Grid Terrain", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(2, terrainObjectSlots.Length);
+        Assert.Single(terrainObjectSlots);
         Assert.All(terrainObjectSlots, slot => Assert.Equal(53394525, Assert.IsType<Field_long>(slot.OrderOffset).Value));
         Assert.DoesNotContain(
             client.SlotsById.Values,

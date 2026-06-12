@@ -106,7 +106,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     public void CreatePlannedBatchEmission_CreatesTerrainGridPlanWithPlannedTextureReference()
     {
         ResoniteObjectSlotHierarchy objectSlots = new(
-            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Terrain Grid Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
@@ -114,8 +113,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedTerrainGridGeometryAsset(
-                "Terrain Grid Object",
-                "Terrain Grid Object_terrain-grid",
                 new ResoniteTerrainGridGeometry(
                     Width: 2,
                     Height: 3,
@@ -155,6 +152,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal(0.70710677f, gridRotation.Value.w, 6);
         PlannedBatchSlotEmission presentationSlot = AssertPlanned(gridMesh.ContainerTarget);
         Assert.Equal("Terrain Grid Object", presentationSlot.SlotName);
+        Assert.Same(presentationSlot, AssertPlanned(heightTexture.ContainerTarget));
         Assert.Equal(-1.0f, Assert.IsType<Field_float>(ToMember(gridMesh.Members["DisplacementMagnitude"])).Value);
         Assert.Same(presentationSlot, AssertPlanned(meshRenderer.ContainerTarget));
         Assert.Same(presentationSlot, AssertPlanned(meshCollider.ContainerTarget));
@@ -194,10 +192,9 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     }
 
     [Fact]
-    public void CreatePlannedBatchEmission_CarriesCityObjectOrderOffsetToMeshAndPresentationSlots()
+    public void CreatePlannedBatchEmission_CarriesCityObjectOrderOffsetToPresentationSlot()
     {
         ResoniteObjectSlotHierarchy objectSlots = new(
-            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Terrain Grid Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
@@ -206,8 +203,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedTerrainGridGeometryAsset(
-                "Terrain Grid Object",
-                "Terrain Grid Object_terrain-grid",
                 new ResoniteTerrainGridGeometry(
                     Width: 2,
                     Height: 2,
@@ -225,12 +220,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             Assert.Single(
                 batchPlan.SlotEmissions,
                 static slot => slot.SlotName == "Terrain Grid Object"
-                    && slot.ParentTarget is PlannedSlotTargetReference.CanonicalSlotTarget { Locator: { Value: "asset-lod-slot" } }).OrderOffset);
-        Assert.Equal(
-            53394525,
-            Assert.Single(
-                batchPlan.SlotEmissions,
-                static slot => slot.SlotName == "Terrain Grid Object"
                     && slot.ParentTarget is PlannedSlotTargetReference.CanonicalSlotTarget { Locator: { Value: "lod-slot" } }).OrderOffset);
     }
 
@@ -238,7 +227,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     public void CreatePlannedBatchEmission_CreatesDynamicTerrainPlanWithGridAsFalseFallback()
     {
         ResoniteObjectSlotHierarchy objectSlots = new(
-            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Dynamic Terrain Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
@@ -246,9 +234,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedDynamicTerrainGeometryAsset(
-                "Dynamic Terrain Object",
                 new Uri("resdb:///mesh/static"),
-                "Dynamic Terrain Object_terrain-grid",
                 new ResoniteTerrainGridGeometry(
                     Width: 4,
                     Height: 5,
@@ -323,7 +309,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     public void CreatePlannedBatchEmission_CarriesTerrainGridUvMembers()
     {
         ResoniteObjectSlotHierarchy objectSlots = new(
-            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Terrain Grid Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
@@ -331,8 +316,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedTerrainGridGeometryAsset(
-                "Terrain Grid Object",
-                "Terrain Grid Object_terrain-grid",
                 new ResoniteTerrainGridGeometry(
                     Width: 2,
                     Height: 3,
@@ -363,7 +346,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     public void CreatePlannedBatchEmission_UsesReusableTargetsAndPlansDedicatedMaterialComponents()
     {
         ResoniteObjectSlotHierarchy objectSlots = new(
-            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
@@ -378,14 +360,11 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 DepthOffset: null,
                 SubmeshIndices: [0],
                 ResoniteMaterialAssetBinding.Presentation),
-            [new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/albedo"))],
-            PreserveDedicatedMaterialSlot: true,
-            DedicatedMaterialSlotName: "material-000-pbs-uv-uv");
+            [new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/albedo"))]);
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("existing-material-id"));
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedTriangleMeshGeometryAsset(
-                "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [
                 reusableMaterial,
@@ -414,13 +393,15 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal(ToPlannedTargetId(dedicatedMaterialComponent), dedicatedMaterialReference.TargetID);
         Reference albedoReference = Assert.IsType<Reference>(ToMember(dedicatedMaterialComponent.Members["AlbedoTexture"]));
         Assert.Equal(ToPlannedTargetId(albedoTexture), albedoReference.TargetID);
+        PlannedBatchSlotEmission presentationSlot = AssertPlanned(meshRenderer.ContainerTarget);
+        Assert.Same(presentationSlot, AssertPlanned(dedicatedMaterialComponent.ContainerTarget));
+        Assert.Same(presentationSlot, AssertPlanned(albedoTexture.ContainerTarget));
     }
 
     [Fact]
-    public void CreatePlannedBatchEmission_UsesMeshAssetContainerWhenDedicatedMaterialSlotIsNotPreserved()
+    public void CreatePlannedBatchEmission_UsesPresentationSlotForDedicatedMaterialComponents()
     {
         ResoniteObjectSlotHierarchy objectSlots = new(
-            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
@@ -441,12 +422,10 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Height, new Uri("resdb:///texture/height")),
                 new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic, new Uri("resdb:///texture/metallic")),
                 new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Emission, new Uri("resdb:///texture/emission")),
-            ],
-            PreserveDedicatedMaterialSlot: false);
+            ]);
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedTriangleMeshGeometryAsset(
-                "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [dedicatedMaterial],
             [new PlannedDirectRendererMaterialBinding(dedicatedMaterial)],
@@ -461,6 +440,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         SyncList rendererMaterials = Assert.IsType<SyncList>(ToMember(meshRenderer.Members["Materials"]));
         Reference materialReference = Assert.IsType<Reference>(Assert.Single(rendererMaterials.Elements));
         Assert.Equal(ToPlannedTargetId(materialComponent), materialReference.TargetID);
+        PlannedBatchSlotEmission presentationSlot = AssertPlanned(meshRenderer.ContainerTarget);
+        Assert.Same(presentationSlot, AssertPlanned(materialComponent.ContainerTarget));
 
         PlannedBatchComponentEmission[] materialTextures = batchPlan.ComponentEmissions
             .Where(component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
@@ -475,6 +456,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 "resdb:///texture/emission",
             ],
             materialTextures.Select(static texture => Assert.IsType<Field_Uri>(ToMember(texture.Members["URL"])).Value.ToString()).ToArray());
+        Assert.All(materialTextures, texture => Assert.Same(presentationSlot, AssertPlanned(texture.ContainerTarget)));
 
         IReadOnlyDictionary<string, PlannedBatchComponentEmission> texturesByUri = materialTextures.ToDictionary(
             static texture => Assert.IsType<PlannedLiteralMember>(texture.Members["URL"]).Value is Field_Uri uri
@@ -507,7 +489,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     public void CreatePlannedBatchEmission_UsesMainTexturePropertyBlockForRendererOverride()
     {
         ResoniteObjectSlotHierarchy objectSlots = new(
-            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
@@ -516,7 +497,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedTriangleMeshGeometryAsset(
-                "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [reusableMaterial],
             [
@@ -543,6 +523,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal("shared-material-id", materialReference.TargetID);
         Assert.Equal(ToPlannedTargetId(propertyBlockComponent), propertyBlockReference.TargetID);
         Assert.Equal(AssertPlanned(meshRenderer.ContainerTarget), AssertPlanned(propertyBlockComponent.ContainerTarget));
+        Assert.Equal(AssertPlanned(meshRenderer.ContainerTarget), AssertPlanned(overrideTexture.ContainerTarget));
         Assert.Equal(ToPlannedTargetId(overrideTexture), Assert.IsType<Reference>(ToMember(propertyBlockComponent.Members["Texture"])).TargetID);
         Assert.DoesNotContain("WrapModeU", overrideTexture.Members.Keys);
         Assert.DoesNotContain("WrapModeV", overrideTexture.Members.Keys);
@@ -553,7 +534,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     public void CreatePlannedBatchEmission_ClampsTerrainMainTextureOverride()
     {
         ResoniteObjectSlotHierarchy objectSlots = new(
-            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
@@ -562,7 +542,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedTriangleMeshGeometryAsset(
-                "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [reusableMaterial],
             [
@@ -585,7 +564,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     public void CreatePlannedBatchEmission_UsesSharedTerrainPropertyBlockWhenProvided()
     {
         ResoniteObjectSlotHierarchy objectSlots = new(
-            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
@@ -594,7 +572,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedTriangleMeshGeometryAsset(
-                "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [reusableMaterial],
             [
@@ -625,7 +602,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     public void CreatePlannedBatchEmission_UsesDistinctOverrideComponentIdsForSharedMaterialOverrides()
     {
         ResoniteObjectSlotHierarchy objectSlots = new(
-            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
@@ -634,7 +610,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedTriangleMeshGeometryAsset(
-                "Triangle Object",
                 new Uri("resdb:///mesh/triangle")),
             [reusableMaterial],
             [
