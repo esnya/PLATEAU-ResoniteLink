@@ -389,9 +389,9 @@ public sealed class CommonMaterialCatalogTests
                     or BundledDefaultMaterialFamilies.CityFurniture
                     or BundledDefaultMaterialFamilies.Other
                 && material.Projection == MaterialProjection.Uv);
-        Assert.Contains(
+        Assert.DoesNotContain(
             BundledDefaultMaterialFamilies.OtherVariants,
-            variant => variant.Albedo.LogicalPath.StartsWith("default-materials/texturecan/", StringComparison.Ordinal));
+            variant => variant.Albedo.LogicalPath.Contains("/facade/", StringComparison.Ordinal));
     }
 
     private static string CreateMaterialSignature(MaterialBinding material)

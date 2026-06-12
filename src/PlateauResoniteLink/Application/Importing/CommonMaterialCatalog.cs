@@ -55,8 +55,7 @@ public sealed class CommonMaterialCatalog<TItem>
             create(CommonMaterialDefinitions.OtherPlaster003),
             create(CommonMaterialDefinitions.OtherPlaster004),
             create(CommonMaterialDefinitions.OtherPlaster005),
-            create(CommonMaterialDefinitions.OtherPlaster006),
-            create(CommonMaterialDefinitions.OtherTextureCanFacade0022));
+            create(CommonMaterialDefinitions.OtherPlaster006));
         RoadTriplanar = new CommonRoadMaterialCatalog<TItem>(
             create(CommonMaterialDefinitions.RoadTriplanar012A),
             create(CommonMaterialDefinitions.RoadTriplanar013A),
@@ -126,7 +125,6 @@ public sealed class CommonMaterialCatalog<TItem>
             Member(CommonMaterialDefinitions.OtherPlaster004, Other.Plaster004),
             Member(CommonMaterialDefinitions.OtherPlaster005, Other.Plaster005),
             Member(CommonMaterialDefinitions.OtherPlaster006, Other.Plaster006),
-            Member(CommonMaterialDefinitions.OtherTextureCanFacade0022, Other.TextureCanFacade0022),
             Member(CommonMaterialDefinitions.RoadTriplanar012A, RoadTriplanar.Road012A),
             Member(CommonMaterialDefinitions.RoadTriplanar013A, RoadTriplanar.Road013A),
             Member(CommonMaterialDefinitions.RoadTriplanar014A, RoadTriplanar.Road014A),
@@ -351,8 +349,7 @@ public sealed record CommonOtherMaterialCatalog<TItem>(
     TItem Plaster003,
     TItem Plaster004,
     TItem Plaster005,
-    TItem Plaster006,
-    TItem TextureCanFacade0022);
+    TItem Plaster006);
 
 public sealed record CommonRoadMaterialCatalog<TItem>(
     TItem Road012A,

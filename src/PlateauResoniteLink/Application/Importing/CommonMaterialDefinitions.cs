@@ -37,7 +37,6 @@ internal static class CommonMaterialDefinitions
     public static readonly CommonMaterialDefinition OtherPlaster004 = Bundled(BundledDefaultMaterialFamilies.Other, 5, "Plaster004");
     public static readonly CommonMaterialDefinition OtherPlaster005 = Bundled(BundledDefaultMaterialFamilies.Other, 6, "Plaster005");
     public static readonly CommonMaterialDefinition OtherPlaster006 = Bundled(BundledDefaultMaterialFamilies.Other, 7, "Plaster006");
-    public static readonly CommonMaterialDefinition OtherTextureCanFacade0022 = Bundled(BundledDefaultMaterialFamilies.Other, 8, "TextureCanFacade0022");
     public static readonly CommonMaterialDefinition RoadTriplanar012A = Bundled(BundledDefaultMaterialFamilies.RoadTriplanar, 0, "Road012A");
     public static readonly CommonMaterialDefinition RoadTriplanar013A = Bundled(BundledDefaultMaterialFamilies.RoadTriplanar, 1, "Road013A");
     public static readonly CommonMaterialDefinition RoadTriplanar014A = Bundled(BundledDefaultMaterialFamilies.RoadTriplanar, 2, "Road014A");

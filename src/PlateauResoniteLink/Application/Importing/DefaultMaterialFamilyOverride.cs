@@ -42,7 +42,7 @@ internal sealed class DefaultMaterialFamilyOverride
 
     public static readonly DefaultMaterialFamilyOverride Other = new(
         BundledDefaultMaterialFamilies.Other,
-        static (catalog, key) => StableVariantSelector.SelectBucket(key, 9) switch
+        static (catalog, key) => StableVariantSelector.SelectBucket(key, 8) switch
         {
             0 => catalog.Other.Concrete012,
             1 => catalog.Other.Ground054,
@@ -51,8 +51,7 @@ internal sealed class DefaultMaterialFamilyOverride
             4 => catalog.Other.Plaster003,
             5 => catalog.Other.Plaster004,
             6 => catalog.Other.Plaster005,
-            7 => catalog.Other.Plaster006,
-            _ => catalog.Other.TextureCanFacade0022,
+            _ => catalog.Other.Plaster006,
         });
 
     public static readonly DefaultMaterialFamilyOverride RoadTriplanar = new(

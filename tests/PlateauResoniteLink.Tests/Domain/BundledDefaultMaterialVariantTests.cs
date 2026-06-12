@@ -197,6 +197,30 @@ public sealed class BundledDefaultMaterialVariantTests
     }
 
     [Fact]
+    public void NonBuildingMaterialFamiliesDoNotUseFacadeTextureAssets()
+    {
+        string[] nonBuildingFamilies =
+        [
+            BundledDefaultMaterialFamilies.Roof,
+            BundledDefaultMaterialFamilies.RoadUv,
+            BundledDefaultMaterialFamilies.RoadTriplanar,
+            BundledDefaultMaterialFamilies.Vegetation,
+            BundledDefaultMaterialFamilies.CityFurniture,
+            BundledDefaultMaterialFamilies.Other,
+        ];
+
+        foreach (string family in nonBuildingFamilies)
+        {
+            foreach (BundledDefaultMaterialVariant variant in BundledDefaultMaterialFamilies.GetVariantDefinitions(family))
+            {
+                Assert.All(
+                    EnumerateVariantTexturePaths(variant),
+                    texturePath => Assert.DoesNotContain("/facade/", texturePath, StringComparison.Ordinal));
+            }
+        }
+    }
+
+    [Fact]
     public void BundledDefaultMaterialAssetStoreReadsBundledResourceWithoutFileMaterialization()
     {
         string logicalPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.CityFurniture, 0);
@@ -288,6 +312,42 @@ public sealed class BundledDefaultMaterialVariantTests
             materialName,
             "emission.png");
         return true;
+    }
+
+    private static IEnumerable<string> EnumerateVariantTexturePaths(BundledDefaultMaterialVariant variant)
+    {
+        yield return variant.Albedo.LogicalPath;
+
+        BundledDefaultMaterialTextureSources? sources = variant.TextureSources;
+        if (sources is null)
+        {
+            yield break;
+        }
+
+        if (sources.Albedo is not null)
+        {
+            yield return sources.Albedo.LogicalPath;
+        }
+
+        if (sources.Emission is not null)
+        {
+            yield return sources.Emission.LogicalPath;
+        }
+
+        if (sources.Height is not null)
+        {
+            yield return sources.Height.LogicalPath;
+        }
+
+        if (sources.Metallic is not null)
+        {
+            yield return sources.Metallic.LogicalPath;
+        }
+
+        if (sources.Normal is not null)
+        {
+            yield return sources.Normal.LogicalPath;
+        }
     }
 
 }
