@@ -183,47 +183,6 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
-    public async Task PlanDedicatedMaterialAssetAsyncUsesPreserveDedicatedMaterialSlotContract()
-    {
-        using SceneSinkRecordingClient client = new();
-        ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
-        ResoniteMaterialBinding material = new(
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation);
-
-        PlannedDedicatedMaterialAsset preserved = await planning.PlanDedicatedMaterialAssetAsync(
-            client,
-            material,
-            materialIndex: 2,
-            new Dictionary<ResoniteTexturePayload, Uri>(),
-            new Dictionary<TerrainTextureOverlay, Uri>(),
-            preserveDedicatedMaterialSlot: true,
-            CancellationToken.None);
-        PlannedDedicatedMaterialAsset notPreserved = await planning.PlanDedicatedMaterialAssetAsync(
-            client,
-            material,
-            materialIndex: 2,
-            new Dictionary<ResoniteTexturePayload, Uri>(),
-            new Dictionary<TerrainTextureOverlay, Uri>(),
-            preserveDedicatedMaterialSlot: false,
-            CancellationToken.None);
-        string expectedDedicatedSlotName = ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(
-            material,
-            materialIndex: 2);
-
-        Assert.True(preserved.PreserveDedicatedMaterialSlot);
-        Assert.Equal(expectedDedicatedSlotName, preserved.DedicatedMaterialSlotName);
-        Assert.False(notPreserved.PreserveDedicatedMaterialSlot);
-        Assert.Null(notPreserved.DedicatedMaterialSlotName);
-    }
-
-    [Fact]
     public void ResolveTerrainTextureCanvasMaterialComposesExistingTransformWithCanvasOccupancy()
     {
         TerrainTextureOverlay overlay = new(
@@ -273,8 +232,7 @@ public sealed class ResoniteMaterialPlanningTests
                 new PlannedTextureAsset(
                     ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
                     new Uri("resdb:///texture/albedo", UriKind.Absolute)),
-            ],
-            PreserveDedicatedMaterialSlot: false);
+            ]);
 
         ResoniteMaterialPlanning.AddCommonMaterialComponents(batchBuilder, plannedMaterial, "slot");
 
@@ -299,8 +257,7 @@ public sealed class ResoniteMaterialPlanningTests
                 new PlannedTextureAsset(
                     ResoniteSceneMaterialConventions.PlannedTextureRole.Emission,
                     new Uri("resdb:///texture/emission", UriKind.Absolute)),
-            ],
-            PreserveDedicatedMaterialSlot: false);
+            ]);
 
         ResoniteMaterialPlanning.AddCommonMaterialComponents(batchBuilder, plannedMaterial, "slot");
 

@@ -18,7 +18,6 @@ internal static class ResoniteGeometryAssetAssembler
 {
     public static async Task<UploadedTriangleMeshAssetBatch> PrepareTriangleMeshAsync(
         IResoniteLinkClient importClient,
-        string meshAssetSlotName,
         string displayName,
         IGeometryImportSource meshSource,
         ILogger logger,
@@ -34,13 +33,11 @@ internal static class ResoniteGeometryAssetAssembler
             "Mesh '{DisplayName}' mesh import completed -> '{AssetUri}'.",
             displayName,
             assetUri);
-        return new UploadedTriangleMeshAssetBatch(meshAssetSlotName, assetUri);
+        return new UploadedTriangleMeshAssetBatch(assetUri);
     }
 
     public static async Task<UploadedTerrainGridAssetBatch> PrepareTerrainGridAsync(
         IResoniteLinkClient importClient,
-        string meshAssetSlotName,
-        string heightMapAssetSlotName,
         string displayName,
         ResoniteTerrainGridGeometry geometry,
         ITextureImportSource heightTextureSource,
@@ -59,8 +56,6 @@ internal static class ResoniteGeometryAssetAssembler
             displayName,
             textureUri);
         return new UploadedTerrainGridAssetBatch(
-            meshAssetSlotName,
-            heightMapAssetSlotName,
             geometry,
             textureUri,
             uvScale,
@@ -86,16 +81,11 @@ internal static class ResoniteGeometryAssetAssembler
     }
 }
 
-internal abstract record UploadedGeometryAssetBatch(string MeshAssetSlotName);
-
 internal sealed record UploadedTriangleMeshAssetBatch(
-    string MeshAssetSlotName,
-    Uri MeshUri) : UploadedGeometryAssetBatch(MeshAssetSlotName);
+    Uri MeshUri);
 
 internal sealed record UploadedTerrainGridAssetBatch(
-    string MeshAssetSlotName,
-    string TerrainGridAssetSlotName,
     ResoniteTerrainGridGeometry Geometry,
     Uri HeightTextureUri,
     ResoniteFloat2? UvScale,
-    ResoniteFloat2? UvOffset) : UploadedGeometryAssetBatch(MeshAssetSlotName);
+    ResoniteFloat2? UvOffset);

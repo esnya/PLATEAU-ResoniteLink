@@ -121,49 +121,6 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
-    public void CreateDedicatedMaterialSlotName_ForDedicatedMaterial_UsesZeroBasedMaterialIndexPresentationName()
-    {
-        ResoniteMaterialBinding material = new(
-            BaseColor: new ResoniteColor(0.1, 0.2, 0.3, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new RawRgba32ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/payload-a.png"),
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: new ResoniteMaterialDepthOffset(2.0, 3.0),
-            SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation,
-            TextureScale: new ResoniteFloat2(0.5, 0.25),
-            TextureOffset: new ResoniteFloat2(0.125, 0.75),
-            Family: BundledDefaultMaterialFamilies.FacadeHighriseGlass,
-            BundledVariantIndex: 0);
-
-        string slotName = ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex: 0);
-
-        Assert.Equal("material-000-pbs-uv-uv", slotName);
-        Assert.DoesNotContain("payload", slotName, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("textures", slotName, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("2x3", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("0.5", slotName, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void CreateDedicatedMaterialSlotName_ForDedicatedMaterial_RejectsNegativeMaterialIndex()
-    {
-        ResoniteMaterialBinding material = new(
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            AssetBinding: ResoniteMaterialAssetBinding.Presentation);
-
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => ResoniteSceneMaterialConventions.CreateDedicatedMaterialSlotName(material, materialIndex: -1));
-    }
-
-    [Fact]
     public void CreateMaterialSlotName_ForGenericSharedMaterial_UsesOnlyRenderingDiscriminators()
     {
         ResoniteMaterialBinding material = new(

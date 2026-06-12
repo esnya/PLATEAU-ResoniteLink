@@ -13,8 +13,6 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class ResoniteGeometryAssetPlanner
 {
-    private const string TerrainGridAssetSlotSuffix = "_terrain-grid";
-
     public static async Task<PlannedGeometryAsset> PlanAsync(
         IResoniteLinkClient importClient,
         ResoniteConstructionCityObject cityObject,
@@ -31,20 +29,15 @@ internal static class ResoniteGeometryAssetPlanner
         return preparedCityObject.Geometry switch
         {
             PreparedTriangleMeshGeometry triangleMesh => CreatePlannedGeometryAsset(
-                cityObject,
                 await ResoniteGeometryAssetAssembler.PrepareTriangleMeshAsync(
                     importClient,
-                    CreateMeshAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     triangleMesh.MeshSource,
                     logger,
                     cancellationToken)),
             PreparedTerrainGridGeometry heightMap => CreatePlannedGeometryAsset(
-                cityObject,
                 await ResoniteGeometryAssetAssembler.PrepareTerrainGridAsync(
                     importClient,
-                    CreateMeshAssetSlotName(cityObject),
-                    CreateTerrainGridAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     heightMap.Geometry,
                     heightMap.HeightTextureSource,
@@ -53,18 +46,14 @@ internal static class ResoniteGeometryAssetPlanner
                     logger,
                     cancellationToken)),
             PreparedDynamicTerrainGeometry dynamicTerrain => CreatePlannedDynamicTerrainGeometryAsset(
-                cityObject,
                 await ResoniteGeometryAssetAssembler.PrepareTriangleMeshAsync(
                     importClient,
-                    CreateMeshAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     dynamicTerrain.StaticMesh.MeshSource,
                     logger,
                     cancellationToken),
                 await ResoniteGeometryAssetAssembler.PrepareTerrainGridAsync(
                     importClient,
-                    CreateMeshAssetSlotName(cityObject),
-                    CreateTerrainGridAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     dynamicTerrain.GridMesh.Geometry,
                     dynamicTerrain.GridMesh.HeightTextureSource,
@@ -78,21 +67,15 @@ internal static class ResoniteGeometryAssetPlanner
     }
 
     private static PlannedTriangleMeshGeometryAsset CreatePlannedGeometryAsset(
-        ResoniteConstructionCityObject cityObject,
         UploadedTriangleMeshAssetBatch uploadedGeometryBatch)
     {
-        return new PlannedTriangleMeshGeometryAsset(
-            uploadedGeometryBatch.MeshAssetSlotName,
-            uploadedGeometryBatch.MeshUri);
+        return new PlannedTriangleMeshGeometryAsset(uploadedGeometryBatch.MeshUri);
     }
 
     private static PlannedTerrainGridGeometryAsset CreatePlannedGeometryAsset(
-        ResoniteConstructionCityObject cityObject,
         UploadedTerrainGridAssetBatch uploadedGeometryBatch)
     {
         return new PlannedTerrainGridGeometryAsset(
-            uploadedGeometryBatch.MeshAssetSlotName,
-            uploadedGeometryBatch.TerrainGridAssetSlotName,
             uploadedGeometryBatch.Geometry,
             uploadedGeometryBatch.HeightTextureUri,
             uploadedGeometryBatch.UvScale,
@@ -100,27 +83,14 @@ internal static class ResoniteGeometryAssetPlanner
     }
 
     private static PlannedDynamicTerrainGeometryAsset CreatePlannedDynamicTerrainGeometryAsset(
-        ResoniteConstructionCityObject cityObject,
         UploadedTriangleMeshAssetBatch staticMeshBatch,
         UploadedTerrainGridAssetBatch gridMeshBatch)
     {
         return new PlannedDynamicTerrainGeometryAsset(
-            staticMeshBatch.MeshAssetSlotName,
             staticMeshBatch.MeshUri,
-            gridMeshBatch.TerrainGridAssetSlotName,
             gridMeshBatch.Geometry,
             gridMeshBatch.HeightTextureUri,
             gridMeshBatch.UvScale,
             gridMeshBatch.UvOffset);
-    }
-
-    private static string CreateMeshAssetSlotName(ResoniteConstructionCityObject cityObject)
-    {
-        return cityObject.DisplayName;
-    }
-
-    private static string CreateTerrainGridAssetSlotName(ResoniteConstructionCityObject cityObject)
-    {
-        return string.Concat(CreateMeshAssetSlotName(cityObject), TerrainGridAssetSlotSuffix);
     }
 }

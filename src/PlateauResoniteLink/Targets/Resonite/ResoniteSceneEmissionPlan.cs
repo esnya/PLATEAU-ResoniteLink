@@ -5,31 +5,26 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal abstract record PlannedGeometryAsset(string MeshAssetSlotName);
+internal abstract record PlannedGeometryAsset;
 
 internal sealed record PlannedTriangleMeshGeometryAsset(
-    string MeshAssetSlotName,
     Uri MeshUri)
-    : PlannedGeometryAsset(MeshAssetSlotName);
+    : PlannedGeometryAsset;
 
 internal sealed record PlannedTerrainGridGeometryAsset(
-    string MeshAssetSlotName,
-    string TerrainGridAssetSlotName,
     ResoniteTerrainGridGeometry Geometry,
     Uri HeightTextureUri,
     ResoniteFloat2? UvScale = null,
     ResoniteFloat2? UvOffset = null)
-    : PlannedGeometryAsset(MeshAssetSlotName);
+    : PlannedGeometryAsset;
 
 internal sealed record PlannedDynamicTerrainGeometryAsset(
-    string MeshAssetSlotName,
     Uri StaticMeshUri,
-    string TerrainGridAssetSlotName,
     ResoniteTerrainGridGeometry GridGeometry,
     Uri HeightTextureUri,
     ResoniteFloat2? UvScale = null,
     ResoniteFloat2? UvOffset = null)
-    : PlannedGeometryAsset(MeshAssetSlotName);
+    : PlannedGeometryAsset;
 
 internal sealed record PlannedTextureAsset(
     ResoniteSceneMaterialConventions.PlannedTextureRole Role,
@@ -43,9 +38,7 @@ internal sealed record PlannedReusableMaterialAsset(
 
 internal sealed record PlannedDedicatedMaterialAsset(
     ResoniteMaterialBinding Material,
-    IReadOnlyList<PlannedTextureAsset> Textures,
-    bool PreserveDedicatedMaterialSlot,
-    string? DedicatedMaterialSlotName = null)
+    IReadOnlyList<PlannedTextureAsset> Textures)
     : PlannedMaterialAsset;
 
 internal abstract record PlannedRendererMaterialBinding(PlannedMaterialAsset MaterialAsset);
