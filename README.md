@@ -93,6 +93,7 @@ After a successful import, the CLI prints a datasource summary that includes the
 ## Further Reading
 
 - Contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Import-pipeline data ownership: [docs/import-pipeline-data-ownership.md](docs/import-pipeline-data-ownership.md)
 - Coding-agent live workflow: [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md)
 
 ## License And Provenance

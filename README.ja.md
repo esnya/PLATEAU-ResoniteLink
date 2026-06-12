@@ -93,6 +93,7 @@ import 成功後、CLI は run で使われた CityGML source file と、terrain
 ## 参考資料
 
 - contributor 向け workflow: [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)
+- import pipeline のデータ所有: [docs/import-pipeline-data-ownership.ja.md](docs/import-pipeline-data-ownership.ja.md)
 - Coding Agent 向け live workflow: [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md)
 
 ## License And Provenance
