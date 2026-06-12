@@ -28,7 +28,9 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("/data/plateau", result.Options.Request.CityGmlLocalSourcePath);
         Assert.Null(result.Options.Request.DemTextureSource);
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, result.Options.Request.PackageNames);
-        Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
+        LiveResoniteLinkImportMode targetMode = Assert.IsType<LiveResoniteLinkImportMode>(result.Options.TargetMode);
+        Assert.Equal(new Uri("ws://localhost:12345/"), targetMode.Endpoint);
+        Assert.Equal(CliDefaultOptions.ResoniteLinkConnectionCount, targetMode.ConnectionCount);
     }
 
     [Fact]
@@ -140,8 +142,8 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Null(result.Error);
-        Assert.Null(result.Options!.ResoniteLinkUri);
-        Assert.Equal("out/scene.json", result.Options.CanonicalSceneDumpPath);
+        CanonicalSceneDumpImportMode targetMode = Assert.IsType<CanonicalSceneDumpImportMode>(result.Options!.TargetMode);
+        Assert.Equal("out/scene.json", targetMode.OutputPath);
     }
 
     [Fact]
@@ -316,6 +318,24 @@ public sealed class CliArgumentsParserTests
 
         Assert.Null(result.Error);
         Assert.Equal(TerrainMeshMode.Dynamic, result.Options!.Request.TerrainMeshMode);
+    }
+
+    [Fact]
+    public void ParseStoresRequestedConnectionCountInLiveTargetMode()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+                "--resonitelink-connections", "6",
+            ]);
+
+        Assert.Null(result.Error);
+        LiveResoniteLinkImportMode targetMode = Assert.IsType<LiveResoniteLinkImportMode>(result.Options!.TargetMode);
+        Assert.Equal(6, targetMode.ConnectionCount);
     }
 
     [Fact]

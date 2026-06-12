@@ -243,6 +243,85 @@ public record MaterialBinding(
     int? BundledVariantIndex = null,
     DefaultCommonMaterialMember? CommonMaterial = null)
 {
+    public static MaterialBinding Create(
+        ColorRgba baseColor,
+        MaterialType materialType,
+        TexturePayload? texturePayload,
+        TextureSourceKind textureSourceKind,
+        MaterialProjection projection,
+        MaterialDepthOffset? depthOffset,
+        IReadOnlyList<int> submeshIndices,
+        Float2? textureScale = null,
+        string? family = null,
+        Float2? textureOffset = null,
+        MaterialReuseScope reuseScope = MaterialReuseScope.PerObject,
+        TerrainOverlayMaterialBinding? terrainOverlayMaterial = null,
+        int? bundledVariantIndex = null,
+        DefaultCommonMaterialMember? commonMaterial = null)
+    {
+        if (commonMaterial is not null)
+        {
+            return reuseScope == MaterialReuseScope.Shared
+                ? new SharedCommonMaterialBinding(
+                    baseColor,
+                    materialType,
+                    texturePayload,
+                    textureSourceKind,
+                    projection,
+                    depthOffset,
+                    submeshIndices,
+                    commonMaterial,
+                    textureScale,
+                    family,
+                    textureOffset,
+                    terrainOverlayMaterial,
+                    bundledVariantIndex)
+                : new PresentationCommonMaterialBinding(
+                    baseColor,
+                    materialType,
+                    texturePayload,
+                    textureSourceKind,
+                    projection,
+                    depthOffset,
+                    submeshIndices,
+                    commonMaterial,
+                    textureScale,
+                    family,
+                    textureOffset,
+                    terrainOverlayMaterial,
+                    bundledVariantIndex);
+        }
+
+        return reuseScope == MaterialReuseScope.Shared
+            ? new MaterialBinding(
+                baseColor,
+                materialType,
+                texturePayload,
+                textureSourceKind,
+                projection,
+                depthOffset,
+                submeshIndices,
+                textureScale,
+                family,
+                textureOffset,
+                reuseScope,
+                terrainOverlayMaterial,
+                bundledVariantIndex)
+            : new PresentationMaterialBinding(
+                baseColor,
+                materialType,
+                texturePayload,
+                textureSourceKind,
+                projection,
+                depthOffset,
+                submeshIndices,
+                textureScale,
+                family,
+                textureOffset,
+                terrainOverlayMaterial,
+                bundledVariantIndex);
+    }
+
     public TerrainTextureOverlay? TerrainOverlay => TerrainOverlayMaterial?.Overlay;
 
     public string? TerrainMeshCode => TerrainOverlayMaterial?.MeshCode.Value;

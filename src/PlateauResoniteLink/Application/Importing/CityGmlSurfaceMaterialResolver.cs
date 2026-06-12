@@ -164,21 +164,21 @@ internal static class CityGmlSurfaceMaterialResolver
             representativeSurface.Material.TextureOffset,
             representativeSurface.Material.TerrainOverlay,
             representativeSurface.Material.CommonMaterial);
-        return new MaterialBinding(
-            BaseColor: baseColor,
-            MaterialType: representativeSurface.Material.MaterialType,
-            TexturePayload: representativeSurface.Material.TexturePayload,
-            TextureSourceKind: representativeSurface.Material.TextureSourceKind,
-            Projection: representativeSurface.Material.Projection,
-            DepthOffset: representativeSurface.DepthOffset,
-            SubmeshIndices: [materialIndex],
-            TextureScale: representativeSurface.Material.TextureScale,
-            Family: representativeSurface.Material.Family,
-            TextureOffset: representativeSurface.Material.TextureOffset,
-            ReuseScope: representativeSurface.Material.ReuseScope,
-            TerrainOverlayMaterial: terrainOverlayMaterial,
-            BundledVariantIndex: representativeSurface.Material.BundledVariantIndex,
-            CommonMaterial: commonMaterial);
+        return MaterialBinding.Create(
+            baseColor,
+            representativeSurface.Material.MaterialType,
+            representativeSurface.Material.TexturePayload,
+            representativeSurface.Material.TextureSourceKind,
+            representativeSurface.Material.Projection,
+            representativeSurface.DepthOffset,
+            [materialIndex],
+            representativeSurface.Material.TextureScale,
+            representativeSurface.Material.Family,
+            representativeSurface.Material.TextureOffset,
+            representativeSurface.Material.ReuseScope,
+            terrainOverlayMaterial,
+            representativeSurface.Material.BundledVariantIndex,
+            commonMaterial);
     }
 
     private static ParsedSurface GetMinimumSurface(IEnumerable<ResolvedSurfaceMaterial> surfaces)

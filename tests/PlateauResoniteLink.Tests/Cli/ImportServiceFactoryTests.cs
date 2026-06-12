@@ -59,13 +59,11 @@ public sealed class ImportServiceFactoryTests
         return new ImportCommandOptions(
             request,
             "local",
-            new Uri("ws://localhost:12345/"),
-            4,
+            new LiveResoniteLinkImportMode(new Uri("ws://localhost:12345/"), 4),
             PlateauImportMemoryProfile.Large,
             enableMeshBake,
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: false,
-            CanonicalSceneDumpPath: null,
             EnableSendMetrics: false,
             VerboseLogging: false);
     }

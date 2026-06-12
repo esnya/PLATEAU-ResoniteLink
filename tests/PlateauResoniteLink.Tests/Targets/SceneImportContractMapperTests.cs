@@ -88,7 +88,7 @@ public sealed class SceneImportContractMapperTests
     }
 
     [Fact]
-    public void ToInternalMaterialBindingsKeepsTerrainOverlaySharedScopeIndependentFromProvider()
+    public void ToInternalMaterialBindingsMapsSharedCommonTerrainOverlayToCommonAssetScope()
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
@@ -102,7 +102,7 @@ public sealed class SceneImportContractMapperTests
         DefaultCommonMaterialMember commonMaterial = CommonMaterialCatalog.Create().Generic.Uv;
         MaterialBinding[] bindings =
         [
-            new(
+            new SharedCommonMaterialBinding(
                 BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                 MaterialType: MaterialType.Standard,
                 TexturePayload: null,
@@ -110,9 +110,9 @@ public sealed class SceneImportContractMapperTests
                 Projection: MaterialProjection.Uv,
                 DepthOffset: null,
                 SubmeshIndices: [0],
-                ReuseScope: MaterialReuseScope.Shared,
+                commonMaterial: commonMaterial,
                 TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay),
-                CommonMaterial: commonMaterial),
+                BundledVariantIndex: null),
         ];
 
         ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
@@ -161,7 +161,7 @@ public sealed class SceneImportContractMapperTests
     }
 
     [Fact]
-    public void ToInternalMaterialBindingsKeepsSharedTerrainOverlayWithoutCommonMaterialPresentationScoped()
+    public void ToInternalMaterialBindingsKeepsPresentationTerrainOverlayWithoutCommonMaterialPresentationScoped()
     {
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
@@ -174,7 +174,7 @@ public sealed class SceneImportContractMapperTests
             ]);
         MaterialBinding[] bindings =
         [
-            new(
+            new PresentationMaterialBinding(
                 BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                 MaterialType: MaterialType.Standard,
                 TexturePayload: null,
@@ -182,7 +182,6 @@ public sealed class SceneImportContractMapperTests
                 Projection: MaterialProjection.Uv,
                 DepthOffset: null,
                 SubmeshIndices: [0],
-                ReuseScope: MaterialReuseScope.Shared,
                 TerrainOverlayMaterial: new TerrainOverlayMaterialBinding(ThirdRegionalMeshCode.Parse("53394525"), overlay)),
         ];
 
