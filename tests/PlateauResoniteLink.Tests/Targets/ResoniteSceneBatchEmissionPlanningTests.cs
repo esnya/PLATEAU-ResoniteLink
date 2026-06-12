@@ -203,7 +203,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null,
             CityObjectOrderOffset: 53394525);
-        PlannedSceneObjectEmission emissionPlan = new(
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
             new PlannedTerrainGridGeometryAsset(
                 "Terrain Grid Object",
                 "Terrain Grid Object_terrain-grid",
@@ -216,10 +217,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                     HeightSamples: [-1.0, 0.0, 1.0, 3.0]),
                 new Uri("resdb:///texture/height")),
             [],
-            new PlannedRenderer([]),
-            new PlannedCollider(false));
-
-        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+            [],
+            true);
 
         Assert.Equal(
             53394525,

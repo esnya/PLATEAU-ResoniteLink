@@ -87,7 +87,7 @@ internal sealed class ResoniteSharedSlotIndex(
                 sourceRootPlacement.LocalPositionReferenceRoot,
                 cityObject.Transform.Position),
             cityObject.Transform.Rotation,
-            ResonitePackageSemantics.IsDemPackage(cityObject.PackageName)
+            string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? TryCreateThirdRegionalMeshOrderOffset(cityObject.ActualMeshCode)
                 : null);
     }
