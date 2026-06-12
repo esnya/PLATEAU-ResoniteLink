@@ -1148,6 +1148,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
         private readonly Dictionary<string, Slot[]> childrenByParentId;
         private readonly Dictionary<string, string> canonicalSlotPathsById;
         private readonly Dictionary<string, string> componentReferencesById;
+        private readonly Dictionary<string, string> fieldReferencesById;
 
         public CanonicalDumpContext(SceneSinkRecordingClient client)
         {
@@ -1155,6 +1156,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
             childrenByParentId = CreateChildrenByParentId(client);
             canonicalSlotPathsById = CreateCanonicalSlotPaths(client, childrenByParentId);
             componentReferencesById = CreateComponentReferences(client);
+            fieldReferencesById = CreateFieldReferences(client);
         }
 
         public SceneSinkRecordingClient Client { get; }
@@ -1196,6 +1198,11 @@ internal static class SceneSinkRecordingClientCanonicalDump
             if (componentReferencesById.TryGetValue(targetId, out string? componentReference))
             {
                 return componentReference;
+            }
+
+            if (fieldReferencesById.TryGetValue(targetId, out string? fieldReference))
+            {
+                return fieldReference;
             }
 
             return "external";
@@ -1285,6 +1292,69 @@ internal static class SceneSinkRecordingClientCanonicalDump
             }
 
             return references;
+        }
+
+        private Dictionary<string, string> CreateFieldReferences(SceneSinkRecordingClient client)
+        {
+            Dictionary<string, string> references = new(StringComparer.Ordinal);
+            foreach (Slot slot in client.SlotsById.Values.OrderBy(slot => GetSlotPath(slot.ID ?? string.Empty), StringComparer.Ordinal))
+            {
+                string slotPath = GetSlotPath(slot.ID ?? string.Empty);
+                AddFieldReference(references, slot.Name, $"field:slot:{slotPath}:Name");
+                AddFieldReference(references, slot.Parent, $"field:slot:{slotPath}:Parent");
+                AddFieldReference(references, slot.IsActive, $"field:slot:{slotPath}:IsActive");
+                AddFieldReference(references, slot.OrderOffset, $"field:slot:{slotPath}:OrderOffset");
+                AddFieldReference(references, slot.Position, $"field:slot:{slotPath}:Position");
+                AddFieldReference(references, slot.Rotation, $"field:slot:{slotPath}:Rotation");
+                AddFieldReference(references, slot.Tag, $"field:slot:{slotPath}:Tag");
+            }
+
+            foreach ((string componentId, Component component) in client.ComponentsById.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+            {
+                string componentReference = componentReferencesById.GetValueOrDefault(componentId, $"component:{componentId}");
+                foreach ((string memberName, Member member) in component.Members.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+                {
+                    AddFieldReference(references, member, $"field:{componentReference}:{memberName}");
+                }
+            }
+
+            return references;
+        }
+
+        private static void AddFieldReference(
+            Dictionary<string, string> references,
+            Member? member,
+            string fieldReference)
+        {
+            if (member is null)
+            {
+                return;
+            }
+
+            if (TryGetMemberId(member) is { Length: > 0 } memberId)
+            {
+                references.TryAdd(memberId, fieldReference);
+            }
+
+            if (member is SyncList syncList)
+            {
+                for (int index = 0; index < syncList.Elements.Count; index++)
+                {
+                    if (syncList.Elements[index] is Member element)
+                    {
+                        AddFieldReference(
+                            references,
+                            element,
+                            string.Create(CultureInfo.InvariantCulture, $"{fieldReference}[{index}]"));
+                    }
+                }
+            }
+        }
+
+        private static string? TryGetMemberId(Member member)
+        {
+            return member.GetType().GetProperty("ID", BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(member) as string;
         }
 
         private static string GetSlotPath(

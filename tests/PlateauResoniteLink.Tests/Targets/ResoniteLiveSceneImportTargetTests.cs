@@ -76,9 +76,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
         }
 
         string disabledDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(disabledClient);
+        string enabledDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(enabledClient);
         string enabledDumpWithoutCullingComponents = RemoveDistanceCullingComponents(
-            SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(enabledClient));
+            enabledDump);
         Assert.Equal(disabledDump, enabledDumpWithoutCullingComponents);
+        AssertDistanceCullingDumpTargetsPresentationSlotIsActive(enabledDump);
         AssertDistanceCullingDrivesPresentationSlotIsActiveFromSourceFileRoot(enabledClient, cityObject.DisplayName);
     }
 
@@ -1784,6 +1786,58 @@ public sealed class ResoniteLiveSceneImportTargetTests
         return type.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal)
             || type.Contains("ValueMultiDriver<bool>", StringComparison.Ordinal)
             || component.ToJsonString().Contains("PLATEAU.DistanceCulling.", StringComparison.Ordinal);
+    }
+
+    private static void AssertDistanceCullingDumpTargetsPresentationSlotIsActive(string dump)
+    {
+        JsonObject root = JsonNode.Parse(dump)?.AsObject()
+            ?? throw new InvalidOperationException("Canonical dump root must be a JSON object.");
+        JsonObject sceneRoot = root["root"]?.AsObject()
+            ?? throw new InvalidOperationException("Canonical dump root must contain a scene root.");
+        List<string> targets = [];
+        CollectUserDistanceTargetFields(sceneRoot, targets);
+
+        string target = Assert.Single(targets);
+        Assert.StartsWith("field:slot:", target, StringComparison.Ordinal);
+        Assert.EndsWith(":IsActive", target, StringComparison.Ordinal);
+        Assert.Contains("/LOD2/", target, StringComparison.Ordinal);
+    }
+
+    private static void CollectUserDistanceTargetFields(JsonObject slotNode, List<string> targets)
+    {
+        if (slotNode["components"] is JsonArray components)
+        {
+            foreach (JsonNode? componentNode in components)
+            {
+                if (componentNode is not JsonObject component)
+                {
+                    continue;
+                }
+
+                string type = (string?)component["type"] ?? string.Empty;
+                if (!type.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal)
+                    || component["members"] is not JsonObject members
+                    || members["TargetField"] is not JsonObject targetField)
+                {
+                    continue;
+                }
+
+                targets.Add((string?)targetField["target"] ?? string.Empty);
+            }
+        }
+
+        if (slotNode["children"] is not JsonArray children)
+        {
+            return;
+        }
+
+        foreach (JsonNode? child in children)
+        {
+            if (child is JsonObject childObject)
+            {
+                CollectUserDistanceTargetFields(childObject, targets);
+            }
+        }
     }
 
     private static void AssertDistanceCullingDrivesPresentationSlotIsActiveFromSourceFileRoot(
