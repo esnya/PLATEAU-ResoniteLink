@@ -46,12 +46,7 @@ internal static class ResoniteBatchEmissionPlanner
         List<PlannedBatchSlotEmission> slotEmissions = [];
         List<PlannedBatchComponentEmission> componentEmissions = [];
 
-        PlannedBatchSlotEmission presentationSlot = new(
-            PlannedSlotTargetReference.CanonicalSlot(objectSlots.LodSlot.Locator),
-            objectSlots.CityObjectSlotName,
-            objectSlots.CityObjectLocalPosition,
-            objectSlots.CityObjectRotation,
-            objectSlots.CityObjectOrderOffset);
+        PlannedBatchSlotEmission presentationSlot = PlannedBatchSlotEmission.Presentation(objectSlots);
         slotEmissions.Add(presentationSlot);
         PlannedSlotTargetReference presentationSlotTarget = PlannedSlotTargetReference.PlannedSlot(presentationSlot);
 
@@ -234,69 +229,11 @@ internal static class ResoniteBatchEmissionPlanner
                 .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
         componentEmissions.Add(heightTextureComponent);
 
-        PlannedFieldReference pointsField = new();
-        Field_int2 points = new()
-        {
-            Value = new int2
-            {
-                x = geometry.Width,
-                y = geometry.Height,
-            },
-        };
-        Field_float2 size = new()
-        {
-            Value = new float2
-            {
-                x = (float)geometry.Size.X,
-                y = (float)geometry.Size.Y,
-            },
-        };
-        Field_float displacement = new()
-        {
-            Value = -1.0f,
-        };
-        float firstBoundsY = (float)(geometry.MinHeight * displacement.Value);
-        float secondBoundsY = (float)(geometry.MaxHeight * displacement.Value);
-        Field_float minBoundsY = new()
-        {
-            Value = Math.Min(firstBoundsY, secondBoundsY),
-        };
-        Field_float maxBoundsY = new()
-        {
-            Value = Math.Max(firstBoundsY, secondBoundsY),
-        };
-        Field_float2? plannedUvScale = uvScale is null
-            ? null
-            : new Field_float2
-            {
-                Value = new float2
-                {
-                    x = (float)uvScale.X,
-                    y = (float)uvScale.Y,
-                },
-            };
-
-        Field_float2? plannedUvOffset = uvOffset is null
-            ? null
-            : new Field_float2
-            {
-                Value = new float2
-                {
-                    x = (float)uvOffset.X,
-                    y = (float)uvOffset.Y,
-                },
-            };
-
-        return new PlannedTerrainGridMeshBundle(
-            pointsField,
-            points,
-            size,
-            displacement,
-            minBoundsY,
-            maxBoundsY,
+        return PlannedTerrainGridMeshBundle.Create(
+            geometry,
             PlannedWorldElementReference.Planned(heightTextureComponent),
-            plannedUvScale,
-            plannedUvOffset);
+            uvScale,
+            uvOffset);
     }
 
     private static Dictionary<string, PlannedMember> CreateTerrainGridMeshMembers(
@@ -308,7 +245,7 @@ internal static class ResoniteBatchEmissionPlanner
             {
                 Value = true,
             }),
-            ["OverridenBoundingBox"] = PlannedMembers.Literal(CreateTerrainGridBoundingBox(terrainGridMesh)),
+            ["OverridenBoundingBox"] = PlannedMembers.Literal(terrainGridMesh.CreateOverriddenBoundingBox()),
             ["Points"] = PlannedMembers.AddressableField(terrainGridMesh.PointsField, terrainGridMesh.Points),
             ["Size"] = PlannedMembers.Literal(terrainGridMesh.Size),
             ["Rotation"] = PlannedMembers.Literal(TerrainGridRotation),
@@ -326,30 +263,6 @@ internal static class ResoniteBatchEmissionPlanner
         }
 
         return members;
-    }
-
-    private static Field_BoundingBox CreateTerrainGridBoundingBox(PlannedTerrainGridMeshBundle terrainGridMesh)
-    {
-        float halfWidth = Math.Abs(terrainGridMesh.Size.Value.x) / 2.0f;
-        float halfDepth = Math.Abs(terrainGridMesh.Size.Value.y) / 2.0f;
-        return new Field_BoundingBox
-        {
-            Value = new BoundingBox
-            {
-                min = new float3
-                {
-                    x = -halfWidth,
-                    y = terrainGridMesh.MinBoundsY.Value,
-                    z = -halfDepth,
-                },
-                max = new float3
-                {
-                    x = halfWidth,
-                    y = terrainGridMesh.MaxBoundsY.Value,
-                    z = halfDepth,
-                },
-            },
-        };
     }
 
     private static void AddDynamicMeshSwitchComponents(
@@ -596,53 +509,20 @@ internal static class ResoniteBatchEmissionPlanner
         PlannedBatchSlotEmission presentationSlot,
         PlannedMainTextureOverrideRendererMaterialBinding binding)
     {
-        if (binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
-            {
-                SharedMainTexturePropertyBlockComponent: { } sharedMainTexturePropertyBlockComponent,
-            })
-        {
-            return PlannedMembers.Reference(PlannedWorldElementReference.Canonical(sharedMainTexturePropertyBlockComponent));
-        }
-
-        PlannedWorldElementReference? sharedTextureTarget = binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
-        {
-            SharedMainTextureComponent: { } sharedMainTextureComponent,
-        }
-            ? PlannedWorldElementReference.Canonical(sharedMainTextureComponent)
-            : null;
-        PlannedBatchComponentEmission? textureComponent = null;
-        ResoniteSceneMaterialConventions.TextureMemberRole textureRole = binding switch
-        {
-            PlannedAlbedoMainTextureOverrideRendererMaterialBinding =>
-                ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
-            PlannedTerrainMainTextureOverrideRendererMaterialBinding =>
-                ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride,
-            _ => throw new InvalidOperationException(
-                $"Unsupported planned main texture override binding type '{binding.GetType().Name}'."),
-        };
-        if (sharedTextureTarget is null)
-        {
-            textureComponent = new PlannedBatchComponentEmission(
-                PlannedSlotTargetReference.PlannedSlot(presentationSlot),
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(
-                    binding.MainTexture.AssetUri,
-                    textureRole)
-                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal));
-            componentEmissions.Add(textureComponent);
-        }
-
-        PlannedWorldElementReference textureTarget = sharedTextureTarget
-            ?? PlannedWorldElementReference.Planned(textureComponent ?? throw new InvalidOperationException("Main texture property block did not create a texture component."));
-        PlannedBatchComponentEmission propertyBlock = new(
+        PlannedMainTexturePropertyBlockOverride propertyBlockOverride = PlannedMainTexturePropertyBlockOverride.Create(
             PlannedSlotTargetReference.PlannedSlot(presentationSlot),
-            "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
-            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
-            {
-                ["Texture"] = PlannedMembers.Reference(textureTarget),
-            });
-        componentEmissions.Add(propertyBlock);
+            PlannedSlotTargetReference.PlannedSlot(presentationSlot),
+            binding);
+        if (propertyBlockOverride.TextureComponent is not null)
+        {
+            componentEmissions.Add(propertyBlockOverride.TextureComponent);
+        }
 
-        return PlannedMembers.Reference(PlannedWorldElementReference.Planned(propertyBlock));
+        if (propertyBlockOverride.PropertyBlockComponent is not null)
+        {
+            componentEmissions.Add(propertyBlockOverride.PropertyBlockComponent);
+        }
+
+        return propertyBlockOverride.PropertyBlock;
     }
 }
