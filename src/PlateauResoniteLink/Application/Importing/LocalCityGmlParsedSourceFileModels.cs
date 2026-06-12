@@ -27,6 +27,20 @@ internal sealed record CachedSourceFileDescriptor(
     public string PackageName => SourceFile.PackageName;
 }
 
+internal sealed record CityObjectProjectionInput(
+    SourceFileDescriptor SourceFile,
+    ParsedCityObject CityObject,
+    CoordinateReferenceSystem ReferenceSystem)
+{
+    public string RelativePath => SourceFile.RelativePath;
+
+    public string PackageName => SourceFile.PackageName;
+}
+
+internal sealed record DemSourceFileTerrainGridSamplingDraft(
+    SourceFileDescriptor SourceFile,
+    ConstructionCityObjectDraft? Draft);
+
 internal sealed class SourceFilePipeline
 {
     private readonly object parseTaskGate = new();
