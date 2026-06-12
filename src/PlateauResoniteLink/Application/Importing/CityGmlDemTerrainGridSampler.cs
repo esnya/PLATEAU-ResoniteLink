@@ -9,6 +9,28 @@ internal static class CityGmlDemTerrainGridSampler
     private const double BoundarySampleToleranceMeters = 0.25;
 
     internal static DemTerrainGridHeightSamples Sample(
+        TerrainGridSamplingBounds bounds,
+        double metersPerVertex,
+        int maxResolution,
+        double fallbackHeight,
+        IReadOnlyList<TerrainGridTriangle> triangles,
+        Func<double, double, double>? fallbackHeightProvider = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Sample(
+            bounds.MinX,
+            bounds.MaxX,
+            bounds.MinZ,
+            bounds.MaxZ,
+            metersPerVertex,
+            maxResolution,
+            fallbackHeight,
+            triangles,
+            fallbackHeightProvider,
+            cancellationToken);
+    }
+
+    internal static DemTerrainGridHeightSamples Sample(
         double minX,
         double maxX,
         double minZ,
@@ -198,6 +220,12 @@ internal sealed record DemTerrainGridHeightSamples(
     int Height,
     double[] LocalHeights,
     TerrainGridSampleCoverage[] SampleCoverage);
+
+internal readonly record struct TerrainGridSamplingBounds(
+    double MinX,
+    double MaxX,
+    double MinZ,
+    double MaxZ);
 
 internal sealed record TerrainGridTriangle(
     Float3 A,
