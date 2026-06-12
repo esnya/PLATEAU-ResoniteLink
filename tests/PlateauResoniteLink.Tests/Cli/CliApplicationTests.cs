@@ -105,6 +105,44 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public async Task RunAsyncWritesCanonicalDumpCompletionWithoutLiveDestination()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        string dumpPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");
+        StubImportSink importSink = new();
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(importSink));
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            importServiceFactory,
+            CreateDatasetInspectionService());
+
+        int exitCode = await application.RunAsync(
+            [
+                "import",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--citygml-source",
+                fixturePath,
+                "--canonical-scene-dump",
+                dumpPath,
+            ]);
+
+        string output = standardOutput.ToString();
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Canonical scene dump completed.", output, StringComparison.Ordinal);
+        Assert.Contains($"Dump: {Path.GetFullPath(dumpPath)}", output, StringComparison.Ordinal);
+        Assert.Contains("World: PLATEAU tokyo23ku 53394525", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Resonite location:", output, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, standardError.ToString());
+    }
+
+    [Fact]
     public async Task RunAsyncReturnsFailureForOperationalException()
     {
         using StringWriter standardOutput = new();

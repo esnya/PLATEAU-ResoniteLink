@@ -133,7 +133,7 @@ internal sealed class DefaultSceneSinkFactory(
         AsyncServiceScope scope = serviceScopeFactory.CreateAsyncScope();
         try
         {
-            if (!string.IsNullOrWhiteSpace(options.CanonicalSceneDumpPath))
+            if (options.TargetMode is CanonicalSceneDumpImportMode canonicalDump)
             {
                 IResoniteCanonicalSceneDumpSinkFactory dumpSinkFactory =
                     scope.ServiceProvider.GetRequiredService<IResoniteCanonicalSceneDumpSinkFactory>();
@@ -141,12 +141,17 @@ internal sealed class DefaultSceneSinkFactory(
                     scope,
                     dumpSinkFactory.Create(
                         CreateCanonicalDumpTargetOptions(options, loggerFactory),
-                        options.CanonicalSceneDumpPath));
+                        canonicalDump.OutputPath));
+            }
+
+            if (options.TargetMode is not LiveResoniteLinkImportMode live)
+            {
+                throw new InvalidOperationException($"Unsupported import target mode '{options.TargetMode.GetType().Name}'.");
             }
 
             ResoniteLiveSceneImportTargetOptions targetOptions = new(
-                options.ResoniteLinkUri!,
-                options.ResoniteLinkConnectionCount,
+                live.Endpoint,
+                live.ConnectionCount,
                 options.EnableSendMetrics,
                 options.MemoryProfile switch
                 {

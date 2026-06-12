@@ -418,17 +418,19 @@ public static class CliArgumentsParser
                 "Specify either --resonitelink-port or --resonitelink-url.");
         }
 
+        ImportTargetMode targetMode = canonicalSceneDumpPath is null
+            ? new LiveResoniteLinkImportMode(resoniteLinkUri!, resoniteLinkConnectionCount)
+            : new CanonicalSceneDumpImportMode(canonicalSceneDumpPath);
+
         return CliParseResult.Success(
             new ImportCommandOptions(
                 request,
                 workRoot,
-                resoniteLinkUri,
-                resoniteLinkConnectionCount,
+                targetMode,
                 memoryProfile,
                 enableMeshBake,
                 terrainTileCacheRoot,
                 disableTerrainTileCache,
-                canonicalSceneDumpPath,
                 enableSendMetrics,
                 verboseLogging));
     }
