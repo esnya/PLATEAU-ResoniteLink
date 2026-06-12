@@ -53,16 +53,17 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             return false;
         }
 
-        Float3 slotPosition = CreateScenePosition(cityObjectOrigin, globalOriginPoint, globalCartesian);
+        DemTerrainGridFrame frame = DemTerrainGridFrame.Create(
+            cityObjectOrigin,
+            cityObjectCartesian,
+            globalOriginPoint,
+            globalCartesian);
         Float3[] positions = terrainGridSamplingSource.Surfaces
             .SelectMany(static surface => surface.Vertices)
-            .Select(point => CreateTerrainGridLocalPosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(frame.CreateLocalPosition)
             .ToArray();
-        TerrainGridTriangle[] triangles = CreateDemTerrainGridTriangles(terrainGridSamplingSource, cityObjectOrigin, cityObjectCartesian);
-        double seaLevelLocalHeight = CreateTerrainGridLocalPosition(
-            new GeodeticPoint(cityObjectOrigin.Latitude, cityObjectOrigin.Longitude, 0.0),
-            cityObjectOrigin,
-            cityObjectCartesian).Y;
+        TerrainGridTriangle[] triangles = CreateDemTerrainGridTriangles(terrainGridSamplingSource, frame);
+        double seaLevelLocalHeight = frame.SeaLevelLocalHeight;
         if (positions.Length < 3)
         {
             return false;
@@ -71,8 +72,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         if (!TryCreateDemTerrainGridBounds(
             cityObject,
             terrainGridSamplingSource,
-            cityObjectOrigin,
-            cityObjectCartesian,
+            frame,
             demTerrainTextureOverlay,
             requestedMeshCodeBounds,
             positions,
@@ -120,25 +120,23 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             request.TerrainGridMaxResolution,
             seaLevelLocalHeight,
             triangles,
-            CreateSeaLevelFallbackHeightProvider(slotPosition, cityObjectCartesian, globalCartesian),
+            frame.CreateSeaLevelFallbackHeightProvider(),
             cancellationToken);
         width = heightSamples.Width;
         height = heightSamples.Height;
         double[] sourceLocalHeights = heightSamples.LocalHeights;
         TerrainGridSampleCoverage[] sampleCoverage = heightSamples.SampleCoverage;
-        double sourceMinHeight = sourceLocalHeights.Min();
-        double sourceMaxHeight = sourceLocalHeights.Max();
-        double verticalOriginLocalHeight = (sourceMinHeight + sourceMaxHeight) / 2.0;
-        double[] localHeights = sourceLocalHeights
+        double verticalOriginLocalHeight = (sourceLocalHeights.Min() + sourceLocalHeights.Max()) / 2.0;
+        double[] relativeHeights = sourceLocalHeights
             .Select(height => height - verticalOriginLocalHeight)
             .ToArray();
-        double minHeight = localHeights.Min();
-        double maxHeight = localHeights.Max();
+        double minHeight = relativeHeights.Min();
+        double maxHeight = relativeHeights.Max();
 
         MaterialBinding[] materials = CityGmlSurfaceMaterialResolver.CreateDemTerrainGridMaterials(
             cityObject,
-            cityObjectOrigin,
-            cityObjectCartesian,
+            frame.Origin,
+            frame.Cartesian,
             demTerrainTextureOverlay,
             materialResolver);
         if (materials.Length == 0)
@@ -148,8 +146,8 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
         TextureUvRect? heightMapOccupiedUvRect = TryCreateDemTerrainGridOccupiedUvRect(
             cityObject,
-            cityObjectOrigin,
-            cityObjectCartesian,
+            frame.Origin,
+            frame.Cartesian,
             demTerrainTextureOverlay,
             heightMapBounds.GeographicBounds,
             materialResolver);
@@ -160,11 +158,11 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             ? ToContractFloat2(heightMapOccupiedUvRect.Value.OffsetValue)
             : null;
 
-        Float3 adjustedSlotPosition = slotPosition with
+        Float3 adjustedSlotPosition = frame.SlotPosition with
         {
-            X = slotPosition.X + centerX,
-            Y = slotPosition.Y + verticalOriginLocalHeight,
-            Z = slotPosition.Z + centerZ,
+            X = frame.SlotPosition.X + centerX,
+            Y = frame.SlotPosition.Y + verticalOriginLocalHeight,
+            Z = frame.SlotPosition.Z + centerZ,
         };
 
         TerrainGridGeometry geometry = new(
@@ -173,7 +171,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             Size: new Float2(extentX, extentZ),
             MinHeight: minHeight,
             MaxHeight: maxHeight,
-            HeightSamples: localHeights,
+            HeightSamples: relativeHeights,
             SampleCoverage: sampleCoverage,
             UvScale: heightMapUvScale,
             UvOffset: heightMapUvOffset);
@@ -227,8 +225,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
     private static bool TryCreateDemTerrainGridBounds(
         ConstructionCityObjectDraft cityObject,
         ConstructionCityObjectDraft terrainGridSamplingSource,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian cityObjectCartesian,
+        DemTerrainGridFrame frame,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         IReadOnlyList<Float3> positions,
@@ -259,8 +256,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
         Float3[] clippedAxisPositions = CreateClippedAxisPositions(
             clippedBounds,
-            cityObjectOrigin,
-            cityObjectCartesian);
+            frame);
 
         double clippedMinX = Math.Min(clippedAxisPositions[0].X, clippedAxisPositions[1].X);
         double clippedMaxX = Math.Max(clippedAxisPositions[0].X, clippedAxisPositions[1].X);
@@ -352,30 +348,17 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
     private static Float3[] CreateClippedAxisPositions(
         GeographicRectangle clippedBounds,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian cityObjectCartesian)
+        DemTerrainGridFrame frame)
     {
-        double boundsAltitude = cityObjectOrigin.Altitude;
-        double referenceLatitude = cityObjectOrigin.Latitude;
-        double referenceLongitude = cityObjectOrigin.Longitude;
+        double boundsAltitude = frame.Origin.Altitude;
+        double referenceLatitude = frame.Origin.Latitude;
+        double referenceLongitude = frame.Origin.Longitude;
         return
         [
-            CreateTerrainGridLocalPosition(
-                new GeodeticPoint(referenceLatitude, clippedBounds.MinLongitude, boundsAltitude),
-                cityObjectOrigin,
-                cityObjectCartesian),
-            CreateTerrainGridLocalPosition(
-                new GeodeticPoint(referenceLatitude, clippedBounds.MaxLongitude, boundsAltitude),
-                cityObjectOrigin,
-                cityObjectCartesian),
-            CreateTerrainGridLocalPosition(
-                new GeodeticPoint(clippedBounds.MinLatitude, referenceLongitude, boundsAltitude),
-                cityObjectOrigin,
-                cityObjectCartesian),
-            CreateTerrainGridLocalPosition(
-                new GeodeticPoint(clippedBounds.MaxLatitude, referenceLongitude, boundsAltitude),
-                cityObjectOrigin,
-                cityObjectCartesian),
+            frame.CreateLocalPosition(new GeodeticPoint(referenceLatitude, clippedBounds.MinLongitude, boundsAltitude)),
+            frame.CreateLocalPosition(new GeodeticPoint(referenceLatitude, clippedBounds.MaxLongitude, boundsAltitude)),
+            frame.CreateLocalPosition(new GeodeticPoint(clippedBounds.MinLatitude, referenceLongitude, boundsAltitude)),
+            frame.CreateLocalPosition(new GeodeticPoint(clippedBounds.MaxLatitude, referenceLongitude, boundsAltitude)),
         ];
     }
 
@@ -417,14 +400,13 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
 
     private static TerrainGridTriangle[] CreateDemTerrainGridTriangles(
         ConstructionCityObjectDraft cityObject,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian cityObjectCartesian)
+        DemTerrainGridFrame frame)
     {
         List<TerrainGridTriangle> triangles = [];
         foreach (ParsedSurface surface in cityObject.Surfaces)
         {
             Float3[] positions = surface.ExteriorRing.Vertices
-                .Select(point => CreateTerrainGridLocalPosition(point, cityObjectOrigin, cityObjectCartesian))
+                .Select(frame.CreateLocalPosition)
                 .ToArray();
             if (positions.Length < 3)
             {
@@ -439,45 +421,6 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         }
 
         return triangles.ToArray();
-    }
-
-    private static Func<double, double, double>? CreateSeaLevelFallbackHeightProvider(
-        Float3 slotPosition,
-        LocalCartesian cityObjectCartesian,
-        LocalCartesian? globalCartesian)
-    {
-        if (globalCartesian is null)
-        {
-            return null;
-        }
-
-        return (localX, localZ) =>
-        {
-            (double latitude, double longitude, _) = cityObjectCartesian.Reverse(
-                localX,
-                localZ,
-                0.0);
-            (_, _, double seaLevelUp) = globalCartesian.Forward(
-                latitude,
-                longitude,
-                0.0);
-            return seaLevelUp - slotPosition.Y;
-        };
-    }
-
-    private static GeodeticPoint ResolveCityObjectOrigin(ConstructionCityObjectDraft cityObject)
-    {
-        return CityObjectOriginResolver.Resolve(
-            cityObject.GeodeticOriginOverride,
-            cityObject.Surfaces.SelectMany(static surface => surface.Vertices));
-    }
-
-    private static Float3 CreateTerrainGridLocalPosition(
-        GeodeticPoint point,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian cityObjectCartesian)
-    {
-        return CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian);
     }
 
     private static Float3 CreateScenePosition(
@@ -505,6 +448,59 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         double MinZ,
         double MaxZ,
         GeographicRectangle GeographicBounds);
+
+    private sealed record DemTerrainGridFrame(
+        GeodeticPoint Origin,
+        LocalCartesian Cartesian,
+        Float3 SlotPosition,
+        LocalCartesian? GlobalCartesian)
+    {
+        public static DemTerrainGridFrame Create(
+            GeodeticPoint origin,
+            LocalCartesian cartesian,
+            GeodeticPoint globalOriginPoint,
+            LocalCartesian? globalCartesian)
+        {
+            ArgumentNullException.ThrowIfNull(origin);
+            ArgumentNullException.ThrowIfNull(cartesian);
+            ArgumentNullException.ThrowIfNull(globalOriginPoint);
+
+            return new DemTerrainGridFrame(
+                origin,
+                cartesian,
+                CreateScenePosition(origin, globalOriginPoint, globalCartesian),
+                globalCartesian);
+        }
+
+        public double SeaLevelLocalHeight => CreateLocalPosition(
+            new GeodeticPoint(Origin.Latitude, Origin.Longitude, 0.0)).Y;
+
+        public Float3 CreateLocalPosition(GeodeticPoint point)
+        {
+            return CreateScenePosition(point, Origin, Cartesian);
+        }
+
+        public Func<double, double, double>? CreateSeaLevelFallbackHeightProvider()
+        {
+            if (GlobalCartesian is null)
+            {
+                return null;
+            }
+
+            return (localX, localZ) =>
+            {
+                (double latitude, double longitude, _) = Cartesian.Reverse(
+                    localX,
+                    localZ,
+                    0.0);
+                (_, _, double seaLevelUp) = GlobalCartesian.Forward(
+                    latitude,
+                    longitude,
+                    0.0);
+                return seaLevelUp - SlotPosition.Y;
+            };
+        }
+    }
 }
 
 internal sealed record TerrainGridProjectedCityObject(
