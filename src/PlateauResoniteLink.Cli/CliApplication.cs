@@ -8,9 +8,8 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-
 using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Diagnostics;
 
 namespace PlateauResoniteLink.Cli;
 
@@ -66,8 +65,10 @@ public sealed class CliApplication
             {
                 case ImportCommandOptions options:
                     {
-                        using ILoggerFactory loggerFactory = CreateLoggerFactory(options.VerboseLogging);
-                        PlateauImportService effectiveImportService = importServiceFactory.Create(options, loggerFactory);
+                        string diagnosticsRunId = Guid.NewGuid().ToString("N");
+                        using IDisposable diagnosticsRun = PlateauDiagnostics.BeginRun(diagnosticsRunId);
+                        using CliProgressEventListener progressListener = new(standardError, options.VerboseLogging, diagnosticsRunId);
+                        PlateauImportService effectiveImportService = importServiceFactory.Create(options);
 
                         ImportExecutionResult result = await effectiveImportService.ExecuteAsync(
                             options.Request,
@@ -285,16 +286,5 @@ public sealed class CliApplication
             ImportDataSourceCategory.DemTextureSource => "DEM texture sources",
             _ => category.ToString(),
         };
-    }
-
-    private ILoggerFactory CreateLoggerFactory(bool verboseLogging)
-    {
-        LogLevel minimumLevel = verboseLogging ? LogLevel.Debug : LogLevel.Information;
-        return LoggerFactory.Create(builder =>
-        {
-            builder.ClearProviders();
-            builder.SetMinimumLevel(minimumLevel);
-            builder.AddProvider(new CliTextWriterLoggerProvider(standardOutput, minimumLevel));
-        });
     }
 }

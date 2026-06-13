@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Diagnostics;
@@ -17,8 +16,7 @@ internal sealed record LiveSendRunExecutionContext
         Uri Endpoint,
         int ConnectionCount,
         ILiveSendClientSession ClientSession,
-        ResoniteLinkSendDiagnostics Diagnostics,
-        ILogger Logger)
+        ResoniteLinkSendDiagnostics Diagnostics)
     {
         ArgumentNullException.ThrowIfNull(Endpoint);
         ArgumentOutOfRangeException.ThrowIfLessThan(ConnectionCount, 1);
@@ -29,7 +27,6 @@ internal sealed record LiveSendRunExecutionContext
         this.ConnectionCount = ConnectionCount;
         this.ClientSession = ClientSession;
         this.Diagnostics = Diagnostics;
-        this.Logger = Logger;
     }
 
     public Uri Endpoint { get; }
@@ -39,8 +36,6 @@ internal sealed record LiveSendRunExecutionContext
     public ILiveSendClientSession ClientSession { get; }
 
     public ResoniteLinkSendDiagnostics Diagnostics { get; }
-
-    public ILogger Logger { get; }
 }
 
 internal interface IResoniteLiveSendRunExecutorFactory
@@ -107,7 +102,7 @@ internal sealed class ResoniteLiveSendRunExecutor(
                     cancellationToken);
                 if (sourceUnitsSeen % 25 == 0)
                 {
-                    context.Logger.WriteInformation(
+                    PlateauDiagnostics.Progress(
                         "Live send ingest progress: phase=streaming, source_units_seen={SourceObjectUnitCount}, source_city_objects_seen={SourceCityObjectCount}, queued={QueuedSourceCount}, sent={SentCount}, failed={FailedCount}, backlog={BacklogCount}.",
                         sourceUnitsSeen,
                         sourceCityObjectsSeen,

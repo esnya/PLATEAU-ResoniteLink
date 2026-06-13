@@ -4,8 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Diagnostics;
 using PlateauResoniteLink.Targets.Resonite.Execution;
@@ -20,7 +18,6 @@ internal static class ResoniteDistanceCullingFinalizer
     public static async Task EmitAsync(
         LiveSendRunState state,
         IResoniteLinkClient client,
-        ILogger logger,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -34,7 +31,7 @@ internal static class ResoniteDistanceCullingFinalizer
         IReadOnlyList<ResoniteDistanceCullingSourceFilePlan> sourceFilePlans = state.DistanceCulling.CreatePlans();
         if (sourceFilePlans.Count == 0)
         {
-            logger.WriteDebug("Distance culling enabled but no eligible LOD parent slots were sent.");
+            PlateauDiagnostics.Verbose("Distance culling enabled but no eligible LOD parent slots were sent.");
             return;
         }
 
@@ -43,7 +40,6 @@ internal static class ResoniteDistanceCullingFinalizer
             await EmitSourceFilePlanAsync(
                 client,
                 sourceFilePlan,
-                logger,
                 cancellationToken);
         }
     }
@@ -51,7 +47,6 @@ internal static class ResoniteDistanceCullingFinalizer
     private static async Task EmitSourceFilePlanAsync(
         IResoniteLinkClient client,
         ResoniteDistanceCullingSourceFilePlan sourceFilePlan,
-        ILogger logger,
         CancellationToken cancellationToken)
     {
         Dictionary<DistanceCullingClass, List<string>> targetFieldIdsByClass = new();
@@ -83,7 +78,7 @@ internal static class ResoniteDistanceCullingFinalizer
         }
 
         _ = await client.RunDataModelOperationBatchAsync(operations, cancellationToken);
-        logger.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "Distance culling components emitted for source file root '{SourceFileRoot}' (groups={GroupCount}, operations={OperationCount}).",
             sourceFilePlan.SourceFileSlot.SlotName,
             targetFieldIdsByClass.Count,

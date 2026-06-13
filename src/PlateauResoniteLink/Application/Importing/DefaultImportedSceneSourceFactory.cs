@@ -2,9 +2,6 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFactory
@@ -28,25 +25,17 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
 
     public Task<IImportedSceneSource> CreateAsync(
         ResolvedLocalPlateauImportRequest request,
-        ILoggerFactory? loggerFactory = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return CreateResolvedCoreAsync(
-            request,
-            loggerFactory ?? NullLoggerFactory.Instance,
-            cancellationToken);
+        return CreateResolvedCoreAsync(request, cancellationToken);
     }
 
     private async Task<IImportedSceneSource> CreateResolvedCoreAsync(
         ResolvedLocalPlateauImportRequest request,
-        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
-        ImportedSceneSourceSnapshot readResult = await documentReader.ReadAsync(
-            request,
-            loggerFactory.CreateLogger("PlateauResoniteLink.Import"),
-            cancellationToken);
-        return constructionComposer.Compose(request, readResult, objectUnitOptimizer, loggerFactory);
+        ImportedSceneSourceSnapshot readResult = await documentReader.ReadAsync(request, cancellationToken);
+        return constructionComposer.Compose(request, readResult, objectUnitOptimizer);
     }
 }

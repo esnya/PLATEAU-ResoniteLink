@@ -4,7 +4,6 @@ using System.Threading;
 
 using GeographicLib;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -26,7 +25,6 @@ internal sealed class LocalCityGmlGeometryProjector(
         PlateauImportRequest request,
         DemSourceFileTerrainGridSamplingDraft? demTerrainGridSamplingDraft = null,
         Func<ParsedCityObject, bool>? predicate = null,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         return LocalCityGmlObjectProjection.ProjectCityObject(
@@ -40,9 +38,7 @@ internal sealed class LocalCityGmlGeometryProjector(
             request,
             materialResolver,
             demTerrainGridSamplingDraft,
-            predicate,
-            logger,
-            cancellationToken);
+            predicate, cancellationToken);
     }
 
     public IEnumerable<ImportedCityObject> ProjectCityObjects(
@@ -55,7 +51,6 @@ internal sealed class LocalCityGmlGeometryProjector(
         IReadOnlyList<string> selectedMeshCodes,
         PlateauImportRequest request,
         Func<ParsedCityObject, bool>? predicate = null,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         return LocalCityGmlObjectProjection.ProjectCityObjects(
@@ -68,8 +63,6 @@ internal sealed class LocalCityGmlGeometryProjector(
             selectedMeshCodes,
             request,
             materialResolver,
-            predicate,
-            logger,
-            cancellationToken);
+            predicate, cancellationToken);
     }
 }

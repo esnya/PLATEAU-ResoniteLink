@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -24,7 +23,6 @@ internal static class CityGmlParsedCityObjectProjection
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
         Func<ParsedCityObject, bool>? predicate = null,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sourceFile);
@@ -62,9 +60,7 @@ internal static class CityGmlParsedCityObjectProjection
                              request,
                              materialResolver,
                              new DemSourceFileTerrainGridSamplingDraft(sourceFile.SourceFile, sourceFileTerrainGridSamplingDraft),
-                             predicate,
-                             logger,
-                             cancellationToken))
+                             predicate, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     yield return cityObject;
@@ -88,9 +84,7 @@ internal static class CityGmlParsedCityObjectProjection
                          request,
                          materialResolver,
                          demTerrainGridSamplingDraft: null,
-                         predicate: predicate,
-                         logger: logger,
-                         cancellationToken: cancellationToken))
+                         predicate: predicate, cancellationToken: cancellationToken))
             {
                 yield return cityObject;
             }
@@ -109,7 +103,6 @@ internal static class CityGmlParsedCityObjectProjection
         IDefaultMaterialResolver materialResolver,
         DemSourceFileTerrainGridSamplingDraft? demTerrainGridSamplingDraft = null,
         Func<ParsedCityObject, bool>? predicate = null,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -143,9 +136,7 @@ internal static class CityGmlParsedCityObjectProjection
                      requestedMeshCodeBounds,
                      terrainHeightSampler: null,
                      request,
-                     materialResolver,
-                     logger,
-                     demTerrainGridSamplingSourceOverride: terrainGridSamplingDraft,
+                     materialResolver, demTerrainGridSamplingSourceOverride: terrainGridSamplingDraft,
                      cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -172,7 +163,6 @@ internal static class CityGmlParsedCityObjectProjection
         ProjectionTerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
-        ILogger? logger = null,
         ConstructionCityObjectDraft? demTerrainGridSamplingSourceOverride = null,
         CancellationToken cancellationToken = default)
     {
@@ -196,9 +186,7 @@ internal static class CityGmlParsedCityObjectProjection
                      constructionDraft,
                      demTerrainTextureOverlays,
                      requestedMeshCodeBounds,
-                     AllowMissingGeneratedDemOverlayCoverage(constructionDraft),
-                     logger,
-                     cancellationToken))
+                     AllowMissingGeneratedDemOverlayCoverage(constructionDraft), cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
             ImportedCityObject cityObject = ProjectTerrainMeshModeCityObject(
@@ -209,9 +197,7 @@ internal static class CityGmlParsedCityObjectProjection
                 partitionedCityObject.Overlay,
                 request,
                 requestedMeshCodeBounds,
-                materialResolver,
-                logger,
-                cancellationToken);
+                materialResolver, cancellationToken);
 
             if (HasRenderableGeometry(cityObject))
             {
@@ -368,7 +354,6 @@ internal static class CityGmlParsedCityObjectProjection
         PlateauImportRequest request,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver,
-        ILogger? logger,
         CancellationToken cancellationToken)
     {
         bool isDem = string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
@@ -399,9 +384,7 @@ internal static class CityGmlParsedCityObjectProjection
             demTerrainTextureOverlay,
             request,
             requestedMeshCodeBounds,
-            materialResolver,
-            logger,
-            cancellationToken,
+            materialResolver, cancellationToken,
             out bool outsideTerrainGridSamplingBounds,
             out TerrainGridProjectedCityObject? heightMapCityObject);
         if (!hasGrid)

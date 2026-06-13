@@ -5,7 +5,6 @@ using System.Threading;
 
 using GeographicLib;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -18,7 +17,6 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         bool allowMissingGeneratedDemOverlayCoverage = false,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         foreach ((ConstructionCityObjectDraft CityObject, TerrainTextureOverlay? Overlay) partitionedCityObject
@@ -26,9 +24,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                      ConstructionCityObjectDraft.FromParsedCityObject(cityObject),
                      demTerrainTextureOverlays,
                      requestedMeshCodeBounds,
-                     allowMissingGeneratedDemOverlayCoverage,
-                     logger,
-                     cancellationToken))
+                     allowMissingGeneratedDemOverlayCoverage, cancellationToken))
         {
             yield return (partitionedCityObject.CityObject.Source, partitionedCityObject.Overlay);
         }
@@ -39,7 +35,6 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         bool allowMissingGeneratedDemOverlayCoverage = false,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         if (string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
@@ -49,9 +44,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                          cityObject.Source,
                          demTerrainTextureOverlays,
                          requestedMeshCodeBounds,
-                         allowMissingGeneratedDemOverlayCoverage,
-                         logger,
-                         cancellationToken))
+                         allowMissingGeneratedDemOverlayCoverage, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yield return (ConstructionCityObjectDraft.FromParsedCityObject(partitionedCityObject.CityObject), partitionedCityObject.Overlay);
@@ -64,9 +57,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
                  in PartitionBuildingByTerrainOverlayMaterialSource(
                      cityObject,
                      demTerrainTextureOverlays,
-                     requestedMeshCodeBounds,
-                     logger,
-                     cancellationToken))
+                     requestedMeshCodeBounds, cancellationToken))
         {
             yield return nonDemPartition;
         }
@@ -76,7 +67,6 @@ internal static class TerrainOverlayMaterialSourcePartitioner
         ConstructionCityObjectDraft cityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
-        ILogger? logger,
         CancellationToken cancellationToken)
     {
         if (demTerrainTextureOverlays.Count == 0 || !PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName))
@@ -165,9 +155,7 @@ internal static class TerrainOverlayMaterialSourcePartitioner
             IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
                 DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
                     terrainMaterialSurface,
-                    candidateOverlays,
-                    logger,
-                    cancellationToken);
+                    candidateOverlays, cancellationToken);
             if (clippedSurfaces.Count == 0)
             {
                 untexturedFaces.Add(face);

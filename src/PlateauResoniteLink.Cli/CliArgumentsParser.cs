@@ -62,7 +62,7 @@ public static class CliArgumentsParser
           --no-mesh-bake         Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
           --distance-culling     Optional. Enable opt-in live runtime distance culling components.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
-          --verbose              Optional. Include debug-level progress logs.
+          --verbose              Optional. Include detailed progress diagnostics.
 
         Search/stats options:
           --citygml-source <path>

@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Diagnostics;
 
@@ -21,17 +20,15 @@ internal static class PlannedBatchEmissionInterpreter
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
-        ILogger logger,
         CancellationToken cancellationToken)
     {
-        return ExecuteCoreAsync(client, cityObject, batchEmission, logger, cancellationToken);
+        return ExecuteCoreAsync(client, cityObject, batchEmission, cancellationToken);
     }
 
     private static async Task ExecuteCoreAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
-        ILogger logger,
         CancellationToken cancellationToken)
     {
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
@@ -74,7 +71,7 @@ internal static class PlannedBatchEmissionInterpreter
                 && pointsMember is Field_int2 points
                 && displacementMember is Field_float displacement)
             {
-                logger.WriteDebug(
+                PlateauDiagnostics.Verbose(
                     "Terrain grid displacement texture ready. Creating GridMesh ({Width}x{Height}, displacement={Displacement:F3}).",
                     points.Value.x,
                     points.Value.y,
@@ -93,7 +90,7 @@ internal static class PlannedBatchEmissionInterpreter
         Stopwatch batchStopwatch = Stopwatch.StartNew();
         BatchResponse batchResponse = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
         batchStopwatch.Stop();
-        logger.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "City object '{DisplayName}' batch completed in {ElapsedSeconds:F3}s (operations={OperationCount}, est_payload_bytes={EstimatedPayloadBytes}).",
             cityObject.DisplayName,
             batchStopwatch.Elapsed.TotalSeconds,

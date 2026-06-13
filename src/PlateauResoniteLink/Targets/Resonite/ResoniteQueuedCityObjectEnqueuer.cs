@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Diagnostics;
 
@@ -124,10 +123,10 @@ internal static class ResoniteQueuedCityObjectEnqueuer
             cancellationToken);
         if (Interlocked.CompareExchange(ref state.Progress.FirstQueuedCityObjectLogged, 1, 0) == 0)
         {
-            context.Logger.WriteInformation(
+            PlateauDiagnostics.Progress(
                 "First city object queued after {ElapsedSeconds:F3}s.",
                 state.Runtime.ElapsedTotalSeconds);
-            context.Logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "First queued city object detail: {DisplayName} ({PackageName}/{SlotKey}) estimated_workset_bytes={EstimatedWorksetBytes}.",
                 cityObject.DisplayName,
                 cityObject.PackageName,
@@ -146,7 +145,7 @@ internal static class ResoniteQueuedCityObjectEnqueuer
             int queuedCount = Interlocked.Increment(ref state.Progress.QueuedCityObjectCount);
             if (queuedCount % 25 == 0)
             {
-                context.Logger.WriteDebug(
+                PlateauDiagnostics.Verbose(
                     "Live send queue progress: queued={QueuedSourceCount}, attempted={AttemptedCount}, sent={SentCount}, failed={FailedCount}, backlog={BacklogCount}.",
                     queuedCount,
                     state.Progress.AttemptedCityObjectCount,
@@ -219,20 +218,16 @@ internal sealed record LiveSendEnqueueContext
 {
     public LiveSendEnqueueContext(
         int ConnectionCount,
-        Func<IResoniteLinkClient> GetRoutedClient,
-        ILogger Logger)
+        Func<IResoniteLinkClient> GetRoutedClient)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(ConnectionCount, 1);
         ArgumentNullException.ThrowIfNull(GetRoutedClient);
 
         this.ConnectionCount = ConnectionCount;
         this.GetRoutedClient = GetRoutedClient;
-        this.Logger = Logger;
     }
 
     public int ConnectionCount { get; }
 
     public Func<IResoniteLinkClient> GetRoutedClient { get; }
-
-    public ILogger Logger { get; }
 }

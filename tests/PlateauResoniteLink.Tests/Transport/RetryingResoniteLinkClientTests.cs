@@ -26,7 +26,6 @@ public sealed class RetryingResoniteLinkClientTests
     public async Task ImportMeshAsyncDoesNotReconnectOrRetryAfterFailure()
     {
         int createdClientCount = 0;
-        RecordingLogger logger = new();
         using StubReconnectableClient firstClient = new(failImportMesh: true);
         using StubReconnectableClient secondClient = new(failImportMesh: false);
 
@@ -35,8 +34,7 @@ public sealed class RetryingResoniteLinkClientTests
             {
                 createdClientCount++;
                 return createdClientCount == 1 ? firstClient : secondClient;
-            },
-            logger);
+            });
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
         ResoniteLinkOperationException exception = await Assert.ThrowsAsync<ResoniteLinkOperationException>(
@@ -50,15 +48,6 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.Equal(1, firstClient.ConnectCallCount);
         Assert.Equal(0, secondClient.ConnectCallCount);
         Assert.Equal(1, createdClientCount);
-        Assert.Contains(
-            logger.Messages,
-            static message => message.Contains("failed without retry", StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            logger.Messages,
-            static message => message.Contains("Reconnecting before retry", StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            logger.Messages,
-            static message => message.Contains("Reconnected ResoniteLink client", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -80,7 +69,6 @@ public sealed class RetryingResoniteLinkClientTests
     public async Task ImportMeshAsyncRetiresClientAfterFatalProtocolFailureAndReconnectsReplacement()
     {
         int createdClientCount = 0;
-        RecordingLogger logger = new();
         using StubReconnectableClient firstClient = new(importMeshExceptionMessage: "ResoniteLink import mesh returned a null response.");
         using StubReconnectableClient secondClient = new();
 
@@ -89,8 +77,7 @@ public sealed class RetryingResoniteLinkClientTests
             {
                 createdClientCount++;
                 return createdClientCount == 1 ? firstClient : secondClient;
-            },
-            logger);
+            });
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
 
@@ -121,16 +108,12 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.Equal(1, firstClient.ImportMeshCallCount);
         Assert.Equal(2, createdClientCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
-        Assert.Contains(
-            logger.Messages,
-            static message => message.Contains("retired the active client", StringComparison.Ordinal));
     }
 
     [Fact]
     public async Task ImportTextureAsyncReconnectsAndRetriesAfterFailure()
     {
         int createdClientCount = 0;
-        RecordingLogger logger = new();
         using StubReconnectableClient firstClient = new(failImportTexture: true);
         using StubReconnectableClient secondClient = new();
 
@@ -139,8 +122,7 @@ public sealed class RetryingResoniteLinkClientTests
             {
                 createdClientCount++;
                 return createdClientCount == 1 ? firstClient : secondClient;
-            },
-            logger);
+            });
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
         Uri importedTexture = await client.ImportTextureAsync(
@@ -152,19 +134,12 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.Equal(1, secondClient.ImportTextureCallCount);
         Assert.Equal(2, createdClientCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
-        Assert.Contains(
-            logger.Messages,
-            static message => message.Contains("Reconnecting before retry", StringComparison.Ordinal));
-        Assert.Contains(
-            logger.Messages,
-            static message => message.Contains("Reconnected ResoniteLink client", StringComparison.Ordinal));
     }
 
     [Fact]
     public async Task ImportTextureAsyncRetriesAfterFatalProtocolFailure()
     {
         int createdClientCount = 0;
-        RecordingLogger logger = new();
         using StubReconnectableClient firstClient = new(importTextureExceptionMessage: "ResoniteLink import texture returned a null response.");
         using StubReconnectableClient secondClient = new();
 
@@ -173,8 +148,7 @@ public sealed class RetryingResoniteLinkClientTests
             {
                 createdClientCount++;
                 return createdClientCount == 1 ? firstClient : secondClient;
-            },
-            logger);
+            });
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
         Uri importedTexture = await client.ImportTextureAsync(
@@ -186,19 +160,12 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.Equal(1, secondClient.ImportTextureCallCount);
         Assert.Equal(2, createdClientCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
-        Assert.Contains(
-            logger.Messages,
-            static message => message.Contains("Prepared a fresh client after a fatal protocol failure and will retry", StringComparison.Ordinal));
-        Assert.DoesNotContain(
-            logger.Messages,
-            static message => message.Contains("failed without retry", StringComparison.Ordinal));
     }
 
     [Fact]
     public async Task GetSlotAsyncReconnectsAndRetriesAfterFailure()
     {
         int createdClientCount = 0;
-        RecordingLogger logger = new();
         using StubReconnectableClient firstClient = new(failGetSlot: true);
         using StubReconnectableClient secondClient = new();
 
@@ -207,8 +174,7 @@ public sealed class RetryingResoniteLinkClientTests
             {
                 createdClientCount++;
                 return createdClientCount == 1 ? firstClient : secondClient;
-            },
-            logger);
+            });
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
         Slot? result = await client.GetSlotAsync(new TransportSlotLocator("slot-id"), 0, CancellationToken.None);
@@ -220,12 +186,6 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.Equal(1, firstClient.ConnectCallCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
         Assert.Equal(2, createdClientCount);
-        Assert.Contains(
-            logger.Messages,
-            static message => message.Contains("Reconnecting before retry", StringComparison.Ordinal));
-        Assert.Contains(
-            logger.Messages,
-            static message => message.Contains("Reconnected ResoniteLink client", StringComparison.Ordinal));
     }
 
     [Fact]

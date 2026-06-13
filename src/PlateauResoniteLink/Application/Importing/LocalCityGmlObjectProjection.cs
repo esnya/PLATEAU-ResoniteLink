@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -71,7 +70,6 @@ internal static class LocalCityGmlObjectProjection
         IDefaultMaterialResolver materialResolver,
         DemSourceFileTerrainGridSamplingDraft? demTerrainGridSamplingDraft = null,
         Func<global::PlateauResoniteLink.Application.Importing.ParsedCityObject, bool>? predicate = null,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         return CityGmlParsedCityObjectProjection.ProjectObject(
@@ -85,9 +83,7 @@ internal static class LocalCityGmlObjectProjection
             request,
             materialResolver,
             demTerrainGridSamplingDraft,
-            predicate,
-            logger,
-            cancellationToken);
+            predicate, cancellationToken);
     }
 
     internal static IEnumerable<ImportedCityObject> ProjectCityObjects(
@@ -101,7 +97,6 @@ internal static class LocalCityGmlObjectProjection
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
         Func<global::PlateauResoniteLink.Application.Importing.ParsedCityObject, bool>? predicate = null,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         return CityGmlParsedCityObjectProjection.ProjectSourceFile(
@@ -114,9 +109,7 @@ internal static class LocalCityGmlObjectProjection
             selectedMeshCodes,
             request,
             materialResolver,
-            predicate,
-            logger,
-            cancellationToken);
+            predicate, cancellationToken);
     }
 
     internal static IEnumerable<ImportedCityObject> ProjectParsedCityObject(
@@ -128,7 +121,6 @@ internal static class LocalCityGmlObjectProjection
         ProjectionTerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         return CityGmlParsedCityObjectProjection.Project(
@@ -139,9 +131,7 @@ internal static class LocalCityGmlObjectProjection
             requestedMeshCodeBounds,
             terrainHeightSampler,
             request,
-            materialResolver,
-            logger,
-            cancellationToken: cancellationToken);
+            materialResolver, cancellationToken: cancellationToken);
     }
 
     internal static IEnumerable<MaterialBinding> EnumerateCommonMaterialsForParsedCityObject(

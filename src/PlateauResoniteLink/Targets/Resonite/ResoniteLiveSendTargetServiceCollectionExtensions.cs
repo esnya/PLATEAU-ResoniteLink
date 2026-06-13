@@ -15,8 +15,8 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddScoped<Func<Microsoft.Extensions.Logging.ILogger, IResoniteLinkClient>>(
-            _ => static logger => new ResoniteLinkClient(logger));
+        services.TryAddScoped<Func<IResoniteLinkClient>>(
+            _ => static () => new ResoniteLinkClient());
         services.TryAddScoped<BundledDefaultMaterialAssetStore>();
         services.TryAddScoped<ResoniteTextureImageLoader>();
         services.TryAddScoped<INonDemSourceFileBakeEmitterFactory, NonDemSourceFileBakeEmitterFactory>();

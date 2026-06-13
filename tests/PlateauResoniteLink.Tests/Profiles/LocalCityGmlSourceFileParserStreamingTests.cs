@@ -7,7 +7,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging.Abstractions;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -82,7 +81,6 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             [sourceFile],
             datasetSource,
             [],
-            logger: NullLogger.Instance,
             new LodFilteringStrategy(),
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector(),
@@ -337,7 +335,6 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             [sourceFile],
             datasetSource,
             [],
-            logger: NullLogger.Instance,
             new LodFilteringStrategy(),
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector(),
@@ -460,7 +457,6 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             [sourceFile],
             datasetSource,
             [],
-            logger: NullLogger.Instance,
             new LodFilteringStrategy(),
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector(),
@@ -523,7 +519,6 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             [sourceFile],
             datasetSource,
             [],
-            logger: NullLogger.Instance,
             new LodFilteringStrategy(),
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector(),

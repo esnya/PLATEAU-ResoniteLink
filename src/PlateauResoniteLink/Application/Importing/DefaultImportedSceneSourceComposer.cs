@@ -1,9 +1,6 @@
 using System;
 using System.Linq;
 
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
@@ -20,8 +17,7 @@ internal sealed class DefaultImportedSceneSourceComposer(
     public IImportedSceneSource Compose(
         ResolvedLocalPlateauImportRequest request,
         ImportedSceneSourceSnapshot readResult,
-        IImportedObjectUnitOptimizer objectUnitOptimizer,
-        ILoggerFactory? loggerFactory = null)
+        IImportedObjectUnitOptimizer objectUnitOptimizer)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(readResult);
@@ -51,8 +47,7 @@ internal sealed class DefaultImportedSceneSourceComposer(
             readResult,
             geometryProjector,
             demTextureSourcePolicy,
-            objectUnitOptimizer,
-            loggerFactory ?? NullLoggerFactory.Instance);
+            objectUnitOptimizer);
     }
 
     private static Attribution CreateAttribution(PlateauImportRequest request)

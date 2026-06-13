@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Diagnostics;
 
@@ -25,20 +24,19 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
         ResoniteSceneSetupState setupState,
         CommonMaterialAssetCache materials,
         CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
-        ILogger logger,
         CancellationToken cancellationToken)
     {
         CommonMaterialCatalog<ResoniteCommonMaterialPlan> commonMaterialPlans =
             ResoniteCommonMaterialPlans.CreateCatalogPlans(commonMaterials);
         if (commonMaterialPlans.Count == 0)
         {
-            logger.WriteDebug("No common material assets are required during scene setup.");
+            PlateauDiagnostics.Verbose("No common material assets are required during scene setup.");
             return;
         }
 
         Stopwatch stopwatch = Stopwatch.StartNew();
         int preparedCount = 0;
-        logger.WriteInformation(
+        PlateauDiagnostics.Progress(
             "Preparing {CommonMaterialAssetCount} common material assets during scene setup before object streaming.",
             commonMaterialPlans.Count);
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
@@ -63,7 +61,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
             }
 
             Stopwatch materialStopwatch = Stopwatch.StartNew();
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "Preparing common material asset {PreparedCount}/{TotalCount}: family='{FamilySlotName}', slot='{MaterialSlotName}'.",
                 preparedCount + 1,
                 commonMaterialPlans.Count,
@@ -87,7 +85,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
                     material,
                     new CreatedMaterialAsset(existingComponent.Value, null)));
                 preparedCount++;
-                logger.WriteDebug(
+                PlateauDiagnostics.Verbose(
                     "Reused common material asset {PreparedCount}/{TotalCount}: family='{FamilySlotName}', slot='{MaterialSlotName}', elapsed_s={ElapsedSeconds:F2}.",
                     preparedCount,
                     commonMaterialPlans.Count,
@@ -129,7 +127,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
                 pendingMaterialSlot,
                 pendingMaterialComponent));
             preparedCount++;
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "Planned common material asset {PreparedCount}/{TotalCount}: family='{FamilySlotName}', slot='{MaterialSlotName}', texture_import_elapsed_s={ElapsedSeconds:F2}.",
                 preparedCount,
                 commonMaterialPlans.Count,
@@ -156,7 +154,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
                     new CreatedMaterialAsset(createdMaterialComponent.Locator, null)));
             }
 
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "Created {PreparedMaterialCount} common material assets in one setup component batch.",
                 preparedMaterials.Count);
         }
@@ -166,7 +164,7 @@ internal sealed class ResoniteCommonMaterialSetupPreparer(
             materials.CommonMaterialFamilyWarmupTasks[family] = Task.CompletedTask;
         }
 
-        logger.WriteInformation(
+        PlateauDiagnostics.Progress(
             "Prepared {PreparedCount} common material assets during scene setup in {ElapsedSeconds:F2}s.",
             preparedCount,
             stopwatch.Elapsed.TotalSeconds);

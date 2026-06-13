@@ -6,10 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Diagnostics;
-using Microsoft.Extensions.Logging.Abstractions;
 
 using ResoniteLink;
 
@@ -20,7 +18,6 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
     private const int AttemptLimit = 2;
 
     private readonly Func<IResoniteLinkClient> clientFactory;
-    private readonly ILogger logger;
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
     private readonly ConcurrentBag<ClientState> knownClients = [];
     private ClientState currentClient;
@@ -28,12 +25,9 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
     private int disposed;
 
     public RetryingResoniteLinkClient(
-        Func<IResoniteLinkClient> clientFactory,
-        ILogger? logger = null)
+        Func<IResoniteLinkClient> clientFactory)
     {
         this.clientFactory = clientFactory;
-        this.logger = logger ?? NullLogger.Instance;
-
         currentClient = new ClientState(clientFactory());
         knownClients.Add(currentClient);
     }
@@ -83,7 +77,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
                     break;
                 }
 
-                logger.WriteWarning(
+                PlateauDiagnostics.Warning(
                     "ResoniteLink connect failed on attempt {Attempt}/{AttemptLimit}. Creating a fresh client before retry. Reason: {Reason}",
                     attempt,
                     AttemptLimit,
@@ -239,13 +233,13 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             if (ShouldRetireClientAfterFailure(exception))
             {
                 await ReplaceClientAfterFatalFailureAsync(observedClient, operationName, cancellationToken);
-                logger.WriteWarning(
+                PlateauDiagnostics.Warning(
                     "ResoniteLink {OperationName} retired the active client after a fatal protocol failure. Reason: {Reason}",
                     operationName,
                     exception.Message);
             }
 
-            logger.WriteWarning(
+            PlateauDiagnostics.Warning(
                 "ResoniteLink {OperationName} failed without retry. Reason: {Reason}",
                 operationName,
                 exception.Message);
@@ -269,7 +263,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             occupancyDescriptorProvider);
         stopwatch.Stop();
 
-        logger.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "ResoniteLink {OperationName} completed in {ElapsedSeconds:F3}s.",
             operationName,
             stopwatch.Elapsed.TotalSeconds);
@@ -295,7 +289,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             retryAfterFatalProtocolFailure);
         stopwatch.Stop();
 
-        logger.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "ResoniteLink {OperationName} completed in {ElapsedSeconds:F3}s.",
             operationName,
             stopwatch.Elapsed.TotalSeconds);
@@ -374,7 +368,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
 
                     if (retryAfterFatalProtocolFailure && attempt < AttemptLimit)
                     {
-                        logger.WriteWarning(
+                        PlateauDiagnostics.Warning(
                             "ResoniteLink {OperationName} failed on attempt {Attempt}/{AttemptLimit}. Prepared a fresh client after a fatal protocol failure and will retry. Reason: {Reason}",
                             operationName,
                             attempt,
@@ -383,7 +377,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
                         continue;
                     }
 
-                    logger.WriteWarning(
+                    PlateauDiagnostics.Warning(
                         "ResoniteLink {OperationName} retired the active client after a fatal protocol failure. Reason: {Reason}",
                         operationName,
                         exception.Message);
@@ -395,7 +389,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
                     break;
                 }
 
-                logger.WriteWarning(
+                PlateauDiagnostics.Warning(
                     "ResoniteLink {OperationName} failed on attempt {Attempt}/{AttemptLimit}. Reconnecting before retry. Reason: {Reason}",
                     operationName,
                     attempt,
@@ -419,7 +413,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
         }
         catch (Exception reconnectException) when (reconnectException is not OperationCanceledException)
         {
-            logger.WriteWarning(
+            PlateauDiagnostics.Warning(
                 "ResoniteLink {OperationName} could not prepare a connected replacement client after a fatal protocol failure. Reason: {Reason}",
                 operationName,
                 reconnectException.Message);
@@ -470,7 +464,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
                 }
 
                 observedClient.MarkRetired();
-                logger.WriteWarning(
+                PlateauDiagnostics.Warning(
                     "Reconnected ResoniteLink client to {Endpoint}.",
                     endpoint);
             }

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging.Abstractions;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -28,8 +27,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
-            ResoniteLinkSendDiagnostics.Disabled,
-            NullLogger.Instance);
+            ResoniteLinkSendDiagnostics.Disabled);
 
         await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
 
@@ -48,8 +46,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
-            ResoniteLinkSendDiagnostics.Disabled,
-            NullLogger.Instance);
+            ResoniteLinkSendDiagnostics.Disabled);
 
         await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
         IResoniteLinkClient client = session.GetRequiredClient();
@@ -72,8 +69,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
-            ResoniteLinkSendDiagnostics.Disabled,
-            NullLogger.Instance);
+            ResoniteLinkSendDiagnostics.Disabled);
 
         await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
         IResoniteLinkClient client = session.GetRequiredClient();
@@ -96,8 +92,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
-            ResoniteLinkSendDiagnostics.Disabled,
-            NullLogger.Instance);
+            ResoniteLinkSendDiagnostics.Disabled);
 
         await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
         IResoniteLinkClient client = session.GetRequiredClient();
@@ -137,13 +132,12 @@ public sealed class LiveSendClientSessionTests
     }
 
     [Fact]
-    public async Task LoadBalancingClientPinsStateCallsWhenLoggerIsNullLogger()
+    public async Task LoadBalancingClientPinsStateCallsToSessionStateConnection()
     {
         using RecordingResoniteLinkClient firstClient = new(true, 0);
         using RecordingResoniteLinkClient secondClient = new(true, 0);
         using LoadBalancingResoniteLinkClient loadBalancedClient = new(
-            [firstClient, secondClient],
-            NullLogger.Instance);
+            [firstClient, secondClient]);
 
         await loadBalancedClient.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
         await loadBalancedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
@@ -163,8 +157,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 2,
-            ResoniteLinkSendDiagnostics.Disabled,
-            NullLogger.Instance);
+            ResoniteLinkSendDiagnostics.Disabled);
 
         InvalidOperationException thrown = await Assert.ThrowsAsync<InvalidOperationException>(
             () => session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None));
@@ -185,8 +178,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount,
-            ResoniteLinkSendDiagnostics.Disabled,
-            NullLogger.Instance);
+            ResoniteLinkSendDiagnostics.Disabled);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None));
@@ -200,8 +192,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 2,
-            ResoniteLinkSendDiagnostics.Disabled,
-            NullLogger.Instance);
+            ResoniteLinkSendDiagnostics.Disabled);
 
         LiveSendConnectionRequest connectionRequest = CreateConnectionRequest();
 

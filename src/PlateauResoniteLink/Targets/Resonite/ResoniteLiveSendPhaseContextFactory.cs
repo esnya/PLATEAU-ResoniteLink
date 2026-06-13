@@ -11,8 +11,7 @@ internal static class ResoniteLiveSendPhaseContextFactory
         return new LiveSendRunStartContext(
             context.Endpoint,
             context.ClientSession,
-            context.Diagnostics,
-            context.Logger);
+            context.Diagnostics);
     }
 
     public static LiveSendEnqueueContext CreateEnqueueContext(LiveSendRunExecutionContext context)
@@ -21,8 +20,7 @@ internal static class ResoniteLiveSendPhaseContextFactory
 
         return new LiveSendEnqueueContext(
             context.ConnectionCount,
-            context.ClientSession.GetRequiredClient,
-            context.Logger);
+            context.ClientSession.GetRequiredClient);
     }
 
     public static LiveSendFinalizationContext CreateFinalizationContext(
@@ -35,7 +33,6 @@ internal static class ResoniteLiveSendPhaseContextFactory
         return new LiveSendFinalizationContext(
             context.Endpoint,
             enqueueContext,
-            context.Diagnostics,
-            context.Logger);
+            context.Diagnostics);
     }
 }

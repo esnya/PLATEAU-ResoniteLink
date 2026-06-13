@@ -9,7 +9,6 @@
     <PackageReference Include="GeographicLib.NET" />
     <PackageReference Include="LibTessDotNet" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="NetTopologySuite" />
     <PackageReference Include="SharpCompress" />
     <PackageReference Include="SixLabors.ImageSharp" />

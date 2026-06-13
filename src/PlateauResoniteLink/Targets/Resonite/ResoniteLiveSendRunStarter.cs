@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Diagnostics;
@@ -65,8 +64,7 @@ internal sealed record LiveSendRunStartContext
     public LiveSendRunStartContext(
         Uri Endpoint,
         ILiveSendClientSession ClientSession,
-        ResoniteLinkSendDiagnostics Diagnostics,
-        ILogger Logger)
+        ResoniteLinkSendDiagnostics Diagnostics)
     {
         ArgumentNullException.ThrowIfNull(Endpoint);
         ArgumentNullException.ThrowIfNull(ClientSession);
@@ -75,7 +73,6 @@ internal sealed record LiveSendRunStartContext
         this.Endpoint = Endpoint;
         this.ClientSession = ClientSession;
         this.Diagnostics = Diagnostics;
-        this.Logger = Logger;
     }
 
     public Uri Endpoint { get; }
@@ -83,8 +80,6 @@ internal sealed record LiveSendRunStartContext
     public ILiveSendClientSession ClientSession { get; }
 
     public ResoniteLinkSendDiagnostics Diagnostics { get; }
-
-    public ILogger Logger { get; }
 }
 
 internal sealed class ResoniteLiveSendRunStarter(
@@ -136,13 +131,13 @@ internal sealed class ResoniteLiveSendRunStarter(
         LiveSendRunStartContext context,
         CancellationToken cancellationToken)
     {
-        context.Logger.WriteInformation(
+        PlateauDiagnostics.Progress(
             "Initializing scene state for dataset '{Dataset}' mesh '{MeshCode}' at '{ResolvedWorkRoot}'.",
             request.SetupInfo.Dataset,
             request.SetupInfo.MeshCode,
             runPlan.ResolvedWorkRoot);
         Stopwatch connectionStopwatch = Stopwatch.StartNew();
-        context.Logger.WriteInformation(
+        PlateauDiagnostics.Progress(
             "Connecting ResoniteLink connection pool to {Endpoint} with {ConnectionCount} available routed connection(s).",
             context.Endpoint,
             request.ConnectionCount);
@@ -150,7 +145,7 @@ internal sealed class ResoniteLiveSendRunStarter(
             request.ConnectionRequest,
             cancellationToken);
         connectionStopwatch.Stop();
-        context.Logger.WriteInformation(
+        PlateauDiagnostics.Progress(
             "ResoniteLink connection pool ready in {ElapsedSeconds:F2}s (dataset='{Dataset}', mesh='{MeshCode}').",
             connectionStopwatch.Elapsed.TotalSeconds,
             request.SetupInfo.Dataset,
