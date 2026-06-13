@@ -27,9 +27,46 @@ internal sealed record PlannedDynamicTerrainGeometryAsset(
     ResoniteFloat2? UvOffset = null)
     : PlannedGeometryAsset;
 
-internal sealed record PlannedTextureAsset(
+internal sealed record MaterialIdentity(ResoniteMaterialBinding Material);
+
+internal abstract record TextureProvider(
     ResoniteSceneMaterialConventions.PlannedTextureRole Role,
     Uri AssetUri);
+
+internal sealed record TargetMaterialTextureProvider(
+    ResoniteSceneMaterialConventions.PlannedTextureRole Role,
+    Uri AssetUri)
+    : TextureProvider(Role, AssetUri);
+
+internal abstract record RendererOverrideTextureProvider(
+    ResoniteSceneMaterialConventions.PlannedTextureRole Role,
+    Uri AssetUri)
+    : TextureProvider(Role, AssetUri);
+
+internal sealed record LocalRendererOverrideTextureProvider(
+    ResoniteSceneMaterialConventions.PlannedTextureRole Role,
+    Uri AssetUri)
+    : RendererOverrideTextureProvider(Role, AssetUri);
+
+internal sealed record SharedTerrainOverlayTextureProvider(
+    Uri AssetUri,
+    ResoniteComponentLocator? SharedMainTextureComponent,
+    ResoniteComponentLocator? SharedMainTexturePropertyBlockComponent)
+    : RendererOverrideTextureProvider(
+        ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
+        AssetUri);
+
+internal sealed record TargetMaterialAssetPlan(
+    MaterialIdentity Identity,
+    IReadOnlyList<TargetMaterialTextureProvider> Textures);
+
+internal abstract record RendererOverride;
+
+internal sealed record AlbedoRendererOverride(LocalRendererOverrideTextureProvider MainTexture)
+    : RendererOverride;
+
+internal sealed record TerrainOverlayRendererOverride(SharedTerrainOverlayTextureProvider MainTexture)
+    : RendererOverride;
 
 internal abstract record PlannedMaterialAsset;
 
@@ -38,9 +75,21 @@ internal sealed record PlannedReusableMaterialAsset(
     : PlannedMaterialAsset;
 
 internal sealed record PlannedDedicatedMaterialAsset(
-    ResoniteMaterialBinding Material,
-    IReadOnlyList<PlannedTextureAsset> Textures)
-    : PlannedMaterialAsset;
+    TargetMaterialAssetPlan TargetMaterial)
+    : PlannedMaterialAsset
+{
+    public PlannedDedicatedMaterialAsset(
+        ResoniteMaterialBinding material,
+        IReadOnlyList<TargetMaterialTextureProvider> textures)
+        : this(
+            new TargetMaterialAssetPlan(new MaterialIdentity(material), textures))
+    {
+    }
+
+    public ResoniteMaterialBinding Material => TargetMaterial.Identity.Material;
+
+    public IReadOnlyList<TargetMaterialTextureProvider> Textures => TargetMaterial.Textures;
+}
 
 internal abstract record PlannedRendererMaterialBinding(PlannedMaterialAsset MaterialAsset);
 
@@ -49,20 +98,31 @@ internal sealed record PlannedDirectRendererMaterialBinding(PlannedMaterialAsset
 
 internal abstract record PlannedMainTextureOverrideRendererMaterialBinding(
     PlannedMaterialAsset MaterialAsset,
-    PlannedTextureAsset MainTexture)
-    : PlannedRendererMaterialBinding(MaterialAsset);
+    RendererOverride RendererOverride)
+    : PlannedRendererMaterialBinding(MaterialAsset)
+{
+    public RendererOverrideTextureProvider MainTextureProvider => RendererOverride switch
+    {
+        AlbedoRendererOverride albedo => albedo.MainTexture,
+        TerrainOverlayRendererOverride terrain => terrain.MainTexture,
+        _ => throw new InvalidOperationException(
+            $"Unsupported renderer override type '{RendererOverride.GetType().Name}'."),
+    };
+}
 
 internal sealed record PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
     PlannedMaterialAsset MaterialAsset,
-    PlannedTextureAsset MainTexture)
-    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture);
+    LocalRendererOverrideTextureProvider MainTexture)
+    : PlannedMainTextureOverrideRendererMaterialBinding(
+        MaterialAsset,
+        new AlbedoRendererOverride(MainTexture));
 
 internal sealed record PlannedTerrainMainTextureOverrideRendererMaterialBinding(
     PlannedMaterialAsset MaterialAsset,
-    PlannedTextureAsset MainTexture,
-    ResoniteComponentLocator? SharedMainTextureComponent = null,
-    ResoniteComponentLocator? SharedMainTexturePropertyBlockComponent = null)
-    : PlannedMainTextureOverrideRendererMaterialBinding(MaterialAsset, MainTexture);
+    SharedTerrainOverlayTextureProvider MainTexture)
+    : PlannedMainTextureOverrideRendererMaterialBinding(
+        MaterialAsset,
+        new TerrainOverlayRendererOverride(MainTexture));
 
 internal sealed record PlannedSceneMaterialPlan(
     IReadOnlyList<PlannedMaterialAsset> MaterialAssets,
@@ -179,7 +239,7 @@ internal sealed record PlannedMainTexturePropertyBlockOverride(
         ArgumentNullException.ThrowIfNull(propertyBlockContainerTarget);
         ArgumentNullException.ThrowIfNull(binding);
 
-        if (binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
+        if (binding.MainTextureProvider is SharedTerrainOverlayTextureProvider
             {
                 SharedMainTexturePropertyBlockComponent: { } sharedMainTexturePropertyBlockComponent,
             })
@@ -190,25 +250,25 @@ internal sealed record PlannedMainTexturePropertyBlockOverride(
                 null);
         }
 
-        PlannedWorldElementReference? sharedTextureTarget = binding is PlannedTerrainMainTextureOverrideRendererMaterialBinding
+        PlannedWorldElementReference? sharedTextureTarget = binding.MainTextureProvider is SharedTerrainOverlayTextureProvider
         {
             SharedMainTextureComponent: { } sharedMainTextureComponent,
         }
             ? PlannedWorldElementReference.Canonical(sharedMainTextureComponent)
             : null;
-        ResoniteSceneMaterialConventions.TextureMemberRole textureRole = binding switch
+        ResoniteSceneMaterialConventions.TextureMemberRole textureRole = binding.MainTextureProvider switch
         {
-            PlannedAlbedoMainTextureOverrideRendererMaterialBinding =>
+            LocalRendererOverrideTextureProvider =>
                 ResoniteSceneMaterialConventions.TextureMemberRole.Albedo,
-            PlannedTerrainMainTextureOverrideRendererMaterialBinding =>
+            SharedTerrainOverlayTextureProvider =>
                 ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride,
             _ => throw new InvalidOperationException(
-                $"Unsupported planned main texture override binding type '{binding.GetType().Name}'."),
+                $"Unsupported planned main texture override provider type '{binding.MainTextureProvider.GetType().Name}'."),
         };
         PlannedBatchComponentEmission? textureComponent = sharedTextureTarget is null
             ? CreateTextureComponent(
                 textureContainerTarget,
-                binding.MainTexture.AssetUri,
+                binding.MainTextureProvider.AssetUri,
                 textureRole)
             : null;
         PlannedWorldElementReference textureTarget = sharedTextureTarget

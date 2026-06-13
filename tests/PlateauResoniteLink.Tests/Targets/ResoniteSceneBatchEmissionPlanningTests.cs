@@ -360,7 +360,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 DepthOffset: null,
                 SubmeshIndices: [0],
                 ResoniteMaterialAssetBinding.Presentation),
-            [new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/albedo"))]);
+            [new TargetMaterialTextureProvider(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/albedo"))]);
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("existing-material-id"));
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
@@ -417,11 +417,11 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 SubmeshIndices: [0],
                 ResoniteMaterialAssetBinding.Presentation),
             [
-                new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/albedo")),
-                new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Normal, new Uri("resdb:///texture/normal")),
-                new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Height, new Uri("resdb:///texture/height")),
-                new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic, new Uri("resdb:///texture/metallic")),
-                new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Emission, new Uri("resdb:///texture/emission")),
+                new TargetMaterialTextureProvider(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/albedo")),
+                new TargetMaterialTextureProvider(ResoniteSceneMaterialConventions.PlannedTextureRole.Normal, new Uri("resdb:///texture/normal")),
+                new TargetMaterialTextureProvider(ResoniteSceneMaterialConventions.PlannedTextureRole.Height, new Uri("resdb:///texture/height")),
+                new TargetMaterialTextureProvider(ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic, new Uri("resdb:///texture/metallic")),
+                new TargetMaterialTextureProvider(ResoniteSceneMaterialConventions.PlannedTextureRole.Emission, new Uri("resdb:///texture/emission")),
             ]);
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
@@ -502,7 +502,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             [
                 new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
                     reusableMaterial,
-                    new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override"))),
+                    new LocalRendererOverrideTextureProvider(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override"))),
             ],
             false);
 
@@ -547,7 +547,10 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             [
                 new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
                     reusableMaterial,
-                    new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override"))),
+                    new SharedTerrainOverlayTextureProvider(
+                        new Uri("resdb:///texture/override"),
+                        SharedMainTextureComponent: null,
+                        SharedMainTexturePropertyBlockComponent: null)),
             ],
             false);
 
@@ -577,9 +580,10 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             [
                 new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
                     reusableMaterial,
-                    new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override")),
-                    SharedMainTextureComponent: new ResoniteComponentLocator("shared-terrain-texture-id"),
-                    SharedMainTexturePropertyBlockComponent: new ResoniteComponentLocator("shared-terrain-property-block-id")),
+                    new SharedTerrainOverlayTextureProvider(
+                        new Uri("resdb:///texture/override"),
+                        SharedMainTextureComponent: new ResoniteComponentLocator("shared-terrain-texture-id"),
+                        SharedMainTexturePropertyBlockComponent: new ResoniteComponentLocator("shared-terrain-property-block-id"))),
             ],
             false);
 
@@ -615,10 +619,10 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             [
                 new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
                     reusableMaterial,
-                    new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override-a"))),
+                    new LocalRendererOverrideTextureProvider(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override-a"))),
                 new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
                     reusableMaterial,
-                    new PlannedTextureAsset(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override-b"))),
+                    new LocalRendererOverrideTextureProvider(ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo, new Uri("resdb:///texture/override-b"))),
             ],
             false);
 

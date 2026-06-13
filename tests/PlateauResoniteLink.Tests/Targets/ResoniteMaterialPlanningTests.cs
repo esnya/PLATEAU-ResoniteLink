@@ -61,7 +61,7 @@ public sealed class ResoniteMaterialPlanningTests
             new AsyncInFlightResultCache<BundledTextureImportKey, Uri>(),
             CancellationToken.None);
 
-        PlannedTextureAsset metallicAsset = Assert.Single(
+        TargetMaterialTextureProvider metallicAsset = Assert.Single(
             plannedAsset.Textures,
             texture => texture.Role == ResoniteSceneMaterialConventions.PlannedTextureRole.Metallic);
         int metallicImportIndex = int.Parse(
@@ -229,7 +229,7 @@ public sealed class ResoniteMaterialPlanningTests
         PlannedDedicatedMaterialAsset plannedMaterial = new(
             material,
             [
-                new PlannedTextureAsset(
+                new TargetMaterialTextureProvider(
                     ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
                     new Uri("resdb:///texture/albedo", UriKind.Absolute)),
             ]);
@@ -251,10 +251,10 @@ public sealed class ResoniteMaterialPlanningTests
         PlannedDedicatedMaterialAsset plannedMaterial = new(
             material,
             [
-                new PlannedTextureAsset(
+                new TargetMaterialTextureProvider(
                     ResoniteSceneMaterialConventions.PlannedTextureRole.Albedo,
                     new Uri("resdb:///texture/albedo", UriKind.Absolute)),
-                new PlannedTextureAsset(
+                new TargetMaterialTextureProvider(
                     ResoniteSceneMaterialConventions.PlannedTextureRole.Emission,
                     new Uri("resdb:///texture/emission", UriKind.Absolute)),
             ]);
@@ -332,19 +332,19 @@ public sealed class ResoniteMaterialPlanningTests
             [secondMaterial.TexturePayload!] = new Uri("resdb:///texture/second", UriKind.Absolute),
         };
 
-        PlannedTextureAsset? firstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+        LocalRendererOverrideTextureProvider? firstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? repeatedFirstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+        LocalRendererOverrideTextureProvider? repeatedFirstOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? secondOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+        LocalRendererOverrideTextureProvider? secondOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             secondMaterial,
             secondPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
-        PlannedTextureAsset? thirdOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
+        LocalRendererOverrideTextureProvider? thirdOverride = ResoniteMaterialPlanning.PlanMainTextureOverride(
             firstMaterial,
             firstPreparedUris,
             new Dictionary<TerrainTextureOverlay, Uri>());
