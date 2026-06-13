@@ -5,7 +5,6 @@ using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
 
-
 using PlateauResoniteLink.Diagnostics;
 
 namespace PlateauResoniteLink.Transport.ResoniteLink;
@@ -13,22 +12,22 @@ namespace PlateauResoniteLink.Transport.ResoniteLink;
 internal sealed class ResoniteLinkSendDiagnostics
 {
     private static readonly Counter<long> CityObjectCounter = PlateauDiagnostics.Meter.CreateCounter<long>(
-        "plateauresonitelink.live.city_objects",
+        "plateauresonitelink.resonite_import.city_objects",
         unit: "objects");
     private static readonly Counter<long> RpcCallCounter = PlateauDiagnostics.Meter.CreateCounter<long>(
-        "plateauresonitelink.live.rpc_calls",
+        "plateauresonitelink.resonitelink.rpc_calls",
         unit: "operations");
     private static readonly Histogram<double> PrepareDurationHistogram = PlateauDiagnostics.Meter.CreateHistogram<double>(
-        "plateauresonitelink.live.prepare.duration",
+        "plateauresonitelink.resonite_import.prepare.duration",
         unit: "s");
     private static readonly Histogram<double> SendDurationHistogram = PlateauDiagnostics.Meter.CreateHistogram<double>(
-        "plateauresonitelink.live.send.duration",
+        "plateauresonitelink.resonite_import.city_object.duration",
         unit: "s");
     private static readonly Histogram<double> SendWindowDurationHistogram = PlateauDiagnostics.Meter.CreateHistogram<double>(
-        "plateauresonitelink.live.send_window.duration",
+        "plateauresonitelink.resonite_import.run.duration",
         unit: "s");
     private static readonly Histogram<long> RpcPerCityObjectHistogram = PlateauDiagnostics.Meter.CreateHistogram<long>(
-        "plateauresonitelink.live.rpc_per_city_object",
+        "plateauresonitelink.resonitelink.rpc_per_city_object",
         unit: "operations");
 
     private readonly AsyncLocal<CityObjectSendScope?> currentScope = new();
