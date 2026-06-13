@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Diagnostics;
 
@@ -24,7 +23,6 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
         PlateauImportRequest request,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         IDefaultMaterialResolver materialResolver,
-        ILogger? logger,
         CancellationToken cancellationToken,
         out bool outsideSamplingBounds,
         out TerrainGridProjectedCityObject? heightMapCityObject)
@@ -84,7 +82,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             (int)Math.Ceiling(outputFrame.ExtentZ / request.TerrainGridMetersPerVertex) + 1,
             2,
             request.TerrainGridMaxResolution);
-        logger?.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "Sampling DEM terrain grid '{SlotKey}' (width={Width}, height={Height}, triangles={TriangleCount}).",
             cityObject.SlotKey,
             width,

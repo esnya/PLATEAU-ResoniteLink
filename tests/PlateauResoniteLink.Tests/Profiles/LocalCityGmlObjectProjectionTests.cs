@@ -8,9 +8,6 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
@@ -24,12 +21,11 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace PlateauResoniteLink.Tests.Profiles;
 
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
-[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Test logger factories are handed to PlateauImportService for the duration of the test.")]
 public sealed class LocalCityGmlObjectProjectionTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateService(ISceneSink sceneSink, ILoggerFactory? loggerFactory = null)
+    private static PlateauImportService CreateService(ISceneSink sceneSink)
     {
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
@@ -49,8 +45,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                                 new ArchiveFileLayoutPolicy())))),
                 new PassthroughImportedObjectUnitOptimizer()),
             commonMaterials: CommonMaterialCatalog.Create(),
-            archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy(),
-            loggerFactory);
+            archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy());
     }
 
     private static LocalCityGmlDocumentReader CreateDocumentReader()
@@ -1842,10 +1837,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         CreateX3DMaterialOpticalFixture(datasetRoot.Path);
 
         await using StubSceneSink sceneSink = new();
-        List<string> progressMessages = [];
-        PlateauImportService service = CreateService(
-            sceneSink,
-            new RecordingLoggerFactory(new RecordingLogger(progressMessages.Add)));
+        using RecordingPlateauEventListener eventListener = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1879,7 +1872,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.DoesNotContain("SpecularColor", members.Keys);
 
         Assert.Contains(
-            progressMessages,
+            eventListener.Messages,
             static message => message.Contains("Unsupported X3DMaterial optical attribute summary", StringComparison.Ordinal)
                 && message.Contains("unsupported_x3d_material_surfaces=1", StringComparison.Ordinal)
                 && message.Contains("shininess_nonzero=1", StringComparison.Ordinal)
@@ -1898,10 +1891,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         CreateProjectedTransparencyOnlyX3DMaterialFixture(datasetRoot.Path);
 
         await using StubSceneSink sceneSink = new();
-        List<string> progressMessages = [];
-        PlateauImportService service = CreateService(
-            sceneSink,
-            new RecordingLoggerFactory(new RecordingLogger(progressMessages.Add)));
+        using RecordingPlateauEventListener eventListener = new();
+        PlateauImportService service = CreateService(sceneSink);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1917,7 +1908,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Equal(new ColorRgba(0.2, 0.4, 0.6, 0.75), material.BaseColor);
         Assert.DoesNotContain(
-            progressMessages,
+            eventListener.Messages,
             static message => message.Contains("Unsupported X3DMaterial optical attribute summary", StringComparison.Ordinal));
     }
 
@@ -2722,7 +2713,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 TerrainGridMaxResolution: 8),
             [MeshCodeBounds.Parse(meshCode)],
             new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
-            logger: NullLogger.Instance,
             CancellationToken.None);
 
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(projected.Geometry);
@@ -2864,7 +2854,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 TerrainGridMaxResolution: 8),
             [MeshCodeBounds.Parse(meshCode)],
             new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
-            logger: NullLogger.Instance,
             CancellationToken.None);
 
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(projected.Geometry);
@@ -3028,7 +3017,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 TerrainGridMaxResolution: 64),
             [MeshCodeBounds.Parse(meshCode)],
             new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
-            logger: null,
             CancellationToken.None);
 
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(projected.Geometry);
@@ -3080,7 +3068,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 TerrainGridMaxResolution: 64),
             [MeshCodeBounds.Parse(meshCode)],
             new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
-            logger: null,
             CancellationToken.None);
 
         TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(projected.Geometry);
@@ -4489,7 +4476,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             request,
             [MeshCodeBounds.Parse(cityObject.ActualMeshCode)],
             new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
-            logger: null,
             CancellationToken.None);
     }
 
@@ -4516,7 +4502,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             request,
             [MeshCodeBounds.Parse(cityObject.ActualMeshCode)],
             new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
-            logger: null,
             CancellationToken.None);
     }
 
@@ -4650,7 +4635,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             request,
             requestedMeshCodeBounds,
             new DefaultMaterialResolver(CommonMaterialCatalog.Create()),
-            logger: NullLogger.Instance,
             CancellationToken.None);
     }
 

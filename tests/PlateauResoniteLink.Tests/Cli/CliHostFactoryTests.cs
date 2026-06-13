@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Cli;
@@ -39,8 +38,7 @@ public sealed class CliHostFactoryTests
                 MemoryProfile: ResoniteImportMemoryProfile.Large,
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
-                DisableTerrainTileCache: false,
-                LoggerFactory: NullLoggerFactory.Instance),
+                DisableTerrainTileCache: false),
             terrainTextureAssetHttpClient);
 
         Assert.Same(importTarget.Diagnostics, importTarget.ClientSession.Diagnostics);
@@ -65,8 +63,7 @@ public sealed class CliHostFactoryTests
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
                 EnableSendMetrics: true,
-                VerboseLogging: false),
-            NullLoggerFactory.Instance);
+                VerboseLogging: false));
 
         Assert.NotNull(sink);
     }

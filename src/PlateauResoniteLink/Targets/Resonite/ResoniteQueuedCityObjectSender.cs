@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Diagnostics;
 
@@ -29,7 +28,6 @@ internal sealed class ResoniteQueuedCityObjectSender(
         IResoniteLinkClient routedClient,
         LiveSendQueuedCityObject queuedCityObject,
         ResoniteLinkSendDiagnostics diagnostics,
-        ILogger logger,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -44,20 +42,16 @@ internal sealed class ResoniteQueuedCityObjectSender(
                 state,
                 routedClient,
                 queuedCityObject.CityObject,
-                diagnostics,
-                logger,
-                cancellationToken);
+                diagnostics, cancellationToken);
             await preparedCityObjectImporter.ImportAsync(
                 state,
                 routedClient,
                 queuedCityObject,
                 preparedCityObject,
-                diagnostics,
-                logger,
-                cancellationToken);
+                diagnostics, cancellationToken);
 
             int processedCount = Interlocked.Increment(ref state.Progress.ProcessedCityObjectCount);
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "Sent city object {ProcessedCount}: {DisplayName} ({PackageName}/{SlotKey})",
                 processedCount,
                 preparedCityObject.CityObject.DisplayName,
@@ -66,7 +60,7 @@ internal sealed class ResoniteQueuedCityObjectSender(
             if (processedCount % 25 == 0)
             {
                 int queuedCount = state.Progress.QueuedCityObjectCount;
-                logger.WriteInformation(
+                PlateauDiagnostics.Progress(
                     "Live send progress: phase=sending, source_city_objects_seen={SourceCityObjectCount}, sent={SentCount}, failed={FailedCount}, attempted={AttemptedCount}, queued={QueuedSourceCount}, backlog={BacklogCount}.",
                     state.Progress.SourceCityObjectCount,
                     processedCount,
@@ -88,7 +82,7 @@ internal sealed class ResoniteQueuedCityObjectSender(
             }
 
             int failedCount = Interlocked.Increment(ref state.Progress.FailedCityObjectCount);
-            logger.WriteWarning(
+            PlateauDiagnostics.Warning(
                 "Skipping city object after send failure {FailedCount}: {DisplayName} ({PackageName}/{SlotKey}). Reason: {Reason}",
                 failedCount,
                 queuedCityObject.CityObject.DisplayName,

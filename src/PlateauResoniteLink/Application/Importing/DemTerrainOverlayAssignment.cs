@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Diagnostics;
 
@@ -98,7 +97,6 @@ internal static class DemTerrainOverlayAssignment
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshCodeBounds,
         bool allowMissingGeneratedDemOverlayCoverage = false,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -123,7 +121,7 @@ internal static class DemTerrainOverlayAssignment
             .Where(IsDemTerrainOverlaySurface)
             .ToArray();
 
-        logger?.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "Assigning DEM city object '{SlotKey}' (terrain_texture_surfaces={TerrainTextureSurfaceCount}, non_roof_surfaces={NonRoofSurfaceCount}, overlays={OverlayCount}, requested_mesh_code_bounds={RequestedMeshCodeBoundCount}).",
             parsedCityObject.SlotKey,
             generatedSurfaces.Length,
@@ -134,7 +132,7 @@ internal static class DemTerrainOverlayAssignment
         ParsedSurface[] nonGeneratedSurfaces = parsedCityObject.Surfaces
             .Where(static surface => !IsDemTerrainOverlaySurface(surface))
             .SelectMany(surface => parsedCityObject.SharedAcrossMeshCodes
-                ? ClipSurfaceToRequestedMeshCodeBounds(surface, requestedMeshBounds.Bounds, logger, cancellationToken)
+                ? ClipSurfaceToRequestedMeshCodeBounds(surface, requestedMeshBounds.Bounds, cancellationToken)
                 : [surface])
             .ToArray();
 
@@ -153,7 +151,6 @@ internal static class DemTerrainOverlayAssignment
             .SelectMany(generatedSurface => ClipGeneratedSurfaceToRequestedMeshCodeBounds(
                 generatedSurface,
                 requestedMeshBounds.Bounds,
-                logger,
                 cancellationToken))
             .ToArray();
 
@@ -266,7 +263,6 @@ internal static class DemTerrainOverlayAssignment
     private static ParsedSurface[] ClipGeneratedSurfaceToRequestedMeshCodeBounds(
         ParsedSurface generatedSurface,
         GeographicRectangle[] requestedMeshBounds,
-        ILogger? logger,
         CancellationToken cancellationToken)
     {
         if (requestedMeshBounds.Length == 0)
@@ -276,15 +272,12 @@ internal static class DemTerrainOverlayAssignment
 
         return DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToBounds(
             generatedSurface,
-            requestedMeshBounds,
-            logger,
-            cancellationToken).ToArray();
+            requestedMeshBounds, cancellationToken).ToArray();
     }
 
     private static ParsedSurface[] ClipSurfaceToRequestedMeshCodeBounds(
         ParsedSurface surface,
         GeographicRectangle[] requestedMeshBounds,
-        ILogger? logger,
         CancellationToken cancellationToken)
     {
         if (requestedMeshBounds.Length == 0)
@@ -294,9 +287,7 @@ internal static class DemTerrainOverlayAssignment
 
         return DemTerrainOverlaySurfaceClipper.ClipSurfaceToBounds(
             surface,
-            requestedMeshBounds,
-            logger,
-            cancellationToken).ToArray();
+            requestedMeshBounds, cancellationToken).ToArray();
     }
 
     private static ParsedSurface[] ClipGeneratedSurfaceToRequestedMeshCodeBounds(

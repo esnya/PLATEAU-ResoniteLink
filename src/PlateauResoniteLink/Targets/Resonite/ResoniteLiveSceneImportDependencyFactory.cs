@@ -1,7 +1,6 @@
 using System;
 using System.Net.Http;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -18,9 +17,8 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
-        ILogger transportLogger = options.LoggerFactory.CreateLogger("PlateauResoniteLink.ResoniteLink");
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
-            ? ResoniteLinkSendDiagnostics.CreateEnabled(transportLogger)
+            ? ResoniteLinkSendDiagnostics.CreateEnabled()
             : ResoniteLinkSendDiagnostics.Disabled;
 
         ILiveSendClientSession clientSession = clientSessionFactory.Create(options, diagnostics);

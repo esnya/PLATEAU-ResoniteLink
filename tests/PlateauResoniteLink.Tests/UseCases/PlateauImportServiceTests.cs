@@ -7,8 +7,6 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
@@ -645,10 +643,9 @@ public sealed class PlateauImportServiceTests
 
         public Task<IImportedSceneSource> CreateAsync(
             ResolvedLocalPlateauImportRequest request,
-            ILoggerFactory? loggerFactory = null,
             CancellationToken cancellationToken = default)
         {
-            _ = loggerFactory;
+            _ = cancellationToken;
             CreateCallCount++;
             LastRequest = request;
             _ = readResult;

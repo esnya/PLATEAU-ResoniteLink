@@ -1,6 +1,5 @@
 using System;
 
-using Microsoft.Extensions.Logging;
 
 namespace PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -10,8 +9,7 @@ internal static class ResoniteLinkTransportSessionFactory
         Uri endpoint,
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
-        ILogger logger,
-        Func<ILogger, IResoniteLinkClient> baseClientFactory)
+        Func<IResoniteLinkClient> baseClientFactory)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentNullException.ThrowIfNull(diagnostics);
@@ -19,9 +17,7 @@ internal static class ResoniteLinkTransportSessionFactory
 
         IResoniteLinkClient CreateConfiguredClient()
         {
-            IResoniteLinkClient client = new RetryingResoniteLinkClient(
-                () => baseClientFactory(logger),
-                logger);
+            IResoniteLinkClient client = new RetryingResoniteLinkClient(baseClientFactory);
             return diagnostics.Enabled ? new MetricsResoniteLinkClient(client, diagnostics) : client;
         }
 
@@ -29,7 +25,6 @@ internal static class ResoniteLinkTransportSessionFactory
             CreateConfiguredClient,
             endpoint,
             connectionCount,
-            diagnostics,
-            logger);
+            diagnostics);
     }
 }

@@ -86,7 +86,7 @@ dotnet run --project src/PlateauResoniteLink.Cli -- \
 
 `search` and `stats` inspect local dataset directories and local `.zip` / `.7z` archives. Remote import still requires an explicit direct archive URL.
 
-By default, the CLI writes short .NET-style console log lines with a timestamp, level, category, and message. Information-level output is phase-oriented: source discovery, source-scan aggregate progress, live-send ingest/sending counters, setup summaries, datasource decisions, and final send summaries. Per-file, per-object, per-lane, RPC breakdown, elapsed-time statistics, and transport details are debug-level output; add `--verbose` when you need them.
+During `import`, the CLI keeps `stdout` for the completion/result contract and writes concise progress to `stderr`: source discovery, source-scan aggregate progress, setup, live-send queue/sent/failed counters, and finalization. Import diagnostics are emitted through `System.Diagnostics`: `EventSource` for user-visible progress and warnings, `ActivitySource` for timed operations, and `Meter` for live-send/RPC metrics. Add `--verbose` to include detailed file/object/lane/RPC timing events on `stderr`.
 
 When `--work-root` is omitted, the CLI stores dataset-local archives and live temporary files under `local/<dataset>/`. Terrain tile downloads are cached separately under the local app-data cache root by default; override that path with `--terrain-tile-cache-root` or disable cross-run tile caching with `--disable-terrain-tile-cache`. By default, DEM terrain texture sources can fall back from PLATEAU Ortho to GSI seamless photo tiles; specify `--exclude-gsi-terrain-tiles` to keep terrain texture sources to GeoTIFF and PLATEAU Ortho only.
 

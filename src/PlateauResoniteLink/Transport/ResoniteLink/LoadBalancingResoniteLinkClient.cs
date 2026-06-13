@@ -4,10 +4,8 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Diagnostics;
-using Microsoft.Extensions.Logging.Abstractions;
 
 using ResoniteLink;
 
@@ -19,16 +17,12 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
 
     private readonly object routeLock = new();
     private readonly IResoniteLinkClient[] clients;
-    private readonly int[] activeOperationCounts;
-    private readonly ILogger logger;
-    private int routeCursor;
+    private readonly int[] activeOperationCounts; private int routeCursor;
     private int disposed;
 
-    public LoadBalancingResoniteLinkClient(IReadOnlyList<IResoniteLinkClient> clients, ILogger? logger = null)
+    public LoadBalancingResoniteLinkClient(IReadOnlyList<IResoniteLinkClient> clients)
     {
-        this.clients = clients is null ? throw new ArgumentNullException(nameof(clients)) : [.. clients];
-        this.logger = logger ?? NullLogger.Instance;
-        if (this.clients.Length == 0)
+        this.clients = clients is null ? throw new ArgumentNullException(nameof(clients)) : [.. clients]; if (this.clients.Length == 0)
         {
             throw new ArgumentException("At least one client must be configured for load balancing.", nameof(clients));
         }
@@ -207,7 +201,7 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
 
             activeOperationCounts[selectedRouteIndex]++;
             routeCursor = (selectedRouteIndex + 1) % clients.Length;
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "Routing '{OperationName}' RPC to live connection {RouteIndex}/{ConnectionCount} with {ActiveOperationCount} active operation(s) on that connection.",
                 operationName,
                 selectedRouteIndex + 1,
@@ -222,7 +216,7 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
         lock (routeLock)
         {
             activeOperationCounts[routeIndex]++;
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "Routing session-scoped '{OperationName}' RPC to live connection {RouteIndex}/{ConnectionCount} with {ActiveOperationCount} active operation(s) on that connection.",
                 operationName,
                 routeIndex + 1,
@@ -247,7 +241,7 @@ internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
         for (int routeIndex = 0; routeIndex < clients.Length; routeIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "Connecting live connection {RouteIndex}/{ConnectionCount}.",
                 routeIndex + 1,
                 clients.Length);

@@ -61,7 +61,7 @@ public static class CliArgumentsParser
                                 Optional. Texture/import memory budget profile. Default: large.
           --no-mesh-bake         Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
-          --verbose              Optional. Include debug-level progress logs.
+          --verbose              Optional. Include detailed progress diagnostics.
 
         Search/stats options:
           --citygml-source <path>

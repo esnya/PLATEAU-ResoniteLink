@@ -4,8 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging.Abstractions;
-
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
@@ -16,7 +14,6 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Test logger factories are passed to import targets that own the run-scoped dependencies.")]
 internal static class ResoniteLiveSceneImportTargetTestSupport
 {
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
@@ -326,12 +323,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         IResoniteLinkClient routedClient,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true,
-        DelegatingClientSession? session = null,
-        Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null)
+        DelegatingClientSession? session = null)
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
-        loggerFactory ??= NullLoggerFactory.Instance;
         return new ResoniteLiveSceneImportTarget(
             new ResoniteLiveSceneImportTargetOptions(
                 new Uri("ws://localhost:12345/"),
@@ -340,8 +335,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 ResoniteImportMemoryProfile.Large,
                 enableMeshBake,
                 TerrainTileCacheRoot: null,
-                DisableTerrainTileCache: false,
-                LoggerFactory: loggerFactory),
+                DisableTerrainTileCache: false),
             CreateDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,

@@ -44,7 +44,7 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
         ArgumentNullException.ThrowIfNull(context);
         int connectionCount = request.QueuePlan.ConnectionCount;
 
-        context.Logger.WriteInformation(
+        PlateauDiagnostics.Progress(
             "Starting routed send workers (connection_pool={ConnectionCount}).",
             connectionCount);
         request.State.Progress.Reset();
@@ -56,9 +56,8 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
                 context.Endpoint,
                 connectionCount,
                 () => GetRoutedClient(context),
-                context.Diagnostics,
-                context.Logger)));
-        context.Logger.WriteInformation(
+                context.Diagnostics)));
+        PlateauDiagnostics.Progress(
             "Send lane tasks launched (connection_budget={ConnectionCount}, queue_capacity_total={QueueCapacity}, memory_budget_bytes={MemoryBudgetBytes}, memory_profile={MemoryProfile}, runtime_vram_budget_bytes={RuntimeVramBudgetBytes}).",
             connectionCount,
             request.QueuePlan.QueueCapacity,
@@ -66,10 +65,10 @@ internal sealed class ResoniteLiveSendWorkerLauncher(
             request.ResourceBudget.Name.ToString().ToLowerInvariant(),
             request.ResourceBudget.RuntimeVramBudgetBytes);
         laneStartStopwatch.Stop();
-        context.Logger.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "Send workers ready against connection pool={ConnectionCount}.",
             connectionCount);
-        context.Logger.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "Send lane startup phase complete in {ElapsedSeconds:F2}s.",
             laneStartStopwatch.Elapsed.TotalSeconds);
     }

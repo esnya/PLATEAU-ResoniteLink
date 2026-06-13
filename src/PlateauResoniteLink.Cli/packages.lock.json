@@ -52,19 +52,6 @@
           "Microsoft.Extensions.Options": "10.0.0"
         }
       },
-      "Microsoft.Extensions.Logging.Console": {
-        "type": "Direct",
-        "requested": "[10.0.0, )",
-        "resolved": "10.0.0",
-        "contentHash": "treWetuksp8LVb09fCJ5zNhNJjyDkqzVm83XxcrlWQnAdXznR140UUXo8PyEPBvFlHhjKhFQZEOP3Sk/ByCvEw==",
-        "dependencies": {
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0",
-          "Microsoft.Extensions.Logging": "10.0.0",
-          "Microsoft.Extensions.Logging.Abstractions": "10.0.0",
-          "Microsoft.Extensions.Logging.Configuration": "10.0.0",
-          "Microsoft.Extensions.Options": "10.0.0"
-        }
-      },
       "MinVer": {
         "type": "Direct",
         "requested": "[7.0.0, )",
@@ -221,6 +208,14 @@
           "Microsoft.Extensions.Options": "10.0.0"
         }
       },
+      "Microsoft.Extensions.Logging.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "FU/IfjDfwaMuKr414SSQNTIti/69bHEMb+QKrskRb26oVqpx3lNFXMjs/RC9ZUuhBhcwDM2BwOgoMw+PZ+beqQ==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0"
+        }
+      },
       "Microsoft.Extensions.Logging.Configuration": {
         "type": "Transitive",
         "resolved": "10.0.0",
@@ -234,6 +229,18 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.0",
           "Microsoft.Extensions.Options": "10.0.0",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Logging.Console": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "treWetuksp8LVb09fCJ5zNhNJjyDkqzVm83XxcrlWQnAdXznR140UUXo8PyEPBvFlHhjKhFQZEOP3Sk/ByCvEw==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0",
+          "Microsoft.Extensions.Logging": "10.0.0",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.0",
+          "Microsoft.Extensions.Logging.Configuration": "10.0.0",
+          "Microsoft.Extensions.Options": "10.0.0"
         }
       },
       "Microsoft.Extensions.Logging.Debug": {
@@ -307,7 +314,6 @@
           "GeographicLib.NET": "[2.3.2, )",
           "LibTessDotNet": "[1.1.15, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
           "NetTopologySuite": "[2.6.0, )",
           "SharpCompress": "[0.48.0, )",
           "SixLabors.ImageSharp": "[3.1.12, )",
@@ -325,15 +331,6 @@
         "requested": "[1.1.15, )",
         "resolved": "1.1.15",
         "contentHash": "KuA7N3Nv/lIeawJdQBQJR6oqWD9KETHLbWzBqapwFs+Tby+R5I4crkKujKMm5bXcSuFZ8LNtflFQVadsWCbBjg=="
-      },
-      "Microsoft.Extensions.Logging.Abstractions": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.0, )",
-        "resolved": "10.0.0",
-        "contentHash": "FU/IfjDfwaMuKr414SSQNTIti/69bHEMb+QKrskRb26oVqpx3lNFXMjs/RC9ZUuhBhcwDM2BwOgoMw+PZ+beqQ==",
-        "dependencies": {
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0"
-        }
       },
       "NetTopologySuite": {
         "type": "CentralTransitive",

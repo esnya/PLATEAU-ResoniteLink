@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -22,8 +21,11 @@ internal static class CliHostFactory
 
     public static IHost Create(string[]? args = null)
     {
-        HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
-        builder.Logging.ClearProviders();
+        HostApplicationBuilder builder = new(new HostApplicationBuilderSettings
+        {
+            Args = args,
+            DisableDefaults = true,
+        });
         builder.Services.AddCliServices(Console.Out, Console.Error);
         return builder.Build();
     }
@@ -62,7 +64,7 @@ internal static class CliServiceCollectionExtensions
 
 internal interface IImportServiceFactory
 {
-    PlateauImportService Create(ImportCommandOptions options, ILoggerFactory loggerFactory);
+    PlateauImportService Create(ImportCommandOptions options);
 }
 
 internal interface IPlateauDatasetSourceResolverFactory
@@ -72,7 +74,7 @@ internal interface IPlateauDatasetSourceResolverFactory
 
 internal interface ISceneSinkFactory
 {
-    ISceneSink Create(ImportCommandOptions options, ILoggerFactory loggerFactory);
+    ISceneSink Create(ImportCommandOptions options);
 }
 
 internal sealed class DefaultImportServiceFactory(
@@ -86,18 +88,16 @@ internal sealed class DefaultImportServiceFactory(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "PlateauImportService owns the target lifetime and disposes it after each execution.")]
-    public PlateauImportService Create(ImportCommandOptions options, ILoggerFactory loggerFactory)
+    public PlateauImportService Create(ImportCommandOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(loggerFactory);
 
         return new PlateauImportService(
-            sceneSinkFactory.Create(options, loggerFactory),
+            sceneSinkFactory.Create(options),
             datasetSourceResolverFactory.Create(),
             importedSceneSourceFactory,
             commonMaterials,
-            archiveFileLayoutPolicy,
-            loggerFactory);
+            archiveFileLayoutPolicy);
     }
 }
 
@@ -125,10 +125,9 @@ internal sealed class DefaultSceneSinkFactory(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "The returned ScopedSceneSink owns the target and associated service scope for the import run.")]
-    public ISceneSink Create(ImportCommandOptions options, ILoggerFactory loggerFactory)
+    public ISceneSink Create(ImportCommandOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(loggerFactory);
 
         AsyncServiceScope scope = serviceScopeFactory.CreateAsyncScope();
         try
@@ -140,7 +139,7 @@ internal sealed class DefaultSceneSinkFactory(
                 return new ScopedSceneSink(
                     scope,
                     dumpSinkFactory.Create(
-                        CreateCanonicalDumpTargetOptions(options, loggerFactory),
+                        CreateCanonicalDumpTargetOptions(options),
                         canonicalDump.OutputPath));
             }
 
@@ -161,8 +160,7 @@ internal sealed class DefaultSceneSinkFactory(
                 },
                 options.EnableMeshBake,
                 options.TerrainTileCacheRoot,
-                options.DisableTerrainTileCache,
-                loggerFactory);
+                options.DisableTerrainTileCache);
             IResoniteLiveSceneImportFactory targetFactory =
                 scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
             ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
@@ -177,9 +175,7 @@ internal sealed class DefaultSceneSinkFactory(
         }
     }
 
-    private static ResoniteLiveSceneImportTargetOptions CreateCanonicalDumpTargetOptions(
-        ImportCommandOptions options,
-        ILoggerFactory loggerFactory)
+    private static ResoniteLiveSceneImportTargetOptions CreateCanonicalDumpTargetOptions(ImportCommandOptions options)
     {
         return new ResoniteLiveSceneImportTargetOptions(
             new Uri("ws://localhost:1/"),
@@ -193,8 +189,7 @@ internal sealed class DefaultSceneSinkFactory(
             },
             options.EnableMeshBake,
             TerrainTileCacheRoot: null,
-            DisableTerrainTileCache: true,
-            loggerFactory);
+            DisableTerrainTileCache: true);
     }
 }
 

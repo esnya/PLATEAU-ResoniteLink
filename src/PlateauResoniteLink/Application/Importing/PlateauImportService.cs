@@ -6,10 +6,7 @@ using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-
 using PlateauResoniteLink.Diagnostics;
-using Microsoft.Extensions.Logging.Abstractions;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -20,15 +17,12 @@ internal sealed class PlateauImportService(
     IPlateauDatasetSourceResolver datasetSourceResolver,
     IImportedSceneSourceFactory importedSceneSourceFactory,
     CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials,
-    IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
-    ILoggerFactory? loggerFactory = null)
+    IArchiveFileLayoutPolicy archiveFileLayoutPolicy)
 {
     private readonly ISceneSink sceneSink =
         sceneSink ?? throw new ArgumentNullException(nameof(sceneSink));
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
         datasetSourceResolver ?? throw new ArgumentNullException(nameof(datasetSourceResolver));
-    private readonly ILoggerFactory loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
-    private readonly ILogger logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger("PlateauResoniteLink.Import");
     private readonly IImportedSceneSourceFactory importedSceneSourceFactory =
         importedSceneSourceFactory ?? throw new ArgumentNullException(nameof(importedSceneSourceFactory));
     private readonly CommonMaterialCatalog<DefaultCommonMaterialMember> commonMaterials =
@@ -53,23 +47,23 @@ internal sealed class PlateauImportService(
                 validatedRequest,
                 datasetWorkRoot,
                 cancellationToken);
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "Resolved CityGML source for '{Dataset}' mesh-code '{MeshCode}'.",
                 resolvedRequest.Dataset,
                 resolvedRequest.MeshCode);
 
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
+            using Activity? sourceActivity = PlateauDiagnostics.StartActivity("plateau.import.source");
             IImportedSceneSource importedSceneSource = await importedSceneSourceFactory.CreateAsync(
                 resolvedRequest,
-                loggerFactory,
                 cancellationToken);
             sourceStopwatch.Stop();
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "Prepared imported scene source in {ElapsedSeconds:F3}s.",
                 sourceStopwatch.Elapsed.TotalSeconds);
 
             ImportedSceneMetadata metadata = importedSceneSource.Metadata;
-            logger.WriteInformation(
+            PlateauDiagnostics.Progress(
                 "Import source prepared for live send (dataset='{Dataset}', mesh='{MeshCode}', common_materials={CommonMaterialCount}).",
                 resolvedRequest.Dataset,
                 resolvedRequest.MeshCode,
@@ -86,11 +80,11 @@ internal sealed class PlateauImportService(
                 await preflight.ValidateBeforeSinkSetupAsync(cancellationToken);
             }
 
-            logger.WriteInformation("Starting live scene initialization.");
+            PlateauDiagnostics.Progress("Starting live scene initialization.");
 
             int sourceCityObjectCount = 0;
             Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-            logger.WriteDebug("Handing object unit stream to sink.");
+            PlateauDiagnostics.Verbose("Handing object unit stream to sink.");
             CountingImportedObjectUnitStream countedObjectUnits = new(
                 importedSceneSource.ReadObjectUnitsAsync(cancellationToken),
                 cityObjectCount => sourceCityObjectCount += cityObjectCount);
@@ -100,11 +94,11 @@ internal sealed class PlateauImportService(
                 cancellationToken);
 
             cityObjectStopwatch.Stop();
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "Streamed {CityObjectCount} city objects in {ElapsedSeconds:F3}s.",
                 sourceCityObjectCount,
                 cityObjectStopwatch.Elapsed.TotalSeconds);
-            logger.WriteDebug(
+            PlateauDiagnostics.Verbose(
                 "City object streaming elapsed {ElapsedSeconds:F3}s after sink execution started.",
                 cityObjectStopwatch.Elapsed.TotalSeconds);
 

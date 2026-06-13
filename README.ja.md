@@ -86,7 +86,7 @@ dotnet run --project src/PlateauResoniteLink.Cli -- \
 
 `search` と `stats` は、ローカルの dataset directory とローカル `.zip` / `.7z` archive を inspection します。remote import 自体は引き続き explicit な direct archive URL が必要です。
 
-CLI は既定で timestamp、level、category、message を含む短い .NET 風の console log を出力します。Information レベルの出力は phase-oriented で、source discovery、source-scan aggregate progress、live-send ingest / sending counter、setup summary、datasource decision、最終 send summary を表示します。file ごと、object ごと、lane ごと、RPC breakdown、elapsed-time statistics、ResoniteLink transport の詳細は Debug レベルです。必要なときは `--verbose` を付けてください。
+`import` 中、CLI は completion / result contract 用に `stdout` を保ち、source discovery、source-scan aggregate progress、setup、live-send の queued / sent / failed counter、finalization などの簡潔な進捗を `stderr` に出力します。import diagnostics は `System.Diagnostics` で発行され、ユーザー向け progress / warning は `EventSource`、期間付き作業は `ActivitySource`、live-send / RPC metrics は `Meter` を使います。file ごと、object ごと、lane ごと、RPC timing などの詳細 event を `stderr` に含めるには `--verbose` を付けてください。
 
 `--work-root` を省略した場合、CLI は dataset ごとの archive と live temporary file を `local/<dataset>/` 配下に置きます。terrain tile download は別に local app-data 配下へ既定 cache され、`--terrain-tile-cache-root` で上書き、`--disable-terrain-tile-cache` で cross-run cache を無効化できます。DEM terrain texture source は既定では PLATEAU Ortho から GSI seamless photo tile に fallback できますが、`--exclude-gsi-terrain-tiles` を指定すると GeoTIFF と PLATEAU Ortho のみに限定します。
 

@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Diagnostics;
 
@@ -28,7 +27,6 @@ internal static class LocalCityGmlSourceFileParser
         IReadOnlyList<global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        ILogger? logger,
         LodFilteringStrategy lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
@@ -42,9 +40,7 @@ internal static class LocalCityGmlSourceFileParser
                         () => ParseSourceFileCoreAsync(
                             sourceFile,
                             datasetSource,
-                            requestedMeshAreas,
-                            logger,
-                            lodFilteringStrategy,
+                            requestedMeshAreas, lodFilteringStrategy,
                             appearanceStoreFactory,
                             lodSelector,
                             cancellationToken),
@@ -63,7 +59,6 @@ internal static class LocalCityGmlSourceFileParser
         global::PlateauResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        ILogger? logger,
         LodFilteringStrategy lodFilteringStrategy,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
@@ -100,7 +95,7 @@ internal static class LocalCityGmlSourceFileParser
             ? DemSourceDiscoverySupport.CreateTerrainHeightTriangles(cityObjectArray)
             : [];
 
-        logger?.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "Parsed file '{SourceFile}' ({PackageName}, {CityObjectCount} city objects) in {ElapsedSeconds:F3}s.",
             sourceFile.RelativePath,
             sourceFile.PackageName,

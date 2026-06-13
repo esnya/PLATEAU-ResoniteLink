@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -17,8 +16,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 #pragma warning disable CA1859
     private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
-    private readonly ILogger logger;
-
     private int executionClaimed;
 
     internal ResoniteLiveSceneImportTarget(
@@ -35,7 +32,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         MemoryProfile = options.MemoryProfile;
         Diagnostics = dependencies.Diagnostics;
         MeshBakeEnabled = options.EnableMeshBake;
-        logger = options.LoggerFactory.CreateLogger("PlateauResoniteLink.LiveSend");
         RunExecutor = dependencies.RunExecutor;
         ClientSessionInternal = dependencies.ClientSession;
     }
@@ -74,8 +70,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     endpoint,
                     connectionCount,
                     ClientSessionInternal,
-                    Diagnostics,
-                    logger),
+                    Diagnostics),
                 cancellationToken);
         }
         finally

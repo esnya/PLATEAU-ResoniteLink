@@ -7,10 +7,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-
 using PlateauResoniteLink.Diagnostics;
-using Microsoft.Extensions.Logging.Abstractions;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -28,7 +25,6 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     private readonly ICityGmlGeometryProjector geometryProjector;
     private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
     private readonly ProjectionTerrainOverlayContextResolver terrainOverlayContextResolver;
-    private readonly ILogger logger;
     private readonly object referenceSystemGate = new();
     private readonly X3DMaterialWarningStatistics x3DMaterialWarningStatistics = new();
     private readonly IReadOnlyList<string> selectedMeshCodes;
@@ -41,8 +37,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         ImportedSceneSourceSnapshot readResult,
         ICityGmlGeometryProjector geometryProjector,
         IDemTextureSourcePolicy demTextureSourcePolicy,
-        IImportedObjectUnitOptimizer objectUnitOptimizer,
-        ILoggerFactory? loggerFactory = null)
+        IImportedObjectUnitOptimizer objectUnitOptimizer)
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentNullException.ThrowIfNull(readResult);
@@ -55,7 +50,6 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         globalOriginPoint = DiscoveryContext.GlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.objectUnitOptimizer = objectUnitOptimizer;
-        logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger("PlateauResoniteLink.Import");
         selectedMeshCodes = Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode];
         requestedMeshCodeBounds = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
             selectedMeshCodes);
@@ -79,7 +73,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        logger.WriteInformation(
+        PlateauDiagnostics.Progress(
             "City object unit streaming pipeline starting (source_files={SourceFileCount}).",
             sourceFiles.Length);
         Channel<ImportedObjectUnit> channel = Channel.CreateBounded<ImportedObjectUnit>(
@@ -94,7 +88,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             sourceFiles.Select((sourceFile, index) => (sourceFile, index + 1)));
         SourceScanProgress sourceScanProgress = new();
 
-        logger.WriteInformation(
+        PlateauDiagnostics.Progress(
             "City object unit producers launched: {ProducerConcurrency} worker(s) for {SourceFileCount} file-scoped streams.",
             producerConcurrency,
             sourceFiles.Length);
@@ -117,7 +111,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         }
 
         await completionTask;
-        x3DMaterialWarningStatistics.ReportFinal(logger);
+        x3DMaterialWarningStatistics.ReportFinal();
     }
 
     private LocalCartesian? CreateGlobalCartesian(CoordinateReferenceSystem referenceSystem)
@@ -141,7 +135,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
     {
         cancellationToken.ThrowIfCancellationRequested();
         int percent = totalFiles == 0 ? 100 : (int)Math.Floor((fileIndex / (double)totalFiles) * 100.0);
-        logger.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "Processing CityGML source file {FileIndex}/{TotalFiles} ({Percent}%). Source='{SourceFile}'.",
             fileIndex,
             totalFiles,
@@ -159,7 +153,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             await writer.WriteAsync(objectUnit, cancellationToken);
         }
 
-        logger.WriteDebug(
+        PlateauDiagnostics.Verbose(
             "Finished CityGML source file {FileIndex}/{TotalFiles}. Source='{SourceFile}', yielded_units={YieldedUnitCount}, yielded_city_objects={YieldedCityObjectCount}.",
             fileIndex,
             totalFiles,
@@ -175,7 +169,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             int completedPercent = totalFiles == 0 ? 100 : (int)Math.Floor((completedSourceFiles / (double)totalFiles) * 100.0);
             if (completedSourceFiles == totalFiles)
             {
-                logger.WriteInformation(
+                PlateauDiagnostics.Progress(
                     "Import source scan completed: source_files={CompletedSourceFileCount}/{TotalFiles}, produced_units={ProducedObjectUnitCount}, produced_city_objects={ProducedCityObjectCount}. Live send may still be draining queued objects.",
                     completedSourceFiles,
                     totalFiles,
@@ -184,7 +178,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             }
             else
             {
-                logger.WriteInformation(
+                PlateauDiagnostics.Progress(
                     "Import source scan progress: source_files={CompletedSourceFileCount}/{TotalFiles} ({CompletedPercent}%), produced_units={ProducedObjectUnitCount}, produced_city_objects={ProducedCityObjectCount}.",
                     completedSourceFiles,
                     totalFiles,
@@ -279,7 +273,6 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                          selectedMeshCodes: selectedMeshCodes,
                          request: request,
                          predicate: null,
-                         logger: logger,
                          cancellationToken: cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -321,7 +314,6 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
                              request: request,
                              demTerrainGridSamplingDraft: samplingDraft,
                              predicate: null,
-                             logger: logger,
                              cancellationToken: cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -332,8 +324,8 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
         }
 
         fileStopwatch.Stop();
-        fileWarningStatistics.ReportFile(sourceFile.SourceFile.RelativePath, logger);
-        logger.WriteDebug(
+        fileWarningStatistics.ReportFile(sourceFile.SourceFile.RelativePath);
+        PlateauDiagnostics.Verbose(
             "City object producer projected '{SourceFile}' (parsed_city_objects={ParsedCityObjectCount}, yielded={YieldedCityObjectCount}, elapsed_s={ElapsedSeconds:F3}).",
             sourceFile.SourceFile.RelativePath,
             parsedCount,
@@ -518,27 +510,27 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImpo
             }
         }
 
-        public void ReportFile(string sourceFileRelativePath, ILogger logger)
+        public void ReportFile(string sourceFileRelativePath)
         {
             if (!HasUnsupportedValues)
             {
                 return;
             }
 
-            logger.WriteWarning(
+            PlateauDiagnostics.Warning(
                 "CityGML file '{SourceFile}' contains unsupported X3DMaterial optical attributes left unprojected {Summary}",
                 sourceFileRelativePath,
                 CreateSummarySuffix());
         }
 
-        public void ReportFinal(ILogger logger)
+        public void ReportFinal()
         {
             if (!HasUnsupportedValues)
             {
                 return;
             }
 
-            logger.WriteWarning(
+            PlateauDiagnostics.Warning(
                 "Unsupported X3DMaterial optical attribute summary: values were parsed for diagnostics but not projected to Resonite materials {Summary}",
                 CreateSummarySuffix());
         }

@@ -4,9 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Cli;
 using PlateauResoniteLink.Domain.Importing;
@@ -32,8 +29,8 @@ public sealed class ImportServiceFactoryTests
         ImportCommandOptions firstOptions = CreateOptions("53394525", enableMeshBake: true);
         ImportCommandOptions secondOptions = CreateOptions("53394526", enableMeshBake: false);
 
-        PlateauImportService firstService = factory.Create(firstOptions, NullLoggerFactory.Instance);
-        PlateauImportService secondService = factory.Create(secondOptions, NullLoggerFactory.Instance);
+        PlateauImportService firstService = factory.Create(firstOptions);
+        PlateauImportService secondService = factory.Create(secondOptions);
 
         Assert.NotSame(firstService, secondService);
         Assert.Equal(2, datasetResolverFactory.CreatedResolvers.Count);
@@ -100,9 +97,8 @@ public sealed class ImportServiceFactoryTests
         public List<ImportCommandOptions> CapturedOptions { get; } = [];
         public List<StubSceneImportSink> CreatedTargets { get; } = [];
 
-        public ISceneSink Create(ImportCommandOptions options, ILoggerFactory loggerFactory)
+        public ISceneSink Create(ImportCommandOptions options)
         {
-            _ = loggerFactory;
             CapturedOptions.Add(options);
             StubSceneImportSink target = new();
             CreatedTargets.Add(target);
@@ -141,10 +137,9 @@ public sealed class ImportServiceFactoryTests
 
         public Task<IImportedSceneSource> CreateAsync(
             ResolvedLocalPlateauImportRequest request,
-            ILoggerFactory? loggerFactory = null,
             CancellationToken cancellationToken = default)
         {
-            _ = loggerFactory;
+            _ = cancellationToken;
             CreateCallCount++;
 
             ImportedSceneMetadata metadata = new(

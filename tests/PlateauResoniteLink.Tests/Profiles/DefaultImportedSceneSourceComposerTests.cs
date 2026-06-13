@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 using GeographicLib;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -121,7 +120,6 @@ public sealed class DefaultImportedSceneSourceComposerTests
             IReadOnlyList<string> selectedMeshCodes,
             PlateauImportRequest request,
             Func<ParsedCityObject, bool>? predicate = null,
-            ILogger? logger = null,
             CancellationToken cancellationToken = default)
         {
             _ = sourceFile;
@@ -133,7 +131,6 @@ public sealed class DefaultImportedSceneSourceComposerTests
             _ = selectedMeshCodes;
             _ = request;
             _ = predicate;
-            _ = logger;
             _ = cancellationToken;
             throw new InvalidOperationException("Compose should not project geometry.");
         }

@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 
 using GeographicLib;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -403,7 +402,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             PlateauImportRequest request,
             DemSourceFileTerrainGridSamplingDraft? demTerrainGridSamplingDraft = null,
             Func<ParsedCityObject, bool>? predicate = null,
-            ILogger? logger = null,
             CancellationToken cancellationToken = default)
         {
             _ = referenceSystem;
@@ -413,7 +411,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             _ = requestedMeshCodeBounds;
             _ = selectedMeshCodes;
             _ = request;
-            _ = logger;
             _ = cancellationToken;
             ParsedCityObject cityObject = input.CityObject;
             if (predicate is not null && !predicate(cityObject))

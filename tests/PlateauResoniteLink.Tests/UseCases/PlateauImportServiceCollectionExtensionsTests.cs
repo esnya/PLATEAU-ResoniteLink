@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -112,10 +111,9 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
 
         public Task<ImportedSceneSourceSnapshot> ReadAsync(
             ResolvedLocalPlateauImportRequest request,
-            ILogger? logger = null,
             CancellationToken cancellationToken = default)
         {
-            _ = logger;
+            _ = cancellationToken;
             LastRequest = request;
             return Task.FromResult(readResult ?? throw new NotSupportedException());
         }
@@ -125,11 +123,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     {
         public Task<IImportedSceneSource> CreateAsync(
             ResolvedLocalPlateauImportRequest request,
-            ILoggerFactory? loggerFactory = null,
             CancellationToken cancellationToken = default)
         {
             _ = request;
-            _ = loggerFactory;
+            _ = cancellationToken;
             throw new NotSupportedException();
         }
     }
@@ -160,12 +157,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         public IImportedSceneSource Compose(
             ResolvedLocalPlateauImportRequest request,
             ImportedSceneSourceSnapshot readResult,
-            IImportedObjectUnitOptimizer objectUnitOptimizer,
-            ILoggerFactory? loggerFactory = null)
+            IImportedObjectUnitOptimizer objectUnitOptimizer)
         {
             LastRequest = request;
             LastReadResult = readResult;
-            _ = loggerFactory;
             _ = objectUnitOptimizer;
             return source;
         }

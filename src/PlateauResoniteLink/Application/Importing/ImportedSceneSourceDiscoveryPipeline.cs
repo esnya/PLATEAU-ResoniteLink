@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Diagnostics;
 
@@ -20,7 +19,6 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
-        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -51,7 +49,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
         MeshCodeBounds? effectiveRequestedMeshCodeBounds =
             MeshCodeBounds.TryMerge(requestedMeshCodeBounds);
         scanStopwatch.Stop();
-        logger?.WriteInformation(
+        PlateauDiagnostics.Progress(
             "Scanned {SourceFileCount} matching CityGML files in {ElapsedSeconds:F3}s.",
             sourceFiles.Length,
             scanStopwatch.Elapsed.TotalSeconds);
@@ -72,9 +70,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
             await LocalCityGmlSourceFileParser.CreateSourceFilePipelinesCoreAsync(
                 sourceFiles,
                 datasetSource,
-                requestedMeshCodeBounds,
-                logger,
-                lodFilteringStrategy,
+                requestedMeshCodeBounds, lodFilteringStrategy,
                 appearanceStoreFactory,
                 lodSelector,
                 cancellationToken);
@@ -95,7 +91,7 @@ internal static class ImportedSceneSourceDiscoveryPipeline
             resolvedGeodeticCenter.Altitude);
 
         totalStopwatch.Stop();
-        logger?.WriteInformation(
+        PlateauDiagnostics.Progress(
             "Imported scene source ready in {ElapsedSeconds:F3}s.",
             totalStopwatch.Elapsed.TotalSeconds);
 
