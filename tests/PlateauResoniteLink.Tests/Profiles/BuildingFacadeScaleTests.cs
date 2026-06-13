@@ -105,6 +105,18 @@ public sealed class BuildingFacadeScaleTests
         Assert.True(scale.Highrise);
     }
 
+    [Fact]
+    public void ClassifyUsesGeometryHeightFallbackForLandmarkThreshold()
+    {
+        BuildingFacadeScale scale = BuildingFacadeScale.Classify(
+            floorCount: null,
+            measuredHeightMeters: double.NaN,
+            geometryHeightMeters: 150.0,
+            footprintAreaSquareMeters: null);
+
+        Assert.True(scale.Landmark);
+    }
+
     [Theory]
     [InlineData(999.999, false)]
     [InlineData(1000.0, true)]

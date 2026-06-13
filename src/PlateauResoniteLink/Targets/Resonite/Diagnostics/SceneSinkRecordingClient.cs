@@ -17,6 +17,8 @@ namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
 
 internal sealed record SlotGetRequest(string SlotId, string SlotPath, int Depth);
 
+internal sealed record SyntheticSlotFieldReference(string SlotId, string FieldName);
+
 internal class SceneSinkRecordingClient : IResoniteLinkClient
 {
     private readonly object gate = new();
@@ -42,6 +44,8 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
     public Dictionary<string, Component> ComponentsById { get; } = new(StringComparer.Ordinal);
 
     public Dictionary<string, Slot> SlotsById { get; } = new(StringComparer.Ordinal);
+
+    internal Dictionary<string, SyntheticSlotFieldReference> SyntheticSlotFieldReferencesById { get; } = new(StringComparer.Ordinal);
 
     public Dictionary<string, string> SlotPaths { get; } = new(StringComparer.Ordinal);
 
@@ -202,7 +206,7 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
         {
             return Task.FromResult<Slot?>(
                 SlotsById.TryGetValue(slot.Value, out Slot? resolvedSlot)
-                    ? CloneSlot(resolvedSlot, depth)
+                    ? CloneSlot(resolvedSlot, depth, synthesizeDefaultIsActive: true)
                     : null);
         }
     }
@@ -319,13 +323,14 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
         return root;
     }
 
-    private Slot CloneSlot(Slot source, int depth)
+    private Slot CloneSlot(Slot source, int depth, bool synthesizeDefaultIsActive = false)
     {
         Slot clone = new()
         {
             ID = source.ID,
             Parent = source.Parent,
             Name = source.Name,
+            IsActive = source.IsActive ?? CreateSyntheticIsActiveField(source, synthesizeDefaultIsActive),
             OrderOffset = source.OrderOffset,
             Position = source.Position,
             Rotation = source.Rotation,
@@ -339,9 +344,27 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
 
         clone.Children = SlotsById.Values
             .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
-            .Select(slot => CloneSlot(slot, depth - 1))
+            .Select(slot => CloneSlot(slot, depth - 1, synthesizeDefaultIsActive))
             .ToList();
         return clone;
+    }
+
+    private Field_bool? CreateSyntheticIsActiveField(Slot source, bool synthesizeDefaultIsActive)
+    {
+        if (!synthesizeDefaultIsActive || string.IsNullOrWhiteSpace(source.ID))
+        {
+            return null;
+        }
+
+        string fieldId = $"field:{source.ID}:IsActive";
+        SyntheticSlotFieldReferencesById.TryAdd(
+            fieldId,
+            new SyntheticSlotFieldReference(source.ID!, "IsActive"));
+        return new Field_bool
+        {
+            ID = fieldId,
+            Value = true,
+        };
     }
 
     private static AddSlot ResolveBatchAddSlot(AddSlot addSlot, IReadOnlyDictionary<string, string> localSlotIds)
@@ -359,6 +382,7 @@ internal class SceneSinkRecordingClient : IResoniteLinkClient
                         TargetID = TryResolveLocalId(addSlot.Data.Parent.TargetID, localSlotIds),
                     },
                 Name = addSlot.Data.Name,
+                IsActive = addSlot.Data.IsActive,
                 OrderOffset = addSlot.Data.OrderOffset,
                 Position = addSlot.Data.Position,
                 Rotation = addSlot.Data.Rotation,

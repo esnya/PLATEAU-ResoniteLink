@@ -43,12 +43,16 @@ internal static class PlannedBatchEmissionInterpreter
 
         foreach (PlannedBatchSlotEmission slotEmission in batchEmission.SlotEmissions)
         {
+            Field_bool? isActive = slotEmission.IsActive is null
+                ? null
+                : (Field_bool)TranslateAddressableField(slotEmission.IsActive, pendingFieldsByPlanId, batchBuilder);
             ResoniteBatchOperations.PendingBatchSlot pendingSlot = batchBuilder.AddSlot(
                 ResolveSlotTargetId(slotEmission.ParentTarget, pendingSlotsByPlanId),
                 slotEmission.SlotName,
                 slotEmission.Position,
                 slotEmission.Rotation,
-                slotEmission.OrderOffset);
+                slotEmission.OrderOffset,
+                isActive);
             pendingSlotsByPlanId[slotEmission] = pendingSlot;
             pendingSlots.Add(pendingSlot);
         }

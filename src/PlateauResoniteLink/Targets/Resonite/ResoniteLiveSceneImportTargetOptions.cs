@@ -9,4 +9,5 @@ internal sealed record ResoniteLiveSceneImportTargetOptions(
     ResoniteImportMemoryProfile MemoryProfile,
     bool EnableMeshBake,
     string? TerrainTileCacheRoot,
-    bool DisableTerrainTileCache);
+    bool DisableTerrainTileCache,
+    bool EnableDistanceCulling = false);

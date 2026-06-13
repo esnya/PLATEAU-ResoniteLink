@@ -41,6 +41,14 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public async Task OptionsConstructorCanEnableDistanceCulling()
+    {
+        await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget(enableDistanceCulling: true);
+
+        Assert.True(importTarget.DistanceCullingEnabled);
+    }
+
+    [Fact]
     public async Task OptionsConstructorUsesLargeMemoryProfileByDefault()
     {
         await using ResoniteLiveSceneImportTarget importTarget = CreateImportTarget();
@@ -407,7 +415,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
 
-    private static ResoniteLiveSceneImportTarget CreateImportTarget(bool enableMeshBake = true)
+    private static ResoniteLiveSceneImportTarget CreateImportTarget(
+        bool enableMeshBake = true,
+        bool enableDistanceCulling = false)
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
@@ -419,7 +429,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 ResoniteImportMemoryProfile.Large,
                 enableMeshBake,
                 TerrainTileCacheRoot: null,
-                DisableTerrainTileCache: false),
+                DisableTerrainTileCache: false,
+                EnableDistanceCulling: enableDistanceCulling),
             ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
                 new DelegatingClientSession(),
                 diagnostics,
