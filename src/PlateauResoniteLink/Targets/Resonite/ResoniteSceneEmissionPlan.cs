@@ -65,7 +65,7 @@ internal abstract record RendererOverride;
 internal sealed record AlbedoRendererOverride(LocalRendererOverrideTextureProvider MainTexture)
     : RendererOverride;
 
-internal sealed record TerrainOverlayRendererOverride(RendererOverrideTextureProvider MainTexture)
+internal sealed record TerrainOverlayRendererOverride(SharedTerrainOverlayTextureProvider MainTexture)
     : RendererOverride;
 
 internal abstract record PlannedMaterialAsset;
@@ -119,7 +119,7 @@ internal sealed record PlannedAlbedoMainTextureOverrideRendererMaterialBinding(
 
 internal sealed record PlannedTerrainMainTextureOverrideRendererMaterialBinding(
     PlannedMaterialAsset MaterialAsset,
-    RendererOverrideTextureProvider MainTexture)
+    SharedTerrainOverlayTextureProvider MainTexture)
     : PlannedMainTextureOverrideRendererMaterialBinding(
         MaterialAsset,
         new TerrainOverlayRendererOverride(MainTexture));
