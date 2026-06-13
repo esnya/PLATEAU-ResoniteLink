@@ -26,19 +26,26 @@ public sealed class ImportServiceFactoryTests
             CommonMaterialCatalog.Create(),
             archiveFileLayoutPolicy);
 
-        ImportCommandOptions firstOptions = CreateOptions("53394525", enableMeshBake: true);
-        ImportCommandOptions secondOptions = CreateOptions("53394526", enableMeshBake: false);
+        PlateauImportRequest firstRequest = CreateRequest("53394525");
+        PlateauImportRequest secondRequest = CreateRequest("53394526");
+        ImportRunCliOptions runOptions = new("local");
+        ImportSinkCliOptions firstSinkOptions = CreateSinkOptions();
+        ImportSinkCliOptions secondSinkOptions = CreateSinkOptions();
+        ResoniteSceneBuildCliOptions firstSceneBuildOptions = CreateSceneBuildOptions(enableMeshBake: true);
+        ResoniteSceneBuildCliOptions secondSceneBuildOptions = CreateSceneBuildOptions(enableMeshBake: false);
 
-        PlateauImportService firstService = factory.Create(firstOptions);
-        PlateauImportService secondService = factory.Create(secondOptions);
+        PlateauImportService firstService = factory.Create(firstSinkOptions, firstSceneBuildOptions);
+        PlateauImportService secondService = factory.Create(secondSinkOptions, secondSceneBuildOptions);
 
         Assert.NotSame(firstService, secondService);
         Assert.Equal(2, datasetResolverFactory.CreatedResolvers.Count);
         Assert.Equal(2, sceneImportTargetFactory.CreatedTargets.Count);
-        Assert.Equal([firstOptions, secondOptions], sceneImportTargetFactory.CapturedOptions);
+        Assert.Equal(
+            [(firstSinkOptions, firstSceneBuildOptions), (secondSinkOptions, secondSceneBuildOptions)],
+            sceneImportTargetFactory.CapturedOptions);
 
-        ImportExecutionResult firstResult = await firstService.ExecuteAsync(firstOptions.Request, firstOptions.WorkRoot);
-        ImportExecutionResult secondResult = await secondService.ExecuteAsync(secondOptions.Request, secondOptions.WorkRoot);
+        ImportExecutionResult firstResult = await firstService.ExecuteAsync(firstRequest, runOptions.WorkRoot);
+        ImportExecutionResult secondResult = await secondService.ExecuteAsync(secondRequest, runOptions.WorkRoot);
 
         Assert.Equal("PLATEAU tokyo23ku 53394525", firstResult.Metadata.SceneName);
         Assert.Equal("PLATEAU tokyo23ku 53394526", secondResult.Metadata.SceneName);
@@ -46,23 +53,24 @@ public sealed class ImportServiceFactoryTests
         Assert.Equal(2, importedSceneSourceFactory.CreateCallCount);
     }
 
-    private static ImportCommandOptions CreateOptions(string meshCode, bool enableMeshBake)
+    private static PlateauImportRequest CreateRequest(string meshCode)
     {
-        PlateauImportRequest request = new(
+        return new PlateauImportRequest(
             Dataset: "tokyo23ku",
             MeshCode: meshCode,
             CityGmlSource: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDataset")));
+    }
 
-        return new ImportCommandOptions(
-            request,
-            "local",
-            new LiveResoniteLinkImportMode(new Uri("ws://localhost:12345/"), 4),
-            PlateauImportMemoryProfile.Large,
-            enableMeshBake,
-            TerrainTileCacheRoot: null,
-            DisableTerrainTileCache: false,
-            EnableSendMetrics: false,
-            VerboseLogging: false);
+    private static ImportSinkCliOptions CreateSinkOptions()
+    {
+        return new LiveResoniteSinkCliOptions(
+            new ResoniteLiveTransportCliOptions(new Uri("ws://localhost:12345/"), 4, enableSendMetrics: false),
+            new TerrainTileCacheCliOptions(TerrainTileCacheRoot: null, DisableTerrainTileCache: false));
+    }
+
+    private static ResoniteSceneBuildCliOptions CreateSceneBuildOptions(bool enableMeshBake)
+    {
+        return new ResoniteSceneBuildCliOptions(PlateauImportMemoryProfile.Large, enableMeshBake);
     }
 
     private sealed class StubPlateauDatasetSourceResolverFactory : IPlateauDatasetSourceResolverFactory
@@ -94,12 +102,14 @@ public sealed class ImportServiceFactoryTests
 
     private sealed class StubSceneSinkFactory : ISceneSinkFactory
     {
-        public List<ImportCommandOptions> CapturedOptions { get; } = [];
+        public List<(ImportSinkCliOptions Sink, ResoniteSceneBuildCliOptions SceneBuild)> CapturedOptions { get; } = [];
         public List<StubSceneImportSink> CreatedTargets { get; } = [];
 
-        public ISceneSink Create(ImportCommandOptions options)
+        public ISceneSink Create(
+            ImportSinkCliOptions sinkOptions,
+            ResoniteSceneBuildCliOptions sceneBuildOptions)
         {
-            CapturedOptions.Add(options);
+            CapturedOptions.Add((sinkOptions, sceneBuildOptions));
             StubSceneImportSink target = new();
             CreatedTargets.Add(target);
             return target;

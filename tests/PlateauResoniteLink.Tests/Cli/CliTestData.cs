@@ -2,21 +2,6 @@ namespace PlateauResoniteLink.Tests.Cli;
 
 internal static class CliTestData
 {
-    public static readonly string[] DocumentedDefaultPackageNames =
-    [
-        "dem",
-        "bldg",
-        "brid",
-        "frn",
-        "tran",
-        "rwy",
-        "trk",
-        "tun",
-        "ubld",
-        "unf",
-        "veg",
-    ];
-
     public static string[] CreateLocalImportArgs(string fixturePath)
     {
         return

@@ -4,6 +4,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="System.CommandLine" />
     <ProjectReference Include="..\PlateauResoniteLink\PlateauResoniteLink.csproj" />
   </ItemGroup>
 

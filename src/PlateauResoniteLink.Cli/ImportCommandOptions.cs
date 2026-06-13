@@ -4,39 +4,47 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Cli;
 
-public sealed record ImportCommandOptions(
-    PlateauImportRequest Request,
-    string WorkRoot,
-    ImportTargetMode TargetMode,
+public sealed record ImportRunCliOptions(string WorkRoot);
+
+public sealed record ResoniteSceneBuildCliOptions(
     PlateauImportMemoryProfile MemoryProfile,
     bool EnableMeshBake,
-    string? TerrainTileCacheRoot,
-    bool DisableTerrainTileCache,
-    bool EnableSendMetrics,
-    bool VerboseLogging,
-    bool EnableDistanceCulling = false) : CliCommandOptions;
+    bool EnableDistanceCulling = false);
 
-public abstract record ImportTargetMode;
-
-public sealed record LiveResoniteLinkImportMode : ImportTargetMode
+public sealed record ResoniteLiveTransportCliOptions
 {
-    public LiveResoniteLinkImportMode(Uri endpoint, int connectionCount)
+    public ResoniteLiveTransportCliOptions(Uri endpoint, int connectionCount, bool enableSendMetrics)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentOutOfRangeException.ThrowIfLessThan(connectionCount, 1);
 
         Endpoint = endpoint;
         ConnectionCount = connectionCount;
+        EnableSendMetrics = enableSendMetrics;
     }
 
     public Uri Endpoint { get; }
 
     public int ConnectionCount { get; }
+
+    public bool EnableSendMetrics { get; }
 }
 
-public sealed record CanonicalSceneDumpImportMode : ImportTargetMode
+public sealed record TerrainTileCacheCliOptions(
+    string? TerrainTileCacheRoot,
+    bool DisableTerrainTileCache);
+
+public sealed record CliDiagnosticsOptions(bool VerboseLogging);
+
+public abstract record ImportSinkCliOptions;
+
+public sealed record LiveResoniteSinkCliOptions(
+    ResoniteLiveTransportCliOptions Transport,
+    TerrainTileCacheCliOptions TerrainTileCache) : ImportSinkCliOptions;
+
+public sealed record CanonicalSceneDumpSinkCliOptions : ImportSinkCliOptions
 {
-    public CanonicalSceneDumpImportMode(string outputPath)
+    public CanonicalSceneDumpSinkCliOptions(string outputPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
