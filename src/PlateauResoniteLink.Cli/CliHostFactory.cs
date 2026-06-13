@@ -12,6 +12,7 @@ using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Diagnostics;
+
 namespace PlateauResoniteLink.Cli;
 
 internal static class CliHostFactory
@@ -48,15 +49,19 @@ internal static class CliServiceCollectionExtensions
         services.AddImportedSceneSourceServices();
         services.AddResoniteLiveSendTargetServices();
 
+        services.AddSingleton(new CliConsoleWriters(standardOutput, standardError));
         services.AddSingleton<DatasetInspectionService>();
+        services.AddSingleton<ICliRootCommandFactory, CliCommandFactory>();
+        services.AddSingleton<ICliCommandProvider, ImportCliCommand>();
+        services.AddSingleton<ICliCommandProvider, SearchCliCommand>();
+        services.AddSingleton<ICliCommandProvider, StatsCliCommand>();
+        services.AddSingleton<IImportCommandHandler, DefaultImportCommandHandler>();
+        services.AddSingleton<ISearchCommandHandler, DefaultSearchCommandHandler>();
+        services.AddSingleton<IStatsCommandHandler, DefaultStatsCommandHandler>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
         services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();
         services.AddSingleton<ISceneSinkFactory, DefaultSceneSinkFactory>();
-        services.AddSingleton<CliApplication>(_ => new CliApplication(
-            standardOutput,
-            standardError,
-            _.GetRequiredService<IImportServiceFactory>(),
-            _.GetRequiredService<DatasetInspectionService>()));
+        services.AddSingleton<CliApplication>();
 
         return services;
     }
@@ -64,7 +69,9 @@ internal static class CliServiceCollectionExtensions
 
 internal interface IImportServiceFactory
 {
-    PlateauImportService Create(ImportCommandOptions options);
+    PlateauImportService Create(
+        ImportSinkCliOptions sinkOptions,
+        ResoniteSceneBuildCliOptions sceneBuildOptions);
 }
 
 internal interface IPlateauDatasetSourceResolverFactory
@@ -74,7 +81,9 @@ internal interface IPlateauDatasetSourceResolverFactory
 
 internal interface ISceneSinkFactory
 {
-    ISceneSink Create(ImportCommandOptions options);
+    ISceneSink Create(
+        ImportSinkCliOptions sinkOptions,
+        ResoniteSceneBuildCliOptions sceneBuildOptions);
 }
 
 internal sealed class DefaultImportServiceFactory(
@@ -88,12 +97,15 @@ internal sealed class DefaultImportServiceFactory(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "PlateauImportService owns the target lifetime and disposes it after each execution.")]
-    public PlateauImportService Create(ImportCommandOptions options)
+    public PlateauImportService Create(
+        ImportSinkCliOptions sinkOptions,
+        ResoniteSceneBuildCliOptions sceneBuildOptions)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(sinkOptions);
+        ArgumentNullException.ThrowIfNull(sceneBuildOptions);
 
         return new PlateauImportService(
-            sceneSinkFactory.Create(options),
+            sceneSinkFactory.Create(sinkOptions, sceneBuildOptions),
             datasetSourceResolverFactory.Create(),
             importedSceneSourceFactory,
             commonMaterials,
@@ -125,47 +137,50 @@ internal sealed class DefaultSceneSinkFactory(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "The returned ScopedSceneSink owns the target and associated service scope for the import run.")]
-    public ISceneSink Create(ImportCommandOptions options)
+    public ISceneSink Create(
+        ImportSinkCliOptions sinkOptions,
+        ResoniteSceneBuildCliOptions sceneBuildOptions)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(sinkOptions);
+        ArgumentNullException.ThrowIfNull(sceneBuildOptions);
 
         AsyncServiceScope scope = serviceScopeFactory.CreateAsyncScope();
         try
         {
-            if (options.TargetMode is CanonicalSceneDumpImportMode canonicalDump)
+            if (sinkOptions is CanonicalSceneDumpSinkCliOptions canonicalDump)
             {
                 IResoniteCanonicalSceneDumpSinkFactory dumpSinkFactory =
                     scope.ServiceProvider.GetRequiredService<IResoniteCanonicalSceneDumpSinkFactory>();
                 return new ScopedSceneSink(
                     scope,
                     dumpSinkFactory.Create(
-                        CreateCanonicalDumpTargetOptions(options),
+                        CreateCanonicalDumpTargetOptions(sceneBuildOptions),
                         canonicalDump.OutputPath));
             }
 
-            if (options.TargetMode is not LiveResoniteLinkImportMode live)
+            if (sinkOptions is not LiveResoniteSinkCliOptions live)
             {
-                throw new InvalidOperationException($"Unsupported import target mode '{options.TargetMode.GetType().Name}'.");
+                throw new InvalidOperationException($"Unsupported import sink options '{sinkOptions.GetType().Name}'.");
             }
 
-            ResoniteLiveSceneImportTargetOptions targetOptions = new(
-                live.Endpoint,
-                live.ConnectionCount,
-                options.EnableSendMetrics,
-                options.MemoryProfile switch
+            ResoniteLiveSceneImportTargetOptions liveTargetOptions = new(
+                live.Transport.Endpoint,
+                live.Transport.ConnectionCount,
+                live.Transport.EnableSendMetrics,
+                sceneBuildOptions.MemoryProfile switch
                 {
                     PlateauImportMemoryProfile.Small => ResoniteImportMemoryProfile.Small,
                     PlateauImportMemoryProfile.Large => ResoniteImportMemoryProfile.Large,
-                    _ => throw new ArgumentOutOfRangeException(nameof(options), options.MemoryProfile, "Unsupported memory profile."),
+                    _ => throw new ArgumentOutOfRangeException(nameof(sceneBuildOptions), sceneBuildOptions.MemoryProfile, "Unsupported memory profile."),
                 },
-                options.EnableMeshBake,
-                options.TerrainTileCacheRoot,
-                options.DisableTerrainTileCache,
-                options.EnableDistanceCulling);
+                sceneBuildOptions.EnableMeshBake,
+                live.TerrainTileCache.TerrainTileCacheRoot,
+                live.TerrainTileCache.DisableTerrainTileCache,
+                sceneBuildOptions.EnableDistanceCulling);
             IResoniteLiveSceneImportFactory targetFactory =
                 scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
             ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
-                targetOptions,
+                liveTargetOptions,
                 httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName));
             return new ScopedSceneSink(scope, target);
         }
@@ -176,7 +191,8 @@ internal sealed class DefaultSceneSinkFactory(
         }
     }
 
-    private static ResoniteLiveSceneImportTargetOptions CreateCanonicalDumpTargetOptions(ImportCommandOptions options)
+    private static ResoniteLiveSceneImportTargetOptions CreateCanonicalDumpTargetOptions(
+        ResoniteSceneBuildCliOptions options)
     {
         return new ResoniteLiveSceneImportTargetOptions(
             new Uri("ws://localhost:1/"),

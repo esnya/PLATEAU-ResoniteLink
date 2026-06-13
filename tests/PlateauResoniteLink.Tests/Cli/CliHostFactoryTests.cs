@@ -51,19 +51,10 @@ public sealed class CliHostFactoryTests
         ISceneSinkFactory sceneSinkFactory = host.Services.GetRequiredService<ISceneSinkFactory>();
 
         await using ISceneSink sink = sceneSinkFactory.Create(
-            new ImportCommandOptions(
-                new PlateauImportRequest(
-                    Dataset: "tokyo23ku",
-                    MeshCode: "53394525",
-                    CityGmlSource: DatasetLocation.Local(Path.GetTempPath())),
-                WorkRoot: Path.GetTempPath(),
-                TargetMode: new CanonicalSceneDumpImportMode(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json")),
-                MemoryProfile: PlateauImportMemoryProfile.Large,
-                EnableMeshBake: true,
-                TerrainTileCacheRoot: null,
-                DisableTerrainTileCache: false,
-                EnableSendMetrics: true,
-                VerboseLogging: false));
+            new CanonicalSceneDumpSinkCliOptions(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json")),
+            new ResoniteSceneBuildCliOptions(
+                PlateauImportMemoryProfile.Large,
+                EnableMeshBake: true));
 
         Assert.NotNull(sink);
     }

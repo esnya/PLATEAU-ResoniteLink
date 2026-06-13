@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace PlateauResoniteLink.Domain.Importing;
 
@@ -88,11 +89,14 @@ public static class PlateauPackageCatalog
         "wwy",
     ];
 
-    private static readonly Dictionary<string, string> PackageAliases =
+    private static readonly Dictionary<string, string> PackageAliasMap =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["waterbody"] = "wtr",
         };
+
+    public static readonly IReadOnlyDictionary<string, string> PackageAliases =
+        new ReadOnlyDictionary<string, string>(PackageAliasMap);
 
     private static readonly HashSet<string> SupportedPackageNameSet =
         new(SupportedPackageNames, StringComparer.OrdinalIgnoreCase);
@@ -121,7 +125,7 @@ public static class PlateauPackageCatalog
         }
 
         string trimmedValue = value.Trim();
-        if (PackageAliases.TryGetValue(trimmedValue, out string? alias))
+        if (PackageAliasMap.TryGetValue(trimmedValue, out string? alias))
         {
             normalizedPackageName = alias;
             return true;
