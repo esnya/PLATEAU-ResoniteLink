@@ -53,10 +53,13 @@ internal sealed class PlateauImportService(
                 resolvedRequest.MeshCode);
 
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
-            using Activity? sourceActivity = PlateauDiagnostics.StartActivity("plateau.import.source");
-            IImportedSceneSource importedSceneSource = await importedSceneSourceFactory.CreateAsync(
-                resolvedRequest,
-                cancellationToken);
+            IImportedSceneSource importedSceneSource;
+            using (Activity? sourceActivity = PlateauDiagnostics.StartActivity("plateau.import.source"))
+            {
+                importedSceneSource = await importedSceneSourceFactory.CreateAsync(
+                    resolvedRequest,
+                    cancellationToken);
+            }
             sourceStopwatch.Stop();
             PlateauDiagnostics.Verbose(
                 "Prepared imported scene source in {ElapsedSeconds:F3}s.",

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -8,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Diagnostics;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.UseCases;
@@ -359,6 +361,60 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ScopesSourceActivityToSceneSourceCreationOnly()
+    {
+        using TemporaryDirectory rawSourceRoot = new();
+        using TemporaryDirectory workRoot = new();
+        using ActivityListener listener = new()
+        {
+            ShouldListenTo = static source => string.Equals(source.Name, PlateauDiagnostics.ActivitySourceName, StringComparison.Ordinal),
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            CityGmlSource: DatasetLocation.Local(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        ValidatedPlateauImportRequest validatedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
+            CityGmlSource: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
+        ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        bool factoryObservedSourceActivity = false;
+        StubImportedSceneSource source = new(CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
+        RecordingSceneSink sceneSink = new()
+        {
+            OnExecuteBeforeRead = _ => Assert.NotEqual("plateau.import.source", Activity.Current?.OperationName),
+        };
+        RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
+        RecordingImportedSceneSourceFactory importedSceneSourceFactory = new(
+            source,
+            readResult,
+            onCreate: () =>
+            {
+                factoryObservedSourceActivity = true;
+                Assert.Equal("plateau.import.source", Activity.Current?.OperationName);
+            });
+
+        PlateauImportService service = new(
+            sceneSink,
+            datasetSourceResolver,
+            importedSceneSourceFactory,
+            CommonMaterialCatalog.Create(),
+            new ArchiveFileLayoutPolicy());
+
+        _ = await service.ExecuteAsync(request, workRoot.Path);
+
+        Assert.True(factoryObservedSourceActivity);
+        Assert.Equal(1, sceneSink.ExecuteCallCount);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_RunsSourcePreflightBeforeSinkExecution()
     {
         using TemporaryDirectory rawSourceRoot = new();
@@ -635,7 +691,8 @@ public sealed class PlateauImportServiceTests
 
     private sealed class RecordingImportedSceneSourceFactory(
         IImportedSceneSource source,
-        ImportedSceneSourceSnapshot readResult) : IImportedSceneSourceFactory
+        ImportedSceneSourceSnapshot readResult,
+        Action? onCreate = null) : IImportedSceneSourceFactory
     {
         public int CreateCallCount { get; private set; }
 
@@ -649,6 +706,7 @@ public sealed class PlateauImportServiceTests
             CreateCallCount++;
             LastRequest = request;
             _ = readResult;
+            onCreate?.Invoke();
             return Task.FromResult(source);
         }
     }
