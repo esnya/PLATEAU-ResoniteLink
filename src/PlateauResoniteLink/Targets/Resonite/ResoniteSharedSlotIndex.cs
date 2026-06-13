@@ -87,7 +87,8 @@ internal sealed class ResoniteSharedSlotIndex(
             cityObject.Transform.Rotation,
             string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? TryCreateThirdRegionalMeshOrderOffset(cityObject.ActualMeshCode)
-                : null);
+                : null,
+            parentScope.SourceFileSlot);
     }
 
     private async Task<CanonicalParentScope> CreateCanonicalParentScopeAsync(
@@ -128,7 +129,7 @@ internal sealed class ResoniteSharedSlotIndex(
             };
         }
 
-        return new CanonicalParentScope(lodSlot);
+        return new CanonicalParentScope(sourceFileSlot, lodSlot);
     }
 
     private async Task<CreatedSlot> GetOrCreateSharedChildSlotByIdAsync(
@@ -217,6 +218,7 @@ internal sealed class ResoniteSharedSlotIndex(
     }
 
     private sealed record CanonicalParentScope(
+        CreatedSlot SourceFileSlot,
         CreatedSlot LodSlot);
 
     private readonly record struct CanonicalParentSourceFile(

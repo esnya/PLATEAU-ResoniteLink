@@ -113,6 +113,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         }
 
         TriangleMeshGeometry geometry = new(new ImportedMesh(vertices.ToArray(), submeshes.ToArray()));
+        bool landmark = DistanceCullingClassifier.IsBuildingLandmark(cityObject);
         ImportedCityObject projectedCityObject = new(
             ObjectKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
@@ -122,7 +123,12 @@ internal static class CityGmlTriangleMeshCityObjectProjection
             Transform: new Transform3D(ToContractFloat3(slotPosition)),
             Geometry: geometry,
             Materials: materials,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath);
+            SourceFileRelativePath: cityObject.SourceFileRelativePath,
+            Landmark: landmark,
+            DistanceCullingClass: DistanceCullingClassifier.Classify(
+                cityObject.PackageName,
+                cityObject.LodLevel,
+                landmark));
         return new TriangleMeshProjectedCityObject(projectedCityObject, geometry);
     }
 

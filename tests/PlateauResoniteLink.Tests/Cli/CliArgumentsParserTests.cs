@@ -88,6 +88,23 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseParsesDistanceCullingFlag()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--distance-culling",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.True(result.Options!.EnableDistanceCulling);
+    }
+
+    [Fact]
     public void ParseRequiresCityGmlSource()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -352,6 +369,7 @@ public sealed class CliArgumentsParserTests
         Assert.Contains("--citygml-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.Contains("--geotiff-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.Contains("--exclude-gsi-terrain-tiles", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--distance-culling", CliArgumentsParser.HelpText, StringComparison.Ordinal);
     }
 
 }

@@ -38,6 +38,7 @@ internal sealed class LiveSendRunStateFactory(
             Progress = progress,
             Materials = materials,
             TerrainTextures = runtimeComponents.TerrainTextures,
+            DistanceCulling = new ResoniteDistanceCullingRegistry(),
             Placement = placement,
             Runtime = runtimeComponents.Runtime,
             GsiFallbackLicenseGate = runtimeComponents.GsiFallbackLicenseGate,

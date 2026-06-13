@@ -111,6 +111,11 @@ internal sealed class ResonitePreparedCityObjectImporter(
         batchStopwatch.Stop();
 
         ReportImportStep(logger, cityObject, "Live import completed.");
+        if (state.Context.Plan.DistanceCullingEnabled)
+        {
+            state.DistanceCulling.Register(cityObject, objectSlots);
+        }
+
         cityObjectStopwatch.Stop();
         logger.WriteDebug(
             "City object '{DisplayName}' phase timings: slot_hierarchy_s={SlotHierarchySeconds:F3} geometry_assets_s={GeometryAssetsSeconds:F3} materials_s={MaterialsSeconds:F3} batch_s={BatchSeconds:F3} total_send_s={TotalSendSeconds:F3}.",

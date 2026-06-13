@@ -12,7 +12,8 @@ internal static class ResoniteLiveSendStartRequestFactory
         SceneImportExecutionPlan plan,
         ResoniteImportMemoryProfile memoryProfile,
         int connectionCount,
-        bool meshBakeEnabled)
+        bool meshBakeEnabled,
+        bool distanceCullingEnabled)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentOutOfRangeException.ThrowIfLessThan(connectionCount, 1);
@@ -26,7 +27,8 @@ internal static class ResoniteLiveSendStartRequestFactory
             CreateLocalOrigin(request.Metadata.GeodeticOrigin),
             memoryProfile,
             connectionCount,
-            meshBakeEnabled);
+            meshBakeEnabled,
+            distanceCullingEnabled);
     }
 
     private static ResoniteSceneSetupInfo CreateSceneSetupInfo(SceneImportRequest request)

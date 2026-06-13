@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 
@@ -42,6 +43,159 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.False(Assert.IsType<Field_bool>(bundle.Field.Value).Value);
         Assert.False(Assert.IsType<Field_bool>(bundle.DefaultValue.Value).Value);
         Assert.NotSame(bundle.Field.Value, bundle.DefaultValue.Value);
+    }
+
+    [Fact]
+    public void CreatePlannedBatchEmission_DoesNotAddDistanceCullingComponents()
+    {
+        ResoniteObjectSlotHierarchy objectSlots = CreateDistanceCullingObjectSlots();
+
+        PlannedBatchEmission batchPlan = CreateBatchPlan(
+            objectSlots,
+            new PlannedTriangleMeshGeometryAsset(new Uri("resdb:///mesh/building")),
+            [],
+            [],
+            collisionEnabled: true);
+
+        Assert.DoesNotContain(
+            batchPlan.ComponentEmissions,
+            static component => component.ComponentType.Contains("Distance", StringComparison.Ordinal)
+                || component.Members.Values.Any(ContainsDistanceCullingVariableName));
+        PlannedBatchSlotEmission presentationSlot = Assert.Single(
+            batchPlan.SlotEmissions,
+            static slot => string.Equals(slot.SlotName, "Building Object", StringComparison.Ordinal)
+                && slot.ParentTarget is PlannedSlotTargetReference.CanonicalSlotTarget { Locator: { Value: "lod-slot" } });
+        Assert.Null(presentationSlot.IsActive);
+    }
+
+    [Fact]
+    public void CreateDistanceCullingOperations_DirectlyDriveSingleLodParentIsActive()
+    {
+        IReadOnlyList<DataModelOperation> operations = ResoniteDistanceCullingPlanner.CreateOperations(
+            new CreatedSlot(new ResoniteSlotLocator("source-file-root"), "Source File Root"),
+            DistanceCullingClass.Building,
+            ["lod-is-active-field"]);
+
+        AddComponent userDistance = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal));
+        Assert.Equal("source-file-root", userDistance.ContainerSlotId);
+        Assert.Equal("View", Assert.IsType<Field_Enum>(userDistance.Data.Members["Node"]).Value);
+        Assert.True(Assert.IsType<Field_bool>(userDistance.Data.Members["NearValue"]).Value);
+        Assert.Equal(5500.0f, Assert.IsType<Field_float>(userDistance.Data.Members["Distance"]).Value);
+        Assert.False(Assert.IsType<Field_bool>(userDistance.Data.Members["FarValue"]).Value);
+        Assert.Equal("lod-is-active-field", Assert.IsType<Reference>(userDistance.Data.Members["TargetField"]).TargetID);
+
+        AddComponent distanceVariableDriver = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("DynamicValueVariableDriver<float>", StringComparison.Ordinal));
+        Assert.Equal(
+            "PLATEAU.DistanceCulling.BLDG.Distance",
+            Assert.IsType<Field_string>(distanceVariableDriver.Data.Members["VariableName"]).Value);
+        Assert.Equal(5500.0f, Assert.IsType<Field_float>(distanceVariableDriver.Data.Members["DefaultValue"]).Value);
+        Assert.Equal(
+            Assert.IsType<Field_float>(userDistance.Data.Members["Distance"]).ID,
+            Assert.IsType<Reference>(distanceVariableDriver.Data.Members["Target"]).TargetID);
+
+        AddComponent disabledVariableDriver = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("DynamicValueVariableDriver<bool>", StringComparison.Ordinal)
+                && string.Equals(
+                    "PLATEAU.DistanceCulling.Disabled",
+                    Assert.IsType<Field_string>(component.Data.Members["VariableName"]).Value,
+                    StringComparison.Ordinal));
+        Assert.False(Assert.IsType<Field_bool>(disabledVariableDriver.Data.Members["DefaultValue"]).Value);
+        Assert.Equal(
+            Assert.IsType<Field_bool>(userDistance.Data.Members["FarValue"]).ID,
+            Assert.IsType<Reference>(disabledVariableDriver.Data.Members["Target"]).TargetID);
+        Assert.DoesNotContain(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.Members.Values.Any(static member => member is Field_string value
+                && ContainsDisabledTypoText(value.Value)));
+        Assert.DoesNotContain(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("ValueMultiDriver<bool>", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void CreateDistanceCullingOperations_UsesMultiDriverForMultipleLodParents()
+    {
+        IReadOnlyList<DataModelOperation> operations = ResoniteDistanceCullingPlanner.CreateOperations(
+            new CreatedSlot(new ResoniteSlotLocator("source-file-root"), "Source File Root"),
+            DistanceCullingClass.Landmark,
+            ["lod2-is-active-field", "lod3-is-active-field"]);
+
+        AddComponent multiDriver = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("ValueMultiDriver<bool>", StringComparison.Ordinal));
+        Field_bool multiDriverValue = Assert.IsType<Field_bool>(multiDriver.Data.Members["Value"]);
+        SyncList drives = Assert.IsType<SyncList>(multiDriver.Data.Members["Drives"]);
+        Assert.Equal(
+            ["lod2-is-active-field", "lod3-is-active-field"],
+            drives.Elements.Select(static element => Assert.IsType<Reference>(element).TargetID).ToArray());
+        AddComponent userDistance = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal));
+        Assert.Equal(multiDriverValue.ID, Assert.IsType<Reference>(userDistance.Data.Members["TargetField"]).TargetID);
+        AddComponent distanceVariableDriver = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("DynamicValueVariableDriver<float>", StringComparison.Ordinal));
+        Assert.Equal(
+            "PLATEAU.DistanceCulling.Landmark.Distance",
+            Assert.IsType<Field_string>(distanceVariableDriver.Data.Members["VariableName"]).Value);
+        Assert.Equal(10500.0f, Assert.IsType<Field_float>(userDistance.Data.Members["Distance"]).Value);
+    }
+
+    [Fact]
+    public void DistanceCullingRegistry_PromotesLodParentToLandmark()
+    {
+        ResoniteDistanceCullingRegistry registry = new();
+        ResoniteObjectSlotHierarchy objectSlots = CreateDistanceCullingObjectSlots();
+
+        registry.Register(
+            CreateDistanceCullingCityObject("bldg", lodLevel: 2) with
+            {
+                DistanceCullingClass = DistanceCullingClass.Building,
+            },
+            objectSlots);
+        registry.Register(
+            CreateDistanceCullingCityObject("bldg", lodLevel: 2) with
+            {
+                Landmark = true,
+                DistanceCullingClass = DistanceCullingClass.Landmark,
+            },
+            objectSlots);
+
+        ResoniteDistanceCullingSourceFilePlan plan = Assert.Single(registry.CreatePlans());
+        ResoniteDistanceCullingLodTarget target = Assert.Single(plan.Targets);
+        Assert.Equal("lod-slot", target.LodSlot.Locator.Value);
+        Assert.Equal(DistanceCullingClass.Landmark, target.DistanceCullingClass);
+    }
+
+    [Fact]
+    public void DistanceCullingRegistry_GroupsMultipleLodParentsForSameClass()
+    {
+        ResoniteDistanceCullingRegistry registry = new();
+        CreatedSlot sourceFileRoot = new(new ResoniteSlotLocator("source-file-root"), "Source File Root");
+
+        registry.Register(
+            CreateDistanceCullingCityObject("bldg", lodLevel: 2) with
+            {
+                DistanceCullingClass = DistanceCullingClass.Building,
+            },
+            CreateDistanceCullingObjectSlots(sourceFileRoot, new CreatedSlot(new ResoniteSlotLocator("lod2-slot"), "LOD2")));
+        registry.Register(
+            CreateDistanceCullingCityObject("bldg", lodLevel: 3) with
+            {
+                DistanceCullingClass = DistanceCullingClass.Building,
+            },
+            CreateDistanceCullingObjectSlots(sourceFileRoot, new CreatedSlot(new ResoniteSlotLocator("lod3-slot"), "LOD3")));
+
+        ResoniteDistanceCullingSourceFilePlan plan = Assert.Single(registry.CreatePlans());
+        Assert.Equal(
+            ["lod2-slot", "lod3-slot"],
+            plan.Targets.Select(static target => target.LodSlot.Locator.Value).ToArray());
+        Assert.All(plan.Targets, static target => Assert.Equal(DistanceCullingClass.Building, target.DistanceCullingClass));
     }
 
     [Fact]
@@ -650,9 +804,112 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         return Assert.IsType<PlannedSlotTargetReference.BatchSlotTarget>(target).Slot;
     }
 
+    private static string AssertCanonicalContainerId(PlannedBatchComponentEmission component)
+    {
+        return Assert.IsType<PlannedSlotTargetReference.CanonicalSlotTarget>(component.ContainerTarget).Locator.Value;
+    }
+
     private static PlannedFieldReference AssertPlannedField(PlannedWorldElementReference target)
     {
         return Assert.IsType<PlannedWorldElementReference.BatchFieldElement>(target).Field;
+    }
+
+    private static ResoniteObjectSlotHierarchy CreateDistanceCullingObjectSlots()
+    {
+        return CreateDistanceCullingObjectSlots(
+            new CreatedSlot(new ResoniteSlotLocator("source-file-root"), "Source File Root"),
+            new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"));
+    }
+
+    private static ResoniteObjectSlotHierarchy CreateDistanceCullingObjectSlots(
+        CreatedSlot sourceFileSlot,
+        CreatedSlot lodSlot)
+    {
+        return new ResoniteObjectSlotHierarchy(
+            lodSlot,
+            "Building Object",
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+            null,
+            SourceFileSlot: sourceFileSlot);
+    }
+
+    private static ResoniteConstructionCityObject CreateDistanceCullingCityObject(string packageName, int? lodLevel)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: "city-object",
+            DisplayName: "Building Object",
+            PackageName: packageName,
+            ActualMeshCode: "53394525",
+            LodLevel: lodLevel,
+            Transform: new PlateauResoniteLink.Targets.Resonite.ResoniteTransform(
+                new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(
+                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 1.0, 0.0),
+                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(
+                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 0.0, 0.0),
+                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 1.0, 0.0),
+                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(
+                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 1.0),
+                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 1.0, 0.0),
+                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(0.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, [0, 1, 2]),
+                ]),
+            Materials: []);
+    }
+
+    private static string FindDistanceVariableName(PlannedBatchEmission batchPlan)
+    {
+        PlannedBatchComponentEmission distanceDriver = Assert.Single(
+            batchPlan.ComponentEmissions,
+            static component => component.ComponentType.Contains("DynamicValueVariableDriver<float>", StringComparison.Ordinal)
+                && component.Members.TryGetValue("VariableName", out PlannedMember? variableName)
+                && Assert.IsType<Field_string>(ToMember(variableName)).Value.StartsWith(
+                    "PLATEAU.DistanceCulling.",
+                    StringComparison.Ordinal));
+        return Assert.IsType<Field_string>(ToMember(distanceDriver.Members["VariableName"])).Value;
+    }
+
+    private static float FindUserDistanceMeters(PlannedBatchEmission batchPlan)
+    {
+        PlannedBatchComponentEmission userDistance = Assert.Single(
+            batchPlan.ComponentEmissions,
+            static component => component.ComponentType.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal));
+        PlannedAddressableFieldMember.Float distance = Assert.IsType<PlannedAddressableFieldMember.Float>(userDistance.Members["Distance"]);
+        return Assert.IsType<Field_float>(distance.Value).Value;
+    }
+
+    private static bool ContainsDistanceCullingVariableName(PlannedMember member)
+    {
+        return ToMember(member) switch
+        {
+            Field_string value => value.Value.Contains("PLATEAU.DistanceCulling.", StringComparison.Ordinal),
+            SyncList list => list.Elements.Any(static element => element is Field_string value
+                && value.Value.Contains("PLATEAU.DistanceCulling.", StringComparison.Ordinal)),
+            _ => false,
+        };
+    }
+
+    private static bool ContainsDisabledTypo(PlannedMember member)
+    {
+        return ToMember(member) switch
+        {
+            Field_string value => ContainsDisabledTypoText(value.Value),
+            SyncList list => list.Elements.Any(static element => element is Field_string value
+                && ContainsDisabledTypoText(value.Value)),
+            _ => false,
+        };
+    }
+
+    private static bool ContainsDisabledTypoText(string value)
+    {
+        return value.Contains("Ds" + "iabled", StringComparison.Ordinal);
     }
 
     private static void AssertGradientPoint(Member member, float expectedPosition, int expectedX, int expectedY)

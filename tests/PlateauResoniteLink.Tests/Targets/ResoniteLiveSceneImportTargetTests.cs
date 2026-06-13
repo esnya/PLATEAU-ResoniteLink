@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -31,6 +32,57 @@ public sealed class ResoniteLiveSceneImportTargetTests
     private const string DatasetName = "scene-test";
     private const string MeshCode = "53394525";
     private static readonly ResoniteLocalOrigin LocalOrigin = new(35.6875, 139.69375, 0.0);
+
+    [Fact]
+    public async Task ExecuteAsyncDistanceCullingOnlyAddsCullingComponentsAndTargetsLodParentIsActive()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles:
+            [
+                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
+            ]);
+        ResoniteConstructionCityObject cityObject = CreateDistanceCulledBuilding();
+        using SceneSinkRecordingClient disabledClient = new();
+        using SceneSinkRecordingClient enabledClient = new();
+
+        await using (ResoniteLiveSceneImportTarget disabledTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
+            disabledClient,
+            enableMeshBake: false,
+            enableDistanceCulling: false))
+        {
+            _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+                disabledTarget,
+                metadata,
+                datasetDirectory.Path,
+                [cityObject]);
+        }
+
+        await using (ResoniteLiveSceneImportTarget enabledTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
+            enabledClient,
+            enableMeshBake: false,
+            enableDistanceCulling: true))
+        {
+            _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+                enabledTarget,
+                metadata,
+                datasetDirectory.Path,
+                [cityObject]);
+        }
+
+        string disabledDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(disabledClient);
+        string enabledDump = SceneSinkRecordingClientCanonicalDump.CreateCanonicalJson(enabledClient);
+        string enabledDumpWithoutCullingComponents = RemoveDistanceCullingComponents(
+            enabledDump);
+        Assert.Equal(disabledDump, enabledDumpWithoutCullingComponents);
+        AssertDistanceCullingDrivesLodParentIsActiveFromSourceFileRoot(enabledClient, cityObject.DisplayName);
+        AssertDistanceCullingDumpTargetsLodParentIsActive(enabledDump, cityObject.DisplayName);
+    }
 
     [Fact]
     public async Task ExecuteAsyncImportsGeneratedDemTerrainTextureWithCanvasTransform()
@@ -1654,6 +1706,190 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 new ResoniteMeshSubmesh(0, [0, 1, 2]),
                 new ResoniteMeshSubmesh(1, [3, 4, 5]),
             ]);
+    }
+
+    private static ResoniteConstructionCityObject CreateDistanceCulledBuilding()
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: "distance-culled-building",
+            DisplayName: "Distance Culled Building",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    ResoniteMaterialAssetBinding.Presentation),
+            ],
+            SourceFileRelativePath: $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
+            DistanceCullingClass: PlateauResoniteLink.Application.Importing.DistanceCullingClass.Building);
+    }
+
+    private static string RemoveDistanceCullingComponents(string dump)
+    {
+        JsonObject root = JsonNode.Parse(dump)?.AsObject()
+            ?? throw new InvalidOperationException("Canonical dump root must be a JSON object.");
+        if (root["root"] is JsonObject sceneRoot)
+        {
+            RemoveDistanceCullingComponents(sceneRoot);
+        }
+
+        return root.ToJsonString(new JsonSerializerOptions
+        {
+            WriteIndented = true,
+        }).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
+    }
+
+    private static void RemoveDistanceCullingComponents(JsonObject slotNode)
+    {
+        if (slotNode["components"] is JsonArray components)
+        {
+            for (int index = components.Count - 1; index >= 0; index--)
+            {
+                if (components[index] is JsonObject component && IsDistanceCullingComponent(component))
+                {
+                    components.RemoveAt(index);
+                }
+            }
+
+            if (components.Count == 0)
+            {
+                slotNode.Remove("components");
+            }
+        }
+
+        if (slotNode["children"] is not JsonArray children)
+        {
+            return;
+        }
+
+        foreach (JsonNode? child in children)
+        {
+            if (child is JsonObject childObject)
+            {
+                RemoveDistanceCullingComponents(childObject);
+            }
+        }
+    }
+
+    private static bool IsDistanceCullingComponent(JsonObject component)
+    {
+        string type = (string?)component["type"] ?? string.Empty;
+        return type.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal)
+            || type.Contains("ValueMultiDriver<bool>", StringComparison.Ordinal)
+            || component.ToJsonString().Contains("PLATEAU.DistanceCulling.", StringComparison.Ordinal);
+    }
+
+    private static void AssertDistanceCullingDumpTargetsLodParentIsActive(string dump, string cityObjectDisplayName)
+    {
+        JsonObject root = JsonNode.Parse(dump)?.AsObject()
+            ?? throw new InvalidOperationException("Canonical dump root must be a JSON object.");
+        JsonObject sceneRoot = root["root"]?.AsObject()
+            ?? throw new InvalidOperationException("Canonical dump root must contain a scene root.");
+        List<string> targets = [];
+        CollectUserDistanceTargetFields(sceneRoot, targets);
+
+        string target = Assert.Single(targets);
+        Assert.StartsWith("field:slot:", target, StringComparison.Ordinal);
+        Assert.EndsWith(":IsActive", target, StringComparison.Ordinal);
+        Assert.Contains("/LOD2:IsActive", target, StringComparison.Ordinal);
+        Assert.DoesNotContain(cityObjectDisplayName, target, StringComparison.Ordinal);
+    }
+
+    private static void CollectUserDistanceTargetFields(JsonObject slotNode, List<string> targets)
+    {
+        if (slotNode["components"] is JsonArray components)
+        {
+            foreach (JsonNode? componentNode in components)
+            {
+                if (componentNode is not JsonObject component)
+                {
+                    continue;
+                }
+
+                string type = (string?)component["type"] ?? string.Empty;
+                if (!type.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal)
+                    || component["members"] is not JsonObject members
+                    || members["TargetField"] is not JsonObject targetField)
+                {
+                    continue;
+                }
+
+                targets.Add((string?)targetField["target"] ?? string.Empty);
+            }
+        }
+
+        if (slotNode["children"] is not JsonArray children)
+        {
+            return;
+        }
+
+        foreach (JsonNode? child in children)
+        {
+            if (child is JsonObject childObject)
+            {
+                CollectUserDistanceTargetFields(childObject, targets);
+            }
+        }
+    }
+
+    private static void AssertDistanceCullingDrivesLodParentIsActiveFromSourceFileRoot(
+        SceneSinkRecordingClient client,
+        string presentationSlotName)
+    {
+        IReadOnlyList<DataModelOperation> cullingBatch = Assert.Single(
+            client.Batches,
+            static batch => batch.OfType<AddComponent>().Any(static operation =>
+                string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.UserDistanceValueDriver<bool>", StringComparison.Ordinal)));
+        AddComponent userDistance = Assert.Single(
+            cullingBatch.OfType<AddComponent>(),
+            static operation => string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.UserDistanceValueDriver<bool>", StringComparison.Ordinal));
+        string sourceFileRootSlotId = userDistance.ContainerSlotId;
+        Assert.All(
+            cullingBatch.OfType<AddComponent>().Where(IsDistanceCullingComponent),
+            component => Assert.Equal(sourceFileRootSlotId, component.ContainerSlotId));
+        Assert.DoesNotContain(cullingBatch, static operation => operation is AddSlot);
+
+        string targetFieldId = Assert.IsType<Reference>(userDistance.Data.Members["TargetField"]).TargetID;
+        AddSlot presentationSlot = Assert.Single(
+            client.AddedSlots,
+            operation => string.Equals(operation.Data.Name?.Value, presentationSlotName, StringComparison.Ordinal));
+        string lodSlotId = presentationSlot.Data.Parent?.TargetID
+            ?? throw new InvalidOperationException("Presentation slot must have a parent LOD slot.");
+        Slot lodSlot = client.SlotsById[lodSlotId];
+        Assert.Equal(sourceFileRootSlotId, lodSlot.Parent?.TargetID);
+        Assert.Equal("LOD2", lodSlot.Name?.Value);
+        Assert.Equal($"field:{lodSlotId}:IsActive", targetFieldId);
+        Assert.Contains(
+            client.SlotGetRequests,
+            request => string.Equals(request.SlotId, lodSlotId, StringComparison.Ordinal)
+                && request.Depth == 0);
+    }
+
+    private static bool IsDistanceCullingComponent(AddComponent operation)
+    {
+        return operation.Data.ComponentType.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal)
+            || operation.Data.ComponentType.Contains("ValueMultiDriver<bool>", StringComparison.Ordinal)
+            || operation.Data.Members.Values.Any(ContainsDistanceCullingVariableName);
+    }
+
+    private static bool ContainsDistanceCullingVariableName(Member member)
+    {
+        return member switch
+        {
+            Field_string value => value.Value.Contains("PLATEAU.DistanceCulling.", StringComparison.Ordinal),
+            SyncList list => list.Elements.Any(ContainsDistanceCullingVariableName),
+            _ => false,
+        };
     }
 
     private static ResoniteMeshValidationException AssertTriangleMeshValidationFailure(

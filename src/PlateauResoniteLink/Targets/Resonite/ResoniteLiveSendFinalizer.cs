@@ -53,6 +53,11 @@ internal static class ResoniteLiveSendFinalizer
             runtime.ProcessingTaskCount);
         await runtime.AwaitCompletionAsync(cancellationToken);
         context.Logger.WriteDebug("All send lanes drained and completion barrier passed.");
+        await ResoniteDistanceCullingFinalizer.EmitAsync(
+            state,
+            context.EnqueueContext.GetRoutedClient(),
+            context.Logger,
+            cancellationToken);
         context.Diagnostics.CompleteSendWindow();
         context.Logger.WriteDebug(
             "Completed {ProcessedCount} city objects (failed={FailedCount}, attempted={AttemptedCount}, queued_source={QueuedSourceCount}).",

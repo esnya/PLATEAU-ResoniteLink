@@ -326,6 +326,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         IResoniteLinkClient routedClient,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true,
+        bool enableDistanceCulling = false,
         DelegatingClientSession? session = null,
         Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null)
     {
@@ -341,7 +342,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 enableMeshBake,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                LoggerFactory: loggerFactory),
+                LoggerFactory: loggerFactory,
+                EnableDistanceCulling: enableDistanceCulling),
             CreateDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,
@@ -433,7 +435,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 ToContractMesh(triangleMesh.Mesh),
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
                 cityObject.CollisionEnabled,
-                cityObject.SourceFileRelativePath),
+                cityObject.SourceFileRelativePath,
+                cityObject.SourceFileRootMeshCode,
+                cityObject.Landmark,
+                cityObject.DistanceCullingClass),
             ResoniteTerrainGridGeometry heightMap => new ImportedCityObject(
                 cityObject.SlotKey,
                 cityObject.DisplayName,
@@ -453,7 +458,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     heightMap.UvOffset is null ? null : ToContractFloat2(heightMap.UvOffset)),
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
                 cityObject.CollisionEnabled,
-                cityObject.SourceFileRelativePath),
+                cityObject.SourceFileRelativePath,
+                cityObject.SourceFileRootMeshCode,
+                cityObject.Landmark,
+                cityObject.DistanceCullingClass),
             ResoniteDynamicTerrainGeometry dynamicTerrain => new ImportedCityObject(
                 cityObject.SlotKey,
                 cityObject.DisplayName,
@@ -475,7 +483,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                         dynamicTerrain.GridMesh.UvOffset is null ? null : ToContractFloat2(dynamicTerrain.GridMesh.UvOffset))),
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
                 cityObject.CollisionEnabled,
-                cityObject.SourceFileRelativePath),
+                cityObject.SourceFileRelativePath,
+                cityObject.SourceFileRootMeshCode,
+                cityObject.Landmark,
+                cityObject.DistanceCullingClass),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
     }
