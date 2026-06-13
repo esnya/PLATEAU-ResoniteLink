@@ -34,7 +34,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     private static readonly ResoniteLocalOrigin LocalOrigin = new(35.6875, 139.69375, 0.0);
 
     [Fact]
-    public async Task ExecuteAsyncDistanceCullingOnlyAddsCullingComponentsAndTargetsPresentationSlotIsActive()
+    public async Task ExecuteAsyncDistanceCullingOnlyAddsCullingComponentsAndTargetsLodParentIsActive()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -80,8 +80,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
         string enabledDumpWithoutCullingComponents = RemoveDistanceCullingComponents(
             enabledDump);
         Assert.Equal(disabledDump, enabledDumpWithoutCullingComponents);
-        AssertDistanceCullingDumpTargetsPresentationSlotIsActive(enabledDump);
-        AssertDistanceCullingDrivesPresentationSlotIsActiveFromSourceFileRoot(enabledClient, cityObject.DisplayName);
+        AssertDistanceCullingDrivesLodParentIsActiveFromSourceFileRoot(enabledClient, cityObject.DisplayName);
+        AssertDistanceCullingDumpTargetsLodParentIsActive(enabledDump, cityObject.DisplayName);
     }
 
     [Fact]
@@ -1730,7 +1730,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0],
                     ResoniteMaterialAssetBinding.Presentation),
             ],
-            SourceFileRelativePath: $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml");
+            SourceFileRelativePath: $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
+            DistanceCullingClass: PlateauResoniteLink.Application.Importing.DistanceCullingClass.Building);
     }
 
     private static string RemoveDistanceCullingComponents(string dump)
@@ -1788,7 +1789,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             || component.ToJsonString().Contains("PLATEAU.DistanceCulling.", StringComparison.Ordinal);
     }
 
-    private static void AssertDistanceCullingDumpTargetsPresentationSlotIsActive(string dump)
+    private static void AssertDistanceCullingDumpTargetsLodParentIsActive(string dump, string cityObjectDisplayName)
     {
         JsonObject root = JsonNode.Parse(dump)?.AsObject()
             ?? throw new InvalidOperationException("Canonical dump root must be a JSON object.");
@@ -1800,7 +1801,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
         string target = Assert.Single(targets);
         Assert.StartsWith("field:slot:", target, StringComparison.Ordinal);
         Assert.EndsWith(":IsActive", target, StringComparison.Ordinal);
-        Assert.Contains("/LOD2/", target, StringComparison.Ordinal);
+        Assert.Contains("/LOD2:IsActive", target, StringComparison.Ordinal);
+        Assert.DoesNotContain(cityObjectDisplayName, target, StringComparison.Ordinal);
     }
 
     private static void CollectUserDistanceTargetFields(JsonObject slotNode, List<string> targets)
@@ -1840,7 +1842,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         }
     }
 
-    private static void AssertDistanceCullingDrivesPresentationSlotIsActiveFromSourceFileRoot(
+    private static void AssertDistanceCullingDrivesLodParentIsActiveFromSourceFileRoot(
         SceneSinkRecordingClient client,
         string presentationSlotName)
     {
@@ -1855,17 +1857,22 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.All(
             cullingBatch.OfType<AddComponent>().Where(IsDistanceCullingComponent),
             component => Assert.Equal(sourceFileRootSlotId, component.ContainerSlotId));
+        Assert.DoesNotContain(cullingBatch, static operation => operation is AddSlot);
 
         string targetFieldId = Assert.IsType<Reference>(userDistance.Data.Members["TargetField"]).TargetID;
         AddSlot presentationSlot = Assert.Single(
-            cullingBatch.OfType<AddSlot>(),
-            operation => string.Equals(operation.Data.Name?.Value, presentationSlotName, StringComparison.Ordinal)
-                && string.Equals(operation.Data.IsActive?.ID, targetFieldId, StringComparison.Ordinal));
-        Assert.True(Assert.IsType<Field_bool>(presentationSlot.Data.IsActive).Value);
+            client.AddedSlots,
+            operation => string.Equals(operation.Data.Name?.Value, presentationSlotName, StringComparison.Ordinal));
         string lodSlotId = presentationSlot.Data.Parent?.TargetID
             ?? throw new InvalidOperationException("Presentation slot must have a parent LOD slot.");
         Slot lodSlot = client.SlotsById[lodSlotId];
         Assert.Equal(sourceFileRootSlotId, lodSlot.Parent?.TargetID);
+        Assert.Equal("LOD2", lodSlot.Name?.Value);
+        Assert.Equal($"field:{lodSlotId}:IsActive", targetFieldId);
+        Assert.Contains(
+            client.SlotGetRequests,
+            request => string.Equals(request.SlotId, lodSlotId, StringComparison.Ordinal)
+                && request.Depth == 0);
     }
 
     private static bool IsDistanceCullingComponent(AddComponent operation)

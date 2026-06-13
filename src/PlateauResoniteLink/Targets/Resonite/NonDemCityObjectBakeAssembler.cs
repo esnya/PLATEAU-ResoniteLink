@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using PlateauResoniteLink.Application.Importing;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface INonDemCityObjectBakeAssembler
@@ -85,7 +87,23 @@ internal sealed class NonDemCityObjectBakeAssembler(
             Materials: geometry.Materials,
             CollisionEnabled: candidates.Any(static candidate => candidate.CityObject.CollisionEnabled),
             SourceFileRelativePath: sourceFileRelativePath,
-            SourceFileRootMeshCode: firstCityObject.SourceFileRootMeshCode);
+            SourceFileRootMeshCode: firstCityObject.SourceFileRootMeshCode,
+            Landmark: candidates.Any(static candidate => candidate.CityObject.Landmark),
+            DistanceCullingClass: ResolveDistanceCullingClass(candidates));
         return Task.FromResult(bakedCityObject);
+    }
+
+    private static DistanceCullingClass? ResolveDistanceCullingClass(
+        IReadOnlyList<NonDemCityObjectBakeCandidate> candidates)
+    {
+        if (candidates.Any(static candidate =>
+            candidate.CityObject.DistanceCullingClass == DistanceCullingClass.Landmark))
+        {
+            return DistanceCullingClass.Landmark;
+        }
+
+        return candidates
+            .Select(static candidate => candidate.CityObject.DistanceCullingClass)
+            .FirstOrDefault(static distanceCullingClass => distanceCullingClass.HasValue);
     }
 }

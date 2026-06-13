@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 
+using PlateauResoniteLink.Application.Importing;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 public sealed record ResoniteConstructionCityObject(
@@ -14,7 +16,8 @@ public sealed record ResoniteConstructionCityObject(
     bool CollisionEnabled = true,
     string? SourceFileRelativePath = null,
     string? SourceFileRootMeshCode = null,
-    bool Landmark = false)
+    bool Landmark = false,
+    DistanceCullingClass? DistanceCullingClass = null)
 {
     public ResoniteConstructionCityObject(
         string SlotKey,
@@ -28,7 +31,8 @@ public sealed record ResoniteConstructionCityObject(
         bool CollisionEnabled = true,
         string? SourceFileRelativePath = null,
         string? SourceFileRootMeshCode = null,
-        bool Landmark = false)
+        bool Landmark = false,
+        DistanceCullingClass? DistanceCullingClass = null)
         : this(
             SlotKey,
             DisplayName,
@@ -41,7 +45,8 @@ public sealed record ResoniteConstructionCityObject(
             CollisionEnabled,
             SourceFileRelativePath,
             SourceFileRootMeshCode,
-            Landmark)
+            Landmark,
+            DistanceCullingClass)
     {
     }
 

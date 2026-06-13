@@ -1309,6 +1309,14 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 AddFieldReference(references, slot.Tag, $"field:slot:{slotPath}:Tag");
             }
 
+            foreach ((string fieldId, SyntheticSlotFieldReference syntheticReference) in client.SyntheticSlotFieldReferencesById)
+            {
+                if (!references.ContainsKey(fieldId))
+                {
+                    references[fieldId] = $"field:slot:{GetSlotPath(syntheticReference.SlotId)}:{syntheticReference.FieldName}";
+                }
+            }
+
             foreach ((string componentId, Component component) in client.ComponentsById.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
             {
                 string componentReference = componentReferencesById.GetValueOrDefault(componentId, $"component:{componentId}");

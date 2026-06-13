@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 
@@ -29,22 +30,6 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             collisionEnabled);
     }
 
-    private static PlannedBatchEmission CreateBatchPlan(
-        ResoniteObjectSlotHierarchy objectSlots,
-        PlannedGeometryAsset geometryAsset,
-        ResoniteConstructionCityObject cityObject,
-        bool distanceCullingEnabled)
-    {
-        return ResoniteBatchEmissionPlanner.Create(
-            objectSlots,
-            geometryAsset,
-            [],
-            [],
-            cityObject.CollisionEnabled,
-            cityObject,
-            distanceCullingEnabled);
-    }
-
     [Fact]
     public void PlannedDriverTargetBundle_CreatePairsFieldTargetAndDefaultValue()
     {
@@ -61,16 +46,16 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     }
 
     [Fact]
-    public void CreatePlannedBatchEmission_DoesNotAddDistanceCullingWhenDisabled()
+    public void CreatePlannedBatchEmission_DoesNotAddDistanceCullingComponents()
     {
         ResoniteObjectSlotHierarchy objectSlots = CreateDistanceCullingObjectSlots();
-        ResoniteConstructionCityObject cityObject = CreateDistanceCullingCityObject("bldg", lodLevel: 2);
 
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
             new PlannedTriangleMeshGeometryAsset(new Uri("resdb:///mesh/building")),
-            cityObject,
-            distanceCullingEnabled: false);
+            [],
+            [],
+            collisionEnabled: true);
 
         Assert.DoesNotContain(
             batchPlan.ComponentEmissions,
@@ -84,121 +69,133 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     }
 
     [Fact]
-    public void CreatePlannedBatchEmission_AddsDistanceCullingDriversToSourceFileRootWhenEnabled()
+    public void CreateDistanceCullingOperations_DirectlyDriveSingleLodParentIsActive()
     {
-        ResoniteObjectSlotHierarchy objectSlots = CreateDistanceCullingObjectSlots();
-        ResoniteConstructionCityObject cityObject = CreateDistanceCullingCityObject("bldg", lodLevel: 2);
+        IReadOnlyList<DataModelOperation> operations = ResoniteDistanceCullingPlanner.CreateOperations(
+            new CreatedSlot(new ResoniteSlotLocator("source-file-root"), "Source File Root"),
+            DistanceCullingClass.Building,
+            ["lod-is-active-field"]);
 
-        PlannedBatchEmission batchPlan = CreateBatchPlan(
-            objectSlots,
-            new PlannedTriangleMeshGeometryAsset(new Uri("resdb:///mesh/building")),
-            cityObject,
-            distanceCullingEnabled: true);
+        AddComponent userDistance = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal));
+        Assert.Equal("source-file-root", userDistance.ContainerSlotId);
+        Assert.Equal("View", Assert.IsType<Field_Enum>(userDistance.Data.Members["Node"]).Value);
+        Assert.True(Assert.IsType<Field_bool>(userDistance.Data.Members["NearValue"]).Value);
+        Assert.Equal(5500.0f, Assert.IsType<Field_float>(userDistance.Data.Members["Distance"]).Value);
+        Assert.False(Assert.IsType<Field_bool>(userDistance.Data.Members["FarValue"]).Value);
+        Assert.Equal("lod-is-active-field", Assert.IsType<Reference>(userDistance.Data.Members["TargetField"]).TargetID);
 
-        PlannedBatchSlotEmission presentationSlot = Assert.Single(
-            batchPlan.SlotEmissions,
-            static slot => string.Equals(slot.SlotName, "Building Object", StringComparison.Ordinal)
-                && slot.ParentTarget is PlannedSlotTargetReference.CanonicalSlotTarget { Locator: { Value: "lod-slot" } });
-        PlannedAddressableFieldMember.Bool isActive = presentationSlot.IsActive
-            ?? throw new InvalidOperationException("Expected distance culling to make presentation slot IsActive addressable.");
-        Assert.True(Assert.IsType<Field_bool>(isActive.Value).Value);
-
-        PlannedBatchComponentEmission userDistance = Assert.Single(
-            batchPlan.ComponentEmissions,
-            static component => component.ComponentType.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal));
-        Assert.Equal("source-file-root", AssertCanonicalContainerId(userDistance));
-        Assert.Equal("View", Assert.IsType<Field_Enum>(ToMember(userDistance.Members["Node"])).Value);
-        Assert.True(Assert.IsType<Field_bool>(ToMember(userDistance.Members["NearValue"])).Value);
-        PlannedAddressableFieldMember.Float distance = Assert.IsType<PlannedAddressableFieldMember.Float>(userDistance.Members["Distance"]);
-        Assert.Equal(5500.0f, Assert.IsType<Field_float>(distance.Value).Value);
-        PlannedAddressableFieldMember.Bool farValue = Assert.IsType<PlannedAddressableFieldMember.Bool>(userDistance.Members["FarValue"]);
-        Assert.False(Assert.IsType<Field_bool>(farValue.Value).Value);
-        PlannedElementReferenceMember targetField = Assert.IsType<PlannedElementReferenceMember>(userDistance.Members["TargetField"]);
-        Assert.Same(isActive.Field, AssertPlannedField(targetField.Target));
-
-        PlannedBatchComponentEmission distanceVariableDriver = Assert.Single(
-            batchPlan.ComponentEmissions,
-            static component => component.ComponentType.Contains("DynamicValueVariableDriver<float>", StringComparison.Ordinal));
-        Assert.Equal("source-file-root", AssertCanonicalContainerId(distanceVariableDriver));
+        AddComponent distanceVariableDriver = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("DynamicValueVariableDriver<float>", StringComparison.Ordinal));
         Assert.Equal(
             "PLATEAU.DistanceCulling.BLDG.Distance",
-            Assert.IsType<Field_string>(ToMember(distanceVariableDriver.Members["VariableName"])).Value);
-        Assert.Equal(5500.0f, Assert.IsType<Field_float>(ToMember(distanceVariableDriver.Members["DefaultValue"])).Value);
-        PlannedElementReferenceMember distanceTarget = Assert.IsType<PlannedElementReferenceMember>(distanceVariableDriver.Members["Target"]);
-        Assert.Same(distance.Field, AssertPlannedField(distanceTarget.Target));
+            Assert.IsType<Field_string>(distanceVariableDriver.Data.Members["VariableName"]).Value);
+        Assert.Equal(5500.0f, Assert.IsType<Field_float>(distanceVariableDriver.Data.Members["DefaultValue"]).Value);
+        Assert.Equal(
+            Assert.IsType<Field_float>(userDistance.Data.Members["Distance"]).ID,
+            Assert.IsType<Reference>(distanceVariableDriver.Data.Members["Target"]).TargetID);
 
-        PlannedBatchComponentEmission disabledVariableDriver = Assert.Single(
-            batchPlan.ComponentEmissions,
-            static component => component.ComponentType.Contains("DynamicValueVariableDriver<bool>", StringComparison.Ordinal)
+        AddComponent disabledVariableDriver = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("DynamicValueVariableDriver<bool>", StringComparison.Ordinal)
                 && string.Equals(
                     "PLATEAU.DistanceCulling.Disabled",
-                    Assert.IsType<Field_string>(ToMember(component.Members["VariableName"])).Value,
+                    Assert.IsType<Field_string>(component.Data.Members["VariableName"]).Value,
                     StringComparison.Ordinal));
-        Assert.Equal("source-file-root", AssertCanonicalContainerId(disabledVariableDriver));
-        Assert.False(Assert.IsType<Field_bool>(ToMember(disabledVariableDriver.Members["DefaultValue"])).Value);
-        PlannedElementReferenceMember disabledTarget = Assert.IsType<PlannedElementReferenceMember>(disabledVariableDriver.Members["Target"]);
-        Assert.Same(farValue.Field, AssertPlannedField(disabledTarget.Target));
+        Assert.False(Assert.IsType<Field_bool>(disabledVariableDriver.Data.Members["DefaultValue"]).Value);
+        Assert.Equal(
+            Assert.IsType<Field_bool>(userDistance.Data.Members["FarValue"]).ID,
+            Assert.IsType<Reference>(disabledVariableDriver.Data.Members["Target"]).TargetID);
         Assert.DoesNotContain(
-            batchPlan.ComponentEmissions,
-            static component => component.Members.Values.Any(ContainsDisabledTypo));
+            operations.OfType<AddComponent>(),
+            static component => component.Data.Members.Values.Any(static member => member is Field_string value
+                && ContainsDisabledTypoText(value.Value)));
         Assert.DoesNotContain(
-            batchPlan.ComponentEmissions,
-            static component => component.ComponentType.Contains("ValueMultiDriver<bool>", StringComparison.Ordinal));
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("ValueMultiDriver<bool>", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void CreatePlannedBatchEmission_UsesLandmarkDistanceOnlyWhenCityObjectIsLandmark()
+    public void CreateDistanceCullingOperations_UsesMultiDriverForMultipleLodParents()
     {
-        ResoniteObjectSlotHierarchy objectSlots = CreateDistanceCullingObjectSlots();
-        ResoniteConstructionCityObject cityObject = CreateDistanceCullingCityObject("bldg", lodLevel: 2) with
-        {
-            SlotKey = "manual-live-landmark-root-id",
-            Landmark = false,
-        };
-        ResoniteConstructionCityObject landmarkCityObject = cityObject with
-        {
-            Landmark = true,
-        };
+        IReadOnlyList<DataModelOperation> operations = ResoniteDistanceCullingPlanner.CreateOperations(
+            new CreatedSlot(new ResoniteSlotLocator("source-file-root"), "Source File Root"),
+            DistanceCullingClass.Landmark,
+            ["lod2-is-active-field", "lod3-is-active-field"]);
 
-        PlannedBatchEmission normalPlan = CreateBatchPlan(
-            objectSlots,
-            new PlannedTriangleMeshGeometryAsset(new Uri("resdb:///mesh/building")),
-            cityObject,
-            distanceCullingEnabled: true);
-        PlannedBatchEmission landmarkPlan = CreateBatchPlan(
-            objectSlots,
-            new PlannedTriangleMeshGeometryAsset(new Uri("resdb:///mesh/building")),
-            landmarkCityObject,
-            distanceCullingEnabled: true);
-
-        Assert.Equal("PLATEAU.DistanceCulling.BLDG.Distance", FindDistanceVariableName(normalPlan));
-        Assert.Equal(5500.0f, FindUserDistanceMeters(normalPlan));
-        Assert.Equal("PLATEAU.DistanceCulling.Landmark.Distance", FindDistanceVariableName(landmarkPlan));
-        Assert.Equal(10500.0f, FindUserDistanceMeters(landmarkPlan));
+        AddComponent multiDriver = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("ValueMultiDriver<bool>", StringComparison.Ordinal));
+        Field_bool multiDriverValue = Assert.IsType<Field_bool>(multiDriver.Data.Members["Value"]);
+        SyncList drives = Assert.IsType<SyncList>(multiDriver.Data.Members["Drives"]);
+        Assert.Equal(
+            ["lod2-is-active-field", "lod3-is-active-field"],
+            drives.Elements.Select(static element => Assert.IsType<Reference>(element).TargetID).ToArray());
+        AddComponent userDistance = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal));
+        Assert.Equal(multiDriverValue.ID, Assert.IsType<Reference>(userDistance.Data.Members["TargetField"]).TargetID);
+        AddComponent distanceVariableDriver = Assert.Single(
+            operations.OfType<AddComponent>(),
+            static component => component.Data.ComponentType.Contains("DynamicValueVariableDriver<float>", StringComparison.Ordinal));
+        Assert.Equal(
+            "PLATEAU.DistanceCulling.Landmark.Distance",
+            Assert.IsType<Field_string>(distanceVariableDriver.Data.Members["VariableName"]).Value);
+        Assert.Equal(10500.0f, Assert.IsType<Field_float>(userDistance.Data.Members["Distance"]).Value);
     }
 
     [Fact]
-    public void CreatePlannedBatchEmission_DoesNotAddDistanceCullingComponentsToDem()
+    public void DistanceCullingRegistry_PromotesLodParentToLandmark()
     {
+        ResoniteDistanceCullingRegistry registry = new();
         ResoniteObjectSlotHierarchy objectSlots = CreateDistanceCullingObjectSlots();
-        ResoniteConstructionCityObject cityObject = CreateDistanceCullingCityObject("dem", lodLevel: null);
 
-        PlannedBatchEmission batchPlan = CreateBatchPlan(
-            objectSlots,
-            new PlannedTriangleMeshGeometryAsset(new Uri("resdb:///mesh/dem")),
-            cityObject,
-            distanceCullingEnabled: true);
+        registry.Register(
+            CreateDistanceCullingCityObject("bldg", lodLevel: 2) with
+            {
+                DistanceCullingClass = DistanceCullingClass.Building,
+            },
+            objectSlots);
+        registry.Register(
+            CreateDistanceCullingCityObject("bldg", lodLevel: 2) with
+            {
+                Landmark = true,
+                DistanceCullingClass = DistanceCullingClass.Landmark,
+            },
+            objectSlots);
 
-        Assert.DoesNotContain(
-            batchPlan.ComponentEmissions,
-            static component => component.Members.Values.Any(ContainsDistanceCullingVariableName)
-                || component.ComponentType.Contains("UserDistanceValueDriver<bool>", StringComparison.Ordinal)
-                || component.ComponentType.Contains("ValueMultiDriver<bool>", StringComparison.Ordinal));
-        PlannedBatchSlotEmission presentationSlot = Assert.Single(
-            batchPlan.SlotEmissions,
-            static slot => string.Equals(slot.SlotName, "Building Object", StringComparison.Ordinal)
-                && slot.ParentTarget is PlannedSlotTargetReference.CanonicalSlotTarget { Locator: { Value: "lod-slot" } });
-        Assert.Null(presentationSlot.IsActive);
+        ResoniteDistanceCullingSourceFilePlan plan = Assert.Single(registry.CreatePlans());
+        ResoniteDistanceCullingLodTarget target = Assert.Single(plan.Targets);
+        Assert.Equal("lod-slot", target.LodSlot.Locator.Value);
+        Assert.Equal(DistanceCullingClass.Landmark, target.DistanceCullingClass);
+    }
+
+    [Fact]
+    public void DistanceCullingRegistry_GroupsMultipleLodParentsForSameClass()
+    {
+        ResoniteDistanceCullingRegistry registry = new();
+        CreatedSlot sourceFileRoot = new(new ResoniteSlotLocator("source-file-root"), "Source File Root");
+
+        registry.Register(
+            CreateDistanceCullingCityObject("bldg", lodLevel: 2) with
+            {
+                DistanceCullingClass = DistanceCullingClass.Building,
+            },
+            CreateDistanceCullingObjectSlots(sourceFileRoot, new CreatedSlot(new ResoniteSlotLocator("lod2-slot"), "LOD2")));
+        registry.Register(
+            CreateDistanceCullingCityObject("bldg", lodLevel: 3) with
+            {
+                DistanceCullingClass = DistanceCullingClass.Building,
+            },
+            CreateDistanceCullingObjectSlots(sourceFileRoot, new CreatedSlot(new ResoniteSlotLocator("lod3-slot"), "LOD3")));
+
+        ResoniteDistanceCullingSourceFilePlan plan = Assert.Single(registry.CreatePlans());
+        Assert.Equal(
+            ["lod2-slot", "lod3-slot"],
+            plan.Targets.Select(static target => target.LodSlot.Locator.Value).ToArray());
+        Assert.All(plan.Targets, static target => Assert.Equal(DistanceCullingClass.Building, target.DistanceCullingClass));
     }
 
     [Fact]
@@ -819,12 +816,21 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
 
     private static ResoniteObjectSlotHierarchy CreateDistanceCullingObjectSlots()
     {
+        return CreateDistanceCullingObjectSlots(
+            new CreatedSlot(new ResoniteSlotLocator("source-file-root"), "Source File Root"),
+            new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"));
+    }
+
+    private static ResoniteObjectSlotHierarchy CreateDistanceCullingObjectSlots(
+        CreatedSlot sourceFileSlot,
+        CreatedSlot lodSlot)
+    {
         return new ResoniteObjectSlotHierarchy(
-            new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
+            lodSlot,
             "Building Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null,
-            SourceFileSlot: new CreatedSlot(new ResoniteSlotLocator("source-file-root"), "Source File Root"));
+            SourceFileSlot: sourceFileSlot);
     }
 
     private static ResoniteConstructionCityObject CreateDistanceCullingCityObject(string packageName, int? lodLevel)

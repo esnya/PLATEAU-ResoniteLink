@@ -155,6 +155,8 @@ internal sealed class LiveSendRunState
 
     public required TerrainTextureAssetCache TerrainTextures { get; init; }
 
+    public required ResoniteDistanceCullingRegistry DistanceCulling { get; init; }
+
     public required ResoniteSharedSlotIndex Placement { get; init; }
 
     public required LiveSendExecutionRuntime Runtime { get; init; }

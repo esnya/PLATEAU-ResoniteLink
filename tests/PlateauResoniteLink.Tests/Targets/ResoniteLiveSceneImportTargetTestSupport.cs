@@ -437,7 +437,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath,
                 cityObject.SourceFileRootMeshCode,
-                cityObject.Landmark),
+                cityObject.Landmark,
+                cityObject.DistanceCullingClass),
             ResoniteTerrainGridGeometry heightMap => new ImportedCityObject(
                 cityObject.SlotKey,
                 cityObject.DisplayName,
@@ -459,7 +460,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath,
                 cityObject.SourceFileRootMeshCode,
-                cityObject.Landmark),
+                cityObject.Landmark,
+                cityObject.DistanceCullingClass),
             ResoniteDynamicTerrainGeometry dynamicTerrain => new ImportedCityObject(
                 cityObject.SlotKey,
                 cityObject.DisplayName,
@@ -483,7 +485,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath,
                 cityObject.SourceFileRootMeshCode,
-                cityObject.Landmark),
+                cityObject.Landmark,
+                cityObject.DistanceCullingClass),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
     }

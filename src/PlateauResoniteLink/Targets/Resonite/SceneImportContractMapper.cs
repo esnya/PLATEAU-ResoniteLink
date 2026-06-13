@@ -30,7 +30,8 @@ internal static class SceneImportContractMapper
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath,
                 cityObject.SourceFileRootMeshCode,
-                cityObject.Landmark),
+                cityObject.Landmark,
+                cityObject.DistanceCullingClass),
             TerrainGridGeometry heightMap => new ResoniteConstructionCityObject(
                 cityObject.ObjectKey,
                 cityObject.DisplayName,
@@ -51,7 +52,8 @@ internal static class SceneImportContractMapper
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath,
                 cityObject.SourceFileRootMeshCode,
-                cityObject.Landmark),
+                cityObject.Landmark,
+                cityObject.DistanceCullingClass),
             DynamicTerrainGeometry dynamicTerrain => new ResoniteConstructionCityObject(
                 cityObject.ObjectKey,
                 cityObject.DisplayName,
@@ -74,7 +76,8 @@ internal static class SceneImportContractMapper
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath,
                 cityObject.SourceFileRootMeshCode,
-                cityObject.Landmark),
+                cityObject.Landmark,
+                cityObject.DistanceCullingClass),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
     }

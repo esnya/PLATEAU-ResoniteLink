@@ -38,25 +38,6 @@ internal static class ResoniteBatchEmissionPlanner
         IReadOnlyList<PlannedRendererMaterialBinding> rendererMaterialBindings,
         bool collisionEnabled)
     {
-        return Create(
-            objectSlots,
-            geometryAsset,
-            materialAssets,
-            rendererMaterialBindings,
-            collisionEnabled,
-            cityObject: null,
-            distanceCullingEnabled: false);
-    }
-
-    public static PlannedBatchEmission Create(
-        ResoniteObjectSlotHierarchy objectSlots,
-        PlannedGeometryAsset geometryAsset,
-        IReadOnlyList<PlannedMaterialAsset> materialAssets,
-        IReadOnlyList<PlannedRendererMaterialBinding> rendererMaterialBindings,
-        bool collisionEnabled,
-        ResoniteConstructionCityObject? cityObject,
-        bool distanceCullingEnabled)
-    {
         ArgumentNullException.ThrowIfNull(objectSlots);
         ArgumentNullException.ThrowIfNull(geometryAsset);
         ArgumentNullException.ThrowIfNull(materialAssets);
@@ -65,22 +46,7 @@ internal static class ResoniteBatchEmissionPlanner
         List<PlannedBatchSlotEmission> slotEmissions = [];
         List<PlannedBatchComponentEmission> componentEmissions = [];
 
-        ResoniteDistanceCullingGate? cullingGate = distanceCullingEnabled && cityObject is not null
-            ? ResoniteDistanceCullingPlanner.TryCreateGate(cityObject)
-            : null;
-        PlannedFieldReference? presentationSlotIsActiveField = cullingGate is not null
-            ? new PlannedFieldReference()
-            : null;
-        PlannedBatchSlotEmission presentationSlot = PlannedBatchSlotEmission.Presentation(
-            objectSlots,
-            presentationSlotIsActiveField is null
-                ? null
-                : new PlannedAddressableFieldMember.Bool(
-                    presentationSlotIsActiveField,
-                    new Field_bool
-                    {
-                        Value = true,
-                    }));
+        PlannedBatchSlotEmission presentationSlot = PlannedBatchSlotEmission.Presentation(objectSlots);
         slotEmissions.Add(presentationSlot);
         PlannedSlotTargetReference presentationSlotTarget = PlannedSlotTargetReference.PlannedSlot(presentationSlot);
 
@@ -234,19 +200,6 @@ internal static class ResoniteBatchEmissionPlanner
                 presentationSlot,
                 colliderMeshField,
                 dynamicTerrainMesh);
-        }
-
-        if (distanceCullingEnabled
-            && cityObject is not null
-            && presentationSlotIsActiveField is not null
-            && cullingGate is not null)
-        {
-            ResoniteDistanceCullingPlanner.AddComponents(
-                componentEmissions,
-                objectSlots.SourceFileSlot
-                    ?? throw new InvalidOperationException("Distance culling requires the source file root slot."),
-                cullingGate,
-                [presentationSlotIsActiveField]);
         }
 
         return PlannedBatchEmission.Create(

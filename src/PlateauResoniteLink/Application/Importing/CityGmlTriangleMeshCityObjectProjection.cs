@@ -113,6 +113,7 @@ internal static class CityGmlTriangleMeshCityObjectProjection
         }
 
         TriangleMeshGeometry geometry = new(new ImportedMesh(vertices.ToArray(), submeshes.ToArray()));
+        bool landmark = DistanceCullingClassifier.IsBuildingLandmark(cityObject);
         ImportedCityObject projectedCityObject = new(
             ObjectKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
@@ -123,24 +124,12 @@ internal static class CityGmlTriangleMeshCityObjectProjection
             Geometry: geometry,
             Materials: materials,
             SourceFileRelativePath: cityObject.SourceFileRelativePath,
-            Landmark: IsBuildingLandmark(cityObject));
+            Landmark: landmark,
+            DistanceCullingClass: DistanceCullingClassifier.Classify(
+                cityObject.PackageName,
+                cityObject.LodLevel,
+                landmark));
         return new TriangleMeshProjectedCityObject(projectedCityObject, geometry);
-    }
-
-    private static bool IsBuildingLandmark(ConstructionCityObjectDraft cityObject)
-    {
-        return IsBuildingPackage(cityObject.PackageName)
-            && BuildingFacadeScale.Classify(
-                cityObject.FloorsAboveGround,
-                cityObject.MeasuredHeightMeters,
-                cityObject.GeometryHeightMeters,
-                cityObject.BuildingAttributes.BuildingFootprintArea?.Value).Landmark;
-    }
-
-    private static bool IsBuildingPackage(string packageName)
-    {
-        return string.Equals(packageName, "bldg", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(packageName, "ubld", StringComparison.OrdinalIgnoreCase);
     }
 
     private static GeodeticPoint ResolveCityObjectOrigin(ConstructionCityObjectDraft cityObject)

@@ -15,7 +15,8 @@ public sealed record ImportedCityObject(
     bool CollisionEnabled = true,
     string? SourceFileRelativePath = null,
     string? SourceFileRootMeshCode = null,
-    bool Landmark = false)
+    bool Landmark = false,
+    DistanceCullingClass? DistanceCullingClass = null)
 {
     public ImportedCityObject(
         string ObjectKey,
@@ -29,7 +30,8 @@ public sealed record ImportedCityObject(
         bool CollisionEnabled = true,
         string? SourceFileRelativePath = null,
         string? SourceFileRootMeshCode = null,
-        bool Landmark = false)
+        bool Landmark = false,
+        DistanceCullingClass? DistanceCullingClass = null)
         : this(
             ObjectKey,
             DisplayName,
@@ -42,7 +44,8 @@ public sealed record ImportedCityObject(
             CollisionEnabled,
             SourceFileRelativePath,
             SourceFileRootMeshCode,
-            Landmark)
+            Landmark,
+            DistanceCullingClass)
     {
     }
 

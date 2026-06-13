@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using PlateauResoniteLink.Application.Importing;
+
 using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
@@ -19,126 +21,141 @@ internal static class ResoniteDistanceCullingPlanner
     private const string ValueMultiDriverBoolComponentType =
         "[FrooxEngine]FrooxEngine.ValueMultiDriver<bool>";
 
-    public static void AddComponents(
-        List<PlannedBatchComponentEmission> componentEmissions,
+    public static IReadOnlyList<DataModelOperation> CreateOperations(
         CreatedSlot sourceFileSlot,
-        ResoniteDistanceCullingGate gate,
-        IReadOnlyList<PlannedFieldReference> targetIsActiveFields)
+        DistanceCullingClass distanceCullingClass,
+        IReadOnlyList<string> targetIsActiveFieldIds)
     {
-        ArgumentNullException.ThrowIfNull(componentEmissions);
-        ArgumentNullException.ThrowIfNull(gate);
-        ArgumentNullException.ThrowIfNull(targetIsActiveFields);
-        if (targetIsActiveFields.Count == 0)
+        ArgumentNullException.ThrowIfNull(targetIsActiveFieldIds);
+        if (targetIsActiveFieldIds.Count == 0)
         {
-            return;
+            return [];
         }
 
-        PlannedSlotTargetReference sourceFileRootTarget = PlannedSlotTargetReference.CanonicalSlot(sourceFileSlot.Locator);
-        PlannedWorldElementReference cullingTarget = CreateDistanceCullingTarget(
-            componentEmissions,
-            sourceFileRootTarget,
-            targetIsActiveFields);
-        PlannedDriverTargetBundle distanceDriverTarget = PlannedDriverTargetBundle.Create(new Field_float
-        {
-            Value = gate.DistanceMeters,
-        });
-        PlannedDriverTargetBundle farValueDriverTarget = PlannedDriverTargetBundle.Create(new Field_bool
-        {
-            Value = false,
-        });
+        ResoniteDistanceCullingGate gate = CreateGate(distanceCullingClass);
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
+        string cullingTargetId = CreateDistanceCullingTarget(
+            batchBuilder,
+            sourceFileSlot,
+            targetIsActiveFieldIds);
+        ResoniteBatchOperations.BatchTemporaryFieldId distanceFieldId = batchBuilder.AllocateFieldId();
+        ResoniteBatchOperations.BatchTemporaryFieldId farValueFieldId = batchBuilder.AllocateFieldId();
 
-        componentEmissions.Add(new PlannedBatchComponentEmission(
-            sourceFileRootTarget,
+        batchBuilder.AddComponent(
+            sourceFileSlot.Locator.Value,
             UserDistanceValueDriverBoolComponentType,
-            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+            new Dictionary<string, Member>(StringComparer.Ordinal)
             {
-                ["Node"] = PlannedMembers.Literal(new Field_Enum
+                ["Node"] = new Field_Enum
                 {
                     Value = "View",
-                }),
-                ["Distance"] = distanceDriverTarget.Field,
-                ["TargetField"] = PlannedMembers.Reference(cullingTarget),
-                ["NearValue"] = PlannedMembers.Literal(new Field_bool
+                },
+                ["Distance"] = new Field_float
+                {
+                    ID = distanceFieldId.Value,
+                    Value = gate.DistanceMeters,
+                },
+                ["TargetField"] = new Reference
+                {
+                    TargetID = cullingTargetId,
+                },
+                ["NearValue"] = new Field_bool
                 {
                     Value = true,
-                }),
-                ["FarValue"] = farValueDriverTarget.Field,
-            }));
-        componentEmissions.Add(new PlannedBatchComponentEmission(
-            sourceFileRootTarget,
+                },
+                ["FarValue"] = new Field_bool
+                {
+                    ID = farValueFieldId.Value,
+                    Value = false,
+                },
+            });
+        batchBuilder.AddComponent(
+            sourceFileSlot.Locator.Value,
             DynamicValueVariableDriverFloatComponentType,
-            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+            new Dictionary<string, Member>(StringComparer.Ordinal)
             {
-                ["VariableName"] = PlannedMembers.Literal(new Field_string
+                ["VariableName"] = new Field_string
                 {
                     Value = gate.DistanceVariableName,
-                }),
-                ["Target"] = distanceDriverTarget.Target,
-                ["DefaultValue"] = distanceDriverTarget.DefaultValue,
-            }));
-        componentEmissions.Add(new PlannedBatchComponentEmission(
-            sourceFileRootTarget,
+                },
+                ["Target"] = new Reference
+                {
+                    TargetID = distanceFieldId.Value,
+                },
+                ["DefaultValue"] = new Field_float
+                {
+                    Value = gate.DistanceMeters,
+                },
+            });
+        batchBuilder.AddComponent(
+            sourceFileSlot.Locator.Value,
             DynamicValueVariableDriverBoolComponentType,
-            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+            new Dictionary<string, Member>(StringComparer.Ordinal)
             {
-                ["VariableName"] = PlannedMembers.Literal(new Field_string
+                ["VariableName"] = new Field_string
                 {
                     Value = DisabledVariableName,
-                }),
-                ["Target"] = farValueDriverTarget.Target,
-                ["DefaultValue"] = farValueDriverTarget.DefaultValue,
-            }));
+                },
+                ["Target"] = new Reference
+                {
+                    TargetID = farValueFieldId.Value,
+                },
+                ["DefaultValue"] = new Field_bool
+                {
+                    Value = false,
+                },
+            });
+        return batchBuilder.Actions;
     }
 
-    public static ResoniteDistanceCullingGate? TryCreateGate(ResoniteConstructionCityObject cityObject)
+    private static string CreateDistanceCullingTarget(
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder,
+        CreatedSlot sourceFileSlot,
+        IReadOnlyList<string> targetIsActiveFieldIds)
     {
-        ArgumentNullException.ThrowIfNull(cityObject);
-        if (string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        if (targetIsActiveFieldIds.Count == 1)
         {
-            return null;
+            return targetIsActiveFieldIds[0];
         }
 
-        string packageName = cityObject.PackageName.ToUpperInvariant();
-        return packageName switch
-        {
-            "BLDG" or "UBLD" when cityObject.Landmark => Create("Landmark", 10500.0f),
-            "BLDG" or "UBLD" => Create("BLDG", 5500.0f),
-            "FRN" when cityObject.LodLevel == 2 => Create("FRN.LOD2", 5500.0f),
-            "FRN" when cityObject.LodLevel == 3 => Create("FRN.LOD3", 1500.0f),
-            "BRID" when cityObject.LodLevel == 2 => Create("BRID.LOD2", 4500.0f),
-            "TRAN" when cityObject.LodLevel == 3 => Create("TRAN.LOD3", 2500.0f),
-            "VEG" when cityObject.LodLevel == 2 => Create("VEG.LOD2", 2500.0f),
-            "VEG" when cityObject.LodLevel == 3 => Create("VEG.LOD3", 2500.0f),
-            _ => null,
-        };
-    }
-
-    private static PlannedWorldElementReference CreateDistanceCullingTarget(
-        List<PlannedBatchComponentEmission> componentEmissions,
-        PlannedSlotTargetReference sourceFileRootTarget,
-        IReadOnlyList<PlannedFieldReference> targetIsActiveFields)
-    {
-        if (targetIsActiveFields.Count == 1)
-        {
-            return PlannedWorldElementReference.Planned(targetIsActiveFields[0]);
-        }
-
-        PlannedDriverTargetBundle multiDriverValue = PlannedDriverTargetBundle.Create(new Field_bool
-        {
-            Value = true,
-        });
-        componentEmissions.Add(new PlannedBatchComponentEmission(
-            sourceFileRootTarget,
+        ResoniteBatchOperations.BatchTemporaryFieldId multiDriverValueFieldId = batchBuilder.AllocateFieldId();
+        batchBuilder.AddComponent(
+            sourceFileSlot.Locator.Value,
             ValueMultiDriverBoolComponentType,
-            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+            new Dictionary<string, Member>(StringComparer.Ordinal)
             {
-                ["Value"] = multiDriverValue.Field,
-                ["Drives"] = new PlannedSyncListMember(
-                    targetIsActiveFields
-                        .Select(static target => PlannedMembers.Reference(PlannedWorldElementReference.Planned(target)))
-                        .ToArray()),
-            }));
-        return PlannedWorldElementReference.Planned(multiDriverValue.Field.Field);
+                ["Value"] = new Field_bool
+                {
+                    ID = multiDriverValueFieldId.Value,
+                    Value = true,
+                },
+                ["Drives"] = new SyncList
+                {
+                    Elements = targetIsActiveFieldIds
+                        .Select(static targetFieldId => (Member)new Reference
+                        {
+                            TargetID = targetFieldId,
+                        })
+                        .ToList(),
+                },
+            });
+        return multiDriverValueFieldId.Value;
+    }
+
+    private static ResoniteDistanceCullingGate CreateGate(DistanceCullingClass distanceCullingClass)
+    {
+        return distanceCullingClass switch
+        {
+            DistanceCullingClass.Building => Create("BLDG", 5500.0f),
+            DistanceCullingClass.Landmark => Create("Landmark", 10500.0f),
+            DistanceCullingClass.FurnitureLod2 => Create("FRN.LOD2", 5500.0f),
+            DistanceCullingClass.FurnitureLod3 => Create("FRN.LOD3", 1500.0f),
+            DistanceCullingClass.BridgeLod2 => Create("BRID.LOD2", 4500.0f),
+            DistanceCullingClass.TransportationLod3 => Create("TRAN.LOD3", 2500.0f),
+            DistanceCullingClass.VegetationLod2 => Create("VEG.LOD2", 2500.0f),
+            DistanceCullingClass.VegetationLod3 => Create("VEG.LOD3", 2500.0f),
+            _ => throw new ArgumentOutOfRangeException(nameof(distanceCullingClass), distanceCullingClass, "Unsupported distance culling class."),
+        };
     }
 
     private static ResoniteDistanceCullingGate Create(string variableNameStem, float distanceMeters)
