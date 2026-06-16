@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 
-using ResoniteLink;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class SourceRootPlacementResolver
@@ -10,7 +8,7 @@ internal static class SourceRootPlacementResolver
         string sourceFileSlotName,
         string rootMeshCode,
         ResoniteLocalOrigin requestLocalOrigin,
-        IReadOnlyList<Slot> observedDatasetSourceRoots)
+        IReadOnlyList<ObservedDatasetSourceRoot> observedDatasetSourceRoots)
     {
         ObservedSourceRootPlacement? observedRootPlacement = ObservedSourceRootPlacementResolver.TryResolve(
             sourceFileSlotName,

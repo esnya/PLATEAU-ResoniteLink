@@ -16,7 +16,7 @@ public sealed class SourceRootPlacementResolverTests
             "53394525",
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             [
-                CreateSlot(
+                CreateSourceRoot(
                     "source-root",
                     "plateau_tokyo23ku_bldg_53394525",
                     new ResoniteFloat3(4.0, 5.0, 6.0)),
@@ -50,27 +50,19 @@ public sealed class SourceRootPlacementResolverTests
                 "plateau_tokyo23ku_bldg_53394525",
                 "53394525",
                 new ResoniteLocalOrigin(35.0, 139.0, 0.0),
-                [CreateSlotWithoutPosition("source-root", "plateau_tokyo23ku_bldg_53394525")]));
+                ObservedDatasetSourceRootSelector.SelectDirectChildren(
+                    [CreateSlotWithoutPosition("source-root", "plateau_tokyo23ku_bldg_53394525")],
+                    [])));
 
         Assert.Contains("did not expose a Position", exception.Message, StringComparison.Ordinal);
     }
 
-    private static Slot CreateSlot(string id, string name, ResoniteFloat3 position)
+    private static ObservedDatasetSourceRoot CreateSourceRoot(string id, string name, ResoniteFloat3 position)
     {
-        return new Slot
-        {
-            ID = id,
-            Name = new Field_string { Value = name },
-            Position = new Field_float3
-            {
-                Value = new float3
-                {
-                    x = (float)position.X,
-                    y = (float)position.Y,
-                    z = (float)position.Z,
-                },
-            },
-        };
+        string? concreteMeshCode = ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(name, out string meshCode)
+            ? meshCode
+            : null;
+        return new ObservedDatasetSourceRoot(id, name, position, concreteMeshCode);
     }
 
     private static Slot CreateSlotWithoutPosition(string id, string name)

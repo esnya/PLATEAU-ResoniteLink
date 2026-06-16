@@ -3,9 +3,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using GeographicLib;
-
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
@@ -47,40 +44,41 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
             datasetRootSlot,
             1,
             cancellationToken);
-        Slot[] sourceFileRoots = datasetRootSnapshot.Root?.Children?
-            .Where(static child => !string.Equals(child.Name?.Value, "Assets", StringComparison.Ordinal))
-            .Where(static child => ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(child.Name?.Value ?? string.Empty, out _))
-            .ToArray()
-            ?? [];
-        Slot? completionSourceFileRoot = sourceFileRoots.FirstOrDefault(
-            child => ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(child.Name?.Value ?? string.Empty, out string meshCode)
-                && string.Equals(meshCode, completionMeshCode, StringComparison.Ordinal));
+        ObservedDatasetSourceRoot[] sourceFileRoots = datasetRootSnapshot.Root?.Children is null
+            ? []
+            : ObservedDatasetSourceRootSelector.SelectDirectChildren(
+                datasetRootSnapshot.Root.Children,
+                []);
+        ObservedDatasetSourceRoot? completionSourceFileRoot = sourceFileRoots.FirstOrDefault(
+            root => string.Equals(root.ConcreteMeshCode, completionMeshCode, StringComparison.Ordinal));
         if (completionSourceFileRoot is not null)
         {
+            ResoniteSlotLocator sourceRootLocator = CreateLocatorOrFallback(completionSourceFileRoot, datasetRootSlot);
             return new SceneAnchor(
-                new ResoniteSlotLocator(completionSourceFileRoot.ID ?? datasetRootSlot.Value),
+                sourceRootLocator,
                 completionMeshCode,
-                GetRequiredSourceRootPosition(completionSourceFileRoot),
-                new ResoniteSlotLocator(completionSourceFileRoot.ID ?? datasetRootSlot.Value));
+                completionSourceFileRoot.Position,
+                sourceRootLocator);
         }
 
-        (Slot Slot, string MeshCode) referenceSourceFileRoot = sourceFileRoots
-            .Select(static child => ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(child.Name?.Value ?? string.Empty, out string meshCode)
-                ? (Slot: child, MeshCode: meshCode)
+        (ObservedDatasetSourceRoot Root, string MeshCode) referenceSourceFileRoot = sourceFileRoots
+            .Select(static root => root.ConcreteMeshCode is { } meshCode
+                ? (Root: root, MeshCode: meshCode)
                 : default)
-            .Where(static candidate => candidate.Slot is not null)
+            .Where(static candidate => candidate.Root is not null)
             .OrderBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
-            .ThenBy(static candidate => candidate.Slot.ID ?? string.Empty, StringComparer.Ordinal)
+            .ThenBy(static candidate => candidate.Root.SlotId, StringComparer.Ordinal)
             .FirstOrDefault();
-        if (referenceSourceFileRoot.Slot is not null)
+        if (referenceSourceFileRoot.Root is not null)
         {
+            ResoniteSlotLocator referenceRootLocator = CreateLocatorOrFallback(referenceSourceFileRoot.Root, datasetRootSlot);
             return new SceneAnchor(
-                new ResoniteSlotLocator(referenceSourceFileRoot.Slot.ID ?? datasetRootSlot.Value),
+                referenceRootLocator,
                 completionMeshCode,
-                Add(
-                    GetRequiredSourceRootPosition(referenceSourceFileRoot.Slot),
-                    ComputeMeshCodeOffset(referenceSourceFileRoot.MeshCode, completionMeshCode)),
-                new ResoniteSlotLocator(referenceSourceFileRoot.Slot.ID ?? datasetRootSlot.Value));
+                ResonitePlacementPolicy.Add(
+                    referenceSourceFileRoot.Root.Position,
+                    ResonitePlacementPolicy.ComputeMeshCodeOffset(referenceSourceFileRoot.MeshCode, completionMeshCode)),
+                referenceRootLocator);
         }
 
         return new SceneAnchor(
@@ -109,6 +107,15 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         throw new InvalidOperationException($"ResoniteLink did not surface slot '{slot.Value}' on the initial probe.");
     }
 
+    private static ResoniteSlotLocator CreateLocatorOrFallback(
+        ObservedDatasetSourceRoot sourceRoot,
+        ResoniteSlotLocator fallback)
+    {
+        return string.IsNullOrWhiteSpace(sourceRoot.SlotId)
+            ? fallback
+            : new ResoniteSlotLocator(sourceRoot.SlotId);
+    }
+
     private static ResoniteFloat3 GetSlotPositionOrDefault(Slot slot)
     {
         if (slot.Position is Field_float3 position)
@@ -117,53 +124,6 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         }
 
         return new ResoniteFloat3(0.0, 0.0, 0.0);
-    }
-
-    private static ResoniteFloat3 GetRequiredSourceRootPosition(Slot slot)
-    {
-        if (slot.Position is Field_float3 position)
-        {
-            return new ResoniteFloat3(position.Value.x, position.Value.y, position.Value.z);
-        }
-
-        throw new InvalidOperationException(
-            $"Source-file root '{slot.Name?.Value ?? slot.ID ?? "<unnamed>"}' did not expose a Position. "
-            + "Append anchor recovery requires positioned source-file roots.");
-    }
-
-    private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
-    {
-        if (!PlateauMeshCode.TryGetGeodeticCenter(referenceMeshCode, out GeodeticCoordinate referenceCenter)
-            || !PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate currentCenter))
-        {
-            return new ResoniteFloat3(0.0, 0.0, 0.0);
-        }
-
-        return ComputeOriginOffset(referenceCenter, currentCenter);
-    }
-
-    private static ResoniteFloat3 ComputeOriginOffset(
-        GeodeticCoordinate referenceCenter,
-        GeodeticCoordinate currentCenter)
-    {
-        LocalCartesian cartesian = new(
-            referenceCenter.Latitude,
-            referenceCenter.Longitude,
-            referenceCenter.Altitude,
-            Geocentric.WGS84);
-        (double x, double y, double z) eun = cartesian.Forward(
-            currentCenter.Latitude,
-            currentCenter.Longitude,
-            currentCenter.Altitude);
-        return new ResoniteFloat3(
-            X: eun.x,
-            Y: 0.0,
-            Z: eun.y);
-    }
-
-    private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
-    {
-        return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
     }
 
 }

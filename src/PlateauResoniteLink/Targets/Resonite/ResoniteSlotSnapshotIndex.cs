@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 
 using ResoniteLink;
 
@@ -12,7 +11,7 @@ internal sealed class ResoniteSlotSnapshotIndex(CreatedSlot datasetRootSlot)
     private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<SlotIndexKey, CreatedSlot> sharedSlotIndex = new();
     private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
-    private Slot[]? observedDatasetSourceRoots;
+    private ObservedDatasetSourceRoot[]? observedDatasetSourceRoots;
 
     public void IndexSetupHierarchy(ResoniteSceneSetupState setupState)
     {
@@ -55,9 +54,9 @@ internal sealed class ResoniteSlotSnapshotIndex(CreatedSlot datasetRootSlot)
         createdSlotIds[createdSlot.Locator.Value] = 0;
     }
 
-    public IReadOnlyList<Slot> GetObservedDatasetSourceRoots()
+    public IReadOnlyList<ObservedDatasetSourceRoot> GetObservedDatasetSourceRoots()
     {
-        return observedDatasetSourceRoots ??= EnumerateObservedDatasetSourceRoots().ToArray();
+        return observedDatasetSourceRoots ??= SelectObservedDatasetSourceRoots();
     }
 
     private void IndexObservedSlotSnapshot(Slot slot)
@@ -84,12 +83,12 @@ internal sealed class ResoniteSlotSnapshotIndex(CreatedSlot datasetRootSlot)
         }
     }
 
-    private IEnumerable<Slot> EnumerateObservedDatasetSourceRoots()
+    private ObservedDatasetSourceRoot[] SelectObservedDatasetSourceRoots()
     {
-        return observedSlotSnapshotsById.Values
-            .Where(slot => string.Equals(slot.Parent?.TargetID, datasetRootSlot.Locator.Value, StringComparison.Ordinal))
-            .Where(slot => string.IsNullOrWhiteSpace(slot.ID) || !createdSlotIds.ContainsKey(slot.ID!))
-            .Where(static slot => !string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal));
+        return ObservedDatasetSourceRootSelector.Select(
+            datasetRootSlot.Locator.Value,
+            observedSlotSnapshotsById.Values,
+            createdSlotIds.Keys);
     }
 
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)
