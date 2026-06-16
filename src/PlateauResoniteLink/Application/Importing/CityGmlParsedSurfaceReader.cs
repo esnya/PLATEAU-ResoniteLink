@@ -8,7 +8,7 @@ internal static class CityGmlParsedSurfaceReader
 {
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
 
-    internal static ParsedSurface? TryParse(XElement polygonElement, ICityGmlAppearanceStore appearanceStore)
+    internal static CityGmlParsedSurfaceSource? TryRead(XElement polygonElement, ICityGmlAppearanceStore appearanceStore)
     {
         ArgumentNullException.ThrowIfNull(polygonElement);
         ArgumentNullException.ThrowIfNull(appearanceStore);
@@ -38,20 +38,11 @@ internal static class CityGmlParsedSurfaceReader
 
         ParsedRing[] interiorRings = ParseInteriorRings(polygonElement, polygonId, appearanceStore);
 
-        return new ParsedSurface(
+        return new CityGmlParsedSurfaceSource(
             Semantic: ParseSurfaceSemantic(polygonElement),
             ExteriorRing: exteriorParsedRing,
             InteriorRings: interiorRings,
-            BaseColor: ToInternalColor(appearance.BaseColor),
-            TexturePayload: appearance.TexturePayload,
-            OpticalProperties: CreateMaterialOpticalProperties(appearance.MaterialAttributes));
-    }
-
-    internal static ParsedSurface ApplyPackageDefaults(string packageName, ParsedSurface surface)
-    {
-        ArgumentNullException.ThrowIfNull(surface);
-
-        return surface;
+            Appearance: appearance);
     }
 
     private static ParsedRing[] ParseInteriorRings(
@@ -156,22 +147,6 @@ internal static class CityGmlParsedSurfaceReader
         return ParsedSurfaceSemantic.Unknown;
     }
 
-    private static MaterialOpticalProperties? CreateMaterialOpticalProperties(CityGmlMaterialAttributes? attributes)
-    {
-        if (attributes is null)
-        {
-            return null;
-        }
-
-        return new MaterialOpticalProperties(
-            DiffuseColor: ToInternalColor(attributes.DiffuseColor),
-            EmissiveColor: attributes.EmissiveColor is null ? null : ToInternalColor(attributes.EmissiveColor),
-            SpecularColor: attributes.SpecularColor is null ? null : ToInternalColor(attributes.SpecularColor),
-            AmbientIntensity: attributes.AmbientIntensity,
-            Shininess: attributes.Shininess,
-            Transparency: attributes.Transparency);
-    }
-
     private static string? GetAttribute(XElement element, XName attributeName)
     {
         return element.Attribute(attributeName)?.Value;
@@ -183,6 +158,4 @@ internal static class CityGmlParsedSurfaceReader
             && Math.Abs(left.Longitude - right.Longitude) < 1e-8
             && Math.Abs(left.Altitude - right.Altitude) < 1e-8;
     }
-
-    private static ColorRgba ToInternalColor(ColorRgba value) => new(value.R, value.G, value.B, value.A);
 }
