@@ -79,12 +79,12 @@ internal static class CityGmlParsedCityObjectReader
         List<ParsedSurface> surfaces = [];
         foreach (XElement surfaceElement in surfaceElements)
         {
-            if (CityGmlParsedSurfaceReader.TryParse(surfaceElement, appearanceStore) is not { } surface)
+            if (CityGmlParsedSurfaceReader.TryRead(surfaceElement, appearanceStore) is not { } sourceSurface)
             {
                 continue;
             }
 
-            surfaces.Add(CityGmlParsedSurfaceReader.ApplyPackageDefaults(packageName, surface));
+            surfaces.Add(CityGmlParsedSurfaceSourceModelMapper.ToParsedSurface(packageName, sourceSurface));
         }
 
         return surfaces
