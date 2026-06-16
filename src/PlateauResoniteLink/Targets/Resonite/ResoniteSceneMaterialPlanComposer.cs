@@ -35,7 +35,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             = new Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[cityObject.Materials.Count];
         for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
         {
-            ResoniteMaterialBinding material = ResolveTerrainTextureMaterialForEmission(
+            ResoniteMaterialBinding material = ResoniteSceneMaterialEmissionNormalizer.NormalizeTerrainTextureMaterialForEmission(
                 cityObject,
                 cityObject.Materials[materialIndex]);
             material = ResoniteTerrainOverlayMaterialContract.ValidateMaterial(cityObject, materialIndex, material);
@@ -98,7 +98,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             preparedTerrainTextureUrisByOverlay);
         PlannedRendererMaterialBinding rendererBinding = mainTextureOverride is null
             ? new PlannedDirectRendererMaterialBinding(sharedMaterialAsset)
-            : CreateMainTextureOverrideRendererBinding(
+            : ResoniteRendererMaterialBindingPlanner.CreateMainTextureOverrideRendererBinding(
                 sharedMaterialAsset,
                 mainTextureOverride,
                 terrainTexturePropertyBlockComponentsByMeshCode,
@@ -138,7 +138,7 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
             {
                 return (
                     plannedMaterial,
-                    CreateMainTextureOverrideRendererBinding(
+                    ResoniteRendererMaterialBindingPlanner.CreateMainTextureOverrideRendererBinding(
                         plannedMaterial,
                         mainTextureOverride,
                         preparedTerrainTexturePropertyBlockComponentsByMeshCode,
@@ -148,44 +148,4 @@ internal sealed class ResoniteSceneMaterialPlanComposer(IResoniteMaterialPlannin
 
         return (plannedMaterial, new PlannedDirectRendererMaterialBinding(plannedMaterial));
     }
-
-    private static ResoniteMaterialBinding ResolveTerrainTextureMaterialForEmission(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteMaterialBinding material)
-    {
-        return (cityObject.Geometry is ResoniteTerrainGridGeometry
-                || cityObject.Geometry is ResoniteDynamicTerrainGeometry)
-            && material.TerrainOverlay is not null
-            ? material with
-            {
-                TextureScale = null,
-                TextureOffset = null,
-            }
-            : material;
-    }
-
-    private static PlannedMainTextureOverrideRendererMaterialBinding CreateMainTextureOverrideRendererBinding(
-        PlannedMaterialAsset materialAsset,
-        LocalRendererOverrideTextureProvider mainTexture,
-        IReadOnlyDictionary<ThirdRegionalMeshCode, ResoniteComponentLocator> terrainTexturePropertyBlockComponentsByMeshCode,
-        ResoniteMaterialBinding sourceMaterial)
-    {
-        if (sourceMaterial.TerrainOverlay is null)
-        {
-            return new PlannedAlbedoMainTextureOverrideRendererMaterialBinding(materialAsset, mainTexture);
-        }
-
-        ResoniteComponentLocator? sharedMainTexturePropertyBlockComponent =
-            sourceMaterial.TerrainOverlayMaterial is not null
-            && terrainTexturePropertyBlockComponentsByMeshCode.TryGetValue(sourceMaterial.TerrainOverlayMaterial.MeshCode, out ResoniteComponentLocator propertyBlockComponent)
-                ? propertyBlockComponent
-                : null;
-        return new PlannedTerrainMainTextureOverrideRendererMaterialBinding(
-            materialAsset,
-            new SharedTerrainOverlayTextureProvider(
-                mainTexture.AssetUri,
-                SharedMainTextureComponent: null,
-                sharedMainTexturePropertyBlockComponent));
-    }
-
 }
