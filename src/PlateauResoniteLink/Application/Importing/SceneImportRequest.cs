@@ -1,3 +1,4 @@
+using PlateauResoniteLink.Application.Importing.Contracts;
 namespace PlateauResoniteLink.Application.Importing;
 
 public sealed record SceneImportRequest(

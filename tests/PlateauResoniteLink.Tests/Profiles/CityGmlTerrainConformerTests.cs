@@ -1,6 +1,5 @@
 using GeographicLib;
 
-using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 

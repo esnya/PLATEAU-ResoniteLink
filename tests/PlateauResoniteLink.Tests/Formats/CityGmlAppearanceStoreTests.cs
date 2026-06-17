@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Application.Importing;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;

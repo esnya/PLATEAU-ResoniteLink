@@ -8,9 +8,11 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-using PlateauResoniteLink.Application.Importing;
 
 using ResoniteLink;
+
+using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Application.Importing.Plateau;
 
 namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
 

@@ -3,7 +3,6 @@ using System.Linq;
 
 using GeographicLib;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;

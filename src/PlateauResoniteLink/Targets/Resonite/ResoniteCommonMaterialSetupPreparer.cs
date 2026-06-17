@@ -8,11 +8,11 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Diagnostics;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
+using PlateauResoniteLink.Application.Importing.Contracts;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 

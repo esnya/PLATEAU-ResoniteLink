@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Application.Importing.Plateau;
 
 namespace PlateauResoniteLink.Application.Importing;
 

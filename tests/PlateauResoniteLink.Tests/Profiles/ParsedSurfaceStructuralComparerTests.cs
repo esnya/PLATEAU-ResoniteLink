@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 

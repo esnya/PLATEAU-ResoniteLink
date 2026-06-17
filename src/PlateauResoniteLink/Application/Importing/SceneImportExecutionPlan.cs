@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Application.Importing.Contracts;
 
 namespace PlateauResoniteLink.Application.Importing;
 

@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 
 using ResoniteLink;
+using PlateauResoniteLink.Application.Importing.Contracts;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
