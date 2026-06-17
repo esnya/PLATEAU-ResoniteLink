@@ -18,7 +18,9 @@ internal sealed class ResoniteSharedSlotIndex(
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> sharedSlotCache = new();
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> runScopedSourceFileRootCache = new();
     private readonly AsyncCompletedResultCache<CanonicalParentSourceFile, CanonicalParentScope> canonicalParentScopeCache = new();
-    private readonly ResoniteSlotSnapshotIndex slotSnapshotIndex = new(datasetRootSlot);
+    private readonly ResoniteSlotSnapshotIndex slotSnapshotIndex = new(
+        datasetRootSlot,
+        sourceFileSlotNamesByRelativePath.Values);
     public SceneAnchor? SceneAnchor { get; private set; } = initialSceneAnchor;
 
     public void IndexSetupHierarchy(ResoniteSceneSetupState setupState)

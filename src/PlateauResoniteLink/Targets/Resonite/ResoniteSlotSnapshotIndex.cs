@@ -6,12 +6,15 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed class ResoniteSlotSnapshotIndex(CreatedSlot datasetRootSlot)
+internal sealed class ResoniteSlotSnapshotIndex(
+    CreatedSlot datasetRootSlot,
+    IEnumerable<string>? expectedSourceRootSlotNames = null)
 {
     private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<SlotIndexKey, CreatedSlot> sharedSlotIndex = new();
     private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
-    private Slot[]? observedDatasetSourceRoots;
+    private readonly HashSet<string> expectedSourceRootSlotNames = new(expectedSourceRootSlotNames ?? [], StringComparer.Ordinal);
+    private ObservedDatasetSourceRoot[]? observedDatasetSourceRoots;
 
     public void IndexSetupHierarchy(ResoniteSceneSetupState setupState)
     {
@@ -54,7 +57,7 @@ internal sealed class ResoniteSlotSnapshotIndex(CreatedSlot datasetRootSlot)
         createdSlotIds[createdSlot.Locator.Value] = 0;
     }
 
-    public IReadOnlyList<Slot> GetObservedDatasetSourceRoots()
+    public IReadOnlyList<ObservedDatasetSourceRoot> GetObservedDatasetSourceRoots()
     {
         return observedDatasetSourceRoots ??= SelectObservedDatasetSourceRoots();
     }
@@ -83,12 +86,13 @@ internal sealed class ResoniteSlotSnapshotIndex(CreatedSlot datasetRootSlot)
         }
     }
 
-    private Slot[] SelectObservedDatasetSourceRoots()
+    private ObservedDatasetSourceRoot[] SelectObservedDatasetSourceRoots()
     {
         return ObservedDatasetSourceRootSelector.Select(
             datasetRootSlot.Locator.Value,
             observedSlotSnapshotsById.Values,
-            createdSlotIds.Keys);
+            createdSlotIds.Keys,
+            expectedSourceRootSlotNames);
     }
 
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)

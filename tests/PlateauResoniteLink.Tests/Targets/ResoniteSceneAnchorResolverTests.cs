@@ -97,6 +97,46 @@ public sealed class ResoniteSceneAnchorResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsyncIgnoresNonSourceRootDirectChildWithoutPosition()
+    {
+        const string datasetRootSlotId = "dataset-root";
+        const string completionMeshCode = "53394525";
+        using AnchorResolverFakeClient client = new AnchorResolverFakeClient((slotId, depth, callCount) =>
+        {
+            if (string.Equals(slotId, datasetRootSlotId, StringComparison.Ordinal) && depth == 0)
+            {
+                return CreateSlot(datasetRootSlotId, "PLATEAU tokyo23ku");
+            }
+
+            if (string.Equals(slotId, datasetRootSlotId, StringComparison.Ordinal) && depth == 1)
+            {
+                return CreateSlot(
+                    datasetRootSlotId,
+                    "PLATEAU tokyo23ku",
+                    children:
+                    [
+                        CreateSlot("operator-note", "Operator Notes", datasetRootSlotId),
+                        CreateSlot("source-root", "plateau_tokyo23ku_bldg_53394525", datasetRootSlotId, new ResoniteFloat3(1.0, 0.0, 2.0)),
+                    ]);
+            }
+
+            return null;
+        });
+
+        ResoniteSceneAnchorResolver resolver = new();
+
+        SceneAnchor anchor = await resolver.ResolveAsync(
+            client,
+            new ResoniteSlotLocator(datasetRootSlotId),
+            completionMeshCode,
+            CancellationToken.None);
+
+        Assert.Equal(new ResoniteSlotLocator("source-root"), anchor.LocationSlot);
+        Assert.Equal(new ResoniteSlotLocator("source-root"), anchor.ReferenceSourceFileRoot);
+        Assert.Equal(new ResoniteFloat3(1.0, 0.0, 2.0), anchor.Position);
+    }
+
+    [Fact]
     public async Task ResolveAsyncUsesPositionedReferenceSourceFileRootForFallbackAnchorPosition()
     {
         const string datasetRootSlotId = "dataset-root";
