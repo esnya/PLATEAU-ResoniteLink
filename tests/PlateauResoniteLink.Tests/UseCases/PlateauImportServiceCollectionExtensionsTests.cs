@@ -6,12 +6,15 @@ using PlateauResoniteLink.Application.Importing.Source;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.UseCases;
@@ -120,6 +123,33 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             .BuildServiceProvider();
 
         Assert.Same(policy, provider.GetRequiredService<IDemTextureSourcePolicy>());
+    }
+
+    [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddImportedSceneSourceServicesProvidesTerrainTextureFactoryAfterResoniteServices()
+    {
+        ServiceProvider provider = new ServiceCollection()
+            .AddResoniteLiveSendTargetServices()
+            .AddImportedSceneSourceServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+
+        ISceneSink target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false),
+                terrainTextureAssetHttpClient);
+
+        await using ResoniteLiveSceneImportTarget _ = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
     }
 
     private sealed class CustomPlateauDatasetContentSourceFactory : IPlateauDatasetContentSourceFactory

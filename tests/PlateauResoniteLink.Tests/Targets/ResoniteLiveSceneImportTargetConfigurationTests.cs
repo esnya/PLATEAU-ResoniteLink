@@ -86,6 +86,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     public async Task FactoryCreateReusesTransportDiagnostics()
     {
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -120,11 +121,38 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public void AddResoniteLiveSendTargetServicesRequiresTerrainTextureFactoryWhenCreatingLiveTarget()
+    {
+        ServiceProvider provider = new ServiceCollection()
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => scope.ServiceProvider
+                .GetRequiredService<IResoniteLiveSceneImportFactory>()
+                .CreateTarget(
+                    new ResoniteLiveSceneImportTargetOptions(
+                        new Uri("ws://localhost:12345/"),
+                        1,
+                        EnableSendMetrics: false,
+                        MemoryProfile: ResoniteImportMemoryProfile.Large,
+                        EnableMeshBake: true,
+                        TerrainTileCacheRoot: null,
+                        DisableTerrainTileCache: false),
+                    terrainTextureAssetHttpClient));
+
+        Assert.Contains(nameof(ITerrainTextureAssetGeneratorFactory), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
     public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredSessionFactory()
     {
         ILiveSendClientSession? recordedSession = null;
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddScoped<IResoniteClientSessionFactory>(
                 _ => new RecordingClientSessionFactory(() => recordedSession = new DelegatingClientSession()))
             .AddResoniteLiveSendTargetServices()
@@ -250,6 +278,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     {
         RecordingRunSetupPreparer runSetupPreparer = new();
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddScoped<IResoniteLiveSendRunSetupPreparer>(_ => runSetupPreparer)
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
@@ -278,6 +307,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     {
         RecordingRunExecutorFactory runExecutorFactory = new();
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddScoped<IResoniteLiveSendRunExecutorFactory>(_ => runExecutorFactory)
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
@@ -331,6 +361,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     public async Task AddResoniteLiveSendTargetServicesRegistersDefaultBaseClientFactory()
     {
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
