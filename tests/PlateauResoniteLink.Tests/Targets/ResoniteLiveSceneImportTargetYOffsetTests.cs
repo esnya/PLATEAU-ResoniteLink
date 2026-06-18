@@ -1,10 +1,10 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
 
 using ResoniteLink;
 

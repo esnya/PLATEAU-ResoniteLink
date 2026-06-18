@@ -4,8 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 using ResoniteLink;
 

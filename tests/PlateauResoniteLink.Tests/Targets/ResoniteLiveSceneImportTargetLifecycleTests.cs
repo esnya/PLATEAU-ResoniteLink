@@ -1,8 +1,8 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.CityGml;
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Plateau;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing.CityGml;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 using System;
 using System.Collections.Generic;
@@ -13,15 +13,17 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
-using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Targets.Resonite.Execution;
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 using ResoniteLink;
 
 using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
+
+using PlateauResoniteLink.Core;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
@@ -500,7 +502,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                overlay.PrimarySource));
+                TerrainTextureSourceUsage.FromSource(overlay.PrimarySource)));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -651,9 +653,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                new TerrainTextureTileSource(
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel)));
+                TerrainTextureSourceUsage.FromSource(
+                    new TerrainTextureTileSource(
+                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel))));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -730,7 +733,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                [gsiFallbackSource, rasterSource]));
+                [
+                    TerrainTextureSourceUsage.FromSource(gsiFallbackSource),
+                    TerrainTextureSourceUsage.FromSource(rasterSource),
+                ]));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -804,9 +810,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                new TerrainTextureTileSource(
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel)));
+                TerrainTextureSourceUsage.FromSource(
+                    new TerrainTextureTileSource(
+                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel))));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -871,7 +878,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                rasterSource));
+                TerrainTextureSourceUsage.FromSource(rasterSource)));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -920,18 +927,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             .ReadAsync(
             request,
             cancellationToken: default);
-        ImportedSceneMetadata metadata = new DefaultImportedSceneSourceComposer(
-                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
-                new DefaultDemTextureSourcePolicy(
-                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
-                        new DefaultPlateauDatasetContentSourceFactory(
-                            new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy()))))
-            .Compose(
-                request,
-                readResult,
-                new PassthroughImportedObjectUnitOptimizer())
-            .Metadata;
+        ImportedSceneMetadata metadata = new DefaultImportedSceneMetadataComposer().Compose(
+            request,
+            readResult);
 
         _ = await importTarget.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),

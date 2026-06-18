@@ -1,5 +1,5 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Plateau.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 namespace PlateauResoniteLink.Tests.Application;
 

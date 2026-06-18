@@ -1,12 +1,12 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 using System;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.UseCases;

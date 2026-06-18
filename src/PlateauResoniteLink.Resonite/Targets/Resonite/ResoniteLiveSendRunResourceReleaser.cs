@@ -1,0 +1,39 @@
+using System;
+using System.Threading.Tasks;
+
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
+
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
+
+internal static class ResoniteLiveSendRunResourceReleaser
+{
+    public static async ValueTask ReleaseAsync(
+        LiveSendRunState? state,
+        ILiveSendClientSession clientSession,
+        bool disposeClients,
+        bool resetClients)
+    {
+        ArgumentNullException.ThrowIfNull(clientSession);
+
+        if (state is not null)
+        {
+            try
+            {
+                await state.Runtime.DisposeAsync();
+            }
+            finally
+            {
+                state.GsiFallbackLicenseGate.Dispose();
+            }
+        }
+
+        if (disposeClients)
+        {
+            clientSession.DisposeClients();
+        }
+        else if (resetClients)
+        {
+            await clientSession.ResetClientsAsync();
+        }
+    }
+}

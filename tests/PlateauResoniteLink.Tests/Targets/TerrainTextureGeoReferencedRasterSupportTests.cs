@@ -1,6 +1,6 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Plateau;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 using System;
 using System.Buffers.Binary;
@@ -11,11 +11,13 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Plateau.TerrainTextures;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+
+using PlateauResoniteLink.Core;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
@@ -323,7 +325,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             Materialize(texture.TextureSource).Height);
         Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[0, 0]);
         Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
-        Assert.IsType<TerrainTextureGeoReferencedRasterSource>(texture.UsedSource);
+        Assert.Equal(nameof(TerrainTextureGeoReferencedRasterSource), texture.Usage.TextureImportName);
     }
 
     [Fact]
@@ -385,8 +387,8 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.NotEqual(Materialize(tileOnlyTexture.TextureSource).Bytes, Materialize(rasterOnlyTexture.TextureSource).Bytes);
         Assert.NotEqual(Materialize(tileOnlyTexture.TextureSource).Bytes, Materialize(mixedTexture.TextureSource).Bytes);
         Assert.NotEqual(Materialize(rasterOnlyTexture.TextureSource).Bytes, Materialize(mixedTexture.TextureSource).Bytes);
-        Assert.Single(rasterOnlyTexture.UsedSources);
-        Assert.Equal(2, mixedTexture.UsedSources.Count);
+        Assert.Single(rasterOnlyTexture.Usages);
+        Assert.Equal(2, mixedTexture.Usages.Count);
     }
 
     [Fact]
@@ -537,12 +539,13 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             new Rgba32(12, 34, 56, 255),
             outputImage[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)]);
         Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
-        Assert.Contains(texture.UsedSources, static source => source is TerrainTextureGeoReferencedRasterSource);
         Assert.Contains(
-            texture.UsedSources,
-            static source => source is TerrainTextureTileSource tileSource
-                && tileSource.UrlTemplate == "https://tiles.example/{z}/{x}/{y}.png");
-        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
+            texture.Usages,
+            static usage => usage.TextureImportName == nameof(TerrainTextureGeoReferencedRasterSource));
+        Assert.Contains(
+            texture.Usages,
+            static usage => usage.Description.Contains("https://tiles.example/{z}/{x}/{y}.png", StringComparison.Ordinal));
+        Assert.Equal(nameof(TerrainTextureTileSource), texture.Usage.TextureImportName);
     }
 
     [Fact]
@@ -635,7 +638,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
+        Assert.Equal(nameof(TerrainTextureTileSource), texture.Usage.TextureImportName);
         Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
         Assert.True(handler.RequestCount > 0);
     }

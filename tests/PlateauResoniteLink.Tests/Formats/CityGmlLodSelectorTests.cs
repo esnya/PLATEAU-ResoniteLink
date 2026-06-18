@@ -1,10 +1,10 @@
-using PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Formats;
 

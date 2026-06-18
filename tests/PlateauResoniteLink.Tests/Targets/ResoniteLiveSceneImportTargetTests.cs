@@ -1,4 +1,4 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 using System;
 using System.Collections.Generic;
@@ -12,10 +12,11 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Targets.Resonite.Diagnostics;
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Plateau.TerrainTextures;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Diagnostics;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 using ResoniteLink;
 
@@ -23,6 +24,8 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
+
+using PlateauResoniteLink.Core;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
@@ -201,7 +204,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                requestedOverlay.PrimarySource));
+                TerrainTextureSourceUsage.FromSource(requestedOverlay.PrimarySource)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -285,7 +288,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                requestedOverlay.PrimarySource));
+                TerrainTextureSourceUsage.FromSource(requestedOverlay.PrimarySource)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -337,7 +340,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                requestedOverlay.PrimarySource));
+                TerrainTextureSourceUsage.FromSource(requestedOverlay.PrimarySource)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -422,7 +425,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 CreateRawTextureSource(2, 2, ResoniteTextureColorProfiles.Srgb, new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                requestedOverlay.PrimarySource));
+                TerrainTextureSourceUsage.FromSource(requestedOverlay.PrimarySource)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -468,7 +471,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.125, 0.375),
-                requestedOverlay.PrimarySource));
+                TerrainTextureSourceUsage.FromSource(requestedOverlay.PrimarySource)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -903,7 +906,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     new byte[16]),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.125, 0.375),
-                requestedOverlay.PrimarySource));
+                TerrainTextureSourceUsage.FromSource(requestedOverlay.PrimarySource)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,

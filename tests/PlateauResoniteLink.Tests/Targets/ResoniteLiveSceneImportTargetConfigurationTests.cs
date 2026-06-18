@@ -1,5 +1,5 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 using System;
 using System.Collections.Generic;
@@ -13,11 +13,13 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Targets.Resonite.Diagnostics;
-using PlateauResoniteLink.Targets.Resonite.Execution;
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Diagnostics;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
+
+using PlateauResoniteLink.Core;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
@@ -84,6 +86,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     public async Task FactoryCreateReusesTransportDiagnostics()
     {
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -109,6 +112,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     public void AddResoniteLiveSendTargetServicesRegistersWorkerPipelineFactory()
     {
         using ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -118,11 +122,86 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public void AddResoniteLiveSendTargetServicesRequiresTerrainTextureFactoryDuringValidation()
+    {
+        Exception exception = Assert.ThrowsAny<Exception>(
+            () => new ServiceCollection()
+                .AddResoniteLiveSendTargetServices()
+                .BuildServiceProvider(new ServiceProviderOptions
+                {
+                    ValidateOnBuild = true,
+                    ValidateScopes = true,
+                }));
+
+        Assert.Contains(nameof(ITerrainTextureAssetGeneratorFactory), exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredLiveFactoryDuringValidation()
+    {
+        using ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteLiveSceneImportFactory, RecordingLiveSceneImportFactory>()
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            });
+
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.IsType<RecordingLiveSceneImportFactory>(
+            scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>());
+    }
+
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesPassesValidationWhenTerrainTextureFactoryIsRegistered()
+    {
+        using ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            });
+
+        Assert.NotNull(provider.GetRequiredService<IServiceScopeFactory>());
+    }
+
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesRequiresTerrainTextureFactoryWhenCreatingLiveTarget()
+    {
+        ServiceProvider provider = new ServiceCollection()
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => scope.ServiceProvider
+                .GetRequiredService<IResoniteLiveSceneImportFactory>()
+                .CreateTarget(
+                    new ResoniteLiveSceneImportTargetOptions(
+                        new Uri("ws://localhost:12345/"),
+                        1,
+                        EnableSendMetrics: false,
+                        MemoryProfile: ResoniteImportMemoryProfile.Large,
+                        EnableMeshBake: true,
+                        TerrainTileCacheRoot: null,
+                        DisableTerrainTileCache: false),
+                    terrainTextureAssetHttpClient));
+
+        Assert.Contains(nameof(ITerrainTextureAssetGeneratorFactory), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
     public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredSessionFactory()
     {
         ILiveSendClientSession? recordedSession = null;
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddScoped<IResoniteClientSessionFactory>(
                 _ => new RecordingClientSessionFactory(() => recordedSession = new DelegatingClientSession()))
             .AddResoniteLiveSendTargetServices()
@@ -180,15 +259,19 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
-    public async Task AddResoniteLiveSendTargetServicesRoutesCanonicalDumpThroughRegisteredLiveSceneImportFactory()
+    public async Task AddResoniteLiveSendTargetServicesKeepsCanonicalDumpOnDefaultRecordingFactory()
     {
-        RecordingLiveSceneImportFactory importFactory = new(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()));
+        RecordingLiveSceneImportFactory importFactory = new();
+        RecordingTerrainTextureAssetGeneratorFactory terrainTextureFactory = new();
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory>(_ => terrainTextureFactory)
             .AddScoped<IResoniteLiveSceneImportFactory>(_ => importFactory)
             .AddResoniteLiveSendTargetServices()
+            .AddResoniteCanonicalSceneDumpServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
         using TemporaryDirectory outputDirectory = new();
+        using HttpClient terrainTextureAssetHttpClient = new();
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
 
         await using ISceneSink _ = scope.ServiceProvider
@@ -202,12 +285,46 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false),
-                outputPath);
+                outputPath,
+                terrainTextureAssetHttpClient);
 
-        Assert.Equal(1, importFactory.PreconfiguredCreateCallCount);
-        Assert.NotNull(importFactory.LastClientSession);
-        Assert.Same(ResoniteLinkSendDiagnostics.Disabled, importFactory.LastDiagnostics);
-        Assert.NotNull(importFactory.LastTerrainTextureAssetGenerator);
+        Assert.Same(
+            importFactory,
+            scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>());
+        Assert.Equal(0, importFactory.CreateCallCount);
+        Assert.Equal(1, terrainTextureFactory.CreateCallCount);
+        Assert.Same(terrainTextureAssetHttpClient, terrainTextureFactory.LastHttpClient);
+    }
+
+    [Fact]
+    public void AddResoniteCanonicalSceneDumpServicesRequiresTerrainTextureFactoryDuringValidation()
+    {
+        Exception exception = Assert.ThrowsAny<Exception>(
+            () => new ServiceCollection()
+                .AddResoniteCanonicalSceneDumpServices()
+                .BuildServiceProvider(new ServiceProviderOptions
+                {
+                    ValidateOnBuild = true,
+                    ValidateScopes = true,
+                }));
+
+        Assert.Contains(nameof(ITerrainTextureAssetGeneratorFactory), exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddResoniteCanonicalSceneDumpServicesPassesValidationWhenTerrainTextureFactoryIsRegistered()
+    {
+        using ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
+            .AddResoniteCanonicalSceneDumpServices()
+            .BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            });
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IResoniteCanonicalSceneDumpSinkFactory>());
     }
 
     [Fact]
@@ -248,6 +365,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     {
         RecordingRunSetupPreparer runSetupPreparer = new();
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddScoped<IResoniteLiveSendRunSetupPreparer>(_ => runSetupPreparer)
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
@@ -276,6 +394,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     {
         RecordingRunExecutorFactory runExecutorFactory = new();
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddScoped<IResoniteLiveSendRunExecutorFactory>(_ => runExecutorFactory)
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
@@ -329,6 +448,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     public async Task AddResoniteLiveSendTargetServicesRegistersDefaultBaseClientFactory()
     {
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -444,13 +564,13 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
         public HttpClient? LastHttpClient { get; private set; }
 
-        public ResoniteLiveSceneImportTargetOptions? LastOptions { get; private set; }
+        public TerrainTextureAssetGeneratorOptions? LastOptions { get; private set; }
 
         public ITerrainTextureAssetGenerator? LastGenerator { get; private set; }
 
         public ITerrainTextureAssetGenerator Create(
             HttpClient terrainTextureAssetHttpClient,
-            ResoniteLiveSceneImportTargetOptions options)
+            TerrainTextureAssetGeneratorOptions options)
         {
             CreateCallCount++;
             LastHttpClient = terrainTextureAssetHttpClient;
@@ -472,47 +592,24 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         }
     }
 
-    private sealed class RecordingLiveSceneImportFactory(
-        IResoniteMaterialPlanning materialPlanning) : IResoniteLiveSceneImportFactory
+    private sealed class RecordingLiveSceneImportFactory : IResoniteLiveSceneImportFactory
     {
-        public int PreconfiguredCreateCallCount { get; private set; }
-
-        public ILiveSendClientSession? LastClientSession { get; private set; }
-
-        public ResoniteLinkSendDiagnostics? LastDiagnostics { get; private set; }
-
-        public ITerrainTextureAssetGenerator? LastTerrainTextureAssetGenerator { get; private set; }
+        public int CreateCallCount { get; private set; }
 
         public ResoniteLiveSceneImportTarget CreateTarget(
             ResoniteLiveSceneImportTargetOptions options,
             HttpClient terrainTextureAssetHttpClient)
         {
+            CreateCallCount++;
             _ = terrainTextureAssetHttpClient;
-            return CreateTarget(
-                options,
-                new DelegatingClientSession(),
-                ResoniteLinkSendDiagnostics.Disabled,
-                new RecordingTerrainTextureAssetGenerator());
-        }
-
-        public ResoniteLiveSceneImportTarget CreateTarget(
-            ResoniteLiveSceneImportTargetOptions options,
-            ILiveSendClientSession clientSession,
-            ResoniteLinkSendDiagnostics diagnostics,
-            ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
-        {
-            PreconfiguredCreateCallCount++;
-            LastClientSession = clientSession;
-            LastDiagnostics = diagnostics;
-            LastTerrainTextureAssetGenerator = terrainTextureAssetGenerator;
+            ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
             return new ResoniteLiveSceneImportTarget(
                 options,
                 ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                    clientSession,
-                    diagnostics,
+                    new DelegatingClientSession(),
+                    ResoniteLinkSendDiagnostics.Disabled,
                     ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
-                        materialPlanning,
-                        terrainTextureAssetGenerator: terrainTextureAssetGenerator)));
+                        materialPlanning)));
         }
     }
 

@@ -1,9 +1,9 @@
-using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing;
 
 using System;
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
 

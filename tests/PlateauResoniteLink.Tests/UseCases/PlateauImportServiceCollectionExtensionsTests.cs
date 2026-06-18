@@ -1,17 +1,21 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.CityGml;
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Plateau;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing.CityGml;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
 using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.UseCases;
@@ -75,15 +79,27 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddImportedSceneSourceServicesPreservesCustomImportedSceneSourceReader()
+    public void AddImportedSceneSourceServicesPreservesCustomResolvedPlateauSceneSourceReader()
     {
-        CustomImportedSceneSourceReader reader = new();
+        CustomResolvedPlateauSceneSourceReader reader = new();
         ServiceProvider provider = new ServiceCollection()
-            .AddSingleton<IImportedSceneSourceReader>(reader)
+            .AddSingleton<IResolvedPlateauSceneSourceReader>(reader)
             .AddImportedSceneSourceServices()
             .BuildServiceProvider();
 
-        Assert.Same(reader, provider.GetRequiredService<IImportedSceneSourceReader>());
+        Assert.Same(reader, provider.GetRequiredService<IResolvedPlateauSceneSourceReader>());
+    }
+
+    [Fact]
+    public void AddImportedSceneSourceServicesPreservesCustomImportedSceneMetadataComposer()
+    {
+        CustomImportedSceneMetadataComposer composer = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<IImportedSceneMetadataComposer>(composer)
+            .AddImportedSceneSourceServices()
+            .BuildServiceProvider();
+
+        Assert.Same(composer, provider.GetRequiredService<IImportedSceneMetadataComposer>());
     }
 
     [Fact]
@@ -110,6 +126,37 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         Assert.Same(policy, provider.GetRequiredService<IDemTextureSourcePolicy>());
     }
 
+    [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddImportedSceneSourceServicesProvidesTerrainTextureFactoryAfterResoniteServices()
+    {
+        ServiceProvider provider = new ServiceCollection()
+            .AddResoniteLiveSendTargetServices()
+            .AddImportedSceneSourceServices()
+            .BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            });
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+
+        ISceneSink target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false),
+                terrainTextureAssetHttpClient);
+
+        await using ResoniteLiveSceneImportTarget _ = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+    }
+
     private sealed class CustomPlateauDatasetContentSourceFactory : IPlateauDatasetContentSourceFactory
     {
         public Task<IPlateauDatasetContentSource> CreateAsync(
@@ -134,7 +181,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class CustomImportedSceneSourceReader : IImportedSceneSourceReader
+    private sealed class CustomResolvedPlateauSceneSourceReader : IResolvedPlateauSceneSourceReader
     {
         public Task<ImportedSceneSourceSnapshot> ReadAsync(
             ResolvedLocalPlateauImportRequest request,
@@ -142,6 +189,18 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         {
             _ = request;
             _ = cancellationToken;
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class CustomImportedSceneMetadataComposer : IImportedSceneMetadataComposer
+    {
+        public ImportedSceneMetadata Compose(
+            ResolvedLocalPlateauImportRequest request,
+            ImportedSceneSourceSnapshot readResult)
+        {
+            _ = request;
+            _ = readResult;
             throw new NotSupportedException();
         }
     }

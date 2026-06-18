@@ -1,7 +1,7 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.CityGml;
-using PlateauResoniteLink.Application.Importing.Plateau;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Plateau.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing.CityGml;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 using System;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 

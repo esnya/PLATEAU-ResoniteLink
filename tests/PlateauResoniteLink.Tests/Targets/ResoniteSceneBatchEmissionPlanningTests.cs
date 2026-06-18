@@ -1,4 +1,4 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 using System;
 using System.Collections.Generic;
@@ -6,8 +6,8 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 
-using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Targets.Resonite.Execution;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
 
 using ResoniteLink;
 
@@ -263,7 +263,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Terrain Grid Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
@@ -271,7 +271,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new ResoniteTerrainGridGeometry(
                     Width: 2,
                     Height: 3,
-                    Size: new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
+                    Size: new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
                     MinHeight: 0.0,
                     MaxHeight: 6.0,
                     HeightSamples: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
@@ -352,7 +352,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Terrain Grid Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null,
             CityObjectOrderOffset: 53394525);
         PlannedBatchEmission batchPlan = CreateBatchPlan(
@@ -361,7 +361,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new ResoniteTerrainGridGeometry(
                     Width: 2,
                     Height: 2,
-                    Size: new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
+                    Size: new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
                     MinHeight: -1.0,
                     MaxHeight: 3.0,
                     HeightSamples: [-1.0, 0.0, 1.0, 3.0]),
@@ -384,7 +384,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Dynamic Terrain Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
@@ -393,7 +393,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new ResoniteTerrainGridGeometry(
                     Width: 4,
                     Height: 5,
-                    Size: new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(40.0, 50.0),
+                    Size: new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat2(40.0, 50.0),
                     MinHeight: 1.0,
                     MaxHeight: 11.0,
                     HeightSamples: Enumerable.Range(0, 20).Select(static value => (double)value).ToArray()),
@@ -466,7 +466,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Terrain Grid Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
         PlannedBatchEmission batchPlan = CreateBatchPlan(
             objectSlots,
@@ -474,13 +474,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new ResoniteTerrainGridGeometry(
                     Width: 2,
                     Height: 3,
-                    Size: new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
+                    Size: new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
                     MinHeight: 0.0,
                     MaxHeight: 6.0,
                     HeightSamples: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
                 new Uri("resdb:///texture/height"),
-                new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(0.4, 0.25),
-                new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(0.2, 0.125)),
+                new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat2(0.4, 0.25),
+                new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat2(0.2, 0.125)),
             [],
             [],
             true);
@@ -503,11 +503,11 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
             new ResoniteMaterialBinding(
-                BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                BaseColor: new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
                 TextureSourceKind: ResoniteTextureSourceKind.Dataset,
@@ -559,11 +559,11 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
             new ResoniteMaterialBinding(
-                BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                BaseColor: new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
                 TextureSourceKind: ResoniteTextureSourceKind.Bundled,
@@ -646,7 +646,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
         PlannedBatchEmission batchPlan = CreateBatchPlan(
@@ -691,7 +691,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
         PlannedBatchEmission batchPlan = CreateBatchPlan(
@@ -724,7 +724,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
         PlannedBatchEmission batchPlan = CreateBatchPlan(
@@ -763,7 +763,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         ResoniteObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new ResoniteComponentLocator("shared-material-id"));
         PlannedBatchEmission batchPlan = CreateBatchPlan(
@@ -829,7 +829,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         return new ResoniteObjectSlotHierarchy(
             lodSlot,
             "Building Object",
-            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null,
             SourceFileSlot: sourceFileSlot);
     }
@@ -842,22 +842,22 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             PackageName: packageName,
             ActualMeshCode: "53394525",
             LodLevel: lodLevel,
-            Transform: new PlateauResoniteLink.Targets.Resonite.ResoniteTransform(
-                new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0)),
+            Transform: new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteTransform(
+                new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new ResoniteImportedMesh(
                 [
                     new ResoniteMeshVertex(
-                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
-                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 1.0, 0.0),
-                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(0.0, 0.0)),
+                        new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
+                        new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 1.0, 0.0),
+                        new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat2(0.0, 0.0)),
                     new ResoniteMeshVertex(
-                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 0.0, 0.0),
-                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 1.0, 0.0),
-                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(1.0, 0.0)),
+                        new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(1.0, 0.0, 0.0),
+                        new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 1.0, 0.0),
+                        new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat2(1.0, 0.0)),
                     new ResoniteMeshVertex(
-                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 1.0),
-                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 1.0, 0.0),
-                        new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(0.0, 1.0)),
+                        new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 1.0),
+                        new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 1.0, 0.0),
+                        new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat2(0.0, 1.0)),
                 ],
                 [
                     new ResoniteMeshSubmesh(0, [0, 1, 2]),

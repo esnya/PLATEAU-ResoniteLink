@@ -1,0 +1,265 @@
+using System;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using System.Linq;
+using System.Threading;
+
+using PlateauResoniteLink.Core.Diagnostics;
+
+namespace PlateauResoniteLink.Resonite.Transport.ResoniteLink;
+
+internal sealed class ResoniteLinkSendDiagnostics
+{
+    private static readonly Counter<long> CityObjectCounter = PlateauDiagnostics.Meter.CreateCounter<long>(
+        "plateauresonitelink.resonite_import.city_objects",
+        unit: "objects");
+    private static readonly Counter<long> RpcCallCounter = PlateauDiagnostics.Meter.CreateCounter<long>(
+        "plateauresonitelink.resonitelink.rpc_calls",
+        unit: "operations");
+    private static readonly Histogram<double> PrepareDurationHistogram = PlateauDiagnostics.Meter.CreateHistogram<double>(
+        "plateauresonitelink.resonite_import.prepare.duration",
+        unit: "s");
+    private static readonly Histogram<double> SendDurationHistogram = PlateauDiagnostics.Meter.CreateHistogram<double>(
+        "plateauresonitelink.resonite_import.city_object.duration",
+        unit: "s");
+    private static readonly Histogram<double> SendWindowDurationHistogram = PlateauDiagnostics.Meter.CreateHistogram<double>(
+        "plateauresonitelink.resonite_import.run.duration",
+        unit: "s");
+    private static readonly Histogram<long> RpcPerCityObjectHistogram = PlateauDiagnostics.Meter.CreateHistogram<long>(
+        "plateauresonitelink.resonitelink.rpc_per_city_object",
+        unit: "operations");
+
+    private readonly AsyncLocal<CityObjectSendScope?> currentScope = new();
+    private readonly ConcurrentDictionary<string, long> rpcCallsByOperation = new(StringComparer.Ordinal);
+    private long sentCityObjectCount;
+    private long skippedMeshImportFailureCityObjectCount;
+    private long totalRpcCalls;
+    private long totalRpcCallsForSentObjects;
+    private double totalPrepareDurationSeconds;
+    private double totalSendDurationSeconds;
+    private Stopwatch? sendWindowStopwatch;
+
+    private ResoniteLinkSendDiagnostics(bool enabled)
+    {
+        Enabled = enabled;
+    }
+
+    public static ResoniteLinkSendDiagnostics Disabled { get; } = new(enabled: false);
+
+    public bool Enabled { get; }
+
+    public static ResoniteLinkSendDiagnostics CreateEnabled()
+    {
+        return new ResoniteLinkSendDiagnostics(enabled: true);
+    }
+
+    public void StartSendWindow(int connectionCount)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        sendWindowStopwatch = Stopwatch.StartNew();
+        PlateauDiagnostics.Verbose(
+            "Enabled live send metrics via System.Diagnostics.Metrics (connections={ConnectionCount}).",
+            connectionCount);
+    }
+
+    public void CompleteSendWindow()
+    {
+        if (!Enabled || sendWindowStopwatch is null)
+        {
+            return;
+        }
+
+        sendWindowStopwatch.Stop();
+        double elapsedSeconds = sendWindowStopwatch.Elapsed.TotalSeconds;
+        SendWindowDurationHistogram.Record(elapsedSeconds);
+
+        long sentCount = Interlocked.Read(ref sentCityObjectCount);
+        long skippedMeshImportFailureCount = Interlocked.Read(ref skippedMeshImportFailureCityObjectCount);
+        long rpcCalls = Interlocked.Read(ref totalRpcCalls);
+        long rpcCallsForSentObjects = Interlocked.Read(ref totalRpcCallsForSentObjects);
+        double prepareSeconds = Interlocked.CompareExchange(ref totalPrepareDurationSeconds, 0.0, 0.0);
+        double sendSeconds = Interlocked.CompareExchange(ref totalSendDurationSeconds, 0.0, 0.0);
+        double throughput = elapsedSeconds > 1e-9 ? sentCount / elapsedSeconds : 0.0;
+        double averagePrepareSeconds = sentCount > 0 ? prepareSeconds / sentCount : 0.0;
+        double averageSendSeconds = sentCount > 0 ? sendSeconds / sentCount : 0.0;
+        double averageRpcPerSentCityObject = sentCount > 0 ? (double)rpcCallsForSentObjects / sentCount : 0.0;
+        string rpcSummary = string.Join(
+            ", ",
+            rpcCallsByOperation
+                .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+                .Select(static pair => $"{pair.Key}={pair.Value}"));
+
+        PlateauDiagnostics.Verbose(
+            "send_window_s={ElapsedSeconds:F3} sent={SentCount} skipped_mesh_import_failure={SkippedMeshImportFailureCount} throughput_obj_per_s={Throughput:F2} avg_prepare_s={AveragePrepareSeconds:F4} avg_send_s={AverageSendSeconds:F4} avg_rpc_per_sent={AverageRpcPerSentCityObject:F2} total_rpc={TotalRpcCalls}",
+            elapsedSeconds,
+            sentCount,
+            skippedMeshImportFailureCount,
+            throughput,
+            averagePrepareSeconds,
+            averageSendSeconds,
+            averageRpcPerSentCityObject,
+            rpcCalls);
+
+        if (!string.IsNullOrWhiteSpace(rpcSummary))
+        {
+            PlateauDiagnostics.Verbose("rpc_breakdown {RpcSummary}", rpcSummary);
+        }
+    }
+
+    public void RecordPrepare(string packageName, double elapsedSeconds)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        PrepareDurationHistogram.Record(
+            elapsedSeconds,
+            new TagList
+            {
+                { "package", packageName },
+            });
+        AddDouble(ref totalPrepareDurationSeconds, elapsedSeconds);
+    }
+
+    public CityObjectSendScope BeginCityObjectSend(string packageName)
+    {
+        if (!Enabled)
+        {
+            return CityObjectSendScope.Disabled;
+        }
+
+        CityObjectSendScope scope = new(this, packageName);
+        currentScope.Value = scope;
+        return scope;
+    }
+
+    public void RecordRpcCall(string operation)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        RpcCallCounter.Add(
+            1,
+            new TagList
+            {
+                { "operation", operation },
+            });
+        rpcCallsByOperation.AddOrUpdate(operation, 1, static (_, count) => count + 1);
+        Interlocked.Increment(ref totalRpcCalls);
+        currentScope.Value?.IncrementRpc();
+    }
+
+    private void CompleteCityObjectSend(string packageName, string outcome, double elapsedSeconds, long rpcCount)
+    {
+        SendDurationHistogram.Record(
+            elapsedSeconds,
+            new TagList
+            {
+                { "package", packageName },
+                { "outcome", outcome },
+            });
+        CityObjectCounter.Add(
+            1,
+            new TagList
+            {
+                { "package", packageName },
+                { "outcome", outcome },
+            });
+
+        if (string.Equals(outcome, "sent", StringComparison.Ordinal))
+        {
+            Interlocked.Increment(ref sentCityObjectCount);
+            Interlocked.Add(ref totalRpcCallsForSentObjects, rpcCount);
+            RpcPerCityObjectHistogram.Record(
+                rpcCount,
+                new TagList
+                {
+                    { "package", packageName },
+                });
+        }
+        if (string.Equals(outcome, "skipped_mesh_import_failure", StringComparison.Ordinal))
+        {
+            Interlocked.Increment(ref skippedMeshImportFailureCityObjectCount);
+        }
+        AddDouble(ref totalSendDurationSeconds, elapsedSeconds);
+    }
+
+    private static void AddDouble(ref double target, double value)
+    {
+        double initialValue;
+        double computedValue;
+
+        do
+        {
+            initialValue = target;
+            computedValue = initialValue + value;
+        }
+        while (Math.Abs(Interlocked.CompareExchange(ref target, computedValue, initialValue) - initialValue) > double.Epsilon);
+    }
+
+    internal sealed class CityObjectSendScope : IDisposable
+    {
+        private readonly ResoniteLinkSendDiagnostics? owner;
+        private readonly Stopwatch? stopwatch;
+        private readonly string? packageName;
+        private bool completed;
+
+        private CityObjectSendScope()
+        {
+        }
+
+        internal CityObjectSendScope(ResoniteLinkSendDiagnostics owner, string packageName)
+        {
+            this.owner = owner;
+            stopwatch = Stopwatch.StartNew();
+            this.packageName = packageName;
+        }
+
+        public static CityObjectSendScope Disabled { get; } = new();
+
+        public long RpcCount { get; private set; }
+
+        public void IncrementRpc()
+        {
+            RpcCount++;
+        }
+
+        public void MarkSent()
+        {
+            Complete("sent");
+        }
+
+        public void MarkSkippedMeshImportFailure()
+        {
+            Complete("skipped_mesh_import_failure");
+        }
+
+        public void Dispose()
+        {
+            if (owner is not null)
+            {
+                owner.currentScope.Value = null;
+            }
+        }
+
+        private void Complete(string outcome)
+        {
+            if (completed || owner is null || stopwatch is null)
+            {
+                return;
+            }
+
+            completed = true;
+            stopwatch.Stop();
+            owner.CompleteCityObjectSend(packageName ?? string.Empty, outcome, stopwatch.Elapsed.TotalSeconds, RpcCount);
+        }
+    }
+}

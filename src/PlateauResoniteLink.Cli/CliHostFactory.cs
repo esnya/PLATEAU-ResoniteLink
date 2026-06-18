@@ -8,11 +8,12 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Targets.Resonite.Diagnostics;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Diagnostics;
 
 namespace PlateauResoniteLink.Cli;
 
@@ -28,6 +29,13 @@ internal static class CliHostFactory
             Args = args,
             DisableDefaults = true,
         });
+        builder.ConfigureContainer(
+            new DefaultServiceProviderFactory(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            }),
+            static _ => { });
         builder.Services.AddCliServices(Console.Out, Console.Error);
         return builder.Build();
     }
@@ -49,9 +57,9 @@ internal static class CliServiceCollectionExtensions
 
         services.AddImportedSceneSourceServices();
         services.AddResoniteLiveSendTargetServices();
+        services.AddResoniteCanonicalSceneDumpServices();
 
         services.AddSingleton(new CliConsoleWriters(standardOutput, standardError));
-        services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<ICliRootCommandFactory, CliCommandFactory>();
         services.AddSingleton<ICliCommandProvider, ImportCliCommand>();
         services.AddSingleton<ICliCommandProvider, SearchCliCommand>();
@@ -156,7 +164,8 @@ internal sealed class DefaultSceneSinkFactory(
                     scope,
                     dumpSinkFactory.Create(
                         CreateCanonicalDumpTargetOptions(sceneBuildOptions),
-                        canonicalDump.OutputPath));
+                        canonicalDump.OutputPath,
+                        httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName)));
             }
 
             if (sinkOptions is not LiveResoniteSinkCliOptions live)

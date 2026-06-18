@@ -1,14 +1,14 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Plateau;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 using System;
 using System.Linq;
 
 using GeographicLib;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 

@@ -5,7 +5,9 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="System.CommandLine" />
-    <ProjectReference Include="..\PlateauResoniteLink\PlateauResoniteLink.csproj" />
+    <ProjectReference Include="..\PlateauResoniteLink.Core\PlateauResoniteLink.Core.csproj" />
+    <ProjectReference Include="..\PlateauResoniteLink.Plateau\PlateauResoniteLink.Plateau.csproj" />
+    <ProjectReference Include="..\PlateauResoniteLink.Resonite\PlateauResoniteLink.Resonite.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

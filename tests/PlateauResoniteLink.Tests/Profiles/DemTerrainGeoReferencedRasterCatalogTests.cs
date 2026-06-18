@@ -1,5 +1,5 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Plateau.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 using System;
 using System.Buffers.Binary;
@@ -9,7 +9,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 

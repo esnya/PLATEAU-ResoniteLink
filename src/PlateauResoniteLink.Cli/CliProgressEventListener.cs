@@ -4,7 +4,7 @@ using System.Diagnostics.Tracing;
 using System.Globalization;
 using System.IO;
 
-using PlateauResoniteLink.Diagnostics;
+using PlateauResoniteLink.Core.Diagnostics;
 
 namespace PlateauResoniteLink.Cli;
 

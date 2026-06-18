@@ -1,4 +1,4 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 using System;
 using System.Collections.Generic;
@@ -7,14 +7,16 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Targets.Resonite.Execution;
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 using ResoniteLink;
 
 using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
+
+using PlateauResoniteLink.Core;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
@@ -211,7 +213,7 @@ public sealed class ResoniteMaterialPlanningTests
                 CreateRawTextureSource(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.0, 0.0),
-                overlay.PrimarySource),
+                TerrainTextureSourceUsage.FromSource(overlay.PrimarySource)),
         };
 
         ResoniteMaterialBinding effectiveMaterial = ResoniteMaterialPlanning.ResolveTerrainTextureCanvasMaterial(
@@ -298,7 +300,7 @@ public sealed class ResoniteMaterialPlanningTests
                 CreateRawTextureSource(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.0, 0.0),
-                overlay.PrimarySource),
+                TerrainTextureSourceUsage.FromSource(overlay.PrimarySource)),
         };
 
         ResoniteMaterialBinding effectiveMaterial = ResoniteMaterialPlanning.ResolveTerrainTextureCanvasMaterial(

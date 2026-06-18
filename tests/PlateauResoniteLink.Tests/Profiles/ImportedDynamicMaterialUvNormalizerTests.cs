@@ -1,10 +1,10 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 using System;
 using System.Linq;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 

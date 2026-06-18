@@ -1,6 +1,6 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
 

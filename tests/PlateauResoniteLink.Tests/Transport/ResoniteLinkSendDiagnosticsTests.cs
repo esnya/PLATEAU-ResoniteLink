@@ -3,8 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 
-using PlateauResoniteLink.Diagnostics;
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Core.Diagnostics;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Tests.Transport;
 

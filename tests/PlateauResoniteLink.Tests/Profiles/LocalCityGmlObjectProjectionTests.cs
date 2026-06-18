@@ -1,8 +1,9 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.CityGml;
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Plateau;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing.CityGml;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 using System;
 using System.Collections.Generic;
@@ -14,8 +15,8 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
 using PlateauResoniteLink.Tests.Application.Importing;
 
 using ResoniteLink;
@@ -40,8 +41,9 @@ public sealed class LocalCityGmlObjectProjectionTests
                 new RemoteArchiveDistributionPolicy(),
             new ArchiveFileLayoutPolicy()),
             importedSceneSourceFactory: new DefaultImportedSceneSourceFactory(
-                new CityGmlImportedSceneSourceReader(documentReader),
+                new CityGmlResolvedPlateauSceneSourceReader(documentReader),
                 new DefaultImportedSceneSourceComposer(
+                    new DefaultImportedSceneMetadataComposer(),
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                     new DefaultDemTextureSourcePolicy(
                         new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
@@ -77,8 +79,9 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest importRequest = request.ToImportRequest();
 
         DefaultImportedSceneSourceFactory factory = new(
-            new CityGmlImportedSceneSourceReader(documentReader),
+            new CityGmlResolvedPlateauSceneSourceReader(documentReader),
             new DefaultImportedSceneSourceComposer(
+                new DefaultImportedSceneMetadataComposer(),
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                 new DefaultDemTextureSourcePolicy(
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(

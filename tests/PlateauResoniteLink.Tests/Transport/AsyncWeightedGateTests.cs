@@ -3,7 +3,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 
 namespace PlateauResoniteLink.Tests.Transport;

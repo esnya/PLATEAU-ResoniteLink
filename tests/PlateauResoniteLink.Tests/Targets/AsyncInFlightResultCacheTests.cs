@@ -11,7 +11,7 @@ public sealed class AsyncInFlightResultCacheTests
     [Fact]
     public async Task GetOrCreateAsyncInvokesFactoryOnlyOnceForConcurrentRequests()
     {
-        PlateauResoniteLink.Targets.Resonite.AsyncInFlightResultCache<string, int> cache = new();
+        PlateauResoniteLink.Resonite.Targets.Resonite.AsyncInFlightResultCache<string, int> cache = new();
         int invocationCount = 0;
         TaskCompletionSource releaseFactory = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -41,7 +41,7 @@ public sealed class AsyncInFlightResultCacheTests
     [Fact]
     public async Task GetOrCreateAsyncKeepsInFlightTaskWhenFirstWaiterIsCanceled()
     {
-        PlateauResoniteLink.Targets.Resonite.AsyncInFlightResultCache<string, int> cache = new();
+        PlateauResoniteLink.Resonite.Targets.Resonite.AsyncInFlightResultCache<string, int> cache = new();
         int invocationCount = 0;
         TaskCompletionSource releaseFactory = new(TaskCreationOptions.RunContinuationsAsynchronously);
         using CancellationTokenSource firstWaiterCancellation = new();
@@ -73,7 +73,7 @@ public sealed class AsyncInFlightResultCacheTests
     [Fact]
     public async Task GetOrCreateAsyncPassesFactoryCancellationTokenToCreatedTask()
     {
-        PlateauResoniteLink.Targets.Resonite.AsyncInFlightResultCache<string, int> cache = new();
+        PlateauResoniteLink.Resonite.Targets.Resonite.AsyncInFlightResultCache<string, int> cache = new();
         using CancellationTokenSource factoryCancellation = new();
         TaskCompletionSource factoryStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
