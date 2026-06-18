@@ -1,6 +1,8 @@
+using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Application.Importing.Source;
+
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 

@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 
+using PlateauResoniteLink.Application.Importing.Source;
+
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class ImportedSceneSourceContext

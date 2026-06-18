@@ -1,3 +1,5 @@
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -5,7 +7,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;

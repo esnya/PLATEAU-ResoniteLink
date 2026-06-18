@@ -1,3 +1,5 @@
+using PlateauResoniteLink.Application.Importing;
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6,7 +8,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Sources;
 

@@ -1,8 +1,9 @@
+using PlateauResoniteLink.Application.Importing.CityGml;
+
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 

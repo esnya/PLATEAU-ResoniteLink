@@ -1,6 +1,7 @@
+using PlateauResoniteLink.Application.Importing.Source;
+
 using System;
 
-using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 

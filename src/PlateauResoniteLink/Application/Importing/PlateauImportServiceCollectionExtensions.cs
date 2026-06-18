@@ -3,6 +3,11 @@ using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
+using PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Application.Importing.Source;
+
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class PlateauImportServiceCollectionExtensions
@@ -36,9 +41,10 @@ internal static class PlateauImportServiceCollectionExtensions
                 provider.GetRequiredService<IPlateauDatasetContentSourceFactory>(),
                 provider.GetRequiredService<ICityGmlAppearanceStoreFactory>(),
                 provider.GetRequiredService<ICityGmlLodSelector>()));
+        services.TryAddSingleton<IImportedSceneSourceReader, CityGmlImportedSceneSourceReader>();
         services.TryAddSingleton<IImportedSceneSourceFactory>(provider =>
             new DefaultImportedSceneSourceFactory(
-                provider.GetRequiredService<ICityGmlDocumentReader>(),
+                provider.GetRequiredService<IImportedSceneSourceReader>(),
                 provider.GetRequiredService<IImportedSceneSourceComposer>(),
                 provider.GetRequiredService<IImportedObjectUnitOptimizer>()));
 

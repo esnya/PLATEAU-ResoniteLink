@@ -7,20 +7,16 @@ namespace PlateauResoniteLink.Application.Importing;
 internal sealed class ImportedSceneSourceDataset
 {
     internal ImportedSceneSourceDataset(
-        IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<string> relativeSourceFiles,
         IReadOnlyList<string> packageNames,
         IReadOnlyList<TerrainTextureOverlay> terrainTextureOverlays,
         IReadOnlyList<string> requestedMeshCodes)
     {
-        DatasetSource = datasetSource;
         RelativeSourceFiles = relativeSourceFiles;
         PackageNames = packageNames;
         TerrainTextureOverlays = terrainTextureOverlays;
         SelectedMeshCodes = requestedMeshCodes;
     }
-
-    public IPlateauDatasetContentSource DatasetSource { get; }
 
     public IReadOnlyList<string> RelativeSourceFiles { get; }
 

@@ -1,10 +1,11 @@
+using PlateauResoniteLink.Application.Importing;
+
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Application;

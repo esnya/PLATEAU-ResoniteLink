@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 namespace PlateauResoniteLink.Application.Importing;
 
 public sealed record ImportExecutionResult

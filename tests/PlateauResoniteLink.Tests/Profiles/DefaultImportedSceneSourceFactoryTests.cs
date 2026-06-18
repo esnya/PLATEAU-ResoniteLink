@@ -1,10 +1,12 @@
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Application.Importing.Source;
+
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
 
@@ -20,7 +22,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         PassthroughImportedObjectUnitOptimizer optimizer = new();
 
         Assert.Throws<ArgumentNullException>(
-            "documentReader",
+            "sourceReader",
             () => new DefaultImportedSceneSourceFactory(null!, composer, optimizer));
         Assert.Throws<ArgumentNullException>(
             "constructionComposer",
@@ -56,7 +58,6 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         RecordingDocumentReader reader = new(
             new ImportedSceneSourceSnapshot(
                 new ImportedSceneSourceDataset(
-                    new EmptyDatasetContentSource(),
                     ["udx/dem/53394525/terrain.gml"],
                     ["dem"],
                     [],
@@ -98,7 +99,6 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         RecordingDocumentReader reader = new(
             new ImportedSceneSourceSnapshot(
                 new ImportedSceneSourceDataset(
-                    new EmptyDatasetContentSource(),
                     ["udx/dem/53394525/terrain.gml"],
                     ["dem"],
                     [],
@@ -121,13 +121,12 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         Assert.Same(reader.ReadResult, composer.LastReadResult);
     }
 
-    private sealed class RecordingDocumentReader : ICityGmlDocumentReader
+    private sealed class RecordingDocumentReader : IImportedSceneSourceReader
     {
         public RecordingDocumentReader(ImportedSceneSourceSnapshot? readResult = null)
         {
             ReadResult = readResult ?? new ImportedSceneSourceSnapshot(
                 new ImportedSceneSourceDataset(
-                    new EmptyDatasetContentSource(),
                     [],
                     [],
                     [],
@@ -195,46 +194,6 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         {
             yield return new ImportedObjectUnit("stub.gml", "bldg", null, []);
             await Task.CompletedTask;
-        }
-    }
-
-    private sealed class EmptyDatasetContentSource : IPlateauDatasetContentSource
-    {
-        public EmptyDatasetContentSource(string sourcePath = "/tmp/plateau")
-        {
-            SourcePath = sourcePath;
-        }
-
-        public string SourcePath { get; }
-
-        public IReadOnlyList<string> EnumerateFiles()
-        {
-            return [];
-        }
-
-        public bool FileExists(string relativePath)
-        {
-            return false;
-        }
-
-        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
-        {
-            return null;
-        }
-
-        public ValueTask<Stream> OpenReadAsync(
-            string relativePath,
-            CancellationToken cancellationToken = default)
-        {
-            throw new FileNotFoundException(relativePath);
-        }
-
-        public Task<string> EnsureLocalFileAsync(
-            string relativePath,
-            string outputRoot,
-            CancellationToken cancellationToken = default)
-        {
-            throw new FileNotFoundException(relativePath);
         }
     }
 

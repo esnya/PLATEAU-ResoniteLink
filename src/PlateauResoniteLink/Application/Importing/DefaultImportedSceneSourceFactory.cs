@@ -2,23 +2,25 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFactory
 {
-    private readonly ICityGmlDocumentReader documentReader;
+    private readonly IImportedSceneSourceReader sourceReader;
     private readonly IImportedSceneSourceComposer constructionComposer;
     private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
 
     internal DefaultImportedSceneSourceFactory(
-        ICityGmlDocumentReader documentReader,
+        IImportedSceneSourceReader sourceReader,
         IImportedSceneSourceComposer constructionComposer,
         IImportedObjectUnitOptimizer objectUnitOptimizer)
     {
-        ArgumentNullException.ThrowIfNull(documentReader);
+        ArgumentNullException.ThrowIfNull(sourceReader);
         ArgumentNullException.ThrowIfNull(constructionComposer);
         ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
-        this.documentReader = documentReader;
+        this.sourceReader = sourceReader;
         this.constructionComposer = constructionComposer;
         this.objectUnitOptimizer = objectUnitOptimizer;
     }
@@ -35,7 +37,7 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
         ResolvedLocalPlateauImportRequest request,
         CancellationToken cancellationToken)
     {
-        ImportedSceneSourceSnapshot readResult = await documentReader.ReadAsync(request, cancellationToken);
+        ImportedSceneSourceSnapshot readResult = await sourceReader.ReadAsync(request, cancellationToken);
         return constructionComposer.Compose(request, readResult, objectUnitOptimizer);
     }
 }

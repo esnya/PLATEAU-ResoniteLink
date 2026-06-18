@@ -2,10 +2,11 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+
+using PlateauResoniteLink.Application.Importing.Contracts;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 

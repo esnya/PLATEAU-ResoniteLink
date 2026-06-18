@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 using PlateauResoniteLink.Diagnostics;
 
 using PlateauResoniteLink.Transport.ResoniteLink;
-using PlateauResoniteLink.Application.Importing;
 
 using ResoniteLink;
+using PlateauResoniteLink.Application.Importing.Contracts;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 

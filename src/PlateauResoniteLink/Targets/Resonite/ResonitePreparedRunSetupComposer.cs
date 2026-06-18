@@ -1,8 +1,8 @@
 using System;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
+using PlateauResoniteLink.Application.Importing.Contracts;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 

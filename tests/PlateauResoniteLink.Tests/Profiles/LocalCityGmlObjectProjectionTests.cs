@@ -1,3 +1,9 @@
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Application.Importing.Source;
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -8,7 +14,6 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Tests.Application.Importing;
@@ -33,9 +38,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             new CkanPlateauDatasetSourceResolver(
                 SharedDatasetSourceResolverHttpClient,
                 new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()),
+            new ArchiveFileLayoutPolicy()),
             importedSceneSourceFactory: new DefaultImportedSceneSourceFactory(
-                documentReader,
+                new CityGmlImportedSceneSourceReader(documentReader),
                 new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                     new DefaultDemTextureSourcePolicy(
@@ -72,7 +77,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest importRequest = request.ToImportRequest();
 
         DefaultImportedSceneSourceFactory factory = new(
-            documentReader,
+            new CityGmlImportedSceneSourceReader(documentReader),
             new DefaultImportedSceneSourceComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                 new DefaultDemTextureSourcePolicy(

@@ -1,10 +1,11 @@
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 

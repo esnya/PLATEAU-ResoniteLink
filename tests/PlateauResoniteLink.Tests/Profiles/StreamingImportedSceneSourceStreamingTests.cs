@@ -1,3 +1,9 @@
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Application.Importing.Source;
+
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -10,7 +16,6 @@ using System.Threading.Tasks;
 using GeographicLib;
 
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
 
@@ -158,7 +163,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
 
         ImportedSceneSourceSnapshot readResult = new(
             new ImportedSceneSourceDataset(
-                new EmptyDatasetContentSource(),
                 [
                     bldgPipeline.SourceFile.RelativePath,
                     tranPipeline.SourceFile.RelativePath,
@@ -309,7 +313,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         ImportedSceneSourceSnapshot readResult = new(
             new ImportedSceneSourceDataset(
-                new EmptyDatasetContentSource(),
                 sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 packageNames,
                 [],

@@ -1,3 +1,7 @@
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -6,7 +10,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Application.Importing;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;

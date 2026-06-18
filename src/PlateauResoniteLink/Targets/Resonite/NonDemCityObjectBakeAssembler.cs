@@ -7,7 +7,8 @@ using System.Threading.Tasks;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
-using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 
 namespace PlateauResoniteLink.Targets.Resonite;
 

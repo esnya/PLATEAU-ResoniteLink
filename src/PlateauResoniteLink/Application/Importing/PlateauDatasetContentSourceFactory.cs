@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using SharpCompress.Archives;
 using SharpCompress.Readers;
 
+using PlateauResoniteLink.Application.Importing.Plateau;
+
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class PlateauDatasetContentSourceFactory

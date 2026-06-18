@@ -9,6 +9,9 @@ using System.Threading.Tasks;
 using PlateauResoniteLink.Diagnostics;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Application.Importing.Source;
 
 namespace PlateauResoniteLink.Application.Importing;
 
@@ -96,7 +99,6 @@ internal static class ImportedSceneSourceDiscoveryPipeline
             totalStopwatch.Elapsed.TotalSeconds);
 
         ImportedSceneSourceDataset documentSet = new(
-            datasetSource,
             relativeSourceFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray(),
             sourceFiles
                 .Select(static sourceFile => sourceFile.PackageName)

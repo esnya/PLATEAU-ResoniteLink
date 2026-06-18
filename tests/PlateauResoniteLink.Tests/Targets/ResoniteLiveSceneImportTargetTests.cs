@@ -1,3 +1,5 @@
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -10,7 +12,6 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Diagnostics;
@@ -1730,7 +1731,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     ResoniteMaterialAssetBinding.Presentation),
             ],
             SourceFileRelativePath: $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
-            DistanceCullingClass: PlateauResoniteLink.Application.Importing.DistanceCullingClass.Building);
+            DistanceCullingClass: DistanceCullingClass.Building);
     }
 
     private static string RemoveDistanceCullingComponents(string dump)

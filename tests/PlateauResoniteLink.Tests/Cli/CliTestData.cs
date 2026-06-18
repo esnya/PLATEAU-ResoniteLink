@@ -1,3 +1,4 @@
+
 namespace PlateauResoniteLink.Tests.Cli;
 
 internal static class CliTestData

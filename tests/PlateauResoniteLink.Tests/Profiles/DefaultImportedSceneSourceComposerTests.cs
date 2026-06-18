@@ -1,3 +1,9 @@
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Application.Importing.Source;
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,7 +13,6 @@ using System.Threading.Tasks;
 using GeographicLib;
 
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
 
@@ -30,7 +35,6 @@ public sealed class DefaultImportedSceneSourceComposerTests
             MaxTextureSize: 1024);
 
         ImportedSceneSourceDataset documentSet = new(
-            new EmptyDatasetContentSource(),
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
             ["bldg", "dem"],
             [overlay],
@@ -76,7 +80,6 @@ public sealed class DefaultImportedSceneSourceComposerTests
         PlateauImportRequest importRequest = request.ToImportRequest();
         ImportedSceneSourceSnapshot readResult = new(
             new ImportedSceneSourceDataset(
-                new EmptyDatasetContentSource(),
                 ["udx/dem/53394525/terrain.gml"],
                 ["dem"],
                 [

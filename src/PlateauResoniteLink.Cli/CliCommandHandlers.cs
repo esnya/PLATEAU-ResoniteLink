@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing.Contracts;
 using PlateauResoniteLink.Diagnostics;
 using PlateauResoniteLink.Domain.Importing;
 

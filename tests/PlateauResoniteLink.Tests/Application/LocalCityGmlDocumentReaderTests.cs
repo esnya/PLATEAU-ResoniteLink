@@ -1,3 +1,7 @@
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Application.Importing.Plateau;
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -5,7 +9,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
 
@@ -28,7 +31,6 @@ public sealed class LocalCityGmlDocumentReaderTests
             CreateResolvedRequest(fixturePath, ["bldg"]));
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
 
-        Assert.Equal(fixturePath, documentSet.DatasetSource.SourcePath);
         Assert.Equal(
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
             documentSet.RelativeSourceFiles);

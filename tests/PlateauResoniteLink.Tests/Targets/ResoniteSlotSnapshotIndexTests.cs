@@ -1,6 +1,7 @@
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 using System.Linq;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 

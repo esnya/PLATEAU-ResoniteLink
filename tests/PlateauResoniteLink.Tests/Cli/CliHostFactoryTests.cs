@@ -1,3 +1,5 @@
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 using System;
 using System.IO;
 using System.Net.Http;
@@ -6,7 +8,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Cli;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;

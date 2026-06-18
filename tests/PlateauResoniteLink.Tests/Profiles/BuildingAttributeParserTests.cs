@@ -1,8 +1,9 @@
+using PlateauResoniteLink.Application.Importing.Plateau;
+
 using System;
 using System.Linq;
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 

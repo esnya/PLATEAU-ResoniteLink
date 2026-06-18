@@ -1,3 +1,7 @@
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Application.Importing.Source;
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -8,7 +12,6 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Diagnostics;
 using PlateauResoniteLink.Domain.Importing;
 
@@ -511,13 +514,12 @@ public sealed class PlateauImportServiceTests
     }
 
     private static ImportedSceneSourceSnapshot CreateReadResult(
-        IPlateauDatasetContentSource datasetSource,
+        IPlateauDatasetContentSource _,
         IReadOnlyList<string> packageNames,
         IReadOnlyList<string> relativeSourceFiles)
     {
         return new ImportedSceneSourceSnapshot(
             new ImportedSceneSourceDataset(
-                datasetSource,
                 relativeSourceFiles,
                 packageNames,
                 [],

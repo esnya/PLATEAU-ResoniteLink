@@ -1,6 +1,7 @@
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 using System;
 
-using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 

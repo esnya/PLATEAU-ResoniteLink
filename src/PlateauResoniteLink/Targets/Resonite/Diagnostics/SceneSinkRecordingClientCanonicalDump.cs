@@ -8,9 +8,11 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-using PlateauResoniteLink.Application.Importing;
 
 using ResoniteLink;
+
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing.Contracts;
 
 namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
 
@@ -404,7 +406,7 @@ internal static class SceneSinkRecordingClientCanonicalDump
                 double v = grid.Height == 1 ? 0.0 : (double)y / (grid.Height - 1);
                 double sampleX = (-grid.Size.X / 2.0) + (grid.Size.X * u);
                 double sampleZ = (-grid.Size.Y / 2.0) + (grid.Size.Y * v);
-                if (!CityGmlDemTerrainGridSampler.TrySampleLocalHeight(
+                if (!DemTerrainGridSampler.TrySampleLocalHeight(
                     sampleX,
                     sampleZ,
                     triangles,
