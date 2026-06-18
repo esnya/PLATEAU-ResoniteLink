@@ -29,6 +29,13 @@ internal static class CliHostFactory
             Args = args,
             DisableDefaults = true,
         });
+        builder.ConfigureContainer(
+            new DefaultServiceProviderFactory(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            }),
+            static _ => { });
         builder.Services.AddCliServices(Console.Out, Console.Error);
         return builder.Build();
     }
@@ -50,6 +57,7 @@ internal static class CliServiceCollectionExtensions
 
         services.AddImportedSceneSourceServices();
         services.AddResoniteLiveSendTargetServices();
+        services.AddResoniteCanonicalSceneDumpServices();
 
         services.AddSingleton(new CliConsoleWriters(standardOutput, standardError));
         services.AddSingleton<ICliRootCommandFactory, CliCommandFactory>();

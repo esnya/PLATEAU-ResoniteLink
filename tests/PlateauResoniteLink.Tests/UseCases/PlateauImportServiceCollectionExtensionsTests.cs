@@ -133,7 +133,11 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         ServiceProvider provider = new ServiceCollection()
             .AddResoniteLiveSendTargetServices()
             .AddImportedSceneSourceServices()
-            .BuildServiceProvider();
+            .BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            });
         using IServiceScope scope = provider.CreateScope();
         using HttpClient terrainTextureAssetHttpClient = new();
 

@@ -6,6 +6,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 using PlateauResoniteLink.Core.Domain.Importing;
 using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 using PlateauResoniteLink.Core.Application.Importing;
@@ -14,6 +17,21 @@ using PlateauResoniteLink.Core.Application.Importing.Contracts;
 using PlateauResoniteLink.Core;
 
 namespace PlateauResoniteLink.Resonite.Targets.Resonite.Diagnostics;
+
+public static class ResoniteCanonicalSceneDumpServiceCollectionExtensions
+{
+    public static IServiceCollection AddResoniteCanonicalSceneDumpServices(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<ResoniteRecordingLiveSceneImportFactory>();
+        services.TryAddScoped<IResoniteRecordingLiveSceneImportFactory>(
+            static serviceProvider => serviceProvider.GetRequiredService<ResoniteRecordingLiveSceneImportFactory>());
+        services.TryAddScoped<IResoniteCanonicalSceneDumpSinkFactory, ResoniteCanonicalSceneDumpSinkFactory>();
+
+        return services;
+    }
+}
 
 public interface IResoniteCanonicalSceneDumpSinkFactory
 {

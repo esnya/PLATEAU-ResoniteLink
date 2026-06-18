@@ -112,12 +112,43 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     public void AddResoniteLiveSendTargetServicesRegistersWorkerPipelineFactory()
     {
         using ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
 
         Assert.IsType<ResoniteLiveSendWorkerPipelineFactory>(
             scope.ServiceProvider.GetRequiredService<IResoniteLiveSendWorkerPipelineFactory>());
+    }
+
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesRequiresTerrainTextureFactoryDuringValidation()
+    {
+        Exception exception = Assert.ThrowsAny<Exception>(
+            () => new ServiceCollection()
+                .AddResoniteLiveSendTargetServices()
+                .BuildServiceProvider(new ServiceProviderOptions
+                {
+                    ValidateOnBuild = true,
+                    ValidateScopes = true,
+                }));
+
+        Assert.Contains(nameof(ITerrainTextureAssetGeneratorFactory), exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddResoniteLiveSendTargetServicesPassesValidationWhenTerrainTextureFactoryIsRegistered()
+    {
+        using ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            });
+
+        Assert.NotNull(provider.GetRequiredService<IServiceScopeFactory>());
     }
 
     [Fact]
@@ -216,6 +247,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         ServiceProvider provider = new ServiceCollection()
             .AddScoped<IResoniteLiveSceneImportFactory>(_ => importFactory)
             .AddResoniteLiveSendTargetServices()
+            .AddResoniteCanonicalSceneDumpServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
         using TemporaryDirectory outputDirectory = new();

@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
-using PlateauResoniteLink.Resonite.Targets.Resonite.Diagnostics;
 using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Resonite.Targets.Resonite;
@@ -32,7 +31,6 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteLiveSendWorkerPipelineFactory, ResoniteLiveSendWorkerPipelineFactory>();
         services.TryAddScoped<ResoniteLiveSendWorkerLauncherFactory>();
         services.TryAddScoped<ResonitePreparedCityObjectImporter>();
-        services.TryAddScoped<IResoniteCanonicalSceneDumpSinkFactory, ResoniteCanonicalSceneDumpSinkFactory>();
         services.TryAddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
         services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
         services.TryAddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
@@ -46,9 +44,6 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteLiveSceneImportFactory>();
         services.TryAddScoped<IResoniteLiveSceneImportFactory>(
             static serviceProvider => serviceProvider.GetRequiredService<ResoniteLiveSceneImportFactory>());
-        services.TryAddScoped<ResoniteRecordingLiveSceneImportFactory>();
-        services.TryAddScoped<IResoniteRecordingLiveSceneImportFactory>(
-            static serviceProvider => serviceProvider.GetRequiredService<ResoniteRecordingLiveSceneImportFactory>());
 
         return services;
     }
