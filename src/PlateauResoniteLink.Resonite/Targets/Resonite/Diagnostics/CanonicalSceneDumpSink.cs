@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -9,7 +10,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-using PlateauResoniteLink.Core.Domain.Importing;
 using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 using PlateauResoniteLink.Core.Application.Importing;
 using PlateauResoniteLink.Core.Application.Importing.Contracts;
@@ -24,9 +24,8 @@ public static class ResoniteCanonicalSceneDumpServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddScoped<ResoniteRecordingLiveSceneImportFactory>();
-        services.TryAddScoped<IResoniteRecordingLiveSceneImportFactory>(
-            static serviceProvider => serviceProvider.GetRequiredService<ResoniteRecordingLiveSceneImportFactory>());
+        services.AddResoniteTargetPipelineServices();
+        services.TryAddScoped<IResoniteRecordingLiveSceneImportFactory, ResoniteRecordingLiveSceneImportFactory>();
         services.TryAddScoped<IResoniteCanonicalSceneDumpSinkFactory, ResoniteCanonicalSceneDumpSinkFactory>();
 
         return services;
@@ -37,11 +36,13 @@ public interface IResoniteCanonicalSceneDumpSinkFactory
 {
     ISceneSink Create(
         ResoniteLiveSceneImportTargetOptions options,
-        string outputPath);
+        string outputPath,
+        HttpClient terrainTextureAssetHttpClient);
 }
 
 internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
-    IResoniteRecordingLiveSceneImportFactory targetFactory) : IResoniteCanonicalSceneDumpSinkFactory
+    IResoniteRecordingLiveSceneImportFactory targetFactory,
+    ITerrainTextureAssetGeneratorFactory terrainTextureAssetGeneratorFactory) : IResoniteCanonicalSceneDumpSinkFactory
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
@@ -49,19 +50,27 @@ internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
         Justification = "CanonicalSceneDumpSink owns the recording client after successful construction; failures dispose it here.")]
     public ISceneSink Create(
         ResoniteLiveSceneImportTargetOptions options,
-        string outputPath)
+        string outputPath,
+        HttpClient terrainTextureAssetHttpClient)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
 
         SceneSinkRecordingClient recordingClient = new();
         try
         {
+            ITerrainTextureAssetGenerator terrainTextureAssetGenerator =
+                terrainTextureAssetGeneratorFactory.Create(
+                    terrainTextureAssetHttpClient,
+                    new TerrainTextureAssetGeneratorOptions(
+                        options.TerrainTileCacheRoot,
+                        options.DisableTerrainTileCache));
             ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
                 options,
                 new SingleRecordingClientSession(recordingClient),
                 ResoniteLinkSendDiagnostics.Disabled,
-                new DeterministicTerrainTextureAssetGenerator());
+                terrainTextureAssetGenerator);
             return new CanonicalSceneDumpSink(target, recordingClient, outputPath);
         }
         catch
@@ -171,35 +180,5 @@ internal sealed class SingleRecordingClientSession(SceneSinkRecordingClient clie
 
     public void DisposeClients()
     {
-    }
-}
-
-internal sealed class DeterministicTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
-{
-    private static readonly byte[] RawTextureBytes =
-    [
-        128, 160, 192, 255,
-        128, 160, 192, 255,
-        128, 160, 192, 255,
-        128, 160, 192, 255,
-    ];
-
-    public Task<GeneratedTerrainTexture> EnsureTextureAsync(
-        TerrainTextureOverlay terrainTextureOverlay,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        TerrainTextureSource usedSource = terrainTextureOverlay.GetRequiredPrimaryTileSource();
-        TerrainTextureSourceUsage usage = TerrainTextureSourceUsage.FromSource(usedSource);
-        return Task.FromResult(new GeneratedTerrainTexture(
-            TextureImportSourceFactory.CreateInMemoryRaw(
-                2,
-                2,
-                ResoniteTextureColorProfiles.Srgb,
-                RawTextureBytes,
-                "canonical-dump-terrain-texture"),
-            new Float2(1.0, 1.0),
-            new Float2(0.0, 0.0),
-            usage));
     }
 }

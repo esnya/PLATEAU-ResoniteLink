@@ -137,6 +137,24 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
+    public void AddResoniteLiveSendTargetServicesPreservesPreRegisteredLiveFactoryDuringValidation()
+    {
+        using ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteLiveSceneImportFactory, RecordingLiveSceneImportFactory>()
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            });
+
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.IsType<RecordingLiveSceneImportFactory>(
+            scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>());
+    }
+
+    [Fact]
     public void AddResoniteLiveSendTargetServicesPassesValidationWhenTerrainTextureFactoryIsRegistered()
     {
         using ServiceProvider provider = new ServiceCollection()
@@ -244,13 +262,16 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     public async Task AddResoniteLiveSendTargetServicesKeepsCanonicalDumpOnDefaultRecordingFactory()
     {
         RecordingLiveSceneImportFactory importFactory = new();
+        RecordingTerrainTextureAssetGeneratorFactory terrainTextureFactory = new();
         ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory>(_ => terrainTextureFactory)
             .AddScoped<IResoniteLiveSceneImportFactory>(_ => importFactory)
             .AddResoniteLiveSendTargetServices()
             .AddResoniteCanonicalSceneDumpServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
         using TemporaryDirectory outputDirectory = new();
+        using HttpClient terrainTextureAssetHttpClient = new();
         string outputPath = Path.Combine(outputDirectory.Path, "scene.json");
 
         await using ISceneSink _ = scope.ServiceProvider
@@ -264,12 +285,46 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false),
-                outputPath);
+                outputPath,
+                terrainTextureAssetHttpClient);
 
         Assert.Same(
             importFactory,
             scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>());
         Assert.Equal(0, importFactory.CreateCallCount);
+        Assert.Equal(1, terrainTextureFactory.CreateCallCount);
+        Assert.Same(terrainTextureAssetHttpClient, terrainTextureFactory.LastHttpClient);
+    }
+
+    [Fact]
+    public void AddResoniteCanonicalSceneDumpServicesRequiresTerrainTextureFactoryDuringValidation()
+    {
+        Exception exception = Assert.ThrowsAny<Exception>(
+            () => new ServiceCollection()
+                .AddResoniteCanonicalSceneDumpServices()
+                .BuildServiceProvider(new ServiceProviderOptions
+                {
+                    ValidateOnBuild = true,
+                    ValidateScopes = true,
+                }));
+
+        Assert.Contains(nameof(ITerrainTextureAssetGeneratorFactory), exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddResoniteCanonicalSceneDumpServicesPassesValidationWhenTerrainTextureFactoryIsRegistered()
+    {
+        using ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory, RecordingTerrainTextureAssetGeneratorFactory>()
+            .AddResoniteCanonicalSceneDumpServices()
+            .BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true,
+            });
+        using IServiceScope scope = provider.CreateScope();
+
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IResoniteCanonicalSceneDumpSinkFactory>());
     }
 
     [Fact]

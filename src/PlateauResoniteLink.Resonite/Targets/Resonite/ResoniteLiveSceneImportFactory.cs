@@ -23,6 +23,7 @@ internal interface IResoniteRecordingLiveSceneImportFactory
 }
 
 internal sealed class ResoniteLiveSceneImportFactory(
+    IResoniteClientSessionFactory clientSessionFactory,
     ResoniteLiveSceneImportDependencyFactory dependencyFactory,
     ITerrainTextureAssetGeneratorFactory terrainTextureAssetGeneratorFactory) :
     IResoniteLiveSceneImportFactory
@@ -31,10 +32,21 @@ internal sealed class ResoniteLiveSceneImportFactory(
         ResoniteLiveSceneImportTargetOptions options,
         HttpClient terrainTextureAssetHttpClient)
     {
+        ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
+            ? ResoniteLinkSendDiagnostics.CreateEnabled()
+            : ResoniteLinkSendDiagnostics.Disabled;
+        ILiveSendClientSession clientSession = clientSessionFactory.Create(options, diagnostics);
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator =
+            terrainTextureAssetGeneratorFactory.Create(
+                terrainTextureAssetHttpClient,
+                new TerrainTextureAssetGeneratorOptions(
+                    options.TerrainTileCacheRoot,
+                    options.DisableTerrainTileCache));
         ResoniteLiveSceneImportDependencies dependencies = dependencyFactory.Create(
             options,
-            terrainTextureAssetHttpClient,
-            terrainTextureAssetGeneratorFactory);
+            clientSession,
+            diagnostics,
+            terrainTextureAssetGenerator);
         return new ResoniteLiveSceneImportTarget(options, dependencies);
     }
 }

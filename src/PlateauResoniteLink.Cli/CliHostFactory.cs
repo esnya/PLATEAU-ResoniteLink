@@ -164,7 +164,8 @@ internal sealed class DefaultSceneSinkFactory(
                     scope,
                     dumpSinkFactory.Create(
                         CreateCanonicalDumpTargetOptions(sceneBuildOptions),
-                        canonicalDump.OutputPath));
+                        canonicalDump.OutputPath,
+                        httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName)));
             }
 
             if (sinkOptions is not LiveResoniteSinkCliOptions live)

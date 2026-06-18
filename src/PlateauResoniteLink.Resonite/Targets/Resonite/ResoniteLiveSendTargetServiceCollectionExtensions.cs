@@ -14,8 +14,19 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddResoniteTargetPipelineServices();
         services.TryAddScoped<Func<IResoniteLinkClient>>(
             _ => static () => new ResoniteLinkClient());
+        services.TryAddScoped<IResoniteClientSessionFactory, ResoniteLinkClientSessionFactory>();
+        services.TryAddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
+
+        return services;
+    }
+
+    internal static IServiceCollection AddResoniteTargetPipelineServices(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.TryAddScoped<BundledDefaultMaterialAssetStore>();
         services.TryAddScoped<ResoniteTextureImageLoader>();
         services.TryAddScoped<INonDemSourceFileBakeEmitterFactory, NonDemSourceFileBakeEmitterFactory>();
@@ -35,15 +46,11 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
         services.TryAddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
         services.TryAddScoped<IResoniteSceneSetupObserver, ResoniteSceneSetupObserver>();
-        services.TryAddScoped<IResoniteClientSessionFactory, ResoniteLinkClientSessionFactory>();
         services.TryAddScoped<IResoniteSceneSetupInterpreter>(
             static serviceProvider => new ResoniteSceneSetupInterpreter(
                 serviceProvider.GetRequiredService<IResoniteSceneSetupObserver>(),
                 serviceProvider.GetRequiredService<IResoniteSceneAnchorResolver>()));
         services.TryAddScoped<ResoniteLiveSceneImportDependencyFactory>();
-        services.TryAddScoped<ResoniteLiveSceneImportFactory>();
-        services.TryAddScoped<IResoniteLiveSceneImportFactory>(
-            static serviceProvider => serviceProvider.GetRequiredService<ResoniteLiveSceneImportFactory>());
 
         return services;
     }
