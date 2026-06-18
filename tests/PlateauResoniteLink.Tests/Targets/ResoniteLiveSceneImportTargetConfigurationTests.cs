@@ -210,9 +210,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Fact]
-    public async Task AddResoniteLiveSendTargetServicesRoutesCanonicalDumpThroughRegisteredLiveSceneImportFactory()
+    public async Task AddResoniteLiveSendTargetServicesKeepsCanonicalDumpOnDefaultRecordingFactory()
     {
-        RecordingLiveSceneImportFactory importFactory = new(new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()));
+        RecordingLiveSceneImportFactory importFactory = new();
         ServiceProvider provider = new ServiceCollection()
             .AddScoped<IResoniteLiveSceneImportFactory>(_ => importFactory)
             .AddResoniteLiveSendTargetServices()
@@ -234,10 +234,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     DisableTerrainTileCache: false),
                 outputPath);
 
-        Assert.Equal(1, importFactory.PreconfiguredCreateCallCount);
-        Assert.NotNull(importFactory.LastClientSession);
-        Assert.Same(ResoniteLinkSendDiagnostics.Disabled, importFactory.LastDiagnostics);
-        Assert.NotNull(importFactory.LastTerrainTextureAssetGenerator);
+        Assert.Same(
+            importFactory,
+            scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>());
+        Assert.Equal(0, importFactory.CreateCallCount);
     }
 
     [Fact]
@@ -505,49 +505,24 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         }
     }
 
-    private sealed class RecordingLiveSceneImportFactory(
-        IResoniteMaterialPlanning materialPlanning) :
-        IResoniteLiveSceneImportFactory,
-        IResoniteRecordingLiveSceneImportFactory
+    private sealed class RecordingLiveSceneImportFactory : IResoniteLiveSceneImportFactory
     {
-        public int PreconfiguredCreateCallCount { get; private set; }
-
-        public ILiveSendClientSession? LastClientSession { get; private set; }
-
-        public ResoniteLinkSendDiagnostics? LastDiagnostics { get; private set; }
-
-        public ITerrainTextureAssetGenerator? LastTerrainTextureAssetGenerator { get; private set; }
+        public int CreateCallCount { get; private set; }
 
         public ResoniteLiveSceneImportTarget CreateTarget(
             ResoniteLiveSceneImportTargetOptions options,
             HttpClient terrainTextureAssetHttpClient)
         {
+            CreateCallCount++;
             _ = terrainTextureAssetHttpClient;
-            return CreateTarget(
-                options,
-                new DelegatingClientSession(),
-                ResoniteLinkSendDiagnostics.Disabled,
-                new RecordingTerrainTextureAssetGenerator());
-        }
-
-        public ResoniteLiveSceneImportTarget CreateTarget(
-            ResoniteLiveSceneImportTargetOptions options,
-            ILiveSendClientSession clientSession,
-            ResoniteLinkSendDiagnostics diagnostics,
-            ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
-        {
-            PreconfiguredCreateCallCount++;
-            LastClientSession = clientSession;
-            LastDiagnostics = diagnostics;
-            LastTerrainTextureAssetGenerator = terrainTextureAssetGenerator;
+            ResoniteMaterialPlanning materialPlanning = new(CreateBundledDefaultMaterialAssetStore());
             return new ResoniteLiveSceneImportTarget(
                 options,
                 ResoniteLiveSceneImportTargetTestSupport.CreateDependencies(
-                    clientSession,
-                    diagnostics,
+                    new DelegatingClientSession(),
+                    ResoniteLinkSendDiagnostics.Disabled,
                     ResoniteLiveSceneImportTargetTestSupport.CreateRunStarter(
-                        materialPlanning,
-                        terrainTextureAssetGenerator: terrainTextureAssetGenerator)));
+                        materialPlanning)));
         }
     }
 

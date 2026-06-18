@@ -46,15 +46,9 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<ResoniteLiveSceneImportFactory>();
         services.TryAddScoped<IResoniteLiveSceneImportFactory>(
             static serviceProvider => serviceProvider.GetRequiredService<ResoniteLiveSceneImportFactory>());
+        services.TryAddScoped<ResoniteRecordingLiveSceneImportFactory>();
         services.TryAddScoped<IResoniteRecordingLiveSceneImportFactory>(
-            static serviceProvider =>
-            {
-                IResoniteLiveSceneImportFactory targetFactory =
-                    serviceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
-                return targetFactory as IResoniteRecordingLiveSceneImportFactory
-                    ?? throw new InvalidOperationException(
-                        "The registered Resonite live scene import factory does not support recording client sessions.");
-            });
+            static serviceProvider => serviceProvider.GetRequiredService<ResoniteRecordingLiveSceneImportFactory>());
 
         return services;
     }
