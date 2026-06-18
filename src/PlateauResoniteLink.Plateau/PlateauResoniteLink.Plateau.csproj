@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <RootNamespace>PlateauResoniteLink.Plateau</RootNamespace>
+    <RootNamespace>PlateauResoniteLink</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,29 +16,4 @@
   <ItemGroup>
     <ProjectReference Include="..\PlateauResoniteLink.Core\PlateauResoniteLink.Core.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="..\PlateauResoniteLink\Application\Importing\**\*.cs" Exclude="..\PlateauResoniteLink\Application\Importing\Contracts\**\*.cs" LinkBase="Importing" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\CompositeImportedObjectUnitOptimizer.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\ContinuableImportException.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\CountingImportedObjectUnitStream.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\DemTerrainGridSampler.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\IArchiveFileLayoutPolicy.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\IImportedObjectUnitOptimizer.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\IImportedSceneSourcePreflight.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\ImportExecutionResult.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\IPlateauDatasetSourceResolver.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\PlateauImportRequestValidator.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\Plateau\MeshCodeRequestSyntax.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\PlateauImportService.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\PlateauImportValidationException.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\RemoteDatasetResourceLayout.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\ResolvedLocalPlateauImportRequest.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\SceneImportExecutionPlan.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\SceneImportExecutionResult.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\SceneImportRequest.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\ValidatedDatasetLocation.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Application\Importing\ValidatedPlateauImportRequest.cs" />
-  </ItemGroup>
-
 </Project>

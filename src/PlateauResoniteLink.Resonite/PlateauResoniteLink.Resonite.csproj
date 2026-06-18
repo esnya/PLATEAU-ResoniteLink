@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <RootNamespace>PlateauResoniteLink.Resonite</RootNamespace>
+    <RootNamespace>PlateauResoniteLink</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,10 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\**\*.cs" LinkBase="Resonite" />
-    <Compile Include="..\PlateauResoniteLink\Transport\ResoniteLink\**\*.cs" LinkBase="ResoniteLink" />
-    <EmbeddedResource Include="..\PlateauResoniteLink\Assets\DefaultMaterials/**/*.jpg" LinkBase="Assets\DefaultMaterials" />
-    <EmbeddedResource Include="..\PlateauResoniteLink\Assets\DefaultMaterials/**/*.png" LinkBase="Assets\DefaultMaterials" />
+    <EmbeddedResource Include="Assets\DefaultMaterials/**/*.jpg" />
+    <EmbeddedResource Include="Assets\DefaultMaterials/**/*.png" />
   </ItemGroup>
 
 </Project>

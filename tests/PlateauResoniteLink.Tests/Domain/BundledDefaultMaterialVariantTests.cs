@@ -306,7 +306,7 @@ public sealed class BundledDefaultMaterialVariantTests
 
         emissionPath = TestData.GetRepositoryPath(
             "src",
-            "PlateauResoniteLink",
+            "PlateauResoniteLink.Resonite",
             "Assets",
             "DefaultMaterials",
             "wallskins",

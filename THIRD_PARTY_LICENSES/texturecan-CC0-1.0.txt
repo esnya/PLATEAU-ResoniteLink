@@ -11,7 +11,7 @@ responsibility. The bundled assets listed here were selected as generic facade
 materials and are recorded with their source pages for review.
 
 Bundled directory covered by this notice:
-- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/
+- src/PlateauResoniteLink.Resonite/Assets/DefaultMaterials/texturecan/
 
 Ingest procedure:
 - Download the 2K Maps archive from the source asset page.
@@ -20,8 +20,8 @@ Ingest procedure:
 - The ingest tool generates `<asset-id>_2K_Metallic.png` as a packed material map. Red is upstream metallic when present or neutral 0, green is upstream ambient occlusion or neutral 255, blue preserves upstream roughness or neutral 255 for diagnostics, and alpha is Unity-style smoothness (`255 - roughness`) for linear data sampling.
 
 Bundled TextureCan material sources:
-- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0021_2K_* -> TextureCan Others 0021 -> https://www.texturecan.com/details/315/
-- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0022_2K_* -> TextureCan Others 0022 -> https://www.texturecan.com/details/316/
-- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0025_2K_* -> TextureCan Others 0025 -> https://www.texturecan.com/details/357/
-- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0026_2K_* -> TextureCan Others 0026 -> https://www.texturecan.com/details/360/
-- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0029_2K_* -> TextureCan Others 0029 -> https://www.texturecan.com/details/563/
+- src/PlateauResoniteLink.Resonite/Assets/DefaultMaterials/texturecan/facade/Others0021_2K_* -> TextureCan Others 0021 -> https://www.texturecan.com/details/315/
+- src/PlateauResoniteLink.Resonite/Assets/DefaultMaterials/texturecan/facade/Others0022_2K_* -> TextureCan Others 0022 -> https://www.texturecan.com/details/316/
+- src/PlateauResoniteLink.Resonite/Assets/DefaultMaterials/texturecan/facade/Others0025_2K_* -> TextureCan Others 0025 -> https://www.texturecan.com/details/357/
+- src/PlateauResoniteLink.Resonite/Assets/DefaultMaterials/texturecan/facade/Others0026_2K_* -> TextureCan Others 0026 -> https://www.texturecan.com/details/360/
+- src/PlateauResoniteLink.Resonite/Assets/DefaultMaterials/texturecan/facade/Others0029_2K_* -> TextureCan Others 0029 -> https://www.texturecan.com/details/563/
