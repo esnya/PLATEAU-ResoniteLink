@@ -91,7 +91,7 @@ internal static class CityGmlDemTerrainGridCityObjectProjection
             height,
             sourceFileFrame.Triangles.Length);
 
-        DemTerrainGridHeightSamples heightSamples = CityGmlDemTerrainGridSampler.Sample(
+        DemTerrainGridHeightSamples heightSamples = DemTerrainGridSampler.Sample(
             outputFrame.SamplingBounds,
             request.TerrainGridMetersPerVertex,
             request.TerrainGridMaxResolution,

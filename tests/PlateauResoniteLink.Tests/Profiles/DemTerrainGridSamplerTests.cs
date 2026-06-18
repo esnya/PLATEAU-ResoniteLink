@@ -1,5 +1,5 @@
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Plateau;
 
 using System;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using System.Threading;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
-public sealed class CityGmlDemTerrainGridSamplerTests
+public sealed class DemTerrainGridSamplerTests
 {
     [Fact]
     public void SampleInterpolatesHeightsInsideTriangles()
@@ -25,7 +25,7 @@ public sealed class CityGmlDemTerrainGridSamplerTests
                 new Float3(0.0, 30.0, 1.0)),
         ];
 
-        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+        DemTerrainGridHeightSamples samples = DemTerrainGridSampler.Sample(
             minX: 0.0,
             maxX: 1.0,
             minZ: 0.0,
@@ -62,7 +62,7 @@ public sealed class CityGmlDemTerrainGridSamplerTests
                 new Float3(0.0, 30.0, 2.0)),
         ];
 
-        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+        DemTerrainGridHeightSamples samples = DemTerrainGridSampler.Sample(
             minX: 0.0,
             maxX: 2.0,
             minZ: 0.0,
@@ -96,7 +96,7 @@ public sealed class CityGmlDemTerrainGridSamplerTests
                 new Float3(0.0, 30.0, 2.0)),
         ];
 
-        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+        DemTerrainGridHeightSamples samples = DemTerrainGridSampler.Sample(
             minX: 0.0,
             maxX: 2.0,
             minZ: 0.0,
@@ -138,7 +138,7 @@ public sealed class CityGmlDemTerrainGridSamplerTests
             new Float3(4.95, 20.0, 1.0),
             new Float3(0.0, 20.0, 1.0)));
 
-        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+        DemTerrainGridHeightSamples samples = DemTerrainGridSampler.Sample(
             minX: 0.0,
             maxX: 10.0,
             minZ: -1.0,
@@ -164,7 +164,7 @@ public sealed class CityGmlDemTerrainGridSamplerTests
                 new Float3(0.0, 30.0, 2.0)),
         ];
 
-        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+        DemTerrainGridHeightSamples samples = DemTerrainGridSampler.Sample(
             minX: 0.0,
             maxX: 2.0,
             minZ: 0.0,
@@ -195,7 +195,7 @@ public sealed class CityGmlDemTerrainGridSamplerTests
                 new Float3(0.0, 0.0, 1.0)),
         ];
 
-        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+        DemTerrainGridHeightSamples samples = DemTerrainGridSampler.Sample(
             minX: 0.0,
             maxX: 2.0,
             minZ: 0.0,
@@ -222,7 +222,7 @@ public sealed class CityGmlDemTerrainGridSamplerTests
                 new Float3(0.0, 30.0, 1.0)),
         ];
 
-        DemTerrainGridHeightSamples samples = CityGmlDemTerrainGridSampler.Sample(
+        DemTerrainGridHeightSamples samples = DemTerrainGridSampler.Sample(
             minX: 0.0,
             maxX: 2.0,
             minZ: 0.0,
@@ -252,7 +252,7 @@ public sealed class CityGmlDemTerrainGridSamplerTests
             cancelAfterReadCount: 10);
 
         Assert.Throws<OperationCanceledException>(() =>
-            CityGmlDemTerrainGridSampler.Sample(
+            DemTerrainGridSampler.Sample(
                 minX: 0.0,
                 maxX: 1.0,
                 minZ: 0.0,

@@ -99,7 +99,6 @@ internal static class ImportedSceneSourceDiscoveryPipeline
             totalStopwatch.Elapsed.TotalSeconds);
 
         ImportedSceneSourceDataset documentSet = new(
-            datasetSource,
             relativeSourceFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray(),
             sourceFiles
                 .Select(static sourceFile => sourceFile.PackageName)

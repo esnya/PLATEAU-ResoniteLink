@@ -1,8 +1,6 @@
 using System;
 
-using PlateauResoniteLink.Domain.Importing;
-
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Domain.Importing;
 
 internal static class TerrainTextureLayoutPlanner
 {

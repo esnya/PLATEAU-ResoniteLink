@@ -514,13 +514,12 @@ public sealed class PlateauImportServiceTests
     }
 
     private static ImportedSceneSourceSnapshot CreateReadResult(
-        IPlateauDatasetContentSource datasetSource,
+        IPlateauDatasetContentSource _,
         IReadOnlyList<string> packageNames,
         IReadOnlyList<string> relativeSourceFiles)
     {
         return new ImportedSceneSourceSnapshot(
             new ImportedSceneSourceDataset(
-                datasetSource,
                 relativeSourceFiles,
                 packageNames,
                 [],

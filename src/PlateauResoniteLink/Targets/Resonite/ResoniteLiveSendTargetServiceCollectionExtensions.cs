@@ -38,6 +38,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
         services.TryAddScoped<IResoniteSceneSetupObserver, ResoniteSceneSetupObserver>();
         services.TryAddScoped<IResoniteClientSessionFactory, ResoniteLinkClientSessionFactory>();
+        services.TryAddScoped<ITerrainTextureSourceImageReaderFactory, TerrainTextureSourceImageReaderFactory>();
         services.TryAddScoped<ITerrainTextureAssetGeneratorFactory, TerrainTextureAssetGeneratorFactory>();
         services.TryAddScoped<IResoniteSceneSetupInterpreter>(
             static serviceProvider => new ResoniteSceneSetupInterpreter(

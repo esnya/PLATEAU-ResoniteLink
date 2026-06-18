@@ -6,7 +6,6 @@ using PlateauResoniteLink.Application.Importing.Source;
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,7 +25,6 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             cityGmlLocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"));
         ImportedSceneSourceSnapshot expectedReadResult = new(
             new ImportedSceneSourceDataset(
-                new StubDatasetContentSource(request.CityGmlLocalSourcePath),
                 [],
                 ["bldg"],
                 [],
@@ -77,6 +75,18 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddImportedSceneSourceServicesPreservesCustomImportedSceneSourceReader()
+    {
+        CustomImportedSceneSourceReader reader = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<IImportedSceneSourceReader>(reader)
+            .AddImportedSceneSourceServices()
+            .BuildServiceProvider();
+
+        Assert.Same(reader, provider.GetRequiredService<IImportedSceneSourceReader>());
+    }
+
+    [Fact]
     public void AddImportedSceneSourceServicesPreservesCustomImportedSceneSourceFactory()
     {
         CustomImportedSceneSourceFactory factory = new();
@@ -124,6 +134,18 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
+    private sealed class CustomImportedSceneSourceReader : IImportedSceneSourceReader
+    {
+        public Task<ImportedSceneSourceSnapshot> ReadAsync(
+            ResolvedLocalPlateauImportRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            _ = request;
+            _ = cancellationToken;
+            throw new NotSupportedException();
+        }
+    }
+
     private sealed class CustomImportedSceneSourceFactory : IImportedSceneSourceFactory
     {
         public Task<IImportedSceneSource> CreateAsync(
@@ -168,30 +190,6 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             LastReadResult = readResult;
             _ = objectUnitOptimizer;
             return source;
-        }
-    }
-
-    private sealed class StubDatasetContentSource(string sourcePath) : IPlateauDatasetContentSource
-    {
-        public string SourcePath { get; } = sourcePath;
-
-        public IReadOnlyList<string> EnumerateFiles() => [];
-
-        public bool FileExists(string relativePath) => false;
-
-        public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
-
-        public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<string> EnsureLocalFileAsync(
-            string relativePath,
-            string outputRoot,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
         }
     }
 

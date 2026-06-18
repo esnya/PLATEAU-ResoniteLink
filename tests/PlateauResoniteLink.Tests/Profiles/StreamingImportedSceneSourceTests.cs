@@ -749,7 +749,6 @@ public sealed class StreamingImportedSceneSourceTests
 
         return new ImportedSceneSourceSnapshot(
             new ImportedSceneSourceDataset(
-                new EmptyDatasetContentSource(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
                 terrainTextureOverlays ?? [],
@@ -766,7 +765,6 @@ public sealed class StreamingImportedSceneSourceTests
     {
         return new ImportedSceneSourceSnapshot(
             new ImportedSceneSourceDataset(
-                new EmptyDatasetContentSource(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
                 terrainTextureOverlays ?? [],

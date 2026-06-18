@@ -163,7 +163,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
 
         ImportedSceneSourceSnapshot readResult = new(
             new ImportedSceneSourceDataset(
-                new EmptyDatasetContentSource(),
                 [
                     bldgPipeline.SourceFile.RelativePath,
                     tranPipeline.SourceFile.RelativePath,
@@ -314,7 +313,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         ImportedSceneSourceSnapshot readResult = new(
             new ImportedSceneSourceDataset(
-                new EmptyDatasetContentSource(),
                 sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 packageNames,
                 [],

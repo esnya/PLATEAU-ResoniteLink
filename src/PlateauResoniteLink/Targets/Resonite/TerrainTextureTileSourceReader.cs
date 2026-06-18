@@ -9,7 +9,6 @@ using PlateauResoniteLink.Domain.Importing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using PlateauResoniteLink.Application.Importing.Plateau;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 

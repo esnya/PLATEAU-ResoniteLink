@@ -1,12 +1,10 @@
 using System;
 
-using PlateauResoniteLink.Domain.Importing;
-
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Domain.Importing;
 
 internal static class TerrainTextureGeoReferencedRasterCropper
 {

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -13,7 +12,6 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Plateau;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -99,18 +97,30 @@ internal sealed record GeneratedTerrainTexture
     }
 }
 
-internal sealed class TerrainTextureAssetGenerator(
-    HttpClient? httpClient = null,
-    string? persistentCacheRoot = null,
-    bool disablePersistentCache = false) : ITerrainTextureAssetGenerator
+internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
 {
     // Approximate dry brown soil tone (Munsell 10YR 5/3 family) for uncovered DEM texels.
     internal static readonly Rgba32 DefaultDemGroundFillColor = new(181, 176, 166, byte.MaxValue);
 
+    private static readonly HttpClient DefaultHttpClient = new();
+
     private readonly AsyncCompletedResultCache<TerrainTextureOverlay, CachedTerrainTexture> cachedTextures = new();
-    private readonly TerrainTextureTileSourceReader tileSourceReader = new(
-        httpClient ?? new HttpClient(),
-        disablePersistentCache ? null : new PersistentTerrainTileCache(persistentCacheRoot));
+    private readonly ITerrainTextureSourceImageReader sourceImageReader;
+
+    public TerrainTextureAssetGenerator(
+        HttpClient? httpClient = null,
+        string? persistentCacheRoot = null,
+        bool disablePersistentCache = false)
+        : this(new DefaultTerrainTextureSourceImageReader(
+            httpClient ?? DefaultHttpClient,
+            disablePersistentCache ? null : new PersistentTerrainTileCache(persistentCacheRoot)))
+    {
+    }
+
+    internal TerrainTextureAssetGenerator(ITerrainTextureSourceImageReader sourceImageReader)
+    {
+        this.sourceImageReader = sourceImageReader ?? throw new ArgumentNullException(nameof(sourceImageReader));
+    }
 
     public async Task<GeneratedTerrainTexture> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
@@ -141,18 +151,10 @@ internal sealed class TerrainTextureAssetGenerator(
         for (int sourceIndex = 0; sourceIndex < terrainTextureOverlay.Sources.Count; sourceIndex++)
         {
             TerrainTextureSource terrainTextureSource = terrainTextureOverlay.Sources[sourceIndex];
-            TerrainTextureSourceReadResult sourceResult = terrainTextureSource switch
-            {
-                TerrainTextureTileSource tileSource => await tileSourceReader.TryCreateAsync(
-                    terrainTextureOverlay,
-                    tileSource,
-                    cancellationToken),
-                TerrainTextureGeoReferencedRasterSource rasterSource => await CreateTextureFromGeoReferencedRasterSourceAsync(
-                    terrainTextureOverlay.GeographicBounds,
-                    rasterSource,
-                    cancellationToken),
-                _ => TerrainTextureSourceReadResult.CoverageMiss,
-            };
+            TerrainTextureSourceReadResult sourceResult = await sourceImageReader.TryReadAsync(
+                terrainTextureOverlay,
+                terrainTextureSource,
+                cancellationToken);
             if (sourceResult.Kind == TerrainTextureSourceReadResultKind.SourceFailure)
             {
                 throw new HttpRequestException(sourceResult.FailureMessage);
@@ -206,42 +208,6 @@ internal sealed class TerrainTextureAssetGenerator(
                 usedSources,
                 composedOccupiedUvRect);
             return new CachedTerrainTexture(generatedTexture);
-        }
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Reliability",
-        "CA2000:Dispose objects before losing scope",
-        Justification = "The returned source image owns and disposes the cropped raster image.")]
-    private static async Task<TerrainTextureSourceReadResult> CreateTextureFromGeoReferencedRasterSourceAsync(
-        GeographicRectangle geographicBounds,
-        TerrainTextureGeoReferencedRasterSource rasterSource,
-        CancellationToken cancellationToken)
-    {
-        Image<Rgba32> sourceImage;
-        try
-        {
-            await using Stream sourceStream = await rasterSource.OpenReadAsync(cancellationToken);
-            sourceImage = await Image.LoadAsync<Rgba32>(sourceStream, cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            return TerrainTextureSourceReadResult.SourceFailure(
-                $"DEM terrain raster source '{rasterSource.ContentSource.Description}' could not be read as an image: {exception.Message}");
-        }
-
-        using (sourceImage)
-        {
-            Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(
-                sourceImage,
-                rasterSource.Metadata,
-                geographicBounds);
-            if (cropped is null)
-            {
-                return TerrainTextureSourceReadResult.CoverageMiss;
-            }
-
-            return TerrainTextureSourceReadResult.Rendered(new TerrainTextureSourceImage(cropped, null));
         }
     }
 

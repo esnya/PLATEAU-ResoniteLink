@@ -4,9 +4,9 @@ using System.Threading;
 
 using PlateauResoniteLink.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Application.Importing;
 
-internal static class CityGmlDemTerrainGridSampler
+internal static class DemTerrainGridSampler
 {
     private const double BoundarySampleToleranceMeters = 0.25;
 

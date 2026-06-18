@@ -38,9 +38,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             new CkanPlateauDatasetSourceResolver(
                 SharedDatasetSourceResolverHttpClient,
                 new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()),
+            new ArchiveFileLayoutPolicy()),
             importedSceneSourceFactory: new DefaultImportedSceneSourceFactory(
-                documentReader,
+                new CityGmlImportedSceneSourceReader(documentReader),
                 new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                     new DefaultDemTextureSourcePolicy(
@@ -77,7 +77,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest importRequest = request.ToImportRequest();
 
         DefaultImportedSceneSourceFactory factory = new(
-            documentReader,
+            new CityGmlImportedSceneSourceReader(documentReader),
             new DefaultImportedSceneSourceComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                 new DefaultDemTextureSourcePolicy(

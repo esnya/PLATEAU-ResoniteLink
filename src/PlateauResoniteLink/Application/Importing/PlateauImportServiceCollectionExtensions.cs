@@ -41,9 +41,10 @@ internal static class PlateauImportServiceCollectionExtensions
                 provider.GetRequiredService<IPlateauDatasetContentSourceFactory>(),
                 provider.GetRequiredService<ICityGmlAppearanceStoreFactory>(),
                 provider.GetRequiredService<ICityGmlLodSelector>()));
+        services.TryAddSingleton<IImportedSceneSourceReader, CityGmlImportedSceneSourceReader>();
         services.TryAddSingleton<IImportedSceneSourceFactory>(provider =>
             new DefaultImportedSceneSourceFactory(
-                provider.GetRequiredService<ICityGmlDocumentReader>(),
+                provider.GetRequiredService<IImportedSceneSourceReader>(),
                 provider.GetRequiredService<IImportedSceneSourceComposer>(),
                 provider.GetRequiredService<IImportedObjectUnitOptimizer>()));
 
