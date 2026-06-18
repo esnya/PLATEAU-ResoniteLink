@@ -2,7 +2,7 @@ using System;
 
 namespace PlateauResoniteLink.Domain.Importing;
 
-internal readonly record struct TextureUvRect(
+public readonly record struct TextureUvRect(
     double MinU,
     double MinV,
     double Width,

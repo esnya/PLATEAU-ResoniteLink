@@ -2,6 +2,8 @@
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Tests.Targets;
 
 public sealed class AsyncCompletedResultCacheTests
@@ -9,7 +11,7 @@ public sealed class AsyncCompletedResultCacheTests
     [Fact]
     public async Task GetOrCreateAsyncInvokesFactoryOnlyOnceForConcurrentRequests()
     {
-        PlateauResoniteLink.Targets.Resonite.AsyncCompletedResultCache<string, int> cache = new();
+        AsyncCompletedResultCache<string, int> cache = new();
         int invocationCount = 0;
         TaskCompletionSource releaseFactory = new(TaskCreationOptions.RunContinuationsAsynchronously);
 

@@ -3,9 +3,9 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Core;
 
-internal sealed class AsyncCompletedResultCache<TKey, TValue>
+public sealed class AsyncCompletedResultCache<TKey, TValue>
     where TKey : notnull
 {
     private readonly ConcurrentDictionary<TKey, TValue> completedValues = [];

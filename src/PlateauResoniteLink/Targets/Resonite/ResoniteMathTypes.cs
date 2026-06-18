@@ -1,8 +1,10 @@
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 public sealed record ResoniteFloat2(
     double X,
-    double Y);
+    double Y) : ITextureUvTransformValue;
 
 public sealed record ResoniteFloat3(
     double X,

@@ -3,7 +3,7 @@ using System.IO;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal static class RemoteDatasetResourceLayout
+public static class RemoteDatasetResourceLayout
 {
     public static string GetRemoteResourcePath(string datasetRoot, Uri resourceUri, string prefix)
     {

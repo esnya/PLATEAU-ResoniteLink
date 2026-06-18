@@ -10,6 +10,8 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 using ResoniteLink;
 using PlateauResoniteLink.Application.Importing.Contracts;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
 internal interface IResoniteMaterialPlanning

@@ -1,5 +1,7 @@
 using System;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface IResoniteLiveSendWorkerPipelineFactory

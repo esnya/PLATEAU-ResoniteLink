@@ -9,6 +9,8 @@ using PlateauResoniteLink.Domain.Importing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface ITerrainTextureSourceImageReader
@@ -23,14 +25,14 @@ internal interface ITerrainTextureSourceImageReaderFactory
 {
     ITerrainTextureSourceImageReader Create(
         HttpClient terrainTextureAssetHttpClient,
-        ResoniteLiveSceneImportTargetOptions options);
+        TerrainTextureAssetGeneratorOptions options);
 }
 
 internal sealed class TerrainTextureSourceImageReaderFactory : ITerrainTextureSourceImageReaderFactory
 {
     public ITerrainTextureSourceImageReader Create(
         HttpClient terrainTextureAssetHttpClient,
-        ResoniteLiveSceneImportTargetOptions options)
+        TerrainTextureAssetGeneratorOptions options)
     {
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
         ArgumentNullException.ThrowIfNull(options);

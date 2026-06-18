@@ -8,6 +8,8 @@ using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 using PlateauResoniteLink.Application.Importing.Contracts;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class ResoniteCityObjectPreparation

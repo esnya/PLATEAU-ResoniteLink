@@ -7,7 +7,7 @@ using PlateauResoniteLink.Application.Importing.Contracts;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class CompositeImportedObjectUnitOptimizer(
+public sealed class CompositeImportedObjectUnitOptimizer(
     IReadOnlyList<IImportedObjectUnitOptimizer> optimizers) : IImportedObjectUnitOptimizer
 {
     private readonly IReadOnlyList<IImportedObjectUnitOptimizer> optimizers =

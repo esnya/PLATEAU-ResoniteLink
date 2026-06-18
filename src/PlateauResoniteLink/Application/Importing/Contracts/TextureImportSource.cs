@@ -132,6 +132,15 @@ public interface ITextureImportSource
     long? EstimatedByteLength { get; }
 }
 
+public interface ITextureContentSource
+{
+    long? TryGetFileLength(string relativePath) => null;
+
+    ValueTask<Stream> OpenReadAsync(
+        string relativePath,
+        CancellationToken cancellationToken = default);
+}
+
 internal interface IRgba32RawTexturePayloadSource : ITextureImportSource
 {
     ValueTask<Rgba32RawTexturePayload> MaterializeRgba32Async(CancellationToken cancellationToken);
@@ -142,7 +151,7 @@ internal interface IRgbaFloat32RawTexturePayloadSource : ITextureImportSource
     ValueTask<RgbaFloat32RawTexturePayload> MaterializeRgbaFloat32Async(CancellationToken cancellationToken);
 }
 
-internal static class TextureImportSourceMaterializer
+public static class TextureImportSourceMaterializer
 {
     public static ValueTask<RawTexturePayload> MaterializeRawAsync(
         ITextureImportSource source,
@@ -270,7 +279,7 @@ internal sealed class InMemoryEncodedTextureImportSource : IRgba32RawTexturePayl
 }
 
 internal sealed class DatasetTextureImportSource(
-    IPlateauDatasetContentSource datasetSource,
+    ITextureContentSource datasetSource,
     string relativePath,
     string? colorProfile) : IRgba32RawTexturePayloadSource
 {
@@ -278,9 +287,7 @@ internal sealed class DatasetTextureImportSource(
 
     public string? ColorProfile { get; } = colorProfile;
 
-    public long? EstimatedByteLength => datasetSource is IPlateauDatasetContentLengthSource lengthSource
-        ? lengthSource.TryGetFileLength(relativePath)
-        : null;
+    public long? EstimatedByteLength => datasetSource.TryGetFileLength(relativePath);
 
     public async ValueTask<Rgba32RawTexturePayload> MaterializeRgba32Async(CancellationToken cancellationToken)
     {
@@ -360,7 +367,7 @@ internal sealed class GeneratedRgbaFloat32TextureImportSource(
     }
 }
 
-internal static class TextureImportSourceFactory
+public static class TextureImportSourceFactory
 {
     public static ITextureImportSource CreateInMemoryRaw(
         int width,
@@ -389,7 +396,7 @@ internal static class TextureImportSourceFactory
     }
 
     public static ITextureImportSource CreateDatasetEncodedImage(
-        IPlateauDatasetContentSource datasetSource,
+        ITextureContentSource datasetSource,
         string relativePath,
         string? colorProfile)
     {

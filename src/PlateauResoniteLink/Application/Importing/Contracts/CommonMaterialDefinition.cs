@@ -5,7 +5,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing.Contracts;
 
-internal abstract class CommonMaterialDefinition
+public abstract class CommonMaterialDefinition
 {
     private protected static readonly ColorRgba CanonicalBaseColor = new(1.0, 1.0, 1.0, 1.0);
 

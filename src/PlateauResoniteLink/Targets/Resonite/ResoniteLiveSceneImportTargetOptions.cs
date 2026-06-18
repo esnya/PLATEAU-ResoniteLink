@@ -2,7 +2,7 @@ using System;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed record ResoniteLiveSceneImportTargetOptions(
+public sealed record ResoniteLiveSceneImportTargetOptions(
     Uri Endpoint,
     int ConnectionCount,
     bool EnableSendMetrics,

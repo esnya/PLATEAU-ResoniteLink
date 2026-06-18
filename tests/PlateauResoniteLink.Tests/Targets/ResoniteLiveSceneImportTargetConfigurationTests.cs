@@ -19,6 +19,8 @@ using PlateauResoniteLink.Targets.Resonite.Diagnostics;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Tests.Targets;
 
 public sealed class ResoniteLiveSceneImportTargetConfigurationTests
@@ -444,13 +446,13 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
         public HttpClient? LastHttpClient { get; private set; }
 
-        public ResoniteLiveSceneImportTargetOptions? LastOptions { get; private set; }
+        public TerrainTextureAssetGeneratorOptions? LastOptions { get; private set; }
 
         public ITerrainTextureAssetGenerator? LastGenerator { get; private set; }
 
         public ITerrainTextureAssetGenerator Create(
             HttpClient terrainTextureAssetHttpClient,
-            ResoniteLiveSceneImportTargetOptions options)
+            TerrainTextureAssetGeneratorOptions options)
         {
             CreateCallCount++;
             LastHttpClient = terrainTextureAssetHttpClient;
@@ -473,7 +475,9 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     private sealed class RecordingLiveSceneImportFactory(
-        IResoniteMaterialPlanning materialPlanning) : IResoniteLiveSceneImportFactory
+        IResoniteMaterialPlanning materialPlanning) :
+        IResoniteLiveSceneImportFactory,
+        IResoniteRecordingLiveSceneImportFactory
     {
         public int PreconfiguredCreateCallCount { get; private set; }
 

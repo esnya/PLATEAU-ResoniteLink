@@ -2,14 +2,19 @@ using System.Net.Http;
 
 using PlateauResoniteLink.Transport.ResoniteLink;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal interface IResoniteLiveSceneImportFactory
+public interface IResoniteLiveSceneImportFactory
 {
     ResoniteLiveSceneImportTarget CreateTarget(
         ResoniteLiveSceneImportTargetOptions options,
         HttpClient terrainTextureAssetHttpClient);
+}
 
+internal interface IResoniteRecordingLiveSceneImportFactory
+{
     ResoniteLiveSceneImportTarget CreateTarget(
         ResoniteLiveSceneImportTargetOptions options,
         ILiveSendClientSession clientSession,
@@ -18,7 +23,9 @@ internal interface IResoniteLiveSceneImportFactory
 }
 
 internal sealed class ResoniteLiveSceneImportFactory(
-    ResoniteLiveSceneImportDependencyFactory dependencyFactory) : IResoniteLiveSceneImportFactory
+    ResoniteLiveSceneImportDependencyFactory dependencyFactory) :
+    IResoniteLiveSceneImportFactory,
+    IResoniteRecordingLiveSceneImportFactory
 {
     public ResoniteLiveSceneImportTarget CreateTarget(
         ResoniteLiveSceneImportTargetOptions options,

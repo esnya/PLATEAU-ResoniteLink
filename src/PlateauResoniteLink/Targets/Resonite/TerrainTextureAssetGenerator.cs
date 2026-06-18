@@ -6,99 +6,20 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Transport.ResoniteLink;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using PlateauResoniteLink.Application.Importing.Contracts;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite;
-
-internal interface ITerrainTextureAssetGenerator
-{
-    Task<GeneratedTerrainTexture> EnsureTextureAsync(
-        TerrainTextureOverlay terrainTextureOverlay,
-        CancellationToken cancellationToken);
-}
-
-internal sealed record GeneratedTerrainTexture
-{
-    public GeneratedTerrainTexture(
-        ITextureImportSource textureSource,
-        ResoniteFloat2 canvasScale,
-        ResoniteFloat2 canvasOffset,
-        TerrainTextureSourceUsage usage)
-        : this(
-            textureSource,
-            TextureUvRect.FromScaleOffsetValue(
-                new ScalarPair(canvasScale.X, canvasScale.Y),
-                new ScalarPair(canvasOffset.X, canvasOffset.Y)),
-            CreateSingleUsageSnapshot(usage))
-    {
-    }
-
-    public GeneratedTerrainTexture(
-        ITextureImportSource textureSource,
-        ResoniteFloat2 canvasScale,
-        ResoniteFloat2 canvasOffset,
-        IReadOnlyList<TerrainTextureSourceUsage> usages)
-        : this(
-            textureSource,
-            TextureUvRect.FromScaleOffsetValue(
-                new ScalarPair(canvasScale.X, canvasScale.Y),
-                new ScalarPair(canvasOffset.X, canvasOffset.Y)),
-            usages)
-    {
-    }
-
-    public GeneratedTerrainTexture(
-        ITextureImportSource textureSource,
-        TextureUvRect occupiedUvRect,
-        IReadOnlyList<TerrainTextureSourceUsage> usages)
-    {
-        ArgumentNullException.ThrowIfNull(textureSource);
-
-        TerrainTextureSourceUsage[] trackedUsages = CreateUsageSnapshot(usages);
-
-        TextureSource = textureSource;
-        OccupiedUvRect = occupiedUvRect;
-        Usages = Array.AsReadOnly(trackedUsages);
-    }
-
-    public ITextureImportSource TextureSource { get; }
-
-    public TextureUvRect OccupiedUvRect { get; }
-
-    public TerrainTextureSourceUsage Usage => Usages.Count == 0
-        ? throw new InvalidOperationException("Generated terrain texture has no tracked source.")
-        : Usages[0];
-
-    public IReadOnlyList<TerrainTextureSourceUsage> Usages { get; }
-
-    private static TerrainTextureSourceUsage[] CreateSingleUsageSnapshot(TerrainTextureSourceUsage usage)
-    {
-        ArgumentNullException.ThrowIfNull(usage);
-        return [usage];
-    }
-
-    private static TerrainTextureSourceUsage[] CreateUsageSnapshot(IReadOnlyList<TerrainTextureSourceUsage> usages)
-    {
-        ArgumentNullException.ThrowIfNull(usages);
-
-        TerrainTextureSourceUsage[] trackedUsages = new TerrainTextureSourceUsage[usages.Count];
-        for (int index = 0; index < usages.Count; index++)
-        {
-            trackedUsages[index] = usages[index]
-                ?? throw new ArgumentException("Generated terrain texture usages cannot contain null.", nameof(usages));
-        }
-
-        return trackedUsages.Distinct().ToArray();
-    }
-}
 
 internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
 {
+    private const string SrgbTextureColorProfile = "sRGB";
+
     // Approximate dry brown soil tone (Munsell 10YR 5/3 family) for uncovered DEM texels.
     internal static readonly Rgba32 DefaultDemGroundFillColor = new(181, 176, 166, byte.MaxValue);
 
@@ -441,7 +362,7 @@ internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerat
         return TextureImportSourceFactory.CreateGeneratedImageFromClone(
             image,
             usage is null ? "terrain:default-ground" : $"terrain:{usage.TextureImportName}",
-            ResoniteTextureColorProfiles.Srgb);
+            SrgbTextureColorProfile);
     }
 
     private sealed record CachedTerrainTexture(GeneratedTerrainTexture GeneratedTexture);

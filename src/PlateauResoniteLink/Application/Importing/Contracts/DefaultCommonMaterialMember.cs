@@ -22,9 +22,9 @@ public sealed class DefaultCommonMaterialMember : IEquatable<DefaultCommonMateri
 
     public int? BundledVariantIndex => Definition.BundledVariantIndex;
 
-    internal CommonMaterialDefinition Definition { get; }
+    public CommonMaterialDefinition Definition { get; }
 
-    internal BundledDefaultMaterialVariant? BundledVariant => Definition.BundledVariant;
+    public BundledDefaultMaterialVariant? BundledVariant => Definition.BundledVariant;
 
     internal static DefaultCommonMaterialMember Create(CommonMaterialDefinition definition)
     {

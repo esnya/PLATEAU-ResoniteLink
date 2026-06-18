@@ -88,7 +88,7 @@ internal static class PlateauDatasetContentSourceFactory
 
     private sealed class LocalPlateauDatasetContentSource(
         string datasetRoot,
-        IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IPlateauDatasetContentSource, IPlateauDatasetContentLengthSource
+        IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IPlateauDatasetContentSource
     {
         public string SourcePath => datasetRoot;
 
@@ -164,7 +164,7 @@ internal static class PlateauDatasetContentSourceFactory
         }
     }
 
-    private sealed class ArchivePlateauDatasetContentSource : IPlateauDatasetContentSource, IPlateauDatasetContentLengthSource
+    private sealed class ArchivePlateauDatasetContentSource : IPlateauDatasetContentSource
     {
         private sealed record ArchiveFileAccessor(
             string RelativePath,

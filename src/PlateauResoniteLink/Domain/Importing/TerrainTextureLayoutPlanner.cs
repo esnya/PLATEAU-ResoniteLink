@@ -2,7 +2,7 @@ using System;
 
 namespace PlateauResoniteLink.Domain.Importing;
 
-internal static class TerrainTextureLayoutPlanner
+public static class TerrainTextureLayoutPlanner
 {
     private const double PixelEpsilon = 1e-6;
 
@@ -65,7 +65,7 @@ internal static class TerrainTextureLayoutPlanner
     }
 }
 
-internal sealed record TerrainTextureLayoutPlan(
+public sealed record TerrainTextureLayoutPlan(
     int MinTileX,
     int MaxTileX,
     int MinTileY,

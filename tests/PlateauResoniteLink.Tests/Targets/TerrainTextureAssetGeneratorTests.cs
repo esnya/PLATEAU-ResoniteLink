@@ -1,4 +1,5 @@
 using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core;
 
 using System;
 using System.Collections.Generic;

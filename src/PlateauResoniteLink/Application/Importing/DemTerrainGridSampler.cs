@@ -6,11 +6,11 @@ using PlateauResoniteLink.Application.Importing.Contracts;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal static class DemTerrainGridSampler
+public static class DemTerrainGridSampler
 {
     private const double BoundarySampleToleranceMeters = 0.25;
 
-    internal static DemTerrainGridHeightSamples Sample(
+    public static DemTerrainGridHeightSamples Sample(
         TerrainGridSamplingBounds bounds,
         double metersPerVertex,
         int maxResolution,
@@ -32,7 +32,7 @@ internal static class DemTerrainGridSampler
             cancellationToken);
     }
 
-    internal static DemTerrainGridHeightSamples Sample(
+    public static DemTerrainGridHeightSamples Sample(
         double minX,
         double maxX,
         double minZ,
@@ -91,7 +91,7 @@ internal static class DemTerrainGridSampler
         return new DemTerrainGridHeightSamples(width, height, localHeights, sampleCoverage);
     }
 
-    internal static bool TrySampleLocalHeight(
+    public static bool TrySampleLocalHeight(
         double x,
         double z,
         IReadOnlyList<TerrainGridTriangle> triangles,
@@ -217,24 +217,24 @@ internal static class DemTerrainGridSampler
 
 }
 
-internal sealed record DemTerrainGridHeightSamples(
+public sealed record DemTerrainGridHeightSamples(
     int Width,
     int Height,
     double[] LocalHeights,
     TerrainGridSampleCoverage[] SampleCoverage);
 
-internal readonly record struct TerrainGridSamplingBounds(
+public readonly record struct TerrainGridSamplingBounds(
     double MinX,
     double MaxX,
     double MinZ,
     double MaxZ);
 
-internal sealed record TerrainGridTriangle(
+public sealed record TerrainGridTriangle(
     Float3 A,
     Float3 B,
     Float3 C);
 
-internal sealed class TerrainGridSpatialIndex
+public sealed class TerrainGridSpatialIndex
 {
     private static readonly IReadOnlyList<int> EmptyTriangleIndices = Array.Empty<int>();
 

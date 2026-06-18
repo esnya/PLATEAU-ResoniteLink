@@ -7,12 +7,15 @@ using PlateauResoniteLink.Application.Importing.CityGml;
 using PlateauResoniteLink.Application.Importing.Contracts;
 using PlateauResoniteLink.Application.Importing.Plateau;
 using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Targets.Resonite;
+
+using PlateauResoniteLink.Core;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal static class PlateauImportServiceCollectionExtensions
+public static class PlateauImportServiceCollectionExtensions
 {
-    internal static IServiceCollection AddImportedSceneSourceServices(this IServiceCollection services)
+    public static IServiceCollection AddImportedSceneSourceServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -20,6 +23,8 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<IRemoteArchiveDistributionPolicy, RemoteArchiveDistributionPolicy>();
         services.TryAddSingleton(CommonMaterialCatalog.Create());
         services.TryAddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
+        services.TryAddSingleton(provider =>
+            new DatasetInspectionService(provider.GetRequiredService<IPlateauDatasetContentSourceFactory>()));
         services.TryAddSingleton<IDemTerrainGeoReferencedRasterCatalogFactory, DefaultDemTerrainGeoReferencedRasterCatalogFactory>();
         services.TryAddSingleton<IDemTextureSourcePolicy, DefaultDemTextureSourcePolicy>();
         services.TryAddSingleton<ICityGmlAppearanceStoreFactory, CityGmlAppearanceStoreFactory>();
@@ -44,6 +49,8 @@ internal static class PlateauImportServiceCollectionExtensions
                 provider.GetRequiredService<ICityGmlAppearanceStoreFactory>(),
                 provider.GetRequiredService<ICityGmlLodSelector>()));
         services.TryAddSingleton<IResolvedPlateauSceneSourceReader, CityGmlResolvedPlateauSceneSourceReader>();
+        services.TryAddScoped<ITerrainTextureSourceImageReaderFactory, TerrainTextureSourceImageReaderFactory>();
+        services.TryAddScoped<ITerrainTextureAssetGeneratorFactory, TerrainTextureAssetGeneratorFactory>();
         services.TryAddSingleton<IImportedSceneSourceFactory>(provider =>
             new DefaultImportedSceneSourceFactory(
                 provider.GetRequiredService<IResolvedPlateauSceneSourceReader>(),

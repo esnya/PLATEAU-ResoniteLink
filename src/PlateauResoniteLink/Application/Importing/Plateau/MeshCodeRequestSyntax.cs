@@ -5,9 +5,9 @@ using System.Text.RegularExpressions;
 
 using PlateauResoniteLink.Domain.Importing;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Application.Importing;
 
-internal static class MeshCodeRequestSyntax
+public static class MeshCodeRequestSyntax
 {
     public static bool IsLiteralMeshCodeRequest(string meshCodeRequest)
     {

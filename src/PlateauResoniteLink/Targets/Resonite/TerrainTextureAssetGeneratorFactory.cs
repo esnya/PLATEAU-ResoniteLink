@@ -1,14 +1,9 @@
 using System;
 using System.Net.Http;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Core;
 
-internal interface ITerrainTextureAssetGeneratorFactory
-{
-    ITerrainTextureAssetGenerator Create(
-        HttpClient terrainTextureAssetHttpClient,
-        ResoniteLiveSceneImportTargetOptions options);
-}
+namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class TerrainTextureAssetGeneratorFactory(
     ITerrainTextureSourceImageReaderFactory sourceImageReaderFactory) : ITerrainTextureAssetGeneratorFactory
@@ -18,7 +13,7 @@ internal sealed class TerrainTextureAssetGeneratorFactory(
 
     public ITerrainTextureAssetGenerator Create(
         HttpClient terrainTextureAssetHttpClient,
-        ResoniteLiveSceneImportTargetOptions options)
+        TerrainTextureAssetGeneratorOptions options)
     {
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
         ArgumentNullException.ThrowIfNull(options);

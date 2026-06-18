@@ -14,6 +14,8 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Tests.Targets;
 
 internal static class ResoniteLiveSceneImportTargetTestSupport

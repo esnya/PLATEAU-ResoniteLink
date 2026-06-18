@@ -11,9 +11,11 @@ using PlateauResoniteLink.Transport.ResoniteLink;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Importing.Contracts;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
 
-internal interface IResoniteCanonicalSceneDumpSinkFactory
+public interface IResoniteCanonicalSceneDumpSinkFactory
 {
     ISceneSink Create(
         ResoniteLiveSceneImportTargetOptions options,
@@ -21,7 +23,7 @@ internal interface IResoniteCanonicalSceneDumpSinkFactory
 }
 
 internal sealed class ResoniteCanonicalSceneDumpSinkFactory(
-    IResoniteLiveSceneImportFactory targetFactory) : IResoniteCanonicalSceneDumpSinkFactory
+    IResoniteRecordingLiveSceneImportFactory targetFactory) : IResoniteCanonicalSceneDumpSinkFactory
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
@@ -178,8 +180,8 @@ internal sealed class DeterministicTerrainTextureAssetGenerator : ITerrainTextur
                 ResoniteTextureColorProfiles.Srgb,
                 RawTextureBytes,
                 "canonical-dump-terrain-texture"),
-            new ResoniteFloat2(1.0, 1.0),
-            new ResoniteFloat2(0.0, 0.0),
+            new Float2(1.0, 1.0),
+            new Float2(0.0, 0.0),
             usage));
     }
 }

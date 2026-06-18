@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>PlateauResoniteLink.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GeographicLib.NET" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="SixLabors.ImageSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\PlateauResoniteLink\Diagnostics\**\*.cs" LinkBase="Diagnostics" />
+    <Compile Include="..\PlateauResoniteLink\Domain\Importing\**\*.cs" LinkBase="Domain\Importing" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\Contracts\**\*.cs" LinkBase="Importing\Contracts" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\CompositeImportedObjectUnitOptimizer.cs" Link="Importing\CompositeImportedObjectUnitOptimizer.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\ContinuableImportException.cs" Link="Importing\ContinuableImportException.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\CountingImportedObjectUnitStream.cs" Link="Importing\CountingImportedObjectUnitStream.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\DemTerrainGridSampler.cs" Link="Importing\DemTerrainGridSampler.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\IArchiveFileLayoutPolicy.cs" Link="Importing\IArchiveFileLayoutPolicy.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\IImportedObjectUnitOptimizer.cs" Link="Importing\IImportedObjectUnitOptimizer.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\IImportedSceneSourcePreflight.cs" Link="Importing\IImportedSceneSourcePreflight.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\ImportExecutionResult.cs" Link="Importing\ImportExecutionResult.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\IPlateauDatasetSourceResolver.cs" Link="Importing\IPlateauDatasetSourceResolver.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\PlateauImportRequestValidator.cs" Link="Importing\PlateauImportRequestValidator.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\Plateau\MeshCodeRequestSyntax.cs" Link="Importing\MeshCodeRequestSyntax.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\PlateauImportService.cs" Link="Importing\PlateauImportService.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\PlateauImportValidationException.cs" Link="Importing\PlateauImportValidationException.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\RemoteDatasetResourceLayout.cs" Link="Importing\RemoteDatasetResourceLayout.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\ResolvedLocalPlateauImportRequest.cs" Link="Importing\ResolvedLocalPlateauImportRequest.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\SceneImportExecutionPlan.cs" Link="Importing\SceneImportExecutionPlan.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\SceneImportExecutionResult.cs" Link="Importing\SceneImportExecutionResult.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\SceneImportRequest.cs" Link="Importing\SceneImportRequest.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\ValidatedDatasetLocation.cs" Link="Importing\ValidatedDatasetLocation.cs" />
+    <Compile Include="..\PlateauResoniteLink\Application\Importing\ValidatedPlateauImportRequest.cs" Link="Importing\ValidatedPlateauImportRequest.cs" />
+    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\AsyncCompletedResultCache.cs" Link="AsyncCompletedResultCache.cs" />
+    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\TexturePowerOfTwo.cs" Link="TexturePowerOfTwo.cs" />
+  </ItemGroup>
+
+</Project>

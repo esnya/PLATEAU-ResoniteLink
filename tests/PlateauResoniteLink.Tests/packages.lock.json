@@ -361,26 +361,44 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "plateauresonitelink": {
-        "type": "Project",
-        "dependencies": {
-          "GeographicLib.NET": "[2.3.2, )",
-          "LibTessDotNet": "[1.1.15, )",
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
-          "NetTopologySuite": "[2.6.0, )",
-          "SharpCompress": "[0.48.0, )",
-          "SixLabors.ImageSharp": "[3.1.12, )",
-          "YellowDogMan.ResoniteLink": "[0.13.1, )"
-        }
-      },
       "plateauresonitelink.cli": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Hosting": "[10.0.0, )",
           "Microsoft.Extensions.Http": "[10.0.0, )",
-          "PlateauResoniteLink": "[1.0.0, )",
+          "PlateauResoniteLink.Core": "[1.0.0, )",
+          "PlateauResoniteLink.Plateau": "[1.0.0, )",
+          "PlateauResoniteLink.Resonite": "[1.0.0, )",
           "System.CommandLine": "[2.0.9, )"
+        }
+      },
+      "plateauresonitelink.core": {
+        "type": "Project",
+        "dependencies": {
+          "GeographicLib.NET": "[2.3.2, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
+          "SixLabors.ImageSharp": "[3.1.12, )"
+        }
+      },
+      "plateauresonitelink.plateau": {
+        "type": "Project",
+        "dependencies": {
+          "GeographicLib.NET": "[2.3.2, )",
+          "LibTessDotNet": "[1.1.15, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
+          "PlateauResoniteLink.Core": "[1.0.0, )",
+          "SharpCompress": "[0.48.0, )",
+          "SixLabors.ImageSharp": "[3.1.12, )"
+        }
+      },
+      "plateauresonitelink.resonite": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
+          "PlateauResoniteLink.Core": "[1.0.0, )",
+          "SixLabors.ImageSharp": "[3.1.12, )",
+          "YellowDogMan.ResoniteLink": "[0.13.1, )"
         }
       },
       "GeographicLib.NET": {
@@ -444,12 +462,6 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.0",
           "Microsoft.Extensions.Options": "10.0.0"
         }
-      },
-      "NetTopologySuite": {
-        "type": "CentralTransitive",
-        "requested": "[2.6.0, )",
-        "resolved": "2.6.0",
-        "contentHash": "1B1OTacTd4QtFyBeuIOcThwSSLUdRZU3bSFIwM8vk36XiZlBMi3K36u74e4OqwwHRHUuJC1PhbDx4hyI266X1Q=="
       },
       "SixLabors.ImageSharp": {
         "type": "CentralTransitive",

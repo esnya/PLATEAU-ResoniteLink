@@ -23,8 +23,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\PlateauResoniteLink\PlateauResoniteLink.csproj" />
     <ProjectReference Include="..\..\src\PlateauResoniteLink.Cli\PlateauResoniteLink.Cli.csproj" />
+    <ProjectReference Include="..\..\src\PlateauResoniteLink.Core\PlateauResoniteLink.Core.csproj" />
+    <ProjectReference Include="..\..\src\PlateauResoniteLink.Plateau\PlateauResoniteLink.Plateau.csproj" />
+    <ProjectReference Include="..\..\src\PlateauResoniteLink.Resonite\PlateauResoniteLink.Resonite.csproj" />
   </ItemGroup>
 
 </Project>

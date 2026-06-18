@@ -50,7 +50,7 @@ public abstract class BundledDefaultTextureAsset
         LogicalPath = logicalPath;
     }
 
-    internal string LogicalPath { get; }
+    public string LogicalPath { get; }
 }
 
 public sealed class BundledDefaultTextureAsset<TRole> : BundledDefaultTextureAsset

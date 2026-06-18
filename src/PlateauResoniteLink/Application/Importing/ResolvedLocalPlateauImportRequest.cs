@@ -7,8 +7,8 @@ namespace PlateauResoniteLink.Application.Importing;
 
 public sealed record ResolvedLocalPlateauImportRequest
 {
-    internal const string RemoteCityGmlResourcePrefix = "source-archive";
-    internal const string RemoteDemTextureResourcePrefix = "source-ortho";
+    public const string RemoteCityGmlResourcePrefix = "source-archive";
+    public const string RemoteDemTextureResourcePrefix = "source-ortho";
 
     private readonly ValidatedLocalDatasetLocation? demTextureSource;
 

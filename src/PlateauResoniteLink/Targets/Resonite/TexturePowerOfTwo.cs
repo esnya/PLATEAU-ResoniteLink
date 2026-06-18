@@ -1,9 +1,9 @@
 using System;
 using System.Numerics;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Core;
 
-internal static class TexturePowerOfTwo
+public static class TexturePowerOfTwo
 {
     private const int MaxIntPowerOfTwo = 1 << 30;
 

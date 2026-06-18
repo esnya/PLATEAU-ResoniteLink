@@ -1,6 +1,8 @@
 using System;
 using System.Net.Http;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteLiveSendRunStarterFactory(
@@ -47,7 +49,11 @@ internal sealed class ResoniteLiveSendWorkerLauncherFactory(
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
         ArgumentNullException.ThrowIfNull(options);
 
-        return Create(terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options));
+        return Create(terrainTextureAssetGeneratorFactory.Create(
+            terrainTextureAssetHttpClient,
+            new TerrainTextureAssetGeneratorOptions(
+                options.TerrainTileCacheRoot,
+                options.DisableTerrainTileCache)));
     }
 
     public ResoniteLiveSendWorkerLauncher Create(

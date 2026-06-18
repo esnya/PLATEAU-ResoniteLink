@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal interface IPlateauDatasetSourceResolver
+public interface IPlateauDatasetSourceResolver
 {
     Task<ResolvedLocalPlateauImportRequest> ResolveAsync(
         ValidatedPlateauImportRequest request,

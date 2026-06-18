@@ -10,8 +10,14 @@ using PlateauResoniteLink.Application.Importing.CityGml;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFactory datasetContentSourceFactory)
+public sealed class DatasetInspectionService
 {
+    private readonly IPlateauDatasetContentSourceFactory datasetContentSourceFactory;
+
+    internal DatasetInspectionService(IPlateauDatasetContentSourceFactory datasetContentSourceFactory)
+    {
+        this.datasetContentSourceFactory = datasetContentSourceFactory ?? throw new ArgumentNullException(nameof(datasetContentSourceFactory));
+    }
 
     [SuppressMessage(
         "Performance",

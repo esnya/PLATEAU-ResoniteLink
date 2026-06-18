@@ -6,7 +6,7 @@ using SixLabors.ImageSharp.Processing;
 
 namespace PlateauResoniteLink.Domain.Importing;
 
-internal static class TerrainTextureGeoReferencedRasterCropper
+public static class TerrainTextureGeoReferencedRasterCropper
 {
     public static Image<Rgba32>? TryCrop(
         Image<Rgba32> sourceImage,

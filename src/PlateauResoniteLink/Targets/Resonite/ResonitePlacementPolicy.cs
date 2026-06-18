@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 
-using GeographicLib;
-
+using PlateauResoniteLink.Core;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -352,16 +351,8 @@ internal static class ResonitePlacementPolicy
 
     public static ResoniteFloat3 ComputeOriginOffset(GeodeticCoordinate referenceCenter, GeodeticCoordinate currentCenter)
     {
-        LocalCartesian cartesian = new(
-            referenceCenter.Latitude,
-            referenceCenter.Longitude,
-            referenceCenter.Altitude,
-            Geocentric.WGS84);
-        (double x, double y, double z) eun = cartesian.Forward(
-            currentCenter.Latitude,
-            currentCenter.Longitude,
-            currentCenter.Altitude);
-        return new ResoniteFloat3(X: eun.x, Y: 0.0, Z: eun.y);
+        LocalCartesianOffset offset = GeodeticLocalProjection.Project(referenceCenter, currentCenter);
+        return new ResoniteFloat3(X: offset.EastMeters, Y: 0.0, Z: offset.NorthMeters);
     }
 
     private static ResoniteLocalOrigin MoveOrigin(
@@ -369,16 +360,11 @@ internal static class ResonitePlacementPolicy
         double eastMeters,
         double northMeters)
     {
-        LocalCartesian cartesian = new(
-            origin.Latitude,
-            origin.Longitude,
-            origin.Altitude,
-            Geocentric.WGS84);
-        (double movedLatitude, double movedLongitude, double movedAltitude) = cartesian.Reverse(
+        GeodeticCoordinate moved = GeodeticLocalProjection.Reverse(
+            new GeodeticCoordinate(origin.Latitude, origin.Longitude, origin.Altitude),
             eastMeters,
-            northMeters,
-            0.0);
-        return new ResoniteLocalOrigin(movedLatitude, movedLongitude, movedAltitude);
+            northMeters);
+        return new ResoniteLocalOrigin(moved.Latitude, moved.Longitude, moved.Altitude);
     }
 
     private static string ComputeStableHashSuffix(string value)

@@ -17,6 +17,8 @@ using PlateauResoniteLink.Targets.Resonite;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Tests.Targets;
 
 public sealed class TerrainTextureGeoReferencedRasterSupportTests

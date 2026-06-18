@@ -12,6 +12,8 @@ using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResonitePreparedCityObjectImporter(

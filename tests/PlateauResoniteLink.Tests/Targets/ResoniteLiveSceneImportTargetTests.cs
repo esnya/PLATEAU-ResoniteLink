@@ -24,6 +24,8 @@ using SixLabors.ImageSharp.PixelFormats;
 
 using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Tests.Targets;
 
 [Trait("Category", "Slow")]

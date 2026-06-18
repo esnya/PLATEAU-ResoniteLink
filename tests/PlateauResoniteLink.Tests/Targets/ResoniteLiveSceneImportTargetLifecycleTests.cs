@@ -22,6 +22,8 @@ using ResoniteLink;
 
 using static PlateauResoniteLink.Tests.TextureImportSourceTestFactory;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Tests.Targets;
 
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]

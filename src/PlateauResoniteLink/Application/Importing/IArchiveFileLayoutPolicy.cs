@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal interface IArchiveFileLayoutPolicy
+public interface IArchiveFileLayoutPolicy
 {
     bool IsSupportedArchivePath(string path);
     string CreateSafePathSegment(string value);

@@ -13,7 +13,7 @@ using PlateauResoniteLink.Application.Importing.Contracts;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class PlateauImportService(
+public sealed class PlateauImportService(
     ISceneSink sceneSink,
     IPlateauDatasetSourceResolver datasetSourceResolver,
     IImportedSceneSourceFactory importedSceneSourceFactory,

@@ -51,7 +51,6 @@ internal static class CliServiceCollectionExtensions
         services.AddResoniteLiveSendTargetServices();
 
         services.AddSingleton(new CliConsoleWriters(standardOutput, standardError));
-        services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<ICliRootCommandFactory, CliCommandFactory>();
         services.AddSingleton<ICliCommandProvider, ImportCliCommand>();
         services.AddSingleton<ICliCommandProvider, SearchCliCommand>();

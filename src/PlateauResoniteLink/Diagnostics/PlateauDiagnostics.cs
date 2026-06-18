@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 
 namespace PlateauResoniteLink.Diagnostics;
 
-internal static class PlateauDiagnostics
+public static class PlateauDiagnostics
 {
     public const string EventSourceName = "PlateauResoniteLink";
     public const string ActivitySourceName = "PlateauResoniteLink";

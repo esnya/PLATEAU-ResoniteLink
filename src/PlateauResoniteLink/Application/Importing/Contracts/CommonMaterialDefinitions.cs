@@ -5,9 +5,9 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing.Contracts;
 
-internal static class CommonMaterialDefinitions
+public static class CommonMaterialDefinitions
 {
-    internal static readonly MaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
+    public static readonly MaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
 
     public static readonly CommonMaterialDefinition GenericUv = Generic("Uv", null);
     public static readonly CommonMaterialDefinition GenericTerrainAlignedUv = Generic(

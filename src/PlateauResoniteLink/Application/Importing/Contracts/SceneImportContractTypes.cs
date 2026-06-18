@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
+using PlateauResoniteLink.Core;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing.Contracts;
@@ -30,7 +31,7 @@ public sealed record GeodeticOrigin(
 
 public sealed record Float2(
     double X,
-    double Y);
+    double Y) : ITextureUvTransformValue;
 
 public sealed record Float3(
     double X,

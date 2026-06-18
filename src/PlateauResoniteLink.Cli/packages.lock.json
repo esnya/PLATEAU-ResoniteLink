@@ -314,14 +314,30 @@
         "resolved": "10.0.0",
         "contentHash": "uaFRda9NjtbJRkdx311eXlAA3n2em7223c1A8d1VWyl+4FL9vkG7y2lpPfBU9HYdj/9KgdRNdn1vFK8ZYCYT/A=="
       },
-      "plateauresonitelink": {
+      "plateauresonitelink.core": {
+        "type": "Project",
+        "dependencies": {
+          "GeographicLib.NET": "[2.3.2, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
+          "SixLabors.ImageSharp": "[3.1.12, )"
+        }
+      },
+      "plateauresonitelink.plateau": {
         "type": "Project",
         "dependencies": {
           "GeographicLib.NET": "[2.3.2, )",
           "LibTessDotNet": "[1.1.15, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
-          "NetTopologySuite": "[2.6.0, )",
+          "PlateauResoniteLink.Core": "[1.0.0, )",
           "SharpCompress": "[0.48.0, )",
+          "SixLabors.ImageSharp": "[3.1.12, )"
+        }
+      },
+      "plateauresonitelink.resonite": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
+          "PlateauResoniteLink.Core": "[1.0.0, )",
           "SixLabors.ImageSharp": "[3.1.12, )",
           "YellowDogMan.ResoniteLink": "[0.13.1, )"
         }
@@ -337,12 +353,6 @@
         "requested": "[1.1.15, )",
         "resolved": "1.1.15",
         "contentHash": "KuA7N3Nv/lIeawJdQBQJR6oqWD9KETHLbWzBqapwFs+Tby+R5I4crkKujKMm5bXcSuFZ8LNtflFQVadsWCbBjg=="
-      },
-      "NetTopologySuite": {
-        "type": "CentralTransitive",
-        "requested": "[2.6.0, )",
-        "resolved": "2.6.0",
-        "contentHash": "1B1OTacTd4QtFyBeuIOcThwSSLUdRZU3bSFIwM8vk36XiZlBMi3K36u74e4OqwwHRHUuJC1PhbDx4hyI266X1Q=="
       },
       "SharpCompress": {
         "type": "CentralTransitive",

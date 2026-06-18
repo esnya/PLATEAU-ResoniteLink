@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class LiveSendProgressSink

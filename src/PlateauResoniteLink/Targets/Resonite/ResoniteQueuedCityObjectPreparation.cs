@@ -11,6 +11,8 @@ using PlateauResoniteLink.Diagnostics;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
+using PlateauResoniteLink.Core;
+
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteQueuedCityObjectPreparation(

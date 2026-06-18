@@ -214,9 +214,9 @@ public sealed class CommonMaterialCatalog<TItem>
 
     public CommonWallWoodRuralMaterialCatalog<TItem> WallWoodRural { get; }
 
-    internal int Count => members.Length;
+    public int Count => members.Length;
 
-    internal CommonMaterialCatalog<TOut> Map<TOut>(Func<TItem, TOut> map)
+    public CommonMaterialCatalog<TOut> Map<TOut>(Func<TItem, TOut> map)
     {
         ArgumentNullException.ThrowIfNull(map);
         Dictionary<CommonMaterialDefinition, TOut> mapped = new(ReferenceEqualityComparer.Instance);
@@ -230,7 +230,7 @@ public sealed class CommonMaterialCatalog<TItem>
             CreateActiveDefinitionSet());
     }
 
-    internal async ValueTask<CommonMaterialCatalog<TOut>> MapAsync<TOut>(
+    public async ValueTask<CommonMaterialCatalog<TOut>> MapAsync<TOut>(
         Func<TItem, CancellationToken, ValueTask<TOut>> map,
         CancellationToken cancellationToken)
     {
@@ -247,9 +247,9 @@ public sealed class CommonMaterialCatalog<TItem>
             CreateActiveDefinitionSet());
     }
 
-    internal IReadOnlyList<CommonMaterialCatalogMember<TItem>> EnumerateMembers() => members;
+    public IReadOnlyList<CommonMaterialCatalogMember<TItem>> EnumerateMembers() => members;
 
-    internal TItem[] EnumerateItems()
+    public TItem[] EnumerateItems()
     {
         TItem[] items = new TItem[members.Length];
         for (int i = 0; i < members.Length; i++)
@@ -260,13 +260,13 @@ public sealed class CommonMaterialCatalog<TItem>
         return items;
     }
 
-    internal TItem Get(CommonMaterialDefinition definition)
+    public TItem Get(CommonMaterialDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
         return itemsByDefinition[definition];
     }
 
-    internal CommonMaterialCatalog<TItem> FilterToDefinitions(IEnumerable<CommonMaterialDefinition> definitions)
+    public CommonMaterialCatalog<TItem> FilterToDefinitions(IEnumerable<CommonMaterialDefinition> definitions)
     {
         ArgumentNullException.ThrowIfNull(definitions);
         HashSet<CommonMaterialDefinition> activeDefinitions = new(ReferenceEqualityComparer.Instance);
@@ -300,7 +300,7 @@ public sealed class CommonMaterialCatalog<TItem>
     private static CommonMaterialCatalogMember<TItem> Member(CommonMaterialDefinition definition, TItem item) => new(definition, item);
 }
 
-internal static class CommonMaterialCatalog
+public static class CommonMaterialCatalog
 {
     public static CommonMaterialCatalog<DefaultCommonMaterialMember> Create()
     {
@@ -308,7 +308,7 @@ internal static class CommonMaterialCatalog
     }
 }
 
-internal sealed record CommonMaterialCatalogMember<TItem>(
+public sealed record CommonMaterialCatalogMember<TItem>(
     CommonMaterialDefinition Definition,
     TItem Item);
 

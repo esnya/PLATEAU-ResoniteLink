@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal interface IImportedSceneSourcePreflight
+public interface IImportedSceneSourcePreflight
 {
     Task ValidateBeforeSinkSetupAsync(CancellationToken cancellationToken = default);
 }

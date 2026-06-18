@@ -1,11 +1,12 @@
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 namespace PlateauResoniteLink.Application.Importing;
 
-internal interface IPlateauDatasetContentSource
+internal interface IPlateauDatasetContentSource : ITextureContentSource
 {
     string SourcePath { get; }
 
@@ -15,17 +16,8 @@ internal interface IPlateauDatasetContentSource
 
     string? ResolveRelativePath(string baseRelativePath, string candidatePath);
 
-    ValueTask<Stream> OpenReadAsync(
-        string relativePath,
-        CancellationToken cancellationToken = default);
-
     Task<string> EnsureLocalFileAsync(
         string relativePath,
         string outputRoot,
         CancellationToken cancellationToken = default);
-}
-
-internal interface IPlateauDatasetContentLengthSource
-{
-    long? TryGetFileLength(string relativePath);
 }
