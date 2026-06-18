@@ -2,9 +2,9 @@ using System;
 using System.IO;
 using System.Linq;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal static class LocalCityGmlImportErrorMessages
 {

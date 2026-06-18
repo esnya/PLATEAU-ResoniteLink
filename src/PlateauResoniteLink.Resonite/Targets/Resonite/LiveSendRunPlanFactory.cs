@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal static class LiveSendRunPlanFactory
 {

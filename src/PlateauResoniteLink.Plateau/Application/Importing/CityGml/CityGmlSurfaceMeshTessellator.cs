@@ -7,11 +7,12 @@ using GeographicLib;
 
 using LibTessDotNet;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal static class CityGmlSurfaceMeshTessellator
 {

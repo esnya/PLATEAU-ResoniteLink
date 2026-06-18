@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal sealed class AsyncInFlightResultCache<TKey, TValue>
     where TKey : notnull

@@ -1,4 +1,4 @@
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 public sealed record ResoniteMaterialDepthOffset(
     double Factor,

@@ -4,13 +4,13 @@ using System.Linq;
 using System.Threading;
 
 
-using PlateauResoniteLink.Diagnostics;
+using PlateauResoniteLink.Core.Diagnostics;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal static class DemTerrainOverlaySurfaceClipper
 {

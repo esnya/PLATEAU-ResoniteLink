@@ -6,10 +6,11 @@ using System.Threading;
 using GeographicLib;
 
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal static class TerrainOverlayMaterialSourcePartitioner
 {

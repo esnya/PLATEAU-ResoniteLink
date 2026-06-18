@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Application.Importing.Source;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 internal static class MaterialGroupingPolicy
 {

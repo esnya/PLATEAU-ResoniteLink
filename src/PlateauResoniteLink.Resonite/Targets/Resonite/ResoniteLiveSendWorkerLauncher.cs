@@ -1,11 +1,11 @@
 using System;
 using System.Diagnostics;
 
-using PlateauResoniteLink.Diagnostics;
+using PlateauResoniteLink.Core.Diagnostics;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal sealed record LiveSendWorkerLaunchRequest
 {

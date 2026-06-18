@@ -4,12 +4,12 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-using PlateauResoniteLink.Diagnostics;
+using PlateauResoniteLink.Core.Diagnostics;
 
 using ResoniteLink;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Transport.ResoniteLink;
+namespace PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 internal sealed class LoadBalancingResoniteLinkClient : IResoniteLinkClient
 {

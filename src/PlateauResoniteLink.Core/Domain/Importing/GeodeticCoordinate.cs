@@ -1,4 +1,4 @@
-namespace PlateauResoniteLink.Domain.Importing;
+namespace PlateauResoniteLink.Core.Domain.Importing;
 
 public record GeodeticCoordinate(
     double Latitude,

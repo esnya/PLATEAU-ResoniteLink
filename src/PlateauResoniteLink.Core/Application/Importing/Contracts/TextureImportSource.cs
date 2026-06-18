@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace PlateauResoniteLink.Application.Importing.Contracts;
+namespace PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 public abstract class RawTexturePayload
 {

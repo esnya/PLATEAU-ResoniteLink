@@ -8,7 +8,9 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing;
+
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
 {

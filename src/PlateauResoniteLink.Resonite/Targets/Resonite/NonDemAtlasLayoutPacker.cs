@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal sealed class NonDemAtlasLayoutPacker(int atlasMaxSize, int tilePaddingPixels)
 {

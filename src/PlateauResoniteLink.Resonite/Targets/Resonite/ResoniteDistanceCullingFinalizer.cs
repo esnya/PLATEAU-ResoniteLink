@@ -4,14 +4,14 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Diagnostics;
-using PlateauResoniteLink.Targets.Resonite.Execution;
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Core.Diagnostics;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 using ResoniteLink;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal static class ResoniteDistanceCullingFinalizer
 {

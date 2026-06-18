@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Application.Importing.Source;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 internal static class CityObjectOriginResolver
 {

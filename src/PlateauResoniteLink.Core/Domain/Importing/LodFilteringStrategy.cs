@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Domain.Importing;
+namespace PlateauResoniteLink.Core.Domain.Importing;
 
 /// <summary>
 /// Manages LOD and pattern-based filtering for CityObjects during import.

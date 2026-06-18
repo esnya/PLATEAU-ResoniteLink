@@ -1,7 +1,9 @@
 using System;
 using System.IO;
 
-namespace PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing;
+
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 public sealed class RemoteArchiveDistributionPolicy : IRemoteArchiveDistributionPolicy
 {

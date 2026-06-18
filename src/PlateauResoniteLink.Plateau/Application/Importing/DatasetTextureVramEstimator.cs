@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 internal static class DatasetTextureVramEstimator
 {

@@ -7,7 +7,7 @@ using System.Linq;
 using System.CommandLine;
 using System.CommandLine.Parsing;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
 namespace PlateauResoniteLink.Cli;
 

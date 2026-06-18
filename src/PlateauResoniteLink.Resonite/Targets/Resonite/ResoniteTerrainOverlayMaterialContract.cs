@@ -1,9 +1,9 @@
 using System;
 using System.Globalization;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal static class ResoniteTerrainOverlayMaterialContract
 {

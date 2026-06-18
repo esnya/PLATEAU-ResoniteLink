@@ -6,9 +6,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
-namespace PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing;
+
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 public sealed class DatasetInspectionService
 {

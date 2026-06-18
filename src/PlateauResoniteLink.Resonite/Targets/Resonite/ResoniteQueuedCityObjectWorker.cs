@@ -5,11 +5,11 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 
 
-using PlateauResoniteLink.Diagnostics;
+using PlateauResoniteLink.Core.Diagnostics;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal interface IResoniteQueuedCityObjectWorker
 {

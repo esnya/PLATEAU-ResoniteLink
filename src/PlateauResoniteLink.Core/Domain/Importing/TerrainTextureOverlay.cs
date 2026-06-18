@@ -7,7 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlateauResoniteLink.Domain.Importing;
+namespace PlateauResoniteLink.Core.Domain.Importing;
 
 public abstract record TerrainTextureSource
 {

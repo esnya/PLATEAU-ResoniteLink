@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace PlateauResoniteLink.Domain.Importing;
+namespace PlateauResoniteLink.Core.Domain.Importing;
 
 public static class PlateauPackageCatalog
 {

@@ -1,6 +1,6 @@
 using System;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal sealed record ResoniteImportBudgetProfile(
     ResoniteImportMemoryProfile Name,

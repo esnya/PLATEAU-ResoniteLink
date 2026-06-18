@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 public interface IImportedSceneSourcePreflight
 {

@@ -6,14 +6,14 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-using PlateauResoniteLink.Diagnostics;
+using PlateauResoniteLink.Core.Diagnostics;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 using PlateauResoniteLink.Core;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal sealed class ResoniteQueuedCityObjectPreparation(
     ResoniteQueuedTexturePreparer texturePreparer)

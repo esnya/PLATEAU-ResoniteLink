@@ -5,10 +5,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoReferencedRasterCatalog
 {

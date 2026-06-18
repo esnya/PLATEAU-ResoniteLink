@@ -1,6 +1,6 @@
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal readonly record struct BuildingFacadeScale(
     bool LowRise,

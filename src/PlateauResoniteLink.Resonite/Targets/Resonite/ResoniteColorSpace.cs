@@ -2,7 +2,7 @@ using System;
 
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal static class ResoniteColorSpace
 {

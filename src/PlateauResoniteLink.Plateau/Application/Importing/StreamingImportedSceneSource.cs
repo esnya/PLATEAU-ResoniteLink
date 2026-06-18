@@ -7,17 +7,18 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Diagnostics;
+using PlateauResoniteLink.Core.Diagnostics;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
 using LocalCartesian = GeographicLib.LocalCartesian;
-using PlateauResoniteLink.Application.Importing.CityGml;
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Plateau;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Plateau.Application.Importing.CityGml;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 internal sealed class StreamingImportedSceneSource : IImportedSceneSource, IImportedSceneSourcePreflight
 {

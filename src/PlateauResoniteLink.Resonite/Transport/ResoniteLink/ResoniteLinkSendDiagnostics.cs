@@ -5,9 +5,9 @@ using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
 
-using PlateauResoniteLink.Diagnostics;
+using PlateauResoniteLink.Core.Diagnostics;
 
-namespace PlateauResoniteLink.Transport.ResoniteLink;
+namespace PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 internal sealed class ResoniteLinkSendDiagnostics
 {

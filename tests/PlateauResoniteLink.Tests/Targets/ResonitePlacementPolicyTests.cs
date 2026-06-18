@@ -41,7 +41,7 @@ public sealed class ResonitePlacementPolicyTests
     [Fact]
     public void ResolveRequiredSourceFileRootMeshCode_PrefersConcreteMeshCodeFromSourceFileSlot()
     {
-        string resolved = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(
+        string resolved = PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(
             "plateau_tokyo23ku_bldg_53394525",
             "533945");
 
@@ -51,7 +51,7 @@ public sealed class ResonitePlacementPolicyTests
     [Fact]
     public void ResolveRequiredSourceFileRootMeshCode_PrefersExplicitDescriptorRoot()
     {
-        string resolved = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(
+        string resolved = PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(
             "53394526",
             "plateau_tokyo23ku_bldg_53394525",
             "533945");
@@ -62,19 +62,19 @@ public sealed class ResonitePlacementPolicyTests
     [Fact]
     public void ResolveCityObjectLocalPosition_UsesRequestRelativeHorizontalOffsetAndObservedVerticalOffset()
     {
-        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
-        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 originalPosition = new(25.0, 15.0, -10.0);
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 observedRootPosition = new(999.0, 5.0, 888.0);
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 requestRelativeRootPosition = new(
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin).X,
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 originalPosition = new(25.0, 15.0, -10.0);
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 observedRootPosition = new(999.0, 5.0, 888.0);
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 requestRelativeRootPosition = new(
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin).X,
             observedRootPosition.Y,
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin).Z);
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin).Z);
 
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 expected = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.Subtract(
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 expected = PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.Subtract(
             originalPosition,
             requestRelativeRootPosition);
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 actual = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 actual = PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
             requestOrigin,
             "53394525",
             observedRootPosition,
@@ -86,16 +86,16 @@ public sealed class ResonitePlacementPolicyTests
     [Fact]
     public void EvaluateRootPlacementCorrection_SplitsPlacementAndPostPlacementLayers()
     {
-        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
-        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
 
-        PlateauResoniteLink.Targets.Resonite.ResonitePlacementCorrectionResult correction =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.EvaluateRootPlacementCorrection(
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementCorrectionResult correction =
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.EvaluateRootPlacementCorrection(
                 requestOrigin,
                 "53394525",
                 observedRootHeight: 5.0);
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 expectedOffset =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin);
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 expectedOffset =
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin);
 
         Assert.Empty(correction.Layers.SourceFile);
         Assert.Empty(correction.Layers.Import);
@@ -103,28 +103,28 @@ public sealed class ResonitePlacementPolicyTests
             correction.Layers.Placement,
             term =>
             {
-                Assert.Equal(PlateauResoniteLink.Targets.Resonite.ResoniteCorrectionAxis.X, term.Axis);
+                Assert.Equal(PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteCorrectionAxis.X, term.Axis);
                 Assert.Equal(expectedOffset.X, term.Value, 6);
                 Assert.Equal(
-                    PlateauResoniteLink.Targets.Resonite.ResonitePlacementCorrectionReason.RequestRelativeMeshCodeOffset,
+                    PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementCorrectionReason.RequestRelativeMeshCodeOffset,
                     term.Reason);
             },
             term =>
             {
-                Assert.Equal(PlateauResoniteLink.Targets.Resonite.ResoniteCorrectionAxis.Z, term.Axis);
+                Assert.Equal(PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteCorrectionAxis.Z, term.Axis);
                 Assert.Equal(expectedOffset.Z, term.Value, 6);
                 Assert.Equal(
-                    PlateauResoniteLink.Targets.Resonite.ResonitePlacementCorrectionReason.RequestRelativeMeshCodeOffset,
+                    PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementCorrectionReason.RequestRelativeMeshCodeOffset,
                     term.Reason);
             });
         Assert.Collection(
             correction.Layers.PostPlacement,
             term =>
             {
-                Assert.Equal(PlateauResoniteLink.Targets.Resonite.ResoniteCorrectionAxis.Y, term.Axis);
+                Assert.Equal(PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteCorrectionAxis.Y, term.Axis);
                 Assert.Equal(5.0, term.Value, 6);
                 Assert.Equal(
-                    PlateauResoniteLink.Targets.Resonite.ResonitePlacementCorrectionReason.ObservedRootHeight,
+                    PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementCorrectionReason.ObservedRootHeight,
                     term.Reason);
             });
         Assert.Equal(expectedOffset.X, correction.CorrectedRootPosition.X, 6);
@@ -135,14 +135,14 @@ public sealed class ResonitePlacementPolicyTests
     [Fact]
     public void ResolveMeshRootPosition_UsesRequestRelativeHorizontalOffsetAndObservedVerticalOffset()
     {
-        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
-        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 resolved = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 resolved = PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(
             requestOrigin,
             "53394525",
             observedRootHeight: 5.0);
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 expectedOffset =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin);
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 expectedOffset =
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin);
 
         Assert.Equal(expectedOffset.X, resolved.X, 6);
         Assert.Equal(5.0, resolved.Y, 6);
@@ -152,22 +152,22 @@ public sealed class ResonitePlacementPolicyTests
     [Fact]
     public void ResolveParentOriginFromMeshRootPosition_RestoresOriginFromMeshCodeAndHorizontalPosition()
     {
-        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin parentOrigin = new(35.6875, 139.69375, 0.0);
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 firstRootPosition =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394525");
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 secondRootPosition =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394526");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin parentOrigin = new(35.6875, 139.69375, 0.0);
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 firstRootPosition =
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394525");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 secondRootPosition =
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394526");
 
-        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin firstRecovered =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveParentOriginFromMeshRootPosition("53394525", firstRootPosition);
-        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin secondRecovered =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveParentOriginFromMeshRootPosition("53394526", secondRootPosition);
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 projectedFromFirst =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(firstRecovered, "53394527");
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 projectedFromSecond =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(secondRecovered, "53394527");
-        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 expected =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394527");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin firstRecovered =
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveParentOriginFromMeshRootPosition("53394525", firstRootPosition);
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin secondRecovered =
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveParentOriginFromMeshRootPosition("53394526", secondRootPosition);
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 projectedFromFirst =
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(firstRecovered, "53394527");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 projectedFromSecond =
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(secondRecovered, "53394527");
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3 expected =
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(parentOrigin, "53394527");
 
         Assert.Equal(expected.X, projectedFromFirst.X, 3);
         Assert.Equal(expected.Z, projectedFromFirst.Z, 3);
@@ -178,7 +178,7 @@ public sealed class ResonitePlacementPolicyTests
     [Fact]
     public void FormatLodSlotName_UsesLod0ForNullLod()
     {
-        string slotName = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.FormatLodSlotName(null);
+        string slotName = PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.FormatLodSlotName(null);
 
         Assert.Equal("LOD0", slotName);
     }
@@ -187,9 +187,9 @@ public sealed class ResonitePlacementPolicyTests
     public void CreateSourceFileSlotNamesByRelativePath_AddsStableHashForDuplicateFileStem()
     {
         IReadOnlyDictionary<string, string> slotNames =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(
                 DuplicateStemPaths,
-                PlateauResoniteLink.Application.Importing.PlateauSourceFilePackageIndex.CreateByRelativePath(DuplicateStemPaths));
+                PlateauResoniteLink.Plateau.Application.Importing.PlateauSourceFilePackageIndex.CreateByRelativePath(DuplicateStemPaths));
 
         Assert.Equal(2, slotNames.Count);
         Assert.All(slotNames.Values, static value => Assert.Contains(" sample_", value, StringComparison.Ordinal));
@@ -228,7 +228,7 @@ public sealed class ResonitePlacementPolicyTests
     {
         string relativePath = $"udx/{packageName}/53394525/sample.gml";
         IReadOnlyDictionary<string, string> slotNames =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(
                 [relativePath],
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
@@ -244,9 +244,9 @@ public sealed class ResonitePlacementPolicyTests
         const string relativePath = "udx/trn/53394525/sample.gml";
 
         IReadOnlyDictionary<string, string> slotNames =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(
+            PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(
                 [relativePath],
-                PlateauResoniteLink.Application.Importing.PlateauSourceFilePackageIndex.CreateByRelativePath([relativePath]));
+                PlateauResoniteLink.Plateau.Application.Importing.PlateauSourceFilePackageIndex.CreateByRelativePath([relativePath]));
 
         Assert.Equal("sample", slotNames[relativePath]);
     }
@@ -255,37 +255,37 @@ public sealed class ResonitePlacementPolicyTests
     public void SourceFileRootPrefixPackagesCoverSupportedPlateauPackages()
     {
         Assert.Equal(
-            PlateauResoniteLink.Domain.Importing.PlateauPackageCatalog.SupportedPackageNames.Order(StringComparer.Ordinal),
+            PlateauResoniteLink.Core.Domain.Importing.PlateauPackageCatalog.SupportedPackageNames.Order(StringComparer.Ordinal),
             SourceFilePrefixPackages.Order(StringComparer.Ordinal));
     }
 
     [Fact]
     public void ResolveSourceFileRelativePath_ThrowsWhenSourceFileMetadataIsMissing()
     {
-        PlateauResoniteLink.Targets.Resonite.ResoniteConstructionCityObject cityObject = new(
+        PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteConstructionCityObject cityObject = new(
             SlotKey: "slot-a",
             DisplayName: "slot-a",
             PackageName: "bldg",
             ActualMeshCode: "53394525",
             LodLevel: 2,
-            Transform: new PlateauResoniteLink.Targets.Resonite.ResoniteTransform(new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: new PlateauResoniteLink.Targets.Resonite.ResoniteImportedMesh([], []),
+            Transform: new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteTransform(new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteImportedMesh([], []),
             Materials: [],
             SourceFileRelativePath: null);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
-            () => PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveSourceFileRelativePath(cityObject));
+            () => PlateauResoniteLink.Resonite.Targets.Resonite.ResonitePlacementPolicy.ResolveSourceFileRelativePath(cityObject));
 
         Assert.Contains("SourceFileRelativePath", exception.Message, StringComparison.Ordinal);
     }
 
-    private static PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)
+    private static PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)
     {
-        if (PlateauResoniteLink.Domain.Importing.PlateauMeshCode.TryGetGeodeticCenter(
+        if (PlateauResoniteLink.Core.Domain.Importing.PlateauMeshCode.TryGetGeodeticCenter(
             meshCode,
-            out PlateauResoniteLink.Domain.Importing.GeodeticCoordinate center))
+            out PlateauResoniteLink.Core.Domain.Importing.GeodeticCoordinate center))
         {
-            return new PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin(
+            return new PlateauResoniteLink.Resonite.Targets.Resonite.ResoniteLocalOrigin(
                 center.Latitude,
                 center.Longitude,
                 center.Altitude);

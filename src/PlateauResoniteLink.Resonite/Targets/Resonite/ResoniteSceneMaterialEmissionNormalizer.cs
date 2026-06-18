@@ -1,6 +1,6 @@
 using System;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal static class ResoniteSceneMaterialEmissionNormalizer
 {

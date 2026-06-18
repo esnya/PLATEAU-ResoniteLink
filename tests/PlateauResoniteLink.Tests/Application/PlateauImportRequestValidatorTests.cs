@@ -1,4 +1,4 @@
-using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing;
 
 using System;
 using System.Collections.Generic;
@@ -6,7 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Application;
 

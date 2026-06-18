@@ -4,13 +4,13 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Transport.ResoniteLink;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 using PlateauResoniteLink.Core;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal static class ResoniteCityObjectPreparation
 {

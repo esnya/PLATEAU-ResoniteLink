@@ -4,9 +4,9 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 internal sealed class CountingImportedObjectUnitStream(
     IAsyncEnumerable<ImportedObjectUnit> source,

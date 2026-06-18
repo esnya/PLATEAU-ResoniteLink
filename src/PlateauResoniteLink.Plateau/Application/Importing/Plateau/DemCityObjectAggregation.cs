@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal static class DemCityObjectAggregation
 {

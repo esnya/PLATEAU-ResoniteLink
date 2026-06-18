@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal enum CityGmlRoofShape
 {

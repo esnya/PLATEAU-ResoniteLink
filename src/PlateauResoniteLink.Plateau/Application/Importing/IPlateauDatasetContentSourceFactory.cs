@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 internal interface IPlateauDatasetContentSourceFactory
 {

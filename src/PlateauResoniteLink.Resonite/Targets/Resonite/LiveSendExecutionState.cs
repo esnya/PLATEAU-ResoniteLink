@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Core;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal sealed class LiveSendProgressSink
 {

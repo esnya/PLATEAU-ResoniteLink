@@ -1,10 +1,10 @@
 using System.Net.Http;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 using PlateauResoniteLink.Core;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 public interface IResoniteLiveSceneImportFactory
 {

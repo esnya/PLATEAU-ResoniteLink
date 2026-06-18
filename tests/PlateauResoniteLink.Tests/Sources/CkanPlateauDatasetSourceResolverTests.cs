@@ -1,4 +1,5 @@
-using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing;
 
 using System;
 using System.IO;
@@ -9,7 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
 using SharpCompress.Common;
 using SharpCompress.Writers.SevenZip;

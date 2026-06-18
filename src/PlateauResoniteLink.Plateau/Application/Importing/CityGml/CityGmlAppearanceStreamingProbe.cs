@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal static class CityGmlAppearanceStreamingProbe
 {

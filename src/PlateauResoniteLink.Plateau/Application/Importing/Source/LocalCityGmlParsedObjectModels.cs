@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.Linq;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
-namespace PlateauResoniteLink.Application.Importing.Source;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 internal sealed record ParsedRing(
     GeodeticPoint[] Vertices,

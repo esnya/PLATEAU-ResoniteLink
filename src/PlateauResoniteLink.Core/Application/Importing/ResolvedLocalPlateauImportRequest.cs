@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 public sealed record ResolvedLocalPlateauImportRequest
 {

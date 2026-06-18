@@ -2,7 +2,7 @@ using System;
 
 using System.Globalization;
 
-namespace PlateauResoniteLink.Domain.Importing;
+namespace PlateauResoniteLink.Core.Domain.Importing;
 
 public static class WebMercatorTileMath
 {

@@ -1,9 +1,9 @@
 using System;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal sealed record CityGmlParsedSurfaceSource(
     ParsedSurfaceSemantic Semantic,

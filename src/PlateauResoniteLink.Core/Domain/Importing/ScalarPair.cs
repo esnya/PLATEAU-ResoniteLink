@@ -1,4 +1,4 @@
-namespace PlateauResoniteLink.Domain.Importing;
+namespace PlateauResoniteLink.Core.Domain.Importing;
 
 public record ScalarPair(
     double X,

@@ -1,7 +1,7 @@
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal readonly record struct NonDemPreservedMaterialGroupingKey(
     DefaultCommonMaterialMember? CommonMaterial,

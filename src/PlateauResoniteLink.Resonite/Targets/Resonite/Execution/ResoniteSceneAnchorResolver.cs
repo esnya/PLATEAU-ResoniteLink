@@ -3,11 +3,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite.Execution;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
 
 internal interface IResoniteSceneAnchorResolver
 {

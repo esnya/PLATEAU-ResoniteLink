@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal sealed record ResoniteLicenseAttributionMetadata(
     bool RequireCredit,

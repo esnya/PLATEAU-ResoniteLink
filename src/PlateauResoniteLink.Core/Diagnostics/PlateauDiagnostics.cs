@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Threading;
 using System.Text.RegularExpressions;
 
-namespace PlateauResoniteLink.Diagnostics;
+namespace PlateauResoniteLink.Core.Diagnostics;
 
 public static class PlateauDiagnostics
 {

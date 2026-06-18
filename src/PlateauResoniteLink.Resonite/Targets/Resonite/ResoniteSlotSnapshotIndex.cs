@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal sealed class ResoniteSlotSnapshotIndex(
     CreatedSlot datasetRootSlot,

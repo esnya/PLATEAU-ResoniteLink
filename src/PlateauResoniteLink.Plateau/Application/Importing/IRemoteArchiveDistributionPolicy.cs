@@ -1,6 +1,6 @@
 using System;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 public interface IRemoteArchiveDistributionPolicy
 {

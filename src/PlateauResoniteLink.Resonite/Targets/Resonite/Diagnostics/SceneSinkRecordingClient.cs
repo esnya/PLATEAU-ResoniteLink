@@ -5,15 +5,15 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 using ResoniteLink;
 
-using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
-using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportSlotLocator;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using TransportComponentLocator = PlateauResoniteLink.Resonite.Transport.ResoniteLink.ResoniteTransportComponentLocator;
+using TransportSlotLocator = PlateauResoniteLink.Resonite.Transport.ResoniteLink.ResoniteTransportSlotLocator;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite.Diagnostics;
 
 internal sealed record SlotGetRequest(string SlotId, string SlotPath, int Depth);
 

@@ -3,9 +3,9 @@ using System.Linq;
 
 using System.Text.RegularExpressions;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 public static class MeshCodeRequestSyntax
 {

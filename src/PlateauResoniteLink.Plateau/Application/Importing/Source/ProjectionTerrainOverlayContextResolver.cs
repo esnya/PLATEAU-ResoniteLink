@@ -4,10 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
-namespace PlateauResoniteLink.Application.Importing.Source;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 internal sealed record ProjectionTerrainOverlayContext(IReadOnlyList<TerrainTextureOverlay> Overlays)
 {

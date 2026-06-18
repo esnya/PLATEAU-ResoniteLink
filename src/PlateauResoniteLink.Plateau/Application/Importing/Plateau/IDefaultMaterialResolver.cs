@@ -1,5 +1,5 @@
-using PlateauResoniteLink.Application.Importing.Source;
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal interface IDefaultMaterialResolver
 {

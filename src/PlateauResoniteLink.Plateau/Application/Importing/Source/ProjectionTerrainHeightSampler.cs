@@ -4,7 +4,7 @@ using System.Linq;
 
 using GeographicLib;
 
-namespace PlateauResoniteLink.Application.Importing.Source;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 internal sealed record ProjectionTerrainHeightTriangle(
     GeodeticPoint Vertex0,

@@ -1,4 +1,4 @@
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 internal sealed class ImportedSceneSourceSnapshot
 {

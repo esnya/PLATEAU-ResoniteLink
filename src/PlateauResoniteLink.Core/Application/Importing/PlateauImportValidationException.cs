@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 public sealed class PlateauImportValidationException(IReadOnlyList<string> errors)
     : Exception("The PLATEAU import request is invalid.")

@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 public static class RemoteDatasetResourceLayout
 {

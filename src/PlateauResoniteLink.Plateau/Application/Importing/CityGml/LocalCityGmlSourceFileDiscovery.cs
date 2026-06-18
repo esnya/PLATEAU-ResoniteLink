@@ -5,8 +5,9 @@ using System.Linq;
 
 using System.Text.RegularExpressions;
 
-using PlateauResoniteLink.Domain.Importing;
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal static class LocalCityGmlSourceFileDiscovery
 {

@@ -11,10 +11,10 @@ using System.Text.Json.Nodes;
 
 using ResoniteLink;
 
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Targets.Resonite.Diagnostics;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite.Diagnostics;
 
 internal static class SceneSinkRecordingClientCanonicalDump
 {

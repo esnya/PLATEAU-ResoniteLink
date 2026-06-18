@@ -9,12 +9,12 @@ using System.Threading.Tasks;
 using GeographicLib;
 using GeographicLib.Projections;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal static class TerrainTextureGeoReferencedRasterMetadataReader
 {

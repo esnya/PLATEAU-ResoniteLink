@@ -4,9 +4,9 @@ using System.Linq;
 
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
 {

@@ -1,6 +1,6 @@
 using PlateauResoniteLink.Core;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 public sealed record ResoniteFloat2(
     double X,

@@ -1,10 +1,10 @@
 using System;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
 {
@@ -224,5 +224,5 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         return StableVariantSelector.SelectBucket($"{variantSelectionKey}:residential-wall-weight", 5) == 0;
     }
 
-    private static Float2 ToContractFloat2(Domain.Importing.ScalarPair value) => new(value.X, value.Y);
+    private static Float2 ToContractFloat2(ScalarPair value) => new(value.X, value.Y);
 }

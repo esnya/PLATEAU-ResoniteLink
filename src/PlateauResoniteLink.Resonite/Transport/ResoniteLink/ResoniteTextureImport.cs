@@ -1,4 +1,4 @@
-namespace PlateauResoniteLink.Transport.ResoniteLink;
+namespace PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 internal static class ResoniteTextureColorProfiles
 {

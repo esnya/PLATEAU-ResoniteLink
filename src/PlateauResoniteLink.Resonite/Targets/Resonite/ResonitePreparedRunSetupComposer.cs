@@ -1,10 +1,10 @@
 using System;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Targets.Resonite.Execution;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal sealed class ResonitePreparedRunSetupComposer(
     IResoniteSlotCreator slotCreator)

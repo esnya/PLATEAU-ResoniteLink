@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
-using PlateauResoniteLink.Core;
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
-namespace PlateauResoniteLink.Application.Importing.Contracts;
+namespace PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 public sealed record ImportedSceneMetadata(
     string SchemaVersion,

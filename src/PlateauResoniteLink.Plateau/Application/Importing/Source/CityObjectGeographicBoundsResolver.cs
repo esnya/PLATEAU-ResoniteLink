@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
-namespace PlateauResoniteLink.Application.Importing.Source;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 internal static class CityObjectGeographicBoundsResolver
 {

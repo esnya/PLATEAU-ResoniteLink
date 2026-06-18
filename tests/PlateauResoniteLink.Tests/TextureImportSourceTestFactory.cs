@@ -1,10 +1,10 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-using PlateauResoniteLink.Targets.Resonite.Diagnostics;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Diagnostics;
 
 namespace PlateauResoniteLink.Tests;
 

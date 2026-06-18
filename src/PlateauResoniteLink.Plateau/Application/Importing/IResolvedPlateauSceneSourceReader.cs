@@ -1,7 +1,9 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing;
+
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 internal interface IResolvedPlateauSceneSourceReader
 {

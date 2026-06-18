@@ -4,7 +4,7 @@ using System.Linq;
 
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal abstract record PlannedGeometryAsset;
 

@@ -5,9 +5,9 @@ using System.Linq;
 
 using ResoniteLink;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Targets.Resonite.Execution;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
 
 internal static class ResoniteDistanceCullingPlanner
 {

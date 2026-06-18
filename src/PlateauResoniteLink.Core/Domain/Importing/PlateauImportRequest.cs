@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Domain.Importing;
+namespace PlateauResoniteLink.Core.Domain.Importing;
 
 public sealed record PlateauImportRequest(
     string Dataset,

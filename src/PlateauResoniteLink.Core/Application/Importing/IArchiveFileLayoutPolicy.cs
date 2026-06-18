@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 public interface IArchiveFileLayoutPolicy
 {

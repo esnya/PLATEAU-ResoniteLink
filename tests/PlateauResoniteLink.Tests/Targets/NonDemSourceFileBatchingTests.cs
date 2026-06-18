@@ -1,7 +1,7 @@
 
 using System;
 
-using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Resonite.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
 

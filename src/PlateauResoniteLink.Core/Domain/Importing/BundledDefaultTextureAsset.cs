@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 
-namespace PlateauResoniteLink.Domain.Importing;
+namespace PlateauResoniteLink.Core.Domain.Importing;
 
 public interface IBundledDefaultTextureRole
 {

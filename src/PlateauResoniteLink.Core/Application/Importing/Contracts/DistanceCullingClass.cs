@@ -1,4 +1,4 @@
-namespace PlateauResoniteLink.Application.Importing.Contracts;
+namespace PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 public enum DistanceCullingClass
 {

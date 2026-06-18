@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Application.Importing.Contracts;
+namespace PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 public sealed record ImportedObjectUnitDescriptor(
     string SourceFileRelativePath,

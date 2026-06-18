@@ -1,5 +1,5 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
-namespace PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 public sealed record SceneImportRequest(
     ImportedSceneMetadata Metadata,

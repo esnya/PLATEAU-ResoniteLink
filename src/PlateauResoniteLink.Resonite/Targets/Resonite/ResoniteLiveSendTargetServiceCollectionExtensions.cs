@@ -3,11 +3,11 @@ using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-using PlateauResoniteLink.Targets.Resonite.Execution;
-using PlateauResoniteLink.Targets.Resonite.Diagnostics;
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Diagnostics;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 public static class ResoniteLiveSendTargetServiceCollectionExtensions
 {

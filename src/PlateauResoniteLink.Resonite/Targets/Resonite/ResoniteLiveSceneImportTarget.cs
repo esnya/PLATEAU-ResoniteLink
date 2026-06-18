@@ -4,11 +4,11 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-using PlateauResoniteLink.Transport.ResoniteLink;
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 {

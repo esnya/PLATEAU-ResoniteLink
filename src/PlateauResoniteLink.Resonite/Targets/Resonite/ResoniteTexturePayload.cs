@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Immutable;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 public abstract class ResoniteTexturePayload
 {

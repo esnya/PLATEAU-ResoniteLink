@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
-namespace PlateauResoniteLink.Application.Importing.Contracts;
+namespace PlateauResoniteLink.Core.Application.Importing.Contracts;
 
 public static class CommonMaterialDefinitions
 {

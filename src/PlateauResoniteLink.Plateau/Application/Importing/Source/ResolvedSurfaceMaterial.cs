@@ -1,5 +1,5 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
-namespace PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 internal sealed record ResolvedSurfaceMaterial(
     ConstructionFace Face,

@@ -3,9 +3,9 @@ using System.Globalization;
 using System.Linq;
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal sealed class CityGmlLodSelector : ICityGmlLodSelector
 {

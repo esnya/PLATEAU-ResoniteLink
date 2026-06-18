@@ -1,4 +1,4 @@
-using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 
 namespace PlateauResoniteLink.Tests.Profiles;

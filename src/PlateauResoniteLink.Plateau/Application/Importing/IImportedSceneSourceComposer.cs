@@ -1,5 +1,6 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
-namespace PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 internal interface IImportedSceneSourceComposer
 {

@@ -1,5 +1,5 @@
-using PlateauResoniteLink.Application.Importing.Contracts;
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal enum DefaultMaterialSurfaceRole
 {

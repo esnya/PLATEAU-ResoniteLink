@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Threading;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 public interface IImportedObjectUnitOptimizer
 {

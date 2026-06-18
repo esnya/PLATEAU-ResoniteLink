@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 public sealed class CompositeImportedObjectUnitOptimizer(
     IReadOnlyList<IImportedObjectUnitOptimizer> optimizers) : IImportedObjectUnitOptimizer

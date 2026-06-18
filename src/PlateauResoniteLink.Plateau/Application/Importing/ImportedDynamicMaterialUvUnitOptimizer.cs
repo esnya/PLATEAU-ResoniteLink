@@ -3,9 +3,10 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 internal sealed class ImportedDynamicMaterialUvUnitOptimizer : IImportedObjectUnitOptimizer
 {

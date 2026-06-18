@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 public abstract record ResoniteConstructionGeometry;
 

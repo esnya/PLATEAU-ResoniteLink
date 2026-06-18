@@ -5,7 +5,7 @@ using System.Threading;
 
 using PlateauResoniteLink.Core;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal sealed record LiveSendRunRuntimeComponents(
     TerrainTextureAssetCache TerrainTextures,

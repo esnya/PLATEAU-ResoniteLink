@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal static class BuildingAttributePredicates
 {

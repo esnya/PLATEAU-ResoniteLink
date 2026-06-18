@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 using ResoniteLink;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Transport.ResoniteLink;
+namespace PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 internal sealed class MetricsResoniteLinkClient(
     IResoniteLinkClient inner,

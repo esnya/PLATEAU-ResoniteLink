@@ -1,6 +1,6 @@
 using System.Diagnostics.Tracing;
 
-namespace PlateauResoniteLink.Diagnostics;
+namespace PlateauResoniteLink.Core.Diagnostics;
 
 [EventSource(Name = PlateauDiagnostics.EventSourceName)]
 internal sealed class PlateauEventSource : EventSource

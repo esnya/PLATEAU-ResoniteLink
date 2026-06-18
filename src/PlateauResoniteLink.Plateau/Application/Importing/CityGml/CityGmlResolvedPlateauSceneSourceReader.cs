@@ -2,7 +2,9 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Core.Application.Importing;
+
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal sealed class CityGmlResolvedPlateauSceneSourceReader(ICityGmlDocumentReader documentReader) : IResolvedPlateauSceneSourceReader
 {

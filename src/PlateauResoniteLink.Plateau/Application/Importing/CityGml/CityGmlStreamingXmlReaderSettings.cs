@@ -1,6 +1,6 @@
 using System.Xml;
 
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal static class CityGmlStreamingXmlReaderSettings
 {

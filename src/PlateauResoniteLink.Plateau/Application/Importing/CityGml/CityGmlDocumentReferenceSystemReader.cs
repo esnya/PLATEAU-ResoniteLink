@@ -5,9 +5,11 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Application.Importing.Source;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
 
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+using PlateauResoniteLink.Core.Application.Importing;
+
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal static class CityGmlDocumentReferenceSystemReader
 {

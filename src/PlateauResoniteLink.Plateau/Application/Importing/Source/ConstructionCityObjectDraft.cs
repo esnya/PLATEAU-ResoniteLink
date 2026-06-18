@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
 
-using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
-namespace PlateauResoniteLink.Application.Importing.Source;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Source;
 
 internal enum ConstructionFaceRole
 {

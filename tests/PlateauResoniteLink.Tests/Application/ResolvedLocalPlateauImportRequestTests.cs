@@ -1,8 +1,8 @@
-using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Core.Application.Importing;
 
 using System;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Application;

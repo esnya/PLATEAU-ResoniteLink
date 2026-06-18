@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite.Execution;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
 
 internal static class ResoniteBatchOperations
 {

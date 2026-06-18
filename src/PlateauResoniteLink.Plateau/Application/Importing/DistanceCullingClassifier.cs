@@ -1,10 +1,10 @@
 using System;
 
-using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Source;
-using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
+using PlateauResoniteLink.Plateau.Application.Importing.Source;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Plateau.Application.Importing;
 
 internal static class DistanceCullingClassifier
 {

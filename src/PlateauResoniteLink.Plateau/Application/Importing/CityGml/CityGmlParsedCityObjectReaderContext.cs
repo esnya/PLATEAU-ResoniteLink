@@ -3,10 +3,10 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Application.Importing.Plateau;
+using PlateauResoniteLink.Core.Domain.Importing;
+using PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal sealed record CityGmlParsedCityObjectReaderContext(
     string PackageName,

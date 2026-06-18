@@ -4,7 +4,7 @@ using System.Linq;
 
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite.Execution;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
 
 internal static class ResoniteBatchEmissionPlanner
 {

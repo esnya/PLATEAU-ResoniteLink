@@ -1,7 +1,7 @@
 using System;
 using System.Globalization;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Core.Application.Importing;
 
 public sealed class ContinuableImportException : Exception
 {

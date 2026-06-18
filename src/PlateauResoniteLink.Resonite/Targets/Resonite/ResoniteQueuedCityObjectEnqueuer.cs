@@ -4,12 +4,12 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-using PlateauResoniteLink.Diagnostics;
+using PlateauResoniteLink.Core.Diagnostics;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Resonite.Transport.ResoniteLink;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal static class ResoniteQueuedCityObjectEnqueuer
 {

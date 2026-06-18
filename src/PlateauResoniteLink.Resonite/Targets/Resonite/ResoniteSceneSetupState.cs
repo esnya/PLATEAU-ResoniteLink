@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Targets.Resonite.Execution;
+using PlateauResoniteLink.Resonite.Targets.Resonite.Execution;
 
 using ResoniteLink;
-using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Core.Application.Importing.Contracts;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal readonly record struct ResoniteSceneSetupState(
     CreatedSlot DatasetRootSlot,

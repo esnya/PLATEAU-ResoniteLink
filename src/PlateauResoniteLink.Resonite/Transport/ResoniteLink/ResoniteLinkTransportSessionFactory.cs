@@ -1,7 +1,7 @@
 using System;
 
 
-namespace PlateauResoniteLink.Transport.ResoniteLink;
+namespace PlateauResoniteLink.Resonite.Transport.ResoniteLink;
 
 internal static class ResoniteLinkTransportSessionFactory
 {

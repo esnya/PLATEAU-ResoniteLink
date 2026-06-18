@@ -1,6 +1,6 @@
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Core.Domain.Importing;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal readonly record struct BundledTextureImportKey(
     BundledDefaultTextureAsset Asset,

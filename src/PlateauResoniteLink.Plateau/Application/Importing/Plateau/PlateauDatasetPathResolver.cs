@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 
-namespace PlateauResoniteLink.Application.Importing.Plateau;
+namespace PlateauResoniteLink.Plateau.Application.Importing.Plateau;
 
 internal static class PlateauDatasetPathResolver
 {

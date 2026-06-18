@@ -1,4 +1,4 @@
-namespace PlateauResoniteLink.Application.Importing.CityGml;
+namespace PlateauResoniteLink.Plateau.Application.Importing.CityGml;
 
 internal interface ICityGmlAppearanceStoreFactory
 {

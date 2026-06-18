@@ -1,4 +1,4 @@
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Resonite.Targets.Resonite;
 
 internal readonly record struct NonDemSourceFileBatchKey(
     string ActualMeshCode,
