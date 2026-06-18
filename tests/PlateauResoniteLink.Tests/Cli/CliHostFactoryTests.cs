@@ -1,3 +1,5 @@
+using PlateauResoniteLink.Application.Importing.Contracts;
+
 using System;
 using System.IO;
 using System.Net.Http;

@@ -1,3 +1,5 @@
+using PlateauResoniteLink.Application.Importing.Plateau;
+
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;

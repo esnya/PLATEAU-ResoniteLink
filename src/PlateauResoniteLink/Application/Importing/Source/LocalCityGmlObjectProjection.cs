@@ -25,7 +25,7 @@ internal static class LocalCityGmlObjectProjection
     public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = TerrainAlignedTransportationSurfaceSplitter.DefaultSegmentLengthMeters;
     public const double MinTerrainAlignedTransportationSegmentLengthMeters = TerrainAlignedTransportationSurfaceSplitter.MinSegmentLengthMeters;
     public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = TerrainAlignedTransportationSurfaceSplitter.SegmentLengthByWidthRatio;
-    public static readonly MaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = CityGmlSurfaceMaterialResolver.TerrainAlignedDepthOffset;
+    public static readonly MaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = CommonMaterialDefinitions.DefaultTerrainAlignedMaterialDepthOffset;
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
         MeshCodeBounds demBounds,

@@ -1,3 +1,6 @@
+using PlateauResoniteLink.Application.Importing.Contracts;
+using PlateauResoniteLink.Application.Importing.Plateau;
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;

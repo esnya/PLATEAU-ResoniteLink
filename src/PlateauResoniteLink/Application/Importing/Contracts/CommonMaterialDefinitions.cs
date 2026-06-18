@@ -2,20 +2,21 @@ using System;
 using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Application.Importing.Source;
 
 namespace PlateauResoniteLink.Application.Importing.Contracts;
 
 internal static class CommonMaterialDefinitions
 {
+    internal static readonly MaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
+
     public static readonly CommonMaterialDefinition GenericUv = Generic("Uv", null);
     public static readonly CommonMaterialDefinition GenericTerrainAlignedUv = Generic(
         "TerrainAlignedUv",
-        LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset);
+        DefaultTerrainAlignedMaterialDepthOffset);
     public static readonly CommonMaterialDefinition VertexColorUv = VertexColor("Uv", null);
     public static readonly CommonMaterialDefinition VertexColorTerrainAlignedUv = VertexColor(
         "TerrainAlignedUv",
-        LocalCityGmlObjectProjection.DefaultTerrainAlignedMaterialDepthOffset);
+        DefaultTerrainAlignedMaterialDepthOffset);
 
     public static readonly CommonMaterialDefinition CityFurniturePlaster002 = Bundled(BundledDefaultMaterialFamilies.CityFurniture, 0, "Plaster002");
     public static readonly CommonMaterialDefinition CityFurniturePlaster001 = Bundled(BundledDefaultMaterialFamilies.CityFurniture, 1, "Plaster001");
