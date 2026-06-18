@@ -3,15 +3,13 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed record LiveSendRunRuntimeComponents(
     TerrainTextureAssetCache TerrainTextures,
     LiveSendExecutionRuntime Runtime,
     SemaphoreSlim GsiFallbackLicenseGate,
-    ConcurrentDictionary<TerrainTextureSource, int> DemSourceUseCounts);
+    ConcurrentDictionary<TerrainTextureSourceUsage, int> DemSourceUseCounts);
 
 internal static class LiveSendRunRuntimeComponentsFactory
 {
@@ -26,6 +24,6 @@ internal static class LiveSendRunRuntimeComponentsFactory
             new TerrainTextureAssetCache(),
             new LiveSendExecutionRuntime(queuePlan, cancellationToken),
             new SemaphoreSlim(1, 1),
-            new ConcurrentDictionary<TerrainTextureSource, int>());
+            new ConcurrentDictionary<TerrainTextureSourceUsage, int>());
     }
 }

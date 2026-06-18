@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing.CityGml;
 
-internal sealed class CityGmlImportedSceneSourceReader(ICityGmlDocumentReader documentReader) : IImportedSceneSourceReader
+internal sealed class CityGmlResolvedPlateauSceneSourceReader(ICityGmlDocumentReader documentReader) : IResolvedPlateauSceneSourceReader
 {
     private readonly ICityGmlDocumentReader documentReader =
         documentReader ?? throw new ArgumentNullException(nameof(documentReader));

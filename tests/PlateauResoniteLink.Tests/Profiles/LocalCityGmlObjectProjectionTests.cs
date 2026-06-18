@@ -40,8 +40,9 @@ public sealed class LocalCityGmlObjectProjectionTests
                 new RemoteArchiveDistributionPolicy(),
             new ArchiveFileLayoutPolicy()),
             importedSceneSourceFactory: new DefaultImportedSceneSourceFactory(
-                new CityGmlImportedSceneSourceReader(documentReader),
+                new CityGmlResolvedPlateauSceneSourceReader(documentReader),
                 new DefaultImportedSceneSourceComposer(
+                    new DefaultImportedSceneMetadataComposer(),
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                     new DefaultDemTextureSourcePolicy(
                         new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
@@ -77,8 +78,9 @@ public sealed class LocalCityGmlObjectProjectionTests
         PlateauImportRequest importRequest = request.ToImportRequest();
 
         DefaultImportedSceneSourceFactory factory = new(
-            new CityGmlImportedSceneSourceReader(documentReader),
+            new CityGmlResolvedPlateauSceneSourceReader(documentReader),
             new DefaultImportedSceneSourceComposer(
+                new DefaultImportedSceneMetadataComposer(),
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
                 new DefaultDemTextureSourcePolicy(
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(

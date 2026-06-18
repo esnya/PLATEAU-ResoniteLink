@@ -6,7 +6,6 @@ using PlateauResoniteLink.Application.Importing.Source;
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -43,32 +42,29 @@ public sealed class DefaultImportedSceneSourceComposerTests
             documentSet,
             new ImportedSceneSourceContext([], new GeodeticPoint(35.0, 139.0, 12.5)));
 
-        DefaultImportedSceneSourceComposer composer = new(
-            new ThrowingGeometryProjector(),
-            new StubDemTextureSourcePolicy());
+        DefaultImportedSceneMetadataComposer composer = new();
 
-        IImportedSceneSource source = composer.Compose(
+        ImportedSceneMetadata metadata = composer.Compose(
             request,
-            readResult,
-            new PassthroughImportedObjectUnitOptimizer());
+            readResult);
 
-        Assert.Equal("3.0", source.Metadata.SchemaVersion);
-        Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
-        Assert.Equal(importRequest, source.Metadata.Request);
-        Assert.Equal(documentSet.PackageNames, source.Metadata.SourceDataset.PackageNames);
-        Assert.Equal(documentSet.RelativeSourceFiles, source.Metadata.SourceDataset.SourceFiles);
-        Assert.Equal(documentSet.SelectedMeshCodes, source.Metadata.SourceDataset.SelectedMeshCodes);
-        Assert.Equal("bldg", source.Metadata.SourceDataset.SourceFilePackageNamesByRelativePath?["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
-        Assert.Equal(35.0, source.Metadata.GeodeticOrigin.Latitude);
-        Assert.Equal(139.0, source.Metadata.GeodeticOrigin.Longitude);
-        Assert.Equal(12.5, source.Metadata.GeodeticOrigin.Altitude);
+        Assert.Equal("3.0", metadata.SchemaVersion);
+        Assert.Equal("PLATEAU tokyo23ku 53394525", metadata.SceneName);
+        Assert.Equal(importRequest, metadata.Request);
+        Assert.Equal(documentSet.PackageNames, metadata.SourceDataset.PackageNames);
+        Assert.Equal(documentSet.RelativeSourceFiles, metadata.SourceDataset.SourceFiles);
+        Assert.Equal(documentSet.SelectedMeshCodes, metadata.SourceDataset.SelectedMeshCodes);
+        Assert.Equal("bldg", metadata.SourceDataset.SourceFilePackageNamesByRelativePath?["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+        Assert.Equal(35.0, metadata.GeodeticOrigin.Latitude);
+        Assert.Equal(139.0, metadata.GeodeticOrigin.Longitude);
+        Assert.Equal(12.5, metadata.GeodeticOrigin.Altitude);
         Assert.Equal(
             new LicenseMetadata(
                 RequireCredit: true,
                 CreditText: "Contains PLATEAU dataset content for tokyo23ku. Follow the original PLATEAU dataset terms and provide source attribution when redistributing derived content.",
                 LicenseName: "PLATEAU Open Data Terms",
                 LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
-            source.Metadata.Attribution.DatasetLicense);
+            metadata.Attribution.DatasetLicense);
     }
 
     [Fact]
@@ -95,6 +91,7 @@ public sealed class DefaultImportedSceneSourceComposerTests
             new ImportedSceneSourceContext([], new GeodeticPoint(35.0, 139.0, 0.0)));
         RecordingDemTextureSourcePolicy demTextureSourcePolicy = new();
         DefaultImportedSceneSourceComposer composer = new(
+            new DefaultImportedSceneMetadataComposer(),
             new ThrowingGeometryProjector(),
             demTextureSourcePolicy);
 
@@ -136,41 +133,6 @@ public sealed class DefaultImportedSceneSourceComposerTests
             _ = predicate;
             _ = cancellationToken;
             throw new InvalidOperationException("Compose should not project geometry.");
-        }
-    }
-
-    private sealed class EmptyDatasetContentSource : IPlateauDatasetContentSource
-    {
-        public string SourcePath => "/tmp/plateau";
-
-        public IReadOnlyList<string> EnumerateFiles()
-        {
-            return [];
-        }
-
-        public bool FileExists(string relativePath)
-        {
-            return false;
-        }
-
-        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
-        {
-            return null;
-        }
-
-        public ValueTask<Stream> OpenReadAsync(
-            string relativePath,
-            CancellationToken cancellationToken = default)
-        {
-            throw new FileNotFoundException(relativePath);
-        }
-
-        public Task<string> EnsureLocalFileAsync(
-            string relativePath,
-            string outputRoot,
-            CancellationToken cancellationToken = default)
-        {
-            throw new FileNotFoundException(relativePath);
         }
     }
 

@@ -51,10 +51,10 @@ public sealed class TerrainTextureAssetGeneratorTests
                 ResoniteTextureColorProfiles.Srgb,
                 [255, 255, 255, 255]),
             TextureUvRect.Unit,
-            []);
+            Array.Empty<TerrainTextureSourceUsage>());
 
-        Assert.Empty(texture.UsedSources);
-        Assert.Throws<InvalidOperationException>(() => texture.UsedSource);
+        Assert.Empty(texture.Usages);
+        Assert.Throws<InvalidOperationException>(() => texture.Usage);
     }
 
     [Fact]
@@ -71,13 +71,16 @@ public sealed class TerrainTextureAssetGeneratorTests
                 textureSource,
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                (TerrainTextureSource)null!));
+                (TerrainTextureSourceUsage)null!));
 
         ArgumentException exception = Assert.Throws<ArgumentException>(() =>
             new GeneratedTerrainTexture(
                 textureSource,
                 TextureUvRect.Unit,
-                [new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 17), null!]));
+                [
+                    TerrainTextureSourceUsage.FromSource(new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 17)),
+                    null!,
+                ]));
 
         Assert.Contains("cannot contain null", exception.Message, StringComparison.Ordinal);
     }
@@ -132,7 +135,11 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         TerrainTextureTileSource usedSource = new("https://used.example/{z}/{x}/{y}.png", 17);
         TerrainTextureTileSource otherSource = new("https://other.example/{z}/{x}/{y}.png", 17);
-        List<TerrainTextureSource> trackedSources = [usedSource, otherSource];
+        List<TerrainTextureSourceUsage> usages =
+        [
+            TerrainTextureSourceUsage.FromSource(usedSource),
+            TerrainTextureSourceUsage.FromSource(otherSource),
+        ];
         GeneratedTerrainTexture texture = new(
             TextureImportSourceTestFactory.CreateRawTextureSource(
                 1,
@@ -140,13 +147,15 @@ public sealed class TerrainTextureAssetGeneratorTests
                 ResoniteTextureColorProfiles.Srgb,
                 [255, 255, 255, 255]),
             TextureUvRect.Unit,
-            trackedSources);
+            usages);
 
-        trackedSources.Clear();
+        usages.Clear();
 
-        Assert.Equal(usedSource, texture.UsedSource);
-        Assert.Equal([usedSource, otherSource], texture.UsedSources);
-        Assert.IsNotType<TerrainTextureSource[]>(texture.UsedSources);
+        Assert.Equal(TerrainTextureSourceUsage.FromSource(usedSource), texture.Usage);
+        Assert.Equal(
+            [TerrainTextureSourceUsage.FromSource(usedSource), TerrainTextureSourceUsage.FromSource(otherSource)],
+            texture.Usages);
+        Assert.IsNotType<TerrainTextureSourceUsage[]>(texture.Usages);
     }
 
     [Fact]
@@ -166,7 +175,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Empty(texture.UsedSources);
+        Assert.Empty(texture.Usages);
         Assert.True(texture.OccupiedUvRect.IsIdentity);
         using Image<Rgba32> image = LoadImage(texture.TextureSource);
         Assert.Equal(1, image.Width);
@@ -184,7 +193,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Empty(texture.UsedSources);
+        Assert.Empty(texture.Usages);
         using Image<Rgba32> image = LoadImage(texture.TextureSource);
         Assert.Equal(1, image.Width);
         Assert.Equal(1, image.Height);
@@ -617,7 +626,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
-        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
+        Assert.Equal(nameof(TerrainTextureTileSource), texture.Usage.TextureImportName);
         Assert.Contains(("primary.example", 2), handler.HostZoomRequests);
         Assert.Contains(("primary.example", 1), handler.HostZoomRequests);
         Assert.DoesNotContain(("fallback.example", 1), handler.HostZoomRequests);
@@ -674,9 +683,8 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         Assert.NotEmpty(Materialize(texture.TextureSource).Bytes);
         Assert.Contains(
-            texture.UsedSources,
-            static source => source is TerrainTextureTileSource tileSource
-                && tileSource.UrlTemplate == "https://primary.example/{z}/{x}/{y}.png");
+            texture.Usages,
+            static usage => usage.Description.Contains("https://primary.example/{z}/{x}/{y}.png", StringComparison.Ordinal));
         Assert.Contains("primary.example", handler.RequestedHosts);
         Assert.Contains("fallback.example", handler.RequestedHosts);
 

@@ -8,12 +8,12 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFactory
 {
-    private readonly IImportedSceneSourceReader sourceReader;
+    private readonly IResolvedPlateauSceneSourceReader sourceReader;
     private readonly IImportedSceneSourceComposer constructionComposer;
     private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
 
     internal DefaultImportedSceneSourceFactory(
-        IImportedSceneSourceReader sourceReader,
+        IResolvedPlateauSceneSourceReader sourceReader,
         IImportedSceneSourceComposer constructionComposer,
         IImportedObjectUnitOptimizer objectUnitOptimizer)
     {

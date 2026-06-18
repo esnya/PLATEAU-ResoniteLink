@@ -170,6 +170,7 @@ internal sealed class DeterministicTerrainTextureAssetGenerator : ITerrainTextur
     {
         cancellationToken.ThrowIfCancellationRequested();
         TerrainTextureSource usedSource = terrainTextureOverlay.GetRequiredPrimaryTileSource();
+        TerrainTextureSourceUsage usage = TerrainTextureSourceUsage.FromSource(usedSource);
         return Task.FromResult(new GeneratedTerrainTexture(
             TextureImportSourceFactory.CreateInMemoryRaw(
                 2,
@@ -179,6 +180,6 @@ internal sealed class DeterministicTerrainTextureAssetGenerator : ITerrainTextur
                 "canonical-dump-terrain-texture"),
             new ResoniteFloat2(1.0, 1.0),
             new ResoniteFloat2(0.0, 0.0),
-            usedSource));
+            usage));
     }
 }

@@ -1,7 +1,6 @@
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Importing.CityGml;
 using PlateauResoniteLink.Application.Importing.Contracts;
-using PlateauResoniteLink.Application.Importing.Plateau;
 using PlateauResoniteLink.Application.Importing.Source;
 
 using System;
@@ -500,7 +499,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                overlay.PrimarySource));
+                TerrainTextureSourceUsage.FromSource(overlay.PrimarySource)));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -651,9 +650,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                new TerrainTextureTileSource(
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel)));
+                TerrainTextureSourceUsage.FromSource(
+                    new TerrainTextureTileSource(
+                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel))));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -730,7 +730,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                [gsiFallbackSource, rasterSource]));
+                [
+                    TerrainTextureSourceUsage.FromSource(gsiFallbackSource),
+                    TerrainTextureSourceUsage.FromSource(rasterSource),
+                ]));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -804,9 +807,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                new TerrainTextureTileSource(
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel)));
+                TerrainTextureSourceUsage.FromSource(
+                    new TerrainTextureTileSource(
+                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel))));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -871,7 +875,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
-                rasterSource));
+                TerrainTextureSourceUsage.FromSource(rasterSource)));
         await using ResoniteLiveSceneImportTarget importTarget = ResoniteLiveSceneImportTargetTestSupport.CreateImportTarget(
             routedClient,
             terrainTextureGenerator,
@@ -920,18 +924,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             .ReadAsync(
             request,
             cancellationToken: default);
-        ImportedSceneMetadata metadata = new DefaultImportedSceneSourceComposer(
-                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver(CommonMaterialCatalog.Create())),
-                new DefaultDemTextureSourcePolicy(
-                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
-                        new DefaultPlateauDatasetContentSourceFactory(
-                            new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy()))))
-            .Compose(
-                request,
-                readResult,
-                new PassthroughImportedObjectUnitOptimizer())
-            .Metadata;
+        ImportedSceneMetadata metadata = new DefaultImportedSceneMetadataComposer().Compose(
+            request,
+            readResult);
 
         _ = await importTarget.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),

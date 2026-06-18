@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal interface IImportedSceneSourceReader
+internal interface IResolvedPlateauSceneSourceReader
 {
     Task<ImportedSceneSourceSnapshot> ReadAsync(
         ResolvedLocalPlateauImportRequest request,

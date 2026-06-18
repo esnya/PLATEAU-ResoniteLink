@@ -121,7 +121,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         Assert.Same(reader.ReadResult, composer.LastReadResult);
     }
 
-    private sealed class RecordingDocumentReader : IImportedSceneSourceReader
+    private sealed class RecordingDocumentReader : IResolvedPlateauSceneSourceReader
     {
         public RecordingDocumentReader(ImportedSceneSourceSnapshot? readResult = null)
         {

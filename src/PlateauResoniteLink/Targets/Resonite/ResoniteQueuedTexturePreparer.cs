@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -75,11 +74,11 @@ internal sealed class ResoniteQueuedTexturePreparer(
         GeneratedTerrainTexture terrainTexture = await terrainTextureAssetGenerator.EnsureTextureAsync(
             terrainTextureOverlay,
             cancellationToken);
-        TerrainTextureSource[] usedSources = GetTrackedTerrainTextureSources(terrainTexture);
-        foreach (TerrainTextureSource usedSource in usedSources)
+        TerrainTextureSourceUsage[] usages = GetTrackedTerrainTextureSourceUsages(terrainTexture);
+        foreach (TerrainTextureSourceUsage usage in usages)
         {
             int useCount = state.DemSourceUseCounts.AddOrUpdate(
-                usedSource,
+                usage,
                 1,
                 static (_, current) => checked(current + 1));
             if (useCount == 1)
@@ -87,10 +86,10 @@ internal sealed class ResoniteQueuedTexturePreparer(
                 PlateauDiagnostics.Progress(
                     "Resolved DEM terrain texture source for package '{PackageName}' to {TerrainTextureSource}.",
                     terrainTextureOverlay.PackageName,
-                    DescribeTerrainTextureSource(usedSource));
+                    usage.Description);
             }
 
-            if (IsGsiFallbackSource(usedSource))
+            if (usage.RequiresGsiFallbackLicense)
             {
                 await EnsureGsiFallbackLicenseAsync(state, routedClient, cancellationToken);
             }
@@ -102,10 +101,10 @@ internal sealed class ResoniteQueuedTexturePreparer(
             terrainTexture);
     }
 
-    private static TerrainTextureSource[] GetTrackedTerrainTextureSources(
+    private static TerrainTextureSourceUsage[] GetTrackedTerrainTextureSourceUsages(
         GeneratedTerrainTexture terrainTexture)
     {
-        return terrainTexture.UsedSources
+        return terrainTexture.Usages
             .Distinct()
             .ToArray();
     }
@@ -138,28 +137,6 @@ internal sealed class ResoniteQueuedTexturePreparer(
         {
             state.GsiFallbackLicenseGate.Release();
         }
-    }
-
-    private static bool IsGsiFallbackSource(TerrainTextureSource source)
-    {
-        return DemTerrainTextureDefaults.IsGsiFallbackSource(source);
-    }
-
-    private static string DescribeTerrainTextureSource(TerrainTextureSource source)
-    {
-        return source switch
-        {
-            TerrainTextureGeoReferencedRasterSource rasterSource => string.Create(
-                CultureInfo.InvariantCulture,
-                $"Geo-referenced raster(source='{rasterSource.ContentSource.Description}', crs='{rasterSource.Metadata.CoordinateSystemIdentifier}')"),
-            TerrainTextureTileSource tileSource when IsGsiFallbackSource(tileSource) => string.Create(
-                CultureInfo.InvariantCulture,
-                $"GSI seamless photo tile(z={tileSource.ZoomLevel})"),
-            TerrainTextureTileSource tileSource => string.Create(
-                CultureInfo.InvariantCulture,
-                $"PLATEAU-Ortho tile(z={tileSource.ZoomLevel})"),
-            _ => source.GetType().Name,
-        };
     }
 
     private static Task<PreparedTextureReference?> PrepareDirectMaterialTextureReferenceAsync(

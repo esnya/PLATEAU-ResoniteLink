@@ -26,6 +26,7 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
         services.TryAddSingleton<IDefaultMaterialResolver, DefaultMaterialResolver>();
         services.TryAddSingleton<ICityGmlGeometryProjector, LocalCityGmlGeometryProjector>();
+        services.TryAddSingleton<IImportedSceneMetadataComposer, DefaultImportedSceneMetadataComposer>();
         services.TryAddSingleton<ImportedDynamicMaterialUvUnitOptimizer>();
         services.TryAddSingleton<IImportedObjectUnitOptimizer>(provider =>
             new CompositeImportedObjectUnitOptimizer(
@@ -34,6 +35,7 @@ internal static class PlateauImportServiceCollectionExtensions
                 ]));
         services.TryAddSingleton<IImportedSceneSourceComposer>(provider =>
             new DefaultImportedSceneSourceComposer(
+                provider.GetRequiredService<IImportedSceneMetadataComposer>(),
                 provider.GetRequiredService<ICityGmlGeometryProjector>(),
                 provider.GetRequiredService<IDemTextureSourcePolicy>()));
         services.TryAddSingleton<ICityGmlDocumentReader>(provider =>
@@ -41,10 +43,10 @@ internal static class PlateauImportServiceCollectionExtensions
                 provider.GetRequiredService<IPlateauDatasetContentSourceFactory>(),
                 provider.GetRequiredService<ICityGmlAppearanceStoreFactory>(),
                 provider.GetRequiredService<ICityGmlLodSelector>()));
-        services.TryAddSingleton<IImportedSceneSourceReader, CityGmlImportedSceneSourceReader>();
+        services.TryAddSingleton<IResolvedPlateauSceneSourceReader, CityGmlResolvedPlateauSceneSourceReader>();
         services.TryAddSingleton<IImportedSceneSourceFactory>(provider =>
             new DefaultImportedSceneSourceFactory(
-                provider.GetRequiredService<IImportedSceneSourceReader>(),
+                provider.GetRequiredService<IResolvedPlateauSceneSourceReader>(),
                 provider.GetRequiredService<IImportedSceneSourceComposer>(),
                 provider.GetRequiredService<IImportedObjectUnitOptimizer>()));
 

@@ -75,15 +75,27 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddImportedSceneSourceServicesPreservesCustomImportedSceneSourceReader()
+    public void AddImportedSceneSourceServicesPreservesCustomResolvedPlateauSceneSourceReader()
     {
-        CustomImportedSceneSourceReader reader = new();
+        CustomResolvedPlateauSceneSourceReader reader = new();
         ServiceProvider provider = new ServiceCollection()
-            .AddSingleton<IImportedSceneSourceReader>(reader)
+            .AddSingleton<IResolvedPlateauSceneSourceReader>(reader)
             .AddImportedSceneSourceServices()
             .BuildServiceProvider();
 
-        Assert.Same(reader, provider.GetRequiredService<IImportedSceneSourceReader>());
+        Assert.Same(reader, provider.GetRequiredService<IResolvedPlateauSceneSourceReader>());
+    }
+
+    [Fact]
+    public void AddImportedSceneSourceServicesPreservesCustomImportedSceneMetadataComposer()
+    {
+        CustomImportedSceneMetadataComposer composer = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<IImportedSceneMetadataComposer>(composer)
+            .AddImportedSceneSourceServices()
+            .BuildServiceProvider();
+
+        Assert.Same(composer, provider.GetRequiredService<IImportedSceneMetadataComposer>());
     }
 
     [Fact]
@@ -134,7 +146,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class CustomImportedSceneSourceReader : IImportedSceneSourceReader
+    private sealed class CustomResolvedPlateauSceneSourceReader : IResolvedPlateauSceneSourceReader
     {
         public Task<ImportedSceneSourceSnapshot> ReadAsync(
             ResolvedLocalPlateauImportRequest request,
@@ -142,6 +154,18 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         {
             _ = request;
             _ = cancellationToken;
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class CustomImportedSceneMetadataComposer : IImportedSceneMetadataComposer
+    {
+        public ImportedSceneMetadata Compose(
+            ResolvedLocalPlateauImportRequest request,
+            ImportedSceneSourceSnapshot readResult)
+        {
+            _ = request;
+            _ = readResult;
             throw new NotSupportedException();
         }
     }

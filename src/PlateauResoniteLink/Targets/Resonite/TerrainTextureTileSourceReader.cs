@@ -72,6 +72,7 @@ internal sealed class TerrainTextureTileSourceReader(
         }
 
         return TerrainTextureSourceReadResult.Rendered(
+            TerrainTextureSourceUsage.FromSource(tileSource),
             new TerrainTextureSourceImage(
                 stitchedImage.Clone(context => context.Crop(new Rectangle(
                     tileCrop.CropLeft,
@@ -328,19 +329,25 @@ internal sealed class TerrainTextureTileSourceReader(
 internal sealed record TerrainTextureSourceReadResult(
     TerrainTextureSourceReadResultKind Kind,
     TerrainTextureSourceImage? Image,
+    TerrainTextureSourceUsage? Usage,
     string? FailureMessage)
 {
     public static TerrainTextureSourceReadResult CoverageMiss { get; } = new(
         TerrainTextureSourceReadResultKind.CoverageMiss,
         Image: null,
+        Usage: null,
         FailureMessage: null);
 
-    public static TerrainTextureSourceReadResult Rendered(TerrainTextureSourceImage image)
+    public static TerrainTextureSourceReadResult Rendered(
+        TerrainTextureSourceUsage usage,
+        TerrainTextureSourceImage image)
     {
+        ArgumentNullException.ThrowIfNull(usage);
         ArgumentNullException.ThrowIfNull(image);
         return new TerrainTextureSourceReadResult(
             TerrainTextureSourceReadResultKind.Rendered,
             image,
+            usage,
             FailureMessage: null);
     }
 
@@ -350,6 +357,7 @@ internal sealed record TerrainTextureSourceReadResult(
         return new TerrainTextureSourceReadResult(
             TerrainTextureSourceReadResultKind.SourceFailure,
             Image: null,
+            Usage: null,
             failureMessage);
     }
 }

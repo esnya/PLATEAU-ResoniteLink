@@ -28,13 +28,13 @@ internal sealed record GeneratedTerrainTexture
         ITextureImportSource textureSource,
         ResoniteFloat2 canvasScale,
         ResoniteFloat2 canvasOffset,
-        TerrainTextureSource usedSource)
+        TerrainTextureSourceUsage usage)
         : this(
             textureSource,
             TextureUvRect.FromScaleOffsetValue(
                 new ScalarPair(canvasScale.X, canvasScale.Y),
                 new ScalarPair(canvasOffset.X, canvasOffset.Y)),
-            CreateSingleUsedSourceSnapshot(usedSource))
+            CreateSingleUsageSnapshot(usage))
     {
     }
 
@@ -42,58 +42,58 @@ internal sealed record GeneratedTerrainTexture
         ITextureImportSource textureSource,
         ResoniteFloat2 canvasScale,
         ResoniteFloat2 canvasOffset,
-        IReadOnlyList<TerrainTextureSource> usedSources)
+        IReadOnlyList<TerrainTextureSourceUsage> usages)
         : this(
             textureSource,
             TextureUvRect.FromScaleOffsetValue(
                 new ScalarPair(canvasScale.X, canvasScale.Y),
                 new ScalarPair(canvasOffset.X, canvasOffset.Y)),
-            usedSources)
+            usages)
     {
     }
 
     public GeneratedTerrainTexture(
         ITextureImportSource textureSource,
         TextureUvRect occupiedUvRect,
-        IReadOnlyList<TerrainTextureSource> usedSources)
+        IReadOnlyList<TerrainTextureSourceUsage> usages)
     {
         ArgumentNullException.ThrowIfNull(textureSource);
 
-        TerrainTextureSource[] trackedSources = CreateUsedSourceSnapshot(usedSources);
+        TerrainTextureSourceUsage[] trackedUsages = CreateUsageSnapshot(usages);
 
         TextureSource = textureSource;
         OccupiedUvRect = occupiedUvRect;
-        UsedSources = Array.AsReadOnly(trackedSources);
+        Usages = Array.AsReadOnly(trackedUsages);
     }
 
     public ITextureImportSource TextureSource { get; }
 
     public TextureUvRect OccupiedUvRect { get; }
 
-    public TerrainTextureSource UsedSource => UsedSources.Count == 0
+    public TerrainTextureSourceUsage Usage => Usages.Count == 0
         ? throw new InvalidOperationException("Generated terrain texture has no tracked source.")
-        : UsedSources[0];
+        : Usages[0];
 
-    public IReadOnlyList<TerrainTextureSource> UsedSources { get; }
+    public IReadOnlyList<TerrainTextureSourceUsage> Usages { get; }
 
-    private static TerrainTextureSource[] CreateSingleUsedSourceSnapshot(TerrainTextureSource usedSource)
+    private static TerrainTextureSourceUsage[] CreateSingleUsageSnapshot(TerrainTextureSourceUsage usage)
     {
-        ArgumentNullException.ThrowIfNull(usedSource);
-        return [usedSource];
+        ArgumentNullException.ThrowIfNull(usage);
+        return [usage];
     }
 
-    private static TerrainTextureSource[] CreateUsedSourceSnapshot(IReadOnlyList<TerrainTextureSource> usedSources)
+    private static TerrainTextureSourceUsage[] CreateUsageSnapshot(IReadOnlyList<TerrainTextureSourceUsage> usages)
     {
-        ArgumentNullException.ThrowIfNull(usedSources);
+        ArgumentNullException.ThrowIfNull(usages);
 
-        TerrainTextureSource[] sources = new TerrainTextureSource[usedSources.Count];
-        for (int index = 0; index < usedSources.Count; index++)
+        TerrainTextureSourceUsage[] trackedUsages = new TerrainTextureSourceUsage[usages.Count];
+        for (int index = 0; index < usages.Count; index++)
         {
-            sources[index] = usedSources[index]
-                ?? throw new ArgumentException("Generated terrain texture sources cannot contain null.", nameof(usedSources));
+            trackedUsages[index] = usages[index]
+                ?? throw new ArgumentException("Generated terrain texture usages cannot contain null.", nameof(usages));
         }
 
-        return sources.Distinct<TerrainTextureSource>(ReferenceEqualityComparer.Instance).ToArray();
+        return trackedUsages.Distinct().ToArray();
     }
 }
 
@@ -145,8 +145,8 @@ internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerat
     {
         Image<Rgba32>? composedTexture = null;
         TextureUvRect? composedOccupiedUvRect = null;
-        List<TerrainTextureSource> usedSources = [];
-        TerrainTextureSource? primaryRenderedSource = null;
+        List<TerrainTextureSourceUsage> usages = [];
+        TerrainTextureSourceUsage? primaryUsage = null;
 
         for (int sourceIndex = 0; sourceIndex < terrainTextureOverlay.Sources.Count; sourceIndex++)
         {
@@ -178,16 +178,18 @@ internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerat
                 {
                     composedTexture = image.Clone();
                     composedOccupiedUvRect = sourceImage.OccupiedUvRect;
-                    primaryRenderedSource = terrainTextureSource;
-                    usedSources.Add(terrainTextureSource);
+                    primaryUsage = sourceResult.Usage
+                        ?? throw new InvalidOperationException("Rendered terrain texture source result must include usage.");
+                    usages.Add(primaryUsage);
                 }
                 else
                 {
                     using Image<Rgba32> resizedImage = ResizeSourceImage(image, composedTexture.Width, composedTexture.Height);
                     if (FillTransparentPixels(composedTexture, resizedImage))
                     {
-                        primaryRenderedSource = terrainTextureSource;
-                        usedSources.Add(terrainTextureSource);
+                        primaryUsage = sourceResult.Usage
+                            ?? throw new InvalidOperationException("Rendered terrain texture source result must include usage.");
+                        usages.Add(primaryUsage);
                     }
                 }
                 if (!HasTransparentPixels(composedTexture))
@@ -204,8 +206,8 @@ internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerat
             GeneratedTerrainTexture generatedTexture = CreateGeneratedTexture(
                 composedTexture,
                 terrainTextureOverlay.MaxTextureSize,
-                primaryRenderedSource,
-                usedSources,
+                primaryUsage,
+                usages,
                 composedOccupiedUvRect);
             return new CachedTerrainTexture(generatedTexture);
         }
@@ -214,21 +216,21 @@ internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerat
     private static GeneratedTerrainTexture CreateGeneratedTexture(
         Image<Rgba32> image,
         int maxTextureSize,
-        TerrainTextureSource? primarySource,
-        List<TerrainTextureSource> usedSources,
+        TerrainTextureSourceUsage? primaryUsage,
+        List<TerrainTextureSourceUsage> usages,
         TextureUvRect? sourceOccupiedUvRect)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
         using Image<Rgba32> opaqueImage = CreateOpaqueGroundImage(image);
 
-        if (TryCreatePowerOfTwoCanvasTexture(opaqueImage, maxTextureSize, primarySource, usedSources, sourceOccupiedUvRect, out GeneratedTerrainTexture? generatedTexture))
+        if (TryCreatePowerOfTwoCanvasTexture(opaqueImage, maxTextureSize, primaryUsage, usages, sourceOccupiedUvRect, out GeneratedTerrainTexture? generatedTexture))
         {
             return generatedTexture!;
         }
 
         int fallbackMaxTextureSize = TexturePowerOfTwo.RoundDown(maxTextureSize);
         using Image<Rgba32> resizedImage = ResizeToMaxTextureSize(opaqueImage, fallbackMaxTextureSize);
-        if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, primarySource, usedSources, null, out generatedTexture))
+        if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, primaryUsage, usages, null, out generatedTexture))
         {
             return generatedTexture!;
         }
@@ -240,8 +242,8 @@ internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerat
     private static bool TryCreatePowerOfTwoCanvasTexture(
         Image<Rgba32> image,
         int maxTextureSize,
-        TerrainTextureSource? primarySource,
-        IReadOnlyList<TerrainTextureSource> usedSources,
+        TerrainTextureSourceUsage? primaryUsage,
+        IReadOnlyList<TerrainTextureSourceUsage> usages,
         TextureUvRect? sourceOccupiedUvRect,
         out GeneratedTerrainTexture? generatedTexture)
     {
@@ -276,26 +278,26 @@ internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerat
                 canvasWidth,
                 canvasHeight);
         generatedTexture = new GeneratedTerrainTexture(
-            CreateTextureSource(canvasImage, primarySource),
+            CreateTextureSource(canvasImage, primaryUsage),
             occupiedUvRect,
-            CreateUsedSourcesWithPrimaryFirst(primarySource, usedSources));
+            CreateUsagesWithPrimaryFirst(primaryUsage, usages));
         return true;
     }
 
-    private static TerrainTextureSource[] CreateUsedSourcesWithPrimaryFirst(
-        TerrainTextureSource? primarySource,
-        IReadOnlyList<TerrainTextureSource> usedSources)
+    private static TerrainTextureSourceUsage[] CreateUsagesWithPrimaryFirst(
+        TerrainTextureSourceUsage? primaryUsage,
+        IReadOnlyList<TerrainTextureSourceUsage> usages)
     {
-        if (primarySource is null)
+        if (primaryUsage is null)
         {
-            return usedSources.ToArray();
+            return usages.ToArray();
         }
 
         return
         [
-            primarySource,
-            .. usedSources
-                .Where(source => !ReferenceEquals(source, primarySource)),
+            primaryUsage,
+            .. usages
+                .Where(usage => usage != primaryUsage),
         ];
     }
 
@@ -434,11 +436,11 @@ internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerat
             }));
     }
 
-    private static ITextureImportSource CreateTextureSource(Image<Rgba32> image, TerrainTextureSource? usedSource)
+    private static ITextureImportSource CreateTextureSource(Image<Rgba32> image, TerrainTextureSourceUsage? usage)
     {
         return TextureImportSourceFactory.CreateGeneratedImageFromClone(
             image,
-            usedSource is null ? "terrain:default-ground" : $"terrain:{usedSource.GetType().Name}",
+            usage is null ? "terrain:default-ground" : $"terrain:{usage.TextureImportName}",
             ResoniteTextureColorProfiles.Srgb);
     }
 

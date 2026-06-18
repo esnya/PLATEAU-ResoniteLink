@@ -211,7 +211,7 @@ public sealed class ResoniteMaterialPlanningTests
                 CreateRawTextureSource(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.0, 0.0),
-                overlay.PrimarySource),
+                TerrainTextureSourceUsage.FromSource(overlay.PrimarySource)),
         };
 
         ResoniteMaterialBinding effectiveMaterial = ResoniteMaterialPlanning.ResolveTerrainTextureCanvasMaterial(
@@ -298,7 +298,7 @@ public sealed class ResoniteMaterialPlanningTests
                 CreateRawTextureSource(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.0, 0.0),
-                overlay.PrimarySource),
+                TerrainTextureSourceUsage.FromSource(overlay.PrimarySource)),
         };
 
         ResoniteMaterialBinding effectiveMaterial = ResoniteMaterialPlanning.ResolveTerrainTextureCanvasMaterial(

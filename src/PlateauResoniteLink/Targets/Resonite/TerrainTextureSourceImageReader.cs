@@ -98,7 +98,9 @@ internal sealed class DefaultTerrainTextureSourceImageReader(
                 return TerrainTextureSourceReadResult.CoverageMiss;
             }
 
-            return TerrainTextureSourceReadResult.Rendered(new TerrainTextureSourceImage(cropped, null));
+            return TerrainTextureSourceReadResult.Rendered(
+                TerrainTextureSourceUsage.FromSource(rasterSource),
+                new TerrainTextureSourceImage(cropped, null));
         }
     }
 }
