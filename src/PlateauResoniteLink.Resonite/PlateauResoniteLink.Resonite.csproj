@@ -18,14 +18,6 @@
   <ItemGroup>
     <Compile Include="..\PlateauResoniteLink\Targets\Resonite\**\*.cs" LinkBase="Resonite" />
     <Compile Include="..\PlateauResoniteLink\Transport\ResoniteLink\**\*.cs" LinkBase="ResoniteLink" />
-    <Compile Remove="..\PlateauResoniteLink\Targets\Resonite\AsyncCompletedResultCache.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Targets\Resonite\PersistentTerrainTileCache.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Targets\Resonite\TerrainTextureAssetGenerator.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Targets\Resonite\TerrainTextureAssetGeneratorFactory.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Targets\Resonite\TerrainTextureSourceImage.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Targets\Resonite\TerrainTextureSourceImageReader.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Targets\Resonite\TerrainTextureTileSourceReader.cs" />
-    <Compile Remove="..\PlateauResoniteLink\Targets\Resonite\TexturePowerOfTwo.cs" />
     <EmbeddedResource Include="..\PlateauResoniteLink\Assets\DefaultMaterials/**/*.jpg" LinkBase="Assets\DefaultMaterials" />
     <EmbeddedResource Include="..\PlateauResoniteLink\Assets\DefaultMaterials/**/*.png" LinkBase="Assets\DefaultMaterials" />
   </ItemGroup>

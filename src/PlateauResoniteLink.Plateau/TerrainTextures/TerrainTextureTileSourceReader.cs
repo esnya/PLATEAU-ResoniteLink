@@ -12,7 +12,7 @@ using SixLabors.ImageSharp.Processing;
 
 using PlateauResoniteLink.Core;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Plateau.TerrainTextures;
 
 internal sealed class TerrainTextureTileSourceReader(
     HttpClient httpClient,

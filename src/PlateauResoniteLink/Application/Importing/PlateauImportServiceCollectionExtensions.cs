@@ -7,7 +7,7 @@ using PlateauResoniteLink.Application.Importing.CityGml;
 using PlateauResoniteLink.Application.Importing.Contracts;
 using PlateauResoniteLink.Application.Importing.Plateau;
 using PlateauResoniteLink.Application.Importing.Source;
-using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Plateau.TerrainTextures;
 
 using PlateauResoniteLink.Core;
 

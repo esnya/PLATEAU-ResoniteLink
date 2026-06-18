@@ -39,12 +39,6 @@
     <Compile Remove="..\PlateauResoniteLink\Application\Importing\SceneImportRequest.cs" />
     <Compile Remove="..\PlateauResoniteLink\Application\Importing\ValidatedDatasetLocation.cs" />
     <Compile Remove="..\PlateauResoniteLink\Application\Importing\ValidatedPlateauImportRequest.cs" />
-    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\PersistentTerrainTileCache.cs" Link="TerrainTextures\PersistentTerrainTileCache.cs" />
-    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\TerrainTextureAssetGenerator.cs" Link="TerrainTextures\TerrainTextureAssetGenerator.cs" />
-    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\TerrainTextureAssetGeneratorFactory.cs" Link="TerrainTextures\TerrainTextureAssetGeneratorFactory.cs" />
-    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\TerrainTextureSourceImage.cs" Link="TerrainTextures\TerrainTextureSourceImage.cs" />
-    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\TerrainTextureSourceImageReader.cs" Link="TerrainTextures\TerrainTextureSourceImageReader.cs" />
-    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\TerrainTextureTileSourceReader.cs" Link="TerrainTextures\TerrainTextureTileSourceReader.cs" />
   </ItemGroup>
 
 </Project>

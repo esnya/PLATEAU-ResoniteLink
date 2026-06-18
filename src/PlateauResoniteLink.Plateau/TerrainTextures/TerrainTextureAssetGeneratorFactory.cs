@@ -3,7 +3,7 @@ using System.Net.Http;
 
 using PlateauResoniteLink.Core;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Plateau.TerrainTextures;
 
 internal sealed class TerrainTextureAssetGeneratorFactory(
     ITerrainTextureSourceImageReaderFactory sourceImageReaderFactory) : ITerrainTextureAssetGeneratorFactory

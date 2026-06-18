@@ -5,7 +5,7 @@ using PlateauResoniteLink.Domain.Importing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Plateau.TerrainTextures;
 
 internal sealed class TerrainTextureSourceImage(
     Image<Rgba32> image,

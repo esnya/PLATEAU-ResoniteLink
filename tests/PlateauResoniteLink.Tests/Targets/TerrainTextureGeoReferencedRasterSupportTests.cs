@@ -12,7 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Plateau.TerrainTextures;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;

@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Plateau.TerrainTextures;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using SixLabors.ImageSharp;

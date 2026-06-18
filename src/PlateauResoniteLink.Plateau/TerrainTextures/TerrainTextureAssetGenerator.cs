@@ -14,7 +14,7 @@ using PlateauResoniteLink.Application.Importing.Contracts;
 
 using PlateauResoniteLink.Core;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Plateau.TerrainTextures;
 
 internal sealed class TerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
 {

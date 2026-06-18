@@ -35,8 +35,6 @@
     <Compile Include="..\PlateauResoniteLink\Application\Importing\SceneImportRequest.cs" Link="Importing\SceneImportRequest.cs" />
     <Compile Include="..\PlateauResoniteLink\Application\Importing\ValidatedDatasetLocation.cs" Link="Importing\ValidatedDatasetLocation.cs" />
     <Compile Include="..\PlateauResoniteLink\Application\Importing\ValidatedPlateauImportRequest.cs" Link="Importing\ValidatedPlateauImportRequest.cs" />
-    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\AsyncCompletedResultCache.cs" Link="AsyncCompletedResultCache.cs" />
-    <Compile Include="..\PlateauResoniteLink\Targets\Resonite\TexturePowerOfTwo.cs" Link="TexturePowerOfTwo.cs" />
   </ItemGroup>
 
 </Project>
